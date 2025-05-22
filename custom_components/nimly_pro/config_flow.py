@@ -67,3 +67,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 }
             ),
         )
+        
+    async def async_step_import(self, user_input=None):
+        """Handle import from configuration.yaml."""
+        return await self.async_step_user(user_input)

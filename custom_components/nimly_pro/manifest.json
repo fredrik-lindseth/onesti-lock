@@ -1,0 +1,11 @@
+{
+  "domain": "nimly_pro",
+  "name": "Nimly Touch Pro",
+  "config_flow": true,
+  "documentation": "https://github.com/yourusername/nimly_pro",
+  "dependencies": ["zha"],
+  "codeowners": ["@yourusername"],
+  "requirements": [],
+  "iot_class": "local_polling",
+  "version": "0.1.0"
+}

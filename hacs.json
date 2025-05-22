@@ -1,0 +1,6 @@
+{
+  "name": "Nimly Touch Pro",
+  "render_readme": true,
+  "homeassistant": "2023.11.0",
+  "hacs": "1.28.0"
+}

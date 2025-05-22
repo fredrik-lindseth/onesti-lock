@@ -13,7 +13,7 @@ from .const import DOMAIN, DOORLOCK_CLUSTER_ID
 
 _LOGGER = logging.getLogger(__name__)
 
-class NimlyProConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Nimly Touch Pro."""
 
     VERSION = 1

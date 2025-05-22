@@ -2,10 +2,10 @@
   "domain": "nimly_pro",
   "name": "Nimly Touch Pro",
   "config_flow": true,
-  "documentation": "https://github.com/yourusername/nimly_pro",
+  "documentation": "https://github.com/fredrik-lindseth/nimly-touch-pro-integration",
   "dependencies": ["zha"],
-  "codeowners": ["@yourusername"],
+  "codeowners": ["@fredrik-lindseth"],
   "requirements": [],
   "iot_class": "local_polling",
-  "version": "0.1.0"
+  "version": "0.1.1"
 }

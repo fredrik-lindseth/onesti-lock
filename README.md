@@ -1,3 +1,5 @@
+** not ready for production! Alpha-warning **
+
 # Nimly Touch Pro Integration for Home Assistant
 
 This custom integration enhances the functionality of Nimly Touch Pro locks in Home Assistant, providing access to additional features not available in the standard ZHA integration.

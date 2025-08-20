@@ -38,7 +38,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             # Check if this is a Nimly lock
             if (
                 device.manufacturer == "Onesti Products AS" and
-                device.model in ["NimlyPRO"]
+                device.model in ["NimlyPRO", "NimlyPRO24"]
             ):
                 # Check if it has the door lock cluster
                 for endpoint in device.endpoints.values():

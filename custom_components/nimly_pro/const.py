@@ -7,12 +7,12 @@ DOMAIN = "nimly_pro"
 CONF_IEEE = "ieee"
 CONF_DEVICE_PATH = "device_path"
 
-# Zigbee Cluster Identifiers
-DOORLOCK_CLUSTER_ID = "0x0101"
-POWER_CLUSTER_ID = "0x0001"
-BASIC_CLUSTER_ID = "0x0000"
-OTA_CLUSTER_ID = "0x0019"
-MANUFACTURER_SPECIFIC_CLUSTER_ID = "0xfea2"
+# Zigbee Cluster Identifiers (as integers for comparison with cluster.cluster_id)
+DOORLOCK_CLUSTER_ID = 0x0101  # 257
+POWER_CLUSTER_ID = 0x0001  # 1
+BASIC_CLUSTER_ID = 0x0000  # 0
+OTA_CLUSTER_ID = 0x0019  # 25
+MANUFACTURER_SPECIFIC_CLUSTER_ID = 0xFEA2  # 65186
 
 # Attribute IDs from the diagnostics file
 ATTR_LOCK_STATE = "0x0000"

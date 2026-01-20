@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install linters
+        run: |
+          pip install ruff
+
+      - name: Validate manifest
+        run: |
+          jq empty custom_components/nimly_pro/manifest.json || exit 1
+          echo "Manifest JSON is valid"
+
+      - name: Check required files
+        run: |
+          REQUIRED_FILES=(
+            "custom_components/nimly_pro/__init__.py"
+            "custom_components/nimly_pro/manifest.json"
+            "custom_components/nimly_pro/config_flow.py"
+            "custom_components/nimly_pro/const.py"
+            "custom_components/nimly_pro/strings.json"
+            "README.md"
+          )
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "Missing required file: $file"
+              exit 1
+            fi
+          done
+          echo "All required files present"
+
+      - name: Check Python syntax
+        run: |
+          python -m py_compile custom_components/nimly_pro/*.py
+          echo "Python syntax is valid"
+
+      - name: Lint with Ruff
+        run: |
+          ruff check custom_components/nimly_pro/ --ignore E501,F401
+          echo "Ruff linting passed"
+
+      - name: Check version consistency
+        run: |
+          VERSION=$(jq -r '.version' custom_components/nimly_pro/manifest.json)
+          echo "Version: $VERSION"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid version format: $VERSION"
+            exit 1
+          fi
+          echo "Version format is valid"

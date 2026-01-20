@@ -42,9 +42,9 @@ jobs:
           PREV_TAG=$(git tag --sort=-version:refname | grep -v "$CURRENT_VERSION" | head -n 1)
           
           if [ -z "$PREV_TAG" ]; then
-            # First release - get all commits
-            COMMITS=$(git log --pretty=format:"- %s" --no-merges)
-            echo "First release - showing all commits"
+            # First release - get recent commits (limit to 20)
+            COMMITS=$(git log --pretty=format:"- %s" --no-merges -20)
+            echo "First release - showing recent commits"
           else
             # Get commits since previous tag
             COMMITS=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s" --no-merges)
@@ -66,9 +66,13 @@ jobs:
           tag_name: v${{ steps.version.outputs.version }}
           name: v${{ steps.version.outputs.version }}
           body: |
-            ## Endringer
+            ## Changes
             
             ${{ steps.changelog.outputs.commits }}
+            
+            ---
+            
+            **Full Changelog**: https://github.com/fredrik-lindseth/nimly-touch-pro-integration/compare/${{ steps.changelog.outputs.prev_tag || 'initial' }}...v${{ steps.version.outputs.version }}
           draft: false
           prerelease: false
 

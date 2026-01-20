@@ -39,7 +39,7 @@ def get_zha_gateway(hass):
             if isinstance(entry_data, dict) and "gateway" in entry_data:
                 return entry_data["gateway"]
 
-    _LOGGER.warning("Could not find ZHA gateway in data: %s", type(zha_data))
+    _LOGGER.debug("Could not find ZHA gateway in data: %s", type(zha_data))
     return None
 
 

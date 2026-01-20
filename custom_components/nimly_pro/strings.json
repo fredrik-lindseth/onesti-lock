@@ -1,0 +1,18 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Select Nimly Touch Pro Lock",
+        "description": "Select the Nimly Touch Pro lock you want to add.",
+        "data": {
+          "device": "Device"
+        }
+      }
+    },
+    "abort": {
+      "zha_not_found": "ZHA integration not found. Please set up ZHA first.",
+      "no_devices_found": "No Nimly Touch Pro devices found. Make sure your lock is paired with ZHA.",
+      "already_configured": "This device is already configured."
+    }
+  }
+}

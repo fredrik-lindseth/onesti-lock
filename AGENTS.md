@@ -25,6 +25,13 @@ Home Assistant custom integration for Nimly Touch Pro smart locks, providing ext
 4. Ask user before pushing
 5. Push triggers GitHub Action that creates release automatically
 
+## Release Notes Guidelines
+- Write release notes for **end users**, not developers
+- Only include changes that are relevant to users (bug fixes, new features, improvements)
+- Skip internal changes (refactoring, CI/CD, code cleanup) unless they affect functionality
+- Use clear, non-technical language when possible
+- Format with sections: "Bug Fixes", "New Features", "Improvements" as needed
+
 ## Important Files
 | File | Description |
 |------|-------------|

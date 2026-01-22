@@ -2,7 +2,7 @@
 Nimly Touch Pro Lock Integration for Home Assistant.
 """
 import logging
-import voluptuous as vol
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.const import Platform

@@ -10,7 +10,6 @@ from homeassistant.helpers.event import async_track_time_interval
 import homeassistant.util.dt as dt_util
 
 from .const import (
-    DOMAIN,
     DOORLOCK_CLUSTER_ID,
     ATTR_LOCK_STATE,
     EVENT_TYPE_RF_UNLOCK,
@@ -129,7 +128,7 @@ class NimlyProLock(LockEntity):
 
         return attributes
 
-    async def async_lock(self, **kwargs: Any) -> None:
+    async def async_lock(self, **_kwargs: Any) -> None:
         """Lock the lock."""
         try:
             result = await self._doorlock_cluster.lock_door()
@@ -139,7 +138,7 @@ class NimlyProLock(LockEntity):
         except Exception as ex:
             _LOGGER.error("Error locking door: %s", ex)
 
-    async def async_unlock(self, **kwargs: Any) -> None:
+    async def async_unlock(self, **_kwargs: Any) -> None:
         """Unlock the lock."""
         try:
             result = await self._doorlock_cluster.unlock_door()

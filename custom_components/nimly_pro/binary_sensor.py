@@ -9,7 +9,6 @@ from homeassistant.components.binary_sensor import (
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_time_interval
-import homeassistant.util.dt as dt_util
 
 from .const import (
     DOORLOCK_CLUSTER_ID,

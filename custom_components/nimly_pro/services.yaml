@@ -1,0 +1,97 @@
+set_pin:
+  name: Set PIN code
+  description: Set a PIN code for a lock slot
+  fields:
+    slot:
+      name: Slot
+      description: User slot number (0-9)
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 9
+          mode: box
+    name:
+      name: Name
+      description: Name for this user (e.g. "Kari")
+      required: true
+      selector:
+        text:
+    code:
+      name: PIN code
+      description: PIN code (4-8 digits)
+      required: true
+      selector:
+        text:
+    ieee:
+      name: IEEE address
+      description: Lock IEEE address (optional if only one lock)
+      required: false
+      selector:
+        text:
+
+clear_pin:
+  name: Clear PIN code
+  description: Remove a PIN code from a lock slot
+  fields:
+    slot:
+      name: Slot
+      description: User slot number (0-9)
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 9
+          mode: box
+    ieee:
+      name: IEEE address
+      description: Lock IEEE address (optional if only one lock)
+      required: false
+      selector:
+        text:
+
+set_name:
+  name: Set slot name
+  description: Set or change the name for a slot without changing the PIN
+  fields:
+    slot:
+      name: Slot
+      description: User slot number (0-9)
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 9
+          mode: box
+    name:
+      name: Name
+      description: Name for this user
+      required: true
+      selector:
+        text:
+    ieee:
+      name: IEEE address
+      description: Lock IEEE address (optional if only one lock)
+      required: false
+      selector:
+        text:
+
+clear_slot:
+  name: Clear slot
+  description: Remove all credentials and name from a slot
+  fields:
+    slot:
+      name: Slot
+      description: User slot number (0-9)
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 9
+          mode: box
+    ieee:
+      name: IEEE address
+      description: Lock IEEE address (optional if only one lock)
+      required: false
+      selector:
+        text:

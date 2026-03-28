@@ -1,6 +1,6 @@
 {
-  "domain": "nimly_pro",
-  "name": "Nimly PRO",
+  "domain": "onesti_lock",
+  "name": "Onesti Lock",
   "codeowners": ["@fredrik-lindseth"],
   "config_flow": true,
   "dependencies": ["zha"],

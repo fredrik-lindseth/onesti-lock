@@ -2,23 +2,23 @@
   "config": {
     "step": {
       "user": {
-        "title": "Legg til Nimly PRO",
-        "description": "Velg hvilken Nimly-lås du vil administrere PIN-koder for.",
+        "title": "Legg til Onesti Lock",
+        "description": "Velg hvilken Onesti-lås du vil administrere PIN-koder for.",
         "data": {
           "device": "Lås"
         }
       }
     },
     "abort": {
-      "zha_not_found": "ZHA integration not found. Set up ZHA first.",
-      "no_devices_found": "No Nimly PRO locks found in ZHA.",
-      "already_configured": "This lock is already configured."
+      "zha_not_found": "ZHA-integrasjon ikke funnet. Sett opp ZHA først.",
+      "no_devices_found": "Ingen Onesti Lock-låser funnet i ZHA.",
+      "already_configured": "Denne låsen er allerede konfigurert."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Nimly PRO — PIN-administrasjon",
+        "title": "Onesti Lock — PIN-administrasjon",
         "menu_options": {
           "set_pin": "Sett PIN-kode",
           "clear_pin": "Fjern PIN-kode",
@@ -27,7 +27,7 @@
       },
       "set_pin": {
         "title": "Sett PIN-kode",
-        "description": "Velg slot, skriv navn og PIN-kode (4-8 siffer). Husk å vekke låsen først!",
+        "description": "Velg slot, skriv navn og PIN-kode (4-8 siffer). Vekk låsen først!",
         "data": {
           "slot": "Brukerslot",
           "name": "Navn",
@@ -36,7 +36,7 @@
       },
       "clear_pin": {
         "title": "Fjern PIN-kode",
-        "description": "Velg bruker å fjerne. Husk å vekke låsen først!",
+        "description": "Velg bruker å fjerne. Vekk låsen først!",
         "data": {
           "slot": "Bruker"
         }

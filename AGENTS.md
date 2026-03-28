@@ -1,34 +1,29 @@
 # Agent Instructions for Nimly Touch Pro Integration
 
-## Project Description
-Home Assistant custom integration for Nimly Touch Pro smart locks, providing extended functionality beyond the standard ZHA integration:
-- **Lock Control** - Lock/unlock with user tracking
-- **Sensors** - Door state, battery, firmware version
-- **Settings** - LED brightness, sound volume, auto-relock time
+## Generelle regler
+Se OpenCode "developer" agent for standard utviklingspraksis.
 
-## Language
-- Code: English (variable names, functions, code comments)
-- Commit messages: Norwegian with descriptive body
-- Documentation: English
-- Communication: English or Norwegian
+## Prosjektspesifikk
 
-## Git Preferences
-- Skriv commit-meldinger på norsk med beskrivende body
-- Bruk commit-historikken som en logg over hva som er forsøkt, hva som feilet, og kontekst for senere arbeid
-- Eksempel på god commit-melding:
-  ```
-  Fiks ZHA device-tilgang for HA 2024.x+
-  
-  Problemet var at ZHA-strukturen endret seg i nyere HA-versjoner.
-  Tidligere: hass.data["zha"]["gateway"]
-  Nå: hass.data["zha"].gateway_proxy.device_proxies
-  
-  Feilet først med get_zha_gateway() som ikke fantes lenger.
-  Løst ved å lage helpers.py som navigerer den nye strukturen.
-  ```
-- **Always ask before pushing to remote** (push triggers a new release!)
-- Bump version in `manifest.json` before pushing new releases
-- Follow semantic versioning (MAJOR.MINOR.PATCH)
+## Prosjektbeskrivelse
+Home Assistant custom integration for Nimly Touch Pro smart locks som gir PIN-kode management via services. ZHA håndterer grunnleggende låskontroll (lås/lås opp, sensorer).
+
+**Arkitektur:**
+- `PLATFORMS = []` - Ingen egne entiteter, ZHA håndterer dette
+- Services for PIN-kode management (`nimly_pro.set_pin_code`, etc.)
+- Bruker ZHA/zigpy for Zigbee-kommunikasjon
+
+## Important Files
+| File                                         | Description                         |
+|----------------------------------------------|-------------------------------------|
+| `custom_components/nimly_pro/manifest.json`  | Version and dependencies            |
+| `custom_components/nimly_pro/__init__.py`    | Entry point, service registration   |
+| `custom_components/nimly_pro/services.py`    | PIN code service implementations    |
+| `custom_components/nimly_pro/services.yaml`  | Service descriptions for HA UI      |
+| `custom_components/nimly_pro/helpers.py`     | ZHA device/cluster access helpers   |
+| `custom_components/nimly_pro/config_flow.py` | Configuration flow for adding locks |
+| `custom_components/nimly_pro/const.py`       | Constants and Zigbee cluster IDs    |
+| `custom_components/nimly_pro/strings.json`   | UI strings for config flow          |
 
 ## Release Process
 1. Make your changes
@@ -43,17 +38,6 @@ Home Assistant custom integration for Nimly Touch Pro smart locks, providing ext
 - Skip internal changes (refactoring, CI/CD, code cleanup) unless they affect functionality
 - Use clear, non-technical language when possible
 - Format with sections: "Bug Fixes", "New Features", "Improvements" as needed
-
-## Important Files
-| File                                         | Description                         |
-|----------------------------------------------|-------------------------------------|
-| `custom_components/nimly_pro/manifest.json`  | Version and dependencies            |
-| `custom_components/nimly_pro/config_flow.py` | Configuration flow for adding locks |
-| `custom_components/nimly_pro/const.py`       | Constants and Zigbee cluster IDs    |
-| `custom_components/nimly_pro/helpers.py`     | ZHA device access helpers           |
-| `custom_components/nimly_pro/lock.py`        | Lock entity implementation          |
-| `custom_components/nimly_pro/sensor.py`      | Sensor entities                     |
-| `custom_components/nimly_pro/strings.json`   | UI strings for config flow          |
 
 ## Version Compatibility
 
@@ -94,39 +78,58 @@ ssh ha-local
 
 ### Deploy and Test Workflow
 ```bash
-# 1. Copy files to HA
-scp custom_components/nimly_pro/*.py ha-local:/config/custom_components/nimly_pro/
+# 1. Deploy files (use cat redirect - scp may not work with rules)
+ssh ha-local "cat > /config/custom_components/nimly_pro/services.py" < custom_components/nimly_pro/services.py
+ssh ha-local "cat > /config/custom_components/nimly_pro/helpers.py" < custom_components/nimly_pro/helpers.py
 
 # 2. Clear cache and restart
 ssh ha-local "rm -rf /config/custom_components/nimly_pro/__pycache__ && ha core restart"
 
-# 3. Wait for restart and check logs
-sleep 30 && ssh ha-local "ha core logs --lines 100 2>&1" | grep -i nimly
-```
-
-### One-liner
-```bash
-scp custom_components/nimly_pro/*.py ha-local:/config/custom_components/nimly_pro/ && \
-ssh ha-local "rm -rf /config/custom_components/nimly_pro/__pycache__ && ha core restart"
+# 3. Check logs after restart
+ssh ha-local "ha core logs --lines 100" | grep -i nimly
 ```
 
 ### Checking Logs
 ```bash
 # All nimly-related logs
-ssh ha-local "ha core logs --lines 200 2>&1" | grep -i nimly
+ssh ha-local "ha core logs --lines 200" | grep -i nimly
 
 # Errors only
-ssh ha-local "ha core logs --lines 200 2>&1" | grep -i -E "(nimly.*error|error.*nimly)"
-
-# Full recent logs
-ssh ha-local "ha core logs --lines 50"
+ssh ha-local "ha core logs --lines 200" | grep -i -E "(nimly.*error|error.*nimly)"
 ```
 
-### Entity Registry
-Check which entities are registered:
-```bash
-ssh ha-local "grep -i nimly /config/.storage/core.entity_registry"
-```
+## Development Notes
+
+### ZCL Door Lock Cluster (0x0101)
+Nimly implements the standard ZCL Door Lock cluster. Key commands:
+
+| Command ID | Name | Parameters |
+|------------|------|------------|
+| 0x00 | lock_door | pin_code? |
+| 0x01 | unlock_door | pin_code? |
+| 0x05 | set_pin_code | user_id, user_status, user_type, pin_code |
+| 0x06 | get_pin_code | user_id |
+| 0x07 | clear_pin_code | user_id |
+| 0x08 | clear_all_pin_codes | - |
+| 0x09 | set_user_status | user_id, user_status |
+| 0x0A | get_user_status | user_id |
+
+### Batteridrevne enheter og timeout
+Nimly er en batteridrevet EndDevice som sover for å spare strøm. Dette gir utfordringer:
+
+1. **Direkte cluster-kall får ofte timeout** - Enheten sover
+2. **ZHA lock/unlock fungerer** - ZHA bruker sannsynligvis en annen mekanisme
+3. **Mulige løsninger:**
+   - Bruk `zha_device.issue_cluster_command()` hvis tilgjengelig
+   - Undersøk hvordan ZHA sin lock-entity sender kommandoer
+   - Vurder å bruke ZHA's websocket API
+
+### Kjente problemer
+- PIN-kommandoer får timeout selv om lock/unlock fungerer via ZHA
+- Må undersøke hvordan ZHA sender lock-kommandoer for å kopiere mekanismen
+
+### Input validering
+Alltid trim IEEE-adresser: `ieee = ieee.strip()` - UI kan legge til mellomrom.
 
 ## Common Pitfalls
 
@@ -136,23 +139,16 @@ The ZHA integration internal API is not stable. When something breaks:
 - Look for `HAZHAData`, `ZHAGatewayProxy`, `ZHADeviceProxy` classes
 - Update `helpers.py` to match current structure
 
-### 2. Deprecated Imports
-Common deprecations to watch for:
-- `STATE_LOCKED`/`STATE_UNLOCKED` -> Use `LockState.LOCKED`/`LockState.UNLOCKED`
-- `get_zha_gateway()` from ZHA -> Use custom helper in `helpers.py`
-- `dt_util.timedelta` -> Use `from datetime import timedelta`
-
-### 3. Device vs DeviceProxy
+### 2. Device vs DeviceProxy
 - `ZHADeviceProxy` - Wrapper with name, availability info
 - `ZHADeviceProxy.device` - Actual `zha.zigbee.device.Device`
 - `zha_device.device.device` - Underlying `zigpy` device with endpoints/clusters
 
-Always get both and use appropriately:
 ```python
-zha_device = get_zha_device(hass, ieee)  # ZHA device wrapper
-zigpy_device = zha_device
-if hasattr(zha_device, "device"):
-    zigpy_device = zha_device.device  # For cluster access
+zha_device, cluster, endpoint_id = get_zha_device_and_cluster(hass, ieee)
+# zha_device = ZHADeviceProxy (for issue_cluster_command)
+# cluster = zigpy cluster (for direct calls)
+# endpoint_id = endpoint number (usually 11 for Nimly)
 ```
 
 ## ZHA Integration
@@ -161,3 +157,30 @@ This integration depends on ZHA (Zigbee Home Automation). Key points:
 - Uses Zigbee cluster IDs (Door Lock cluster: 0x0101)
 - Manufacturer: "Onesti Products AS"
 - Models: "NimlyPRO", "NimlyPRO24"
+
+## Landing the Plane (Session Completion)
+
+**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+
+**MANDATORY WORKFLOW:**
+
+1. **File issues for remaining work** - Create issues for anything that needs follow-up
+2. **Run quality gates** (if code changed) - Tests, linters, builds
+3. **Update issue status** - Close finished work, update in-progress items
+4. **PUSH TO REMOTE** - This is MANDATORY:
+   ```bash
+   git pull --rebase
+   bd sync
+   git push
+   git status  # MUST show "up to date with origin"
+   ```
+5. **Clean up** - Clear stashes, prune remote branches
+6. **Verify** - All changes committed AND pushed
+7. **Hand off** - Provide context for next session
+
+**CRITICAL RULES:**
+- Work is NOT complete until `git push` succeeds
+- NEVER stop before pushing - that leaves work stranded locally
+- NEVER say "ready to push when you are" - YOU must push
+- If push fails, resolve and retry until it succeeds
+Use 'bd' for task tracking

@@ -14,5 +14,44 @@
       "no_devices_found": "No Nimly PRO locks found in ZHA.",
       "already_configured": "This lock is already configured."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Nimly PRO — PIN-administrasjon",
+        "menu_options": {
+          "set_pin": "Sett PIN-kode",
+          "clear_pin": "Fjern PIN-kode",
+          "view_slots": "Vis brukerslots"
+        }
+      },
+      "set_pin": {
+        "title": "Sett PIN-kode",
+        "description": "Velg slot, skriv navn og PIN-kode (4-8 siffer). Husk å vekke låsen først!",
+        "data": {
+          "slot": "Brukerslot",
+          "name": "Navn",
+          "code": "PIN-kode"
+        }
+      },
+      "clear_pin": {
+        "title": "Fjern PIN-kode",
+        "description": "Velg bruker å fjerne. Husk å vekke låsen først!",
+        "data": {
+          "slot": "Bruker"
+        }
+      },
+      "view_slots": {
+        "title": "Brukerslots",
+        "description": "{slot_status}"
+      }
+    },
+    "error": {
+      "invalid_pin": "PIN-kode må være 4-8 siffer",
+      "lock_unreachable": "Kunne ikke nå låsen — trykk en knapp på låsen og prøv igjen"
+    },
+    "abort": {
+      "no_active_slots": "Ingen aktive PIN-koder å fjerne"
+    }
   }
 }

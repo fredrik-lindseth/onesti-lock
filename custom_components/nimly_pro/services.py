@@ -9,7 +9,7 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 import homeassistant.helpers.config_validation as cv
 
-from .const import DOMAIN, NUM_SLOTS
+from .const import DOMAIN, MAX_SLOTS, SLOT_FIRST_USER
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,8 +35,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         code = call.data["code"]
         ieee = call.data.get("ieee")
 
-        if not 0 <= slot < NUM_SLOTS:
-            raise HomeAssistantError(f"Slot must be 0-{NUM_SLOTS - 1}")
+        if not SLOT_FIRST_USER <= slot < MAX_SLOTS:
+            raise HomeAssistantError(f"Slot must be {SLOT_FIRST_USER}-{MAX_SLOTS - 1}")
         if not code.isdigit() or len(code) < 4 or len(code) > 8:
             raise HomeAssistantError("PIN must be 4-8 digits")
 
@@ -51,8 +51,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         slot = call.data["slot"]
         ieee = call.data.get("ieee")
 
-        if not 0 <= slot < NUM_SLOTS:
-            raise HomeAssistantError(f"Slot must be 0-{NUM_SLOTS - 1}")
+        if not SLOT_FIRST_USER <= slot < MAX_SLOTS:
+            raise HomeAssistantError(f"Slot must be {SLOT_FIRST_USER}-{MAX_SLOTS - 1}")
 
         coordinator = _get_coordinator(hass, ieee)
         success = await coordinator.clear_pin(slot)
@@ -66,8 +66,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         name = call.data["name"]
         ieee = call.data.get("ieee")
 
-        if not 0 <= slot < NUM_SLOTS:
-            raise HomeAssistantError(f"Slot must be 0-{NUM_SLOTS - 1}")
+        if not SLOT_FIRST_USER <= slot < MAX_SLOTS:
+            raise HomeAssistantError(f"Slot must be {SLOT_FIRST_USER}-{MAX_SLOTS - 1}")
 
         coordinator = _get_coordinator(hass, ieee)
         await coordinator.set_slot_name(slot, name)
@@ -76,8 +76,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         slot = call.data["slot"]
         ieee = call.data.get("ieee")
 
-        if not 0 <= slot < NUM_SLOTS:
-            raise HomeAssistantError(f"Slot must be 0-{NUM_SLOTS - 1}")
+        if not SLOT_FIRST_USER <= slot < MAX_SLOTS:
+            raise HomeAssistantError(f"Slot must be {SLOT_FIRST_USER}-{MAX_SLOTS - 1}")
 
         coordinator = _get_coordinator(hass, ieee)
         await coordinator.clear_slot(slot)

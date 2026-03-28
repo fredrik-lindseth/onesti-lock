@@ -1,4 +1,4 @@
-"""Coordinator for Nimly PRO — slot data and ZHA cluster access."""
+"""Coordinator for Onesti Lock — slot data and ZHA cluster access."""
 from __future__ import annotations
 
 import asyncio

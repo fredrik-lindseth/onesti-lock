@@ -12,7 +12,7 @@ from .const import (
     CONF_IEEE,
     DEFAULT_SLOT,
     DOORLOCK_CLUSTER_ID,
-    NUM_SLOTS,
+    MAX_SLOTS,
     ZHA_DOMAIN,
 )
 
@@ -35,7 +35,7 @@ class NimlyCoordinator:
         """Load slot data from config entry options."""
         stored = self.entry.options.get("slots", {})
         self._slots = {}
-        for i in range(NUM_SLOTS):
+        for i in range(MAX_SLOTS):
             key = str(i)
             self._slots[key] = {**DEFAULT_SLOT, **stored.get(key, {})}
 

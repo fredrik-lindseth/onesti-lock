@@ -1,6 +1,6 @@
-"""Constants for Nimly PRO integration."""
+"""Constants for Onesti Lock integration."""
 
-DOMAIN = "nimly_pro"
+DOMAIN = "onesti_lock"
 
 CONF_IEEE = "ieee"
 
@@ -8,14 +8,14 @@ CONF_IEEE = "ieee"
 DOORLOCK_CLUSTER_ID = 0x0101
 ZHA_DOMAIN = "zha"
 
-# Nimly hardware
+# Onesti hardware — all known whitelabel models
 MAX_SLOTS = 200  # ZCL slots 0-199
-# Slots 0-2: reserved for master codes (per Nimly manual)
+# Slots 0-2: reserved for master codes (per Nimly/EasyAccess manual)
 # Slots 3-199: user codes
 SLOT_FIRST_USER = 3
 # Number of user slots to show as sensors in UI
 NUM_USER_SLOTS = 10  # Shows slots 3-12
-SUPPORTED_MODELS = ["NimlyPRO", "NimlyPRO24"]
+SUPPORTED_MODELS = ["NimlyPRO", "NimlyPRO24", "easyCodeTouch_v1", "EasyCodeTouch", "EasyFingerTouch"]
 MANUFACTURER = "Onesti Products AS"
 
 # ZCL Door Lock commands

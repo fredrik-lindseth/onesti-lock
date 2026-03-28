@@ -1,4 +1,4 @@
-"""Sensors for Nimly PRO — slot status and activity."""
+"""Sensors for Onesti Lock — slot status and activity."""
 from __future__ import annotations
 
 import logging
@@ -19,7 +19,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Nimly PRO sensors."""
+    """Set up Onesti Lock sensors."""
     coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
 
     entities: list[SensorEntity] = []
@@ -69,9 +69,8 @@ class NimlySlotSensor(SensorEntity):
     def device_info(self):
         return {
             "identifiers": {(DOMAIN, self._coordinator.ieee)},
-            "name": "Nimly PRO",
+            "name": "Onesti Lock",
             "manufacturer": "Onesti Products AS",
-            "model": "NimlyPRO",
         }
 
     async def async_added_to_hass(self) -> None:
@@ -137,9 +136,8 @@ class NimlyActivitySensor(SensorEntity):
     def device_info(self):
         return {
             "identifiers": {(DOMAIN, self._coordinator.ieee)},
-            "name": "Nimly PRO",
+            "name": "Onesti Lock",
             "manufacturer": "Onesti Products AS",
-            "model": "NimlyPRO",
         }
 
     async def async_added_to_hass(self) -> None:

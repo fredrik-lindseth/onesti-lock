@@ -1,4 +1,4 @@
-"""Config flow and options flow for Nimly PRO."""
+"""Config flow and options flow for Onesti Lock."""
 from __future__ import annotations
 
 import logging
@@ -22,7 +22,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Config flow for Nimly PRO."""
+    """Config flow for Onesti Lock."""
 
     VERSION = 2
 
@@ -61,7 +61,7 @@ class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
             await self.async_set_unique_id(ieee)
             self._abort_if_unique_id_configured()
             return self.async_create_entry(
-                title=f"Nimly PRO ({ieee[-8:]})",
+                title=f"Onesti Lock ({ieee[-8:]})",
                 data={CONF_IEEE: ieee},
                 options={"slots": {}},
             )
@@ -75,7 +75,7 @@ class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class NimlyProOptionsFlow(OptionsFlow):
-    """Options flow for Nimly PRO — PIN code management UI."""
+    """Options flow for Onesti Lock — PIN code management UI."""
 
     def __init__(self, config_entry: ConfigEntry) -> None:
         self._entry = config_entry

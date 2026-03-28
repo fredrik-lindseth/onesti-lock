@@ -66,7 +66,12 @@ class NimlySlotSensor(SensorEntity):
 
     @property
     def device_info(self):
-        return {"identifiers": {(DOMAIN, self._coordinator.ieee)}}
+        return {
+            "identifiers": {(DOMAIN, self._coordinator.ieee)},
+            "name": "Nimly PRO",
+            "manufacturer": "Onesti Products AS",
+            "model": "NimlyPRO",
+        }
 
     async def async_added_to_hass(self) -> None:
         self._coordinator.add_listener(self._handle_update)
@@ -127,7 +132,12 @@ class NimlyActivitySensor(SensorEntity):
 
     @property
     def device_info(self):
-        return {"identifiers": {(DOMAIN, self._coordinator.ieee)}}
+        return {
+            "identifiers": {(DOMAIN, self._coordinator.ieee)},
+            "name": "Nimly PRO",
+            "manufacturer": "Onesti Products AS",
+            "model": "NimlyPRO",
+        }
 
     async def async_added_to_hass(self) -> None:
         self._coordinator.set_activity_sensor(self)

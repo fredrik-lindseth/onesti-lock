@@ -2,10 +2,10 @@
   "config": {
     "step": {
       "user": {
-        "title": "Select Nimly PRO Lock",
-        "description": "Select the Nimly lock to manage PIN codes for.",
+        "title": "Legg til Nimly PRO",
+        "description": "Velg hvilken Nimly-lås du vil administrere PIN-koder for.",
         "data": {
-          "device": "Device"
+          "device": "Lås"
         }
       }
     },

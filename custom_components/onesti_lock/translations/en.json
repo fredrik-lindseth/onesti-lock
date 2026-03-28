@@ -2,8 +2,8 @@
   "config": {
     "step": {
       "user": {
-        "title": "Add Nimly PRO",
-        "description": "Select the Nimly lock to manage PIN codes for.",
+        "title": "Add Onesti Lock",
+        "description": "Select the Onesti lock to manage PIN codes for.",
         "data": {
           "device": "Lock"
         }
@@ -11,14 +11,14 @@
     },
     "abort": {
       "zha_not_found": "ZHA integration not found. Set up ZHA first.",
-      "no_devices_found": "No Nimly PRO locks found in ZHA.",
+      "no_devices_found": "No Onesti Lock locks found in ZHA.",
       "already_configured": "This lock is already configured."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Nimly PRO — PIN Management",
+        "title": "Onesti Lock — PIN Management",
         "menu_options": {
           "set_pin": "Set PIN code",
           "clear_pin": "Clear PIN code",

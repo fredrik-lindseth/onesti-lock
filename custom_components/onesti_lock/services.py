@@ -1,4 +1,4 @@
-"""Services for Nimly PRO — PIN code management."""
+"""Services for Onesti Lock — PIN code management."""
 from __future__ import annotations
 
 import logging
@@ -27,7 +27,7 @@ def _get_coordinator(hass: HomeAssistant, ieee: str | None = None):
 
 
 async def async_setup_services(hass: HomeAssistant) -> None:
-    """Register Nimly PRO services."""
+    """Register Onesti Lock services."""
 
     async def handle_set_pin(call: ServiceCall) -> None:
         slot = call.data["slot"]
@@ -135,6 +135,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
 
 async def async_unload_services(hass: HomeAssistant) -> None:
-    """Remove Nimly PRO services."""
+    """Remove Onesti Lock services."""
     for service in ("set_pin", "clear_pin", "set_name", "clear_slot"):
         hass.services.async_remove(DOMAIN, service)

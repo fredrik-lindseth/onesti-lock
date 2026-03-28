@@ -146,7 +146,7 @@ def _setup_listeners(hass: HomeAssistant, entry: ConfigEntry, coordinator: Nimly
                     "keypad": SOURCE_KEYPAD,
                     "rf": SOURCE_RF,
                     "manual": SOURCE_MANUAL,
-                    "self": SOURCE_RF,
+                    "self": "remote",
                     "auto": SOURCE_AUTO,
                 }
                 source = source_map.get(source_raw.lower(), source_raw)

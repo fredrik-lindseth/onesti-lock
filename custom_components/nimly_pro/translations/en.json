@@ -1,0 +1,57 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add Nimly PRO",
+        "description": "Select the Nimly lock to manage PIN codes for.",
+        "data": {
+          "device": "Lock"
+        }
+      }
+    },
+    "abort": {
+      "zha_not_found": "ZHA integration not found. Set up ZHA first.",
+      "no_devices_found": "No Nimly PRO locks found in ZHA.",
+      "already_configured": "This lock is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Nimly PRO — PIN Management",
+        "menu_options": {
+          "set_pin": "Set PIN code",
+          "clear_pin": "Clear PIN code",
+          "view_slots": "View user slots"
+        }
+      },
+      "set_pin": {
+        "title": "Set PIN code",
+        "description": "Select slot, enter name and PIN code (4-8 digits). Wake the lock first!",
+        "data": {
+          "slot": "User slot",
+          "name": "Name",
+          "code": "PIN code"
+        }
+      },
+      "clear_pin": {
+        "title": "Clear PIN code",
+        "description": "Select user to remove. Wake the lock first!",
+        "data": {
+          "slot": "User"
+        }
+      },
+      "view_slots": {
+        "title": "User slots",
+        "description": "{slot_status}"
+      }
+    },
+    "error": {
+      "invalid_pin": "PIN code must be 4-8 digits",
+      "lock_unreachable": "Could not reach the lock — press a button on the lock and try again"
+    },
+    "abort": {
+      "no_active_slots": "No active PIN codes to remove"
+    }
+  }
+}

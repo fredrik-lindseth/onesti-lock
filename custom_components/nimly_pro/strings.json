@@ -1,0 +1,18 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Select Nimly PRO Lock",
+        "description": "Select the Nimly lock to manage PIN codes for.",
+        "data": {
+          "device": "Device"
+        }
+      }
+    },
+    "abort": {
+      "zha_not_found": "ZHA integration not found. Set up ZHA first.",
+      "no_devices_found": "No Nimly PRO locks found in ZHA.",
+      "already_configured": "This lock is already configured."
+    }
+  }
+}

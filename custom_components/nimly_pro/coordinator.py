@@ -80,7 +80,12 @@ class NimlyCoordinator:
     # -- ZHA cluster access --
 
     def _get_cluster(self):
-        """Get the Door Lock cluster from ZHA."""
+        """Get the Door Lock cluster from ZHA.
+
+        Walks the ZHA object chain: ZHADeviceProxy → Device → CustomDeviceV2
+        because clusters live on the deepest zigpy device object, not the
+        ZHA wrapper layers.
+        """
         if ZHA_DOMAIN not in self.hass.data:
             _LOGGER.error("ZHA not found")
             return None
@@ -91,16 +96,24 @@ class NimlyCoordinator:
             _LOGGER.error("ZHA gateway_proxy not found")
             return None
 
-        device_proxies = zha_data.gateway_proxy.device_proxies
+        for dev_ieee, proxy in zha_data.gateway_proxy.device_proxies.items():
+            if str(dev_ieee).lower() != self.ieee.lower():
+                continue
 
-        for dev_ieee, proxy in device_proxies.items():
-            if str(dev_ieee).lower() == self.ieee.lower():
-                device = proxy.device if hasattr(proxy, "device") else proxy
-                for ep_id, ep in device.endpoints.items():
-                    if ep_id == 0:
-                        continue
-                    if hasattr(ep, "in_clusters") and DOORLOCK_CLUSTER_ID in ep.in_clusters:
-                        return ep.in_clusters[DOORLOCK_CLUSTER_ID]
+            # Walk down .device chain until we find clusters
+            obj = proxy
+            for _ in range(4):
+                if hasattr(obj, "endpoints"):
+                    for ep_id, ep in obj.endpoints.items():
+                        if ep_id == 0:
+                            continue
+                        clusters = getattr(ep, "in_clusters", {})
+                        if DOORLOCK_CLUSTER_ID in clusters:
+                            return clusters[DOORLOCK_CLUSTER_ID]
+                if hasattr(obj, "device"):
+                    obj = obj.device
+                else:
+                    break
 
         _LOGGER.error("Door Lock cluster not found for %s", self.ieee)
         return None

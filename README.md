@@ -1,160 +1,126 @@
-# Nimly Touch Pro
+# Nimly PRO
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![GitHub release](https://img.shields.io/github/release/fredrik-lindseth/nimly-touch-pro-integration.svg)](https://github.com/fredrik-lindseth/nimly-touch-pro-integration/releases)
 
-Home Assistant-integrasjon for PIN-kode management på Nimly Touch Pro smartlåser.
+Home Assistant integration for PIN code management and activity tracking on Nimly Touch Pro smart locks.
 
-## Hvorfor denne integrasjonen?
+## Why this integration?
 
-ZHA (Zigbee Home Automation) håndterer allerede grunnleggende låskontroll for Nimly:
-- Lås/lås opp
-- Låsstatus, dørstatus, batteri
-- Lydvolum, auto-lås
+ZHA handles basic lock control for Nimly (lock/unlock, battery, volume, auto-lock). **This integration adds what ZHA doesn't provide:**
 
-**Denne integrasjonen legger til det ZHA mangler: PIN-kode management.**
+- PIN code management with user names (slot → name mapping)
+- Activity tracking ("Ola låste opp med kode")
+- Services for programmatic PIN administration
+- Sensor entities per slot showing who has access
 
-Med denne integrasjonen kan du:
-- Opprette og slette PIN-koder programmatisk
-- Lage midlertidige koder for gjester
-- Automatisere PIN-administrasjon basert på tid eller hendelser
+## Supported devices
 
-## Installasjon
+| Model | Manufacturer | Status |
+|-------|-------------|--------|
+| NimlyPRO | Onesti Products AS | Supported |
+| NimlyPRO24 | Onesti Products AS | Supported |
 
-### Via HACS (anbefalt)
+## Installation
 
-1. Åpne HACS → Integrations
-2. Klikk ⋮ → Custom repositories
-3. Legg til `https://github.com/fredrik-lindseth/nimly-touch-pro-integration` som Integration
-4. Installer "Nimly Touch Pro"
-5. Start Home Assistant på nytt
+### Via HACS (recommended)
 
-### Manuell installasjon
+1. HACS → Integrations → ⋮ → Custom repositories
+2. Add `https://github.com/fredrik-lindseth/nimly-touch-pro-integration` as Integration
+3. Install "Nimly PRO"
+4. Restart Home Assistant
 
-1. Last ned fra [releases](https://github.com/fredrik-lindseth/nimly-touch-pro-integration/releases)
-2. Kopier `custom_components/nimly_pro` til `config/custom_components/`
-3. Start Home Assistant på nytt
+### Manual
 
-## Oppsett
+1. Copy `custom_components/nimly_pro` to your `config/custom_components/`
+2. Restart Home Assistant
 
-1. **Settings** → **Devices & Services** → **Add Integration**
-2. Søk etter "Nimly Touch Pro"
-3. Velg din lås fra listen
+## Setup
 
-**Krav:** ZHA må være konfigurert og låsen paret før du setter opp denne integrasjonen.
+1. **Settings → Devices & Services → Add Integration → Nimly PRO**
+2. Select your lock from the list
+3. Done — slot sensors and activity sensor are created automatically
+
+**Prerequisite:** ZHA must be configured and the lock paired before setup.
 
 ## Services
 
-Alle services finnes under **Developer Tools → Actions** (søk "nimly"):
-
-| Service | Beskrivelse |
+| Service | Description |
 |---------|-------------|
-| `nimly_pro.set_pin_code` | Opprett eller oppdater PIN-kode |
-| `nimly_pro.clear_pin_code` | Slett en PIN-kode |
-| `nimly_pro.clear_all_pin_codes` | Slett alle PIN-koder |
-| `nimly_pro.get_pin_code` | Hent info om en PIN-kode |
-| `nimly_pro.get_user_status` | Sjekk om bruker er aktiv |
-| `nimly_pro.set_user_status` | Aktiver/deaktiver bruker |
+| `nimly_pro.set_pin` | Set PIN code with name for a slot |
+| `nimly_pro.clear_pin` | Remove PIN code from a slot |
+| `nimly_pro.set_name` | Change slot name without changing PIN |
+| `nimly_pro.clear_slot` | Remove all credentials and name from a slot |
 
-### Opprette PIN-kode
+### Set PIN code
 
 ```yaml
-service: nimly_pro.set_pin_code
+service: nimly_pro.set_pin
 data:
-  ieee: "f4:ce:36:88:61:9c:f4:6f"  # Låsens IEEE-adresse
-  user_id: 1                        # Slot 0-255
-  pin_code: "1234"                  # PIN-koden
+  slot: 3        # User slots: 3-199 (0-2 reserved for master codes)
+  name: "Ola"
+  code: "5478"
 ```
 
-### Slette PIN-kode
+### Clear PIN code
 
 ```yaml
-service: nimly_pro.clear_pin_code
+service: nimly_pro.clear_pin
 data:
-  ieee: "f4:ce:36:88:61:9c:f4:6f"
-  user_id: 1
+  slot: 3
 ```
 
-### Finne IEEE-adressen
+## Entities
 
-1. Gå til **ZHA** → **Devices**
-2. Klikk på Nimly-låsen
-3. IEEE-adressen vises under "Zigbee info" (format: `xx:xx:xx:xx:xx:xx:xx:xx`)
+Per configured lock:
 
-## Viktig: Låsen må være våken
+- `sensor.*_slot_3` through `sensor.*_slot_12` — shows slot occupant ("Ola" or "Ledig")
+- `sensor.*_siste_aktivitet` — last lock activity with user name
 
-Nimly er batteridrevet og sover for å spare strøm. For å sende kommandoer:
+Slot sensors include `has_pin` and `has_rfid` as attributes.
 
-1. **Vekk låsen** - Trykk på tastaturet
-2. **Kjør kommandoen innen 10 sekunder**
+## Important: Slot numbering
 
-Får du `TimeoutError`? Låsen sov. Vekk den og prøv igjen.
+Per the Nimly manual:
+- **Slots 0-2**: Reserved for master codes (programming codes)
+- **Slots 3-199**: User codes
 
-## Automatiseringseksempler
+The default factory master code is `123`. **Change it immediately** — anyone with the manual can use it.
 
-### Gjeste-PIN som aktiveres med en bryter
+## Important: Lock must be awake
 
-```yaml
-automation:
-  - alias: "Aktiver gjeste-PIN"
-    trigger:
-      - platform: state
-        entity_id: input_boolean.guest_access
-        to: "on"
-    action:
-      - service: nimly_pro.set_pin_code
-        data:
-          ieee: "f4:ce:36:88:61:9c:f4:6f"
-          user_id: 10
-          pin_code: "9999"
+Nimly is battery-powered and sleeps to conserve power. To send PIN commands:
 
-  - alias: "Deaktiver gjeste-PIN"
-    trigger:
-      - platform: state
-        entity_id: input_boolean.guest_access
-        to: "off"
-    action:
-      - service: nimly_pro.clear_pin_code
-        data:
-          ieee: "f4:ce:36:88:61:9c:f4:6f"
-          user_id: 10
+1. **Wake the lock** — press a button on the keypad, or send a lock/unlock command from HA
+2. **Run the service within a few seconds**
+
+If you get "Kunne ikke nå låsen", the lock was asleep.
+
+## Known Nimly ZHA quirks
+
+- **Response parsing error:** Nimly returns an unexpected response format for PIN commands, causing `IndexError: tuple index out of range` in zigpy. The command still reaches the lock — this integration catches the error silently.
+- **Activity tracking:** ZHA's `last_action_user` and `last_action_source` sensors don't reliably update on keypad events. The activity sensor tracks lock state changes (locked/unlocked) but may not identify which user unlocked.
+- **ZHA device chain:** The Door Lock cluster lives on the deepest zigpy device object (CustomDeviceV2), not the ZHA wrapper layers. This integration walks the chain automatically.
+
+## Alternatives considered
+
+| Integration | Why not |
+|------------|---------|
+| [Keymaster](https://github.com/FutureTense/keymaster) | Z-Wave only — does not support ZHA/Zigbee locks |
+| [Lock Code Manager](https://github.com/raman325/lock_code_manager) | Requires lock entity to expose code management feature (`supported_features`). ZHA's Nimly lock entity has `supported_features: 0` |
+| [Zigbee Lock Manager](https://github.com/Fiercefish1/Zigbee-Lock-Manager) | Abandoned (last update Sep 2024). YAML-only UI, no config flow, generates input helpers manually |
+
+None of these work with Nimly over ZHA due to the quirky response format and lack of `supported_features` on the lock entity.
+
+## Technical details
+
+Nimly Touch Pro uses the **ZCL Door Lock Cluster (0x0101)**. This integration sends ZCL commands directly to the cluster via ZHA/zigpy, with error handling for the Nimly response quirk.
+
+The ZHA object chain for accessing clusters:
+```
+ZHADeviceProxy → Device (clusters empty) → CustomDeviceV2 (clusters here)
 ```
 
-### Daglig roterende PIN
-
-```yaml
-automation:
-  - alias: "Oppdater daglig PIN"
-    trigger:
-      - platform: time
-        at: "06:00:00"
-    action:
-      - service: nimly_pro.set_pin_code
-        data:
-          ieee: "f4:ce:36:88:61:9c:f4:6f"
-          user_id: 5
-          pin_code: "{{ now().strftime('%m%d') }}"  # MMDD
-```
-
-## Feilsøking
-
-| Problem | Løsning |
-|---------|---------|
-| TimeoutError | Vekk låsen (trykk på tastaturet), prøv igjen innen 10 sek |
-| "Door Lock cluster not found" | Sjekk at IEEE-adressen er korrekt |
-| "ZHA not found" | Sett opp ZHA-integrasjonen først |
-| Låsen vises ikke | Par låsen med ZHA på nytt |
-
-## Teknisk info
-
-Nimly Touch Pro bruker **ZCL Door Lock Cluster (0x0101)**, industristandarden for Zigbee-låser. Denne integrasjonen sender ZCL-kommandoer direkte til clusteret via ZHA/zigpy.
-
-Støttede modeller:
-- NimlyPRO
-- NimlyPRO24
-
-Produsent: Onesti Products AS
-
-## Lisens
+## License
 
 MIT License

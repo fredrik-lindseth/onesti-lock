@@ -123,7 +123,9 @@ class NimlyActivitySensor(SensorEntity):
         elif source == "manual":
             return f"Manuell {verb.replace('låste', 'lås')}"
         elif source == "auto":
-            return f"Auto-lås"
+            return "Auto-lås"
+        elif source == "remote":
+            return f"{verb.capitalize()} via HA"
         else:
             return f"{name} {verb}"
 

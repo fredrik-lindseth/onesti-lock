@@ -9,7 +9,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, NUM_SLOTS
+from .const import DOMAIN, NUM_USER_SLOTS, SLOT_FIRST_USER
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -24,8 +24,9 @@ async def async_setup_entry(
 
     entities: list[SensorEntity] = []
 
-    # Slot sensors
-    for slot in range(NUM_SLOTS):
+    # Slot sensors (user slots start at 3)
+    for i in range(NUM_USER_SLOTS):
+        slot = SLOT_FIRST_USER + i
         entities.append(NimlySlotSensor(coordinator, entry, slot))
 
     # Activity sensor

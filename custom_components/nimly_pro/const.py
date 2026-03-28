@@ -9,7 +9,12 @@ DOORLOCK_CLUSTER_ID = 0x0101
 ZHA_DOMAIN = "zha"
 
 # Nimly hardware
-NUM_SLOTS = 10  # Slots 0-9
+MAX_SLOTS = 200  # ZCL slots 0-199
+# Slots 0-2: reserved for master codes (per Nimly manual)
+# Slots 3-199: user codes
+SLOT_FIRST_USER = 3
+# Number of user slots to show as sensors in UI
+NUM_USER_SLOTS = 10  # Shows slots 3-12
 SUPPORTED_MODELS = ["NimlyPRO", "NimlyPRO24"]
 MANUFACTURER = "Onesti Products AS"
 

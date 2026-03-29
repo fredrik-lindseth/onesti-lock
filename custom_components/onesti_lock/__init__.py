@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 
 from .const import (
     ACTION_LOCK,
@@ -18,7 +18,6 @@ from .const import (
     SOURCE_MANUAL,
     SOURCE_RF,
     SOURCE_UNKNOWN,
-    ZHA_DOMAIN,
 )
 from .coordinator import NimlyCoordinator
 
@@ -26,6 +25,8 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = ["sensor"]
 
+# Onesti operation event: attrid 0x0100 on DoorLock cluster (0x0101)
+# bitmap32 little-endian: [user_slot, reserved, action, source]
 ATTR_OPERATION_EVENT = 0x0100
 
 _SOURCE_MAP = {
@@ -55,13 +56,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    _register_cluster_listeners(hass, coordinator)
+    # Register event listener on the DoorLock cluster
+    _register_event_listener(hass, entry, coordinator)
 
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
+    unsub = hass.data[DOMAIN][entry.entry_id].get("unsub_listener")
+    if unsub:
+        unsub()
+
     await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     hass.data[DOMAIN].pop(entry.entry_id, None)
 
@@ -92,94 +98,40 @@ def _decode_operation_event(coordinator, val: int) -> dict | None:
     }
 
 
-def _register_cluster_listeners(hass: HomeAssistant, coordinator: NimlyCoordinator) -> None:
-    """Register attribute listeners on ALL DoorLock cluster objects in the device chain.
+def _register_event_listener(
+    hass: HomeAssistant, entry: ConfigEntry, coordinator: NimlyCoordinator
+) -> None:
+    """Listen for attribute_report events on the DoorLock cluster.
 
-    The ZHA/zigpy quirk chain has multiple cluster objects for the same physical cluster:
-    CustomDeviceV2 → Device → ZHADeviceProxy — each with their own cluster instance.
-    zigpy dispatches attribute_updated to just one of them. We register on all to be safe.
+    zigpy emits "attribute_report" via cluster.emit() for every Report_Attributes
+    ZCL frame, even for unknown attributes and even when value is unchanged.
+    This is the only reliable way to catch Onesti's custom attrid 0x0100.
+
+    The alternatives don't work:
+    - add_listener + attribute_updated: suppressed for unknown attributes
+    - add_listener + general_command: not dispatched to listeners
+    - add_listener + handle_cluster_request: only for cluster commands, not general
     """
-    zha_data = hass.data.get(ZHA_DOMAIN)
-    if not zha_data or not hasattr(zha_data, "gateway_proxy"):
-        _LOGGER.error("ZHA not available")
+    cluster = coordinator._get_cluster()
+    if not cluster:
+        _LOGGER.error("Could not find DoorLock cluster for event listener")
         return
 
-    ieee = coordinator.ieee
-    registered = 0
-
-    # Find the device proxy
-    for dev_ieee, proxy in zha_data.gateway_proxy.device_proxies.items():
-        if str(dev_ieee).lower() != ieee.lower():
-            continue
-
-        # Walk the device chain and collect all DoorLock cluster objects
-        clusters_found = {}
-        obj = proxy
-        for depth in range(4):
-            if hasattr(obj, "endpoints"):
-                for ep_id, ep in obj.endpoints.items():
-                    if ep_id == 0:
-                        continue
-                    in_clusters = getattr(ep, "in_clusters", {})
-                    if DOORLOCK_CLUSTER_ID in in_clusters:
-                        cl = in_clusters[DOORLOCK_CLUSTER_ID]
-                        if id(cl) not in clusters_found:
-                            clusters_found[id(cl)] = (cl, depth, type(obj).__name__)
-            if hasattr(obj, "device"):
-                obj = obj.device
-            else:
-                break
-
-        # Register listener on each unique cluster object
-        for cl_id, (cluster, depth, dev_type) in clusters_found.items():
-            listener = _OperationEventListener(hass, coordinator)
-            cluster.add_listener(listener)
-            registered += 1
-            _LOGGER.warning(
-                "Registered listener on depth %d (%s) cluster %s (id=%s, listeners=%d)",
-                depth, dev_type, type(cluster).__name__, cl_id, len(cluster._listeners),
-            )
-
-    _LOGGER.warning("Total listeners registered: %d", registered)
-
-
-class _OperationEventListener:
-    """Zigpy cluster listener for Onesti operation events."""
-
-    def __init__(self, hass: HomeAssistant, coordinator: NimlyCoordinator) -> None:
-        self._hass = hass
-        self._coordinator = coordinator
-
-    def attribute_updated(self, attrid, value, timestamp=None) -> None:
-        """Called by zigpy when attribute value CHANGES (cached)."""
-        self._handle_attribute(attrid, value)
-
-    def cluster_command(self, tsn, command_id, args) -> None:
-        """Not used."""
-        pass
-
-    def handle_cluster_request(self, hdr, args, *, dst_addressing=None) -> None:
-        """Called for ALL incoming ZCL commands, including Report_Attributes.
-
-        This fires for every report, even when the value hasn't changed —
-        unlike attribute_updated which only fires on value change.
-        """
-        # command_id 0x0A = Report_Attributes
-        if hdr.command_id == 0x0A and args:
-            for attr in args.attribute_reports:
-                self._handle_attribute(attr.attrid, attr.value.value if hasattr(attr.value, 'value') else attr.value)
-
-    def _handle_attribute(self, attrid, value) -> None:
-        """Process an attribute report for operation events."""
-        if attrid != ATTR_OPERATION_EVENT:
+    def _on_attribute_report(event) -> None:
+        if event.attribute_id != ATTR_OPERATION_EVENT:
             return
 
+        raw = event.raw_value
         try:
-            val = int(value)
+            val = int(raw)
         except (TypeError, ValueError):
-            val = int(getattr(value, "value", 0))
+            try:
+                val = int(raw.value)
+            except (TypeError, ValueError, AttributeError):
+                _LOGGER.warning("Could not parse operation event: %s", raw)
+                return
 
-        decoded = _decode_operation_event(self._coordinator, val)
+        decoded = _decode_operation_event(coordinator, val)
         if not decoded:
             return
 
@@ -191,14 +143,20 @@ class _OperationEventListener:
             val,
         )
 
-        self._coordinator.update_activity(
+        coordinator.update_activity(
             decoded["user_slot"], decoded["action"], decoded["source"]
         )
 
-        self._hass.bus.async_fire(
+        hass.bus.async_fire(
             "onesti_lock_activity",
-            {
-                "ieee": self._coordinator.ieee,
-                **decoded,
-            },
+            {"ieee": coordinator.ieee, **decoded},
         )
+
+    unsub = cluster.on_event("attribute_report", _on_attribute_report)
+    hass.data[DOMAIN][entry.entry_id]["unsub_listener"] = unsub
+
+    _LOGGER.warning(
+        "Event listener registered on %s (events: %s)",
+        type(cluster).__name__,
+        list(cluster._event_listeners.keys()),
+    )

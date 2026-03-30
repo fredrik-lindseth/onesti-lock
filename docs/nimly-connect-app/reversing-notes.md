@@ -19,13 +19,13 @@ Ingen BLE-kommunikasjon funnet i denne appen (det er en separat app: `nimly BLE`
 
 Appen er en white-label fra **iotiliti** (tidligere NeutrAlClone). Samme kodebase brukes av:
 
-| Merke | API URL |
-|-------|---------|
+| Merke                | API URL                                                                                                   |
+| -------------------- | --------------------------------------------------------------------------------------------------------- |
 | **Nimly/EasyAccess** | `api-neutralclone.iotiliti.cloud` (eldre) / `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` (ny) |
-| Keyfree | `api.customer.keyfree.iotiliti.cloud` |
-| Salus | `api-salus.iotiliti.cloud` |
-| Forebygg | `api.customer.forebygg.iotiliti.cloud` |
-| Homely | `api.homely.no` |
+| Keyfree              | `api.customer.keyfree.iotiliti.cloud`                                                                     |
+| Salus                | `api-salus.iotiliti.cloud`                                                                                |
+| Forebygg             | `api.customer.forebygg.iotiliti.cloud`                                                                    |
+| Homely               | `api.homely.no`                                                                                           |
 
 Company IDs i `secrets.md` (gitignored).
 
@@ -271,20 +271,20 @@ Alle bruker identisk kodebase (React Native/Hermes), kun config-blokken varierer
 
 ### Alle API-instanser (prod)
 
-| Merke | Package | Prod API URL |
-|-------|---------|-------------|
-| **Nimly** | `com.easyaccess.connect` | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` |
-| **Copiax** | `com.copiax.homesecurity` | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` |
-| **Tekam** | `no.tekam.smarthus` | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` |
-| **Folklarm** | `com.folklarm.appsolutsakerhet` | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` |
-| **iotiliti** | `io.iotiliti.home` | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` |
-| **Keyfree** | `com.safe4.keyfree` | `api.customer.keyfree.iotiliti.cloud` |
-| **Forebygg** | `se.forebygg.forebygg` | `api.customer.forebygg.iotiliti.cloud` |
-| **Homely** | `io.homely.home` | `api.homely.no` |
-| **Safe4 Care** | *(i iotiliti-appen)* | `api-safe4care.iotiliti.cloud` |
-| **Tryg Smart** | *(i iotiliti-appen)* | `api.tryg.iotiliti.cloud` |
-| **Salus** | `com.salusprotekt.immunity` | `api-salus.iotiliti.cloud` |
-| **LF** | *(i iotiliti-appen)* | `api-lf.iotiliti.cloud` |
+| Merke          | Package                         | Prod API URL                                             |
+| -------------- | ------------------------------- | -------------------------------------------------------- |
+| **Nimly**      | `com.easyaccess.connect`        | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` |
+| **Copiax**     | `com.copiax.homesecurity`       | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` |
+| **Tekam**      | `no.tekam.smarthus`             | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` |
+| **Folklarm**   | `com.folklarm.appsolutsakerhet` | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` |
+| **iotiliti**   | `io.iotiliti.home`              | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` |
+| **Keyfree**    | `com.safe4.keyfree`             | `api.customer.keyfree.iotiliti.cloud`                    |
+| **Forebygg**   | `se.forebygg.forebygg`          | `api.customer.forebygg.iotiliti.cloud`                   |
+| **Homely**     | `io.homely.home`                | `api.homely.no`                                          |
+| **Safe4 Care** | _(i iotiliti-appen)_            | `api-safe4care.iotiliti.cloud`                           |
+| **Tryg Smart** | _(i iotiliti-appen)_            | `api.tryg.iotiliti.cloud`                                |
+| **Salus**      | `com.salusprotekt.immunity`     | `api-salus.iotiliti.cloud`                               |
+| **LF**         | _(i iotiliti-appen)_            | `api-lf.iotiliti.cloud`                                  |
 
 Client secrets, company IDs og test-credentials i `secrets.md` (gitignored).
 
@@ -302,6 +302,7 @@ Client secret i `secrets.md`.
 ### Skjult Developer Options
 
 Alle apper har en skjult "Developer Options"-meny:
+
 - Bytt mellom Production / Test / Internal API
 - Enable Instabug (feilrapportering)
 - Copy Device Token (push notification token)
@@ -317,6 +318,7 @@ Username-login (ikke email), ingen passordbytte, ingen kontosletting.
 ### Funn: group-devices tom på alle APIer
 
 Testet `GET /locations/{id}/group-devices` med fersk token mot:
+
 - `api-neutralclone.iotiliti.cloud` → `[]`
 - `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` → `[]`
 

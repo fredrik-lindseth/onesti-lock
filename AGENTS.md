@@ -6,7 +6,7 @@ Identifies **who** unlocked the door and **how** — something no other ZHA inte
 ## Critical Rules
 
 1. Domain is `onesti_lock`, NOT `nimly_pro`. Classes still use `Nimly` prefix (brand name).
-2. Never remove content from docs/ — this is active reverse engineering. All credentials, API keys, and hardware identifiers are intentional research data.
+2. Credentials, API keys og secrets skal IKKE i git — de hører i `secrets.md` (gitignored). Docs inneholder kun API-URLer og tekniske referanser, ikke hemmeligheter.
 3. The lock is a battery-powered Zigbee EndDevice that sleeps. All ZCL commands must account for timeouts and use the auto-wake mechanism in `coordinator.py`.
 4. The Nimly response quirk (`IndexError` in zigpy) is expected. The command reaches the lock despite the error. Do not "fix" it.
 
@@ -73,7 +73,9 @@ Session notes and stale plans contain earlier incorrect guesses. Code is authori
 | `docs/nimly-connect-app/iotiliti-api-spec.yaml`   | OpenAPI spec for iotiliti cloud (reverse-engineered)                                         |
 | `docs/nimly-ble-app/ble-protocol.md`              | BLE protocol from decompiled nimly BLE app (not used by integration)                         |
 | `docs/connect-bridge/hardware-gateway.md`         | Connect Bridge hardware, network stack, firmware                                             |
-| `docs/plans/2026-03-30-options-flow-ux-design.md` | Current: options flow UX design                                                              |
+| `docs/slot-numbering.md`                          | Slot-nummerering usikkerhet mellom Zigbee, BLE og cloud                                      |
+| `docs/debugging.md`                               | Feilsøkingsguide for vanlige problemer                                                       |
+| `docs/cloud-api-status.md`                        | Cloud API reversing status — hva vi har prøvd og veien videre                                |
 
 ## Testing
 
@@ -95,5 +97,5 @@ Tests mock ZHA entirely. No real hardware needed.
 
 All locks are manufactured by **Onesti Products AS** with identical hardware/firmware.
 The Zigbee Connect Module (ZMNC010) is the same across all brands.
-The cloud platform (**iotiliti** by Safe4 Security Group) powers: Nimly, EasyAccess, Keyfree, Salus, Homely, Forebygg, Copiax, Conficare, and others.
+The cloud platform (**iotiliti** by Safe4 Security Group, developed by Neurosys in Poland) powers: Nimly, EasyAccess, Keyfree, Salus, Homely, Forebygg, Copiax, Tekam, Folklarm, Tryg Smart, Safe4 Care, LF, Larmify, and others.
 See `docs/nimly-connect-app/app-architecture.md` for the full ecosystem.

@@ -159,9 +159,8 @@ Dette betyr at MITM av MQTT-trafikken er mulig dersom man erstatter CA-en på hu
 | Forebygg             | `api-forebygg.iotiliti.cloud`     |
 | Homely               | `api.homely.no`                   |
 
-Se `reversing-notes.md` for komplett API-dokumentasjon.
-
-> Komplett white-label API-oversikt: docs/nimly-connect-app/app-architecture.md
+Se `docs/nimly-connect-app/reversing-notes.md` for komplett API-dokumentasjon.
+Se `docs/nimly-connect-app/app-architecture.md` for komplett white-label-oversikt.
 
 ### Komplett kommunikasjonskjede
 

@@ -145,9 +145,13 @@ def _register_event_listener(
             val,
         )
 
-        coordinator.update_activity(
-            decoded["user_slot"], decoded["action"], decoded["source"]
-        )
+        # Only update the activity sensor for user-initiated events,
+        # not auto-lock — otherwise auto-lock immediately overwrites
+        # "Vibecke låste opp med kode" with "Auto-lås"
+        if decoded["source"] != "auto":
+            coordinator.update_activity(
+                decoded["user_slot"], decoded["action"], decoded["source"]
+            )
 
         hass.bus.async_fire(
             "onesti_lock_activity",

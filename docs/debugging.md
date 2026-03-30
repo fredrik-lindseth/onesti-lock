@@ -2,6 +2,82 @@
 
 Praktisk guide for å diagnostisere og løse vanlige problemer med Onesti Lock-integrasjonen.
 
+## 0. LED-indikatorer og lyd
+
+Kilde: [Nimly Touch Pro Manual](https://nimly.se/wp-content/uploads/2024/09/EN-Touch-Pro-Installation-Manual-150324.pdf)
+
+### Keypad (utside)
+
+| Indikator | Betydning |
+|-----------|-----------|
+| **Grønt blink + kort pip** | Suksess (opplåsing, registrering, programmering) |
+| **Rødt blink** | Mislykket (feil kode, tidsavbrudd, registrering feilet) |
+| **Langt pip + grønt blink** | Vellykket factory reset |
+| **Gjentatte hyppige pip ved låsing** | Lavt batterinivå — bytt batterier snart |
+| **Hvitt bakgrunnsbelyst keypad** | Keypad vekket (berøring), klar for input |
+
+**Anti-tamper:** Tre feil koder på rad → keypad deaktiveres i 5 minutter.
+
+**Camouflage-funksjon:** Man kan taste falske siffer før og etter koden. F.eks. `21345681#` der den ekte koden er `3456`.
+
+### Lydnivå
+
+Konfigurerbart via master-kode (programmeringssekvens `#0`):
+
+| Verdi | Nivå |
+|-------|------|
+| 0 | Stille |
+| 1 | Lavt |
+| 2 | Normal (standard) |
+
+### Connect Module LED (E-Life 3.0 / ZMNC010)
+
+| LED | Mønster | Betydning |
+|-----|---------|-----------|
+| **Blått** langsomt blinkende | BLE paringsmodus (søker) |
+| **Oransje** langsomt blinkende | Zigbee paringsmodus (søker) |
+| **Oransje** raskt blinkende | Reset pågår (hold knappen ~15 sek) |
+| **Blått** fast lys | BLE tilkoblet |
+| **Oransje** fast lys | Zigbee tilkoblet |
+| Ingen LED | Normaltilstand (paret og i dvale) |
+
+### Reset av Connect Module
+
+1. Hold **reset-knappen** på modulen i **15 sekunder**
+2. Slipp når oransje LED blinker raskt
+3. Modulen er nullstilt og klar for ny paring
+4. Modulen går automatisk i paringsmodus i 4 minutter etter reset
+
+### Factory reset av låsen
+
+**Sletter alle registrerte fingeravtrykk, koder og nøkkelbrikker.** Innstillinger beholdes.
+
+1. Avinstaller innsiden fra døren
+2. Koble til kabelen og sett i batterier
+3. Snu innsiden med baksiden mot deg
+4. Hold ned den **gullfargede reset-knappen** på kretskortet
+5. Låsen bekrefter med **langt pip + grønt blink**
+6. Fabrikkode `123#` er gjenopprettet
+
+### Paring med ZHA etter reset
+
+1. Reset Connect Module (se over)
+2. Tast en PIN + `#` på keypadet rett etter reset (holder radioen våken)
+3. Start "Legg til enhet" i ZHA innen noen sekunder
+4. Modulen skal dukke opp som `Onesti Products AS` med modellnavn
+
+**Merk:** PIN-koder overlever re-paring av Connect Module, men slettes ved factory reset av låsen.
+
+### Slot-nummerering (fra manualen)
+
+| Slot | Formål |
+|------|--------|
+| 000 | Første master-kode (fabrikkode 123) |
+| 001-002 | Ekstra master-koder (valgfritt) |
+| 003-199 | Bruker-fingeravtrykk |
+| 003-999 | Brukerkoder (PIN) |
+| 003-999 | Nøkkelbrikker (RFID) |
+
 ## 1. Zigbee-tilkobling
 
 ### Låsen svarer ikke (sleepy device)

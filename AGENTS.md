@@ -67,17 +67,13 @@ Session notes and stale plans contain earlier incorrect guesses. Code is authori
 | ------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | `README.md`                                       | User-facing: features, comparison, install, setup, supported devices                         |
 | `docs/technical.md`                               | Integration internals: event decoding, coordinator, auto-wake, sleepy device, community refs |
-| `docs/zigbee-captures.md`                         | Raw ZCL frames and verified protocol values (canonical for attrid 0x0100)                    |
-| `docs/app-architecture.md`                        | iotiliti cloud ecosystem, white-label hierarchy, DoorlockTypes, cloud events                 |
-| `docs/ble-protocol.md`                            | BLE protocol from decompiled nimly BLE app (not used by integration)                         |
-| `docs/hardware-gateway.md`                        | Connect Bridge hardware, network stack, firmware                                             |
-| `docs/reversing-notes.md`                         | Nimly Connect APK reverse engineering, REST API, CAS error codes, credentials                |
-| `docs/iotiliti-api-spec.yaml`                     | OpenAPI spec for iotiliti cloud (reverse-engineered)                                         |
-| `docs/visjon.md`                                  | Product vision / north star                                                                  |
-| `docs/email-onesti-draft.md`                      | Draft email to Onesti Products for protocol verification                                     |
-| `docs/session-notes-2026-03-28.md`                | Session journal (ephemeral notes, deploy scripts, TODOs)                                     |
+| `docs/zigbee-protocol/zigbee-captures.md`         | Raw ZCL frames and verified protocol values (canonical for attrid 0x0100)                    |
+| `docs/nimly-connect-app/app-architecture.md`      | iotiliti cloud ecosystem, white-label hierarchy, DoorlockTypes, cloud events                 |
+| `docs/nimly-connect-app/reversing-notes.md`       | Nimly Connect APK reverse engineering, REST API, CAS error codes                             |
+| `docs/nimly-connect-app/iotiliti-api-spec.yaml`   | OpenAPI spec for iotiliti cloud (reverse-engineered)                                         |
+| `docs/nimly-ble-app/ble-protocol.md`              | BLE protocol from decompiled nimly BLE app (not used by integration)                         |
+| `docs/connect-bridge/hardware-gateway.md`         | Connect Bridge hardware, network stack, firmware                                             |
 | `docs/plans/2026-03-30-options-flow-ux-design.md` | Current: options flow UX design                                                              |
-| `docs/archive/`                                   | Stale plans from v2 design phase (used nimly_pro domain, wrong event approach)               |
 
 ## Testing
 
@@ -100,4 +96,4 @@ Tests mock ZHA entirely. No real hardware needed.
 All locks are manufactured by **Onesti Products AS** with identical hardware/firmware.
 The Zigbee Connect Module (ZMNC010) is the same across all brands.
 The cloud platform (**iotiliti** by Safe4 Security Group) powers: Nimly, EasyAccess, Keyfree, Salus, Homely, Forebygg, Copiax, Conficare, and others.
-See `docs/app-architecture.md` for the full ecosystem.
+See `docs/nimly-connect-app/app-architecture.md` for the full ecosystem.

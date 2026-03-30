@@ -161,7 +161,7 @@ Dette betyr at MITM av MQTT-trafikken er mulig dersom man erstatter CA-en på hu
 
 Se `reversing-notes.md` for komplett API-dokumentasjon.
 
-> Komplett white-label API-oversikt: docs/app-architecture.md
+> Komplett white-label API-oversikt: docs/nimly-connect-app/app-architecture.md
 
 ### Komplett kommunikasjonskjede
 

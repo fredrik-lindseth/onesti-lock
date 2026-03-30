@@ -129,7 +129,7 @@ Feilkode-prefikser:
 - `380106-380111` — Passordfeil
 - `380125-380126` — Auth/tilkoblingsfeil
 
-> Komplett CAS-feilkodetabell: docs/reversing-notes.md
+> Komplett CAS-feilkodetabell: docs/nimly-connect-app/reversing-notes.md
 
 ## Event-system
 
@@ -150,7 +150,7 @@ doorlock-failed-to-lock      — låsing feilet
 doorlock-access-updated      — tilgang oppdatert
 ```
 
-> Zigbee-level event-format: docs/zigbee-captures.md
+> Zigbee-level event-format: docs/zigbee-protocol/zigbee-captures.md
 
 ## App-økosystem
 

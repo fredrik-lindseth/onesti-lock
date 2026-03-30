@@ -27,7 +27,7 @@
       },
       "set_pin": {
         "title": "Set PIN code",
-        "description": "Select slot, enter name and PIN code (4-8 digits).",
+        "description": "Select slot, enter name and PIN code (4-8 digits). Slot numbers correspond to the lock's internal user slots (ZCL DoorLock). Slots 0-2 are reserved for master codes.",
         "data": {
           "slot": "User slot",
           "name": "Name",

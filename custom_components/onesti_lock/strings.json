@@ -27,7 +27,7 @@
       },
       "set_pin": {
         "title": "Sett PIN-kode",
-        "description": "Velg slot, skriv navn og PIN-kode (4-8 siffer). Husk å vekke låsen først!",
+        "description": "Velg slot, skriv navn og PIN-kode (4-8 siffer).",
         "data": {
           "slot": "Brukerslot",
           "name": "Navn",
@@ -36,7 +36,7 @@
       },
       "clear_pin": {
         "title": "Fjern PIN-kode",
-        "description": "Velg bruker å fjerne. Husk å vekke låsen først!",
+        "description": "Velg bruker å fjerne.",
         "data": {
           "slot": "Bruker"
         }
@@ -46,9 +46,14 @@
         "description": "{slot_status}"
       }
     },
+    "progress": {
+      "set_pin_progress": "Sender PIN-kode til låsen...",
+      "clear_pin_progress": "Fjerner PIN-kode fra låsen..."
+    },
     "error": {
       "invalid_pin": "PIN-kode må være 4-8 siffer",
-      "lock_unreachable": "Kunne ikke nå låsen — trykk en knapp på låsen og prøv igjen"
+      "lock_unreachable": "Kunne ikke nå låsen. Trykk på keypadet og prøv igjen.",
+      "unknown": "En uventet feil oppstod. Sjekk loggene."
     },
     "abort": {
       "no_active_slots": "Ingen aktive PIN-koder å fjerne"

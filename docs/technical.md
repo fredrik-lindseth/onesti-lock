@@ -19,14 +19,14 @@ Byte 3: source (1 = RF, 2 = keypad, 3 = manual, 10 = auto)
 
 We tested 6 different approaches before finding one that works. The lock sends event data, but ZHA/zigpy doesn't expose it through standard APIs:
 
-| Approach | Result |
-|----------|--------|
-| ZHA `last_action_user` sensor | Never updates on keypad use — stale from last HA command |
-| `zha_event` bus events | `operation_event_notification` (0x0020) never received |
-| `add_listener` + `attribute_updated` | Suppressed by zigpy for unknown attributes (`_suppress_attribute_update_event`) |
-| `add_listener` + `handle_cluster_request` | Only for cluster commands, not general commands like Report_Attributes |
-| `add_listener` + `general_command` | Not dispatched to listeners for Report_Attributes |
-| **`cluster.on_event("attribute_report")`** | **Works — catches all attribute reports including custom 0x0100** |
+| Approach                                   | Result                                                                          |
+| ------------------------------------------ | ------------------------------------------------------------------------------- |
+| ZHA `last_action_user` sensor              | Never updates on keypad use — stale from last HA command                        |
+| `zha_event` bus events                     | `operation_event_notification` (0x0020) never received                          |
+| `add_listener` + `attribute_updated`       | Suppressed by zigpy for unknown attributes (`_suppress_attribute_update_event`) |
+| `add_listener` + `handle_cluster_request`  | Only for cluster commands, not general commands like Report_Attributes          |
+| `add_listener` + `general_command`         | Not dispatched to listeners for Report_Attributes                               |
+| **`cluster.on_event("attribute_report")`** | **Works — catches all attribute reports including custom 0x0100**               |
 
 ## ZHA device chain
 
@@ -105,16 +105,19 @@ automation:
 The Nimly/Onesti lock uses a battery-powered Zigbee EndDevice (Connect Module ZMNC010). The radio sleeps between events to conserve battery.
 
 **What wakes the Zigbee radio:**
+
 - Entering a complete PIN code + `#` on the keypad
 - Physical lock/unlock (turning the knob)
 - Lock/unlock command from HA (ZHA uses extended timeout)
 
 **What does NOT wake the radio:**
+
 - Touching the keypad alone (wakes the keypad backlight, but not the Zigbee radio)
 
 **Message TTL at parent router:** 7.68 seconds. Messages queued for a sleeping EndDevice are discarded after this window.
 
 **After battery change:**
+
 - The lock re-joins the Zigbee network, but bindings may reset
 - `reconfigure` often fails (binding + reporting setup times out)
 - Battery reporting stops until bindings are re-established
@@ -135,22 +138,22 @@ The Nimly/Onesti lock uses a battery-powered Zigbee EndDevice (Connect Module ZM
 
 The Zigbee radio module inside all Onesti/Nimly locks. Sold separately as an accessory.
 
-| Property | Value |
-|----------|-------|
-| Manufacturer code | `0x1234` (4660) — placeholder, NOT registered with the Zigbee Alliance |
-| Max buffer size | 108 |
-| Max incoming transfer | 127 |
-| Max outgoing transfer | 127 |
-| Logical type | EndDevice (battery-powered) |
-| Frequency | 2.4 GHz (Zigbee 3.0) |
-| Certifications | CE-marked — no FCC ID found (European product) |
+| Property              | Value                                                                  |
+| --------------------- | ---------------------------------------------------------------------- |
+| Manufacturer code     | `0x1234` (4660) — placeholder, NOT registered with the Zigbee Alliance |
+| Max buffer size       | 108                                                                    |
+| Max incoming transfer | 127                                                                    |
+| Max outgoing transfer | 127                                                                    |
+| Logical type          | EndDevice (battery-powered)                                            |
+| Frequency             | 2.4 GHz (Zigbee 3.0)                                                   |
+| Certifications        | CE-marked — no FCC ID found (European product)                         |
 
 The unregistered manufacturer code (`0x1234`) suggests an OEM module rather than a custom Zigbee implementation. The small buffer/transfer sizes are consistent with a lower-end chip (likely TI CC2530 or similar).
 
 ## Alternatives considered
 
-| Integration | Why not |
-|------------|---------|
-| [Keymaster](https://github.com/FutureTense/keymaster) | Z-Wave only — no Zigbee support |
-| [Lock Code Manager](https://github.com/raman325/lock_code_manager) | Requires `supported_features` on lock entity. ZHA reports `supported_features: 0` for these locks |
-| [Zigbee Lock Manager](https://github.com/Fiercefish1/Zigbee-Lock-Manager) | Abandoned (last update Sep 2024). No config flow, doesn't handle Onesti response quirk |
+| Integration                                                               | Why not                                                                                           |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| [Keymaster](https://github.com/FutureTense/keymaster)                     | Z-Wave only — no Zigbee support                                                                   |
+| [Lock Code Manager](https://github.com/raman325/lock_code_manager)        | Requires `supported_features` on lock entity. ZHA reports `supported_features: 0` for these locks |
+| [Zigbee Lock Manager](https://github.com/Fiercefish1/Zigbee-Lock-Manager) | Abandoned (last update Sep 2024). No config flow, doesn't handle Onesti response quirk            |

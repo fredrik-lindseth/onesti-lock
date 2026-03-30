@@ -31,26 +31,26 @@ Event listener (in __init__.py)
 
 Final correct values used in code (`__init__.py` `_SOURCE_MAP`):
 
-| Byte | Source |
-|------|--------|
-| 0x00 | zigbee |
-| 0x02 | keypad |
+| Byte | Source      |
+| ---- | ----------- |
+| 0x00 | zigbee      |
+| 0x02 | keypad      |
 | 0x03 | fingerprint |
-| 0x04 | rfid |
-| 0x0A | auto |
+| 0x04 | rfid        |
+| 0x0A | auto        |
 
 Session notes and stale plans contain earlier incorrect guesses. Code is authoritative.
 
 ## Key Files
 
-| File | Purpose |
-|------|---------|
-| `custom_components/onesti_lock/__init__.py` | Setup, event listener, operation event decoding |
-| `custom_components/onesti_lock/coordinator.py` | Slot storage, ZHA cluster wrapper, auto-wake, PIN operations |
+| File                                           | Purpose                                                           |
+| ---------------------------------------------- | ----------------------------------------------------------------- |
+| `custom_components/onesti_lock/__init__.py`    | Setup, event listener, operation event decoding                   |
+| `custom_components/onesti_lock/coordinator.py` | Slot storage, ZHA cluster wrapper, auto-wake, PIN operations      |
 | `custom_components/onesti_lock/config_flow.py` | Config flow (device selection) + Options flow (PIN management UI) |
-| `custom_components/onesti_lock/sensor.py` | Slot sensors (3-12) + Activity sensor |
-| `custom_components/onesti_lock/services.py` | set_pin, clear_pin, set_name, clear_slot services |
-| `custom_components/onesti_lock/const.py` | Constants, source/action enums, supported models, slot ranges |
+| `custom_components/onesti_lock/sensor.py`      | Slot sensors (3-12) + Activity sensor                             |
+| `custom_components/onesti_lock/services.py`    | set_pin, clear_pin, set_name, clear_slot services                 |
+| `custom_components/onesti_lock/const.py`       | Constants, source/action enums, supported models, slot ranges     |
 
 ## Gotchas
 
@@ -63,21 +63,21 @@ Session notes and stale plans contain earlier incorrect guesses. Code is authori
 
 ## Documentation Map
 
-| Doc | Content |
-|-----|---------|
-| `README.md` | User-facing: features, comparison, install, setup, supported devices |
-| `docs/technical.md` | Integration internals: event decoding, coordinator, auto-wake, sleepy device, community refs |
-| `docs/zigbee-captures.md` | Raw ZCL frames and verified protocol values (canonical for attrid 0x0100) |
-| `docs/app-architecture.md` | iotiliti cloud ecosystem, white-label hierarchy, DoorlockTypes, cloud events |
-| `docs/ble-protocol.md` | BLE protocol from decompiled nimly BLE app (not used by integration) |
-| `docs/hardware-gateway.md` | Connect Bridge hardware, network stack, firmware |
-| `docs/reversing-notes.md` | Nimly Connect APK reverse engineering, REST API, CAS error codes, credentials |
-| `docs/iotiliti-api-spec.yaml` | OpenAPI spec for iotiliti cloud (reverse-engineered) |
-| `docs/visjon.md` | Product vision / north star |
-| `docs/email-onesti-draft.md` | Draft email to Onesti Products for protocol verification |
-| `docs/session-notes-2026-03-28.md` | Session journal (ephemeral notes, deploy scripts, TODOs) |
-| `docs/plans/2026-03-30-options-flow-ux-design.md` | Current: options flow UX design |
-| `docs/archive/` | Stale plans from v2 design phase (used nimly_pro domain, wrong event approach) |
+| Doc                                               | Content                                                                                      |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `README.md`                                       | User-facing: features, comparison, install, setup, supported devices                         |
+| `docs/technical.md`                               | Integration internals: event decoding, coordinator, auto-wake, sleepy device, community refs |
+| `docs/zigbee-captures.md`                         | Raw ZCL frames and verified protocol values (canonical for attrid 0x0100)                    |
+| `docs/app-architecture.md`                        | iotiliti cloud ecosystem, white-label hierarchy, DoorlockTypes, cloud events                 |
+| `docs/ble-protocol.md`                            | BLE protocol from decompiled nimly BLE app (not used by integration)                         |
+| `docs/hardware-gateway.md`                        | Connect Bridge hardware, network stack, firmware                                             |
+| `docs/reversing-notes.md`                         | Nimly Connect APK reverse engineering, REST API, CAS error codes, credentials                |
+| `docs/iotiliti-api-spec.yaml`                     | OpenAPI spec for iotiliti cloud (reverse-engineered)                                         |
+| `docs/visjon.md`                                  | Product vision / north star                                                                  |
+| `docs/email-onesti-draft.md`                      | Draft email to Onesti Products for protocol verification                                     |
+| `docs/session-notes-2026-03-28.md`                | Session journal (ephemeral notes, deploy scripts, TODOs)                                     |
+| `docs/plans/2026-03-30-options-flow-ux-design.md` | Current: options flow UX design                                                              |
+| `docs/archive/`                                   | Stale plans from v2 design phase (used nimly_pro domain, wrong event approach)               |
 
 ## Testing
 

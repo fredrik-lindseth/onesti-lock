@@ -9,20 +9,20 @@ Home Assistant integration for PIN code management and activity tracking on Ones
 
 The official Nimly ecosystem requires the **Nimly Connect Bridge** (gateway hub) and routes everything through **iotiliti cloud** — and even then, automations are locked behind an additional **"PRO Hub"** upsell. This integration replaces all of that with a direct, local Zigbee connection.
 
-|   | Nimly App (no hub) | Nimly App + Connect Hub | Nimly App + PRO Hub | **This integration** |
-|---|--------------------|-------------------------|---------------------|----------------------|
-| **Extra hardware** | None (BLE only) | Connect Bridge (~1500 kr) | PRO Hub (?) | Any Zigbee coordinator |
-| **Cloud dependency** | Partial (BLE + cloud) | Yes — iotiliti.cloud | Yes — iotiliti.cloud | **None — 100% local** |
-| **Internet required** | For remote features | Yes | Yes | **No — fully offline** |
-| **PIN management** | Via BLE (phone must be near lock) | Via cloud → hub → lock | Via cloud → hub → lock | Via HA UI → ZHA → lock |
-| **User identification** | In-app history | Cloud event history | Cloud event history | **Real-time: "Kari låste opp med kode"** |
-| **Automations** | None | **None — "requires PRO Hub"** | Yes (via Nimly cloud) | **Full HA automations** |
-| **Digital keys** | BLE unlock (nearby) | Remote unlock via cloud | Remote unlock via cloud | HA lock entity (local) |
-| **OTP (one-time codes)** | No | Yes (cloud-managed) | Yes (cloud-managed) | Planned (set_pin + auto-clear) |
-| **RFID enrollment** | Via BLE scan mode | Via cloud → hub | Via cloud → hub | Not yet (needs BLE) |
-| **Fingerprint enrollment** | Via BLE scan mode | Via cloud → hub | Via cloud → hub | Not yet (needs BLE) |
-| **Cost** | Free app | Hub + cloud account | Hub + PRO Hub + cloud | **Free and open source** |
-| **Privacy** | Events to cloud | All events to AWS | All events to AWS | **Everything stays local** |
+|                            | Nimly App (no hub)                | Nimly App + Connect Hub       | Nimly App + PRO Hub     | **This integration**                      |
+| -------------------------- | --------------------------------- | ----------------------------- | ----------------------- | ----------------------------------------- |
+| **Extra hardware**         | None (BLE only)                   | Connect Bridge (~1500 kr)     | PRO Hub (?)             | Any Zigbee coordinator                    |
+| **Cloud dependency**       | Partial (BLE + cloud)             | Yes — iotiliti.cloud          | Yes — iotiliti.cloud    | **None — 100% local**                     |
+| **Internet required**      | For remote features               | Yes                           | Yes                     | **No — fully offline**                    |
+| **PIN management**         | Via BLE (phone must be near lock) | Via cloud → hub → lock        | Via cloud → hub → lock  | Via HA UI → ZHA → lock                    |
+| **User identification**    | In-app history                    | Cloud event history           | Cloud event history     | **Real-time: "Kari låste opp med kode"** |
+| **Automations**            | None                              | **None — "requires PRO Hub"** | Yes (via Nimly cloud)   | **Full HA automations**                   |
+| **Digital keys**           | BLE unlock (nearby)               | Remote unlock via cloud       | Remote unlock via cloud | HA lock entity (local)                    |
+| **OTP (one-time codes)**   | No                                | Yes (cloud-managed)           | Yes (cloud-managed)     | Planned (set_pin + auto-clear)            |
+| **RFID enrollment**        | Via BLE scan mode                 | Via cloud → hub               | Via cloud → hub         | Not yet (needs BLE)                       |
+| **Fingerprint enrollment** | Via BLE scan mode                 | Via cloud → hub               | Via cloud → hub         | Not yet (needs BLE)                       |
+| **Cost**                   | Free app                          | Hub + cloud account           | Hub + PRO Hub + cloud   | **Free and open source**                  |
+| **Privacy**                | Events to cloud                   | All events to AWS             | All events to AWS       | **Everything stays local**                |
 
 **In short:** The official Nimly setup charges for three tiers of hardware just to get automations — and still routes everything through their cloud. This integration gives you PIN management, real-time user identification, and full Home Assistant automations with zero cloud dependency, zero extra hardware cost, and zero internet requirement.
 
@@ -36,7 +36,7 @@ The cloud platform behind these locks is **iotiliti**, owned by Safe4 Security G
 
 If you are choosing a smart lock specifically for Home Assistant, there are easier options. But if you already have a Nimly/Onesti lock, this integration makes the best of it. These are the real Zigbee limitations you should be aware of:
 
-1. **Not a standard Zigbee Door Lock.** The lock uses custom cluster attributes (0x0100, 0x0101) that are not in the ZCL specification. Standard ZHA and Zigbee2MQTT integrations will show lock/unlock state, but cannot decode *who* unlocked or *how* — you just get a generic state change. This integration exists specifically to solve that.
+1. **Not a standard Zigbee Door Lock.** The lock uses custom cluster attributes (0x0100, 0x0101) that are not in the ZCL specification. Standard ZHA and Zigbee2MQTT integrations will show lock/unlock state, but cannot decode _who_ unlocked or _how_ — you just get a generic state change. This integration exists specifically to solve that.
 
 2. **Battery-powered sleepy EndDevice.** The lock sleeps aggressively to preserve battery. Zigbee commands — especially `set_pin` — frequently timeout because the radio is not listening. You have to wake the lock first (press the keypad or trigger a lock/unlock). This integration auto-retries with a wake cycle on timeout, but it is inherently less reliable than mains-powered locks that are always listening.
 
@@ -65,13 +65,13 @@ If you are choosing a smart lock specifically for Home Assistant, there are easi
 
 All Onesti Products AS locks with Zigbee Connect Module:
 
-| Zigbee model | Brand name | Status |
-|-------|-------------|--------|
-| NimlyPRO | Nimly Touch Pro | Verified |
-| NimlyPRO24 | Nimly Touch Pro 24 | Supported |
+| Zigbee model     | Brand name                 | Status    |
+| ---------------- | -------------------------- | --------- |
+| NimlyPRO         | Nimly Touch Pro            | Verified  |
+| NimlyPRO24       | Nimly Touch Pro 24         | Supported |
 | easyCodeTouch_v1 | EasyAccess / EasyCodeTouch | Supported |
-| EasyCodeTouch | EasyAccess | Supported |
-| EasyFingerTouch | EasyAccess | Supported |
+| EasyCodeTouch    | EasyAccess                 | Supported |
+| EasyFingerTouch  | EasyAccess                 | Supported |
 
 These are all the same hardware with different branding.
 
@@ -104,6 +104,7 @@ These are all the same hardware with different branding.
 **Settings → Devices & Services → Onesti Lock → Configure**
 
 Menu options:
+
 - **Sett PIN-kode** — select slot, enter name and 4-8 digit code
 - **Fjern PIN-kode** — select active user to remove
 - **Vis brukerslots** — overview of all slots
@@ -113,16 +114,16 @@ Menu options:
 ```yaml
 service: onesti_lock.set_pin
 data:
-  slot: 3        # User slots: 3-199 (0-2 reserved for master codes)
+  slot: 3 # User slots: 3-199 (0-2 reserved for master codes)
   name: "Ola"
   code: "5478"
 ```
 
-| Service | Description |
-|---------|-------------|
-| `onesti_lock.set_pin` | Set PIN code with name for a slot |
-| `onesti_lock.clear_pin` | Remove PIN code from a slot |
-| `onesti_lock.set_name` | Change slot name without changing PIN |
+| Service                  | Description                                 |
+| ------------------------ | ------------------------------------------- |
+| `onesti_lock.set_pin`    | Set PIN code with name for a slot           |
+| `onesti_lock.clear_pin`  | Remove PIN code from a slot                 |
+| `onesti_lock.set_name`   | Change slot name without changing PIN       |
 | `onesti_lock.clear_slot` | Remove all credentials and name from a slot |
 
 ## Entities
@@ -135,6 +136,7 @@ Per configured lock:
 ## Important: Slot numbering
 
 Per the Nimly/EasyAccess manual:
+
 - **Slots 0-2**: Reserved for master codes (programming codes)
 - **Slots 3-199**: User codes
 - **PIN entry**: code followed by `#` on the keypad

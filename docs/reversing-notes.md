@@ -19,17 +19,18 @@ Ingen BLE-kommunikasjon funnet i denne appen (det er en separat app: `nimly BLE`
 
 Appen er en white-label fra **iotiliti** (tidligere NeutrAlClone). Samme kodebase brukes av:
 
-| Merke | API URL | Company ID |
-|-------|---------|------------|
+| Merke                | API URL                           | Company ID                             |
+| -------------------- | --------------------------------- | -------------------------------------- |
 | **Nimly/EasyAccess** | `api-neutralclone.iotiliti.cloud` | `90ded287-2356-4007-ac39-d3e1261afb59` |
-| Keyfree | `api-keyfree.iotiliti.cloud` | `b960e7e6-02bd-490b-8c90-e6c428c45eea` |
-| Salus | `api-salus.iotiliti.cloud` | `93bd9ef6-8bd0-4ad0-b045-5644fd62ef70` |
-| Forebygg | `api-forebygg.iotiliti.cloud` | (i koden) |
-| Homely | `api.homely.no` | `a21f32b6-4ac9-4c85-b97a-8b6ae565f37c` |
+| Keyfree              | `api-keyfree.iotiliti.cloud`      | `b960e7e6-02bd-490b-8c90-e6c428c45eea` |
+| Salus                | `api-salus.iotiliti.cloud`        | `93bd9ef6-8bd0-4ad0-b045-5644fd62ef70` |
+| Forebygg             | `api-forebygg.iotiliti.cloud`     | (i koden)                              |
+| Homely               | `api.homely.no`                   | `a21f32b6-4ac9-4c85-b97a-8b6ae565f37c` |
 
 ## Autentisering
 
 ### OAuth2 (primær)
+
 ```
 POST /oauth/v2/token
 {
@@ -50,6 +51,7 @@ POST /oauth/v2/refresh-token
 ```
 
 ### AWS Cognito (alternativ)
+
 ```
 Region: eu-central-1
 User Pool (prod): <extracted-from-apk, see secrets.md>
@@ -57,51 +59,53 @@ Client ID (prod): <extracted-from-apk, see secrets.md>
 ```
 
 ### Header
+
 ```
 Authorization: Bearer <access_token>
 ```
 
 ## REST API — Dørlås-endepunkter
 
-| Method | Path | Funksjon |
-|--------|------|----------|
-| POST | `/devices/{id}/lock` | Lås døren |
-| POST | `/devices/{id}/action` | Generell handling |
-| PATCH | `/devices/{id}/settings` | Endre innstillinger |
-| GET | `/devices/{id}/access` | Hent alle brukere/koder |
-| POST | `/devices/{id}/access` | **Opprett ny PIN/kode** |
-| PATCH | `/devices/{id}/access` | Oppdater tilgang |
-| DELETE | `/devices/{id}/access` | Slett tilgang |
-| GET | `/devices/{id}/event-history` | Hendelseslogg |
-| POST | `/devices` | Legg til enhet |
-| DELETE | `/devices/{id}` | Fjern enhet |
-| PATCH | `/devices/{id}` | Oppdater enhet |
-| POST | `/devices/{id}/keychain-lock` | Lås via keychain |
-| PATCH | `/devices/{id}/alarm-reaction` | Endre alarm-reaksjon |
-| PATCH | `/devices/{id}/alarm-profile` | Endre alarm-profil |
-| POST | `/devices/{id}/access/scan-tag` | Scan RFID-tag |
-| GET | `/devices/{id}/features-history` | Feature-historikk |
-| PATCH | `/devices/{id}/input-actions/{actionId}` | Oppdater input-actions |
-| PATCH | `/devices/{id}/output-actions/{actionId}` | Oppdater output-actions |
-| GET | `/devices/{id}/demand` | Forbruksverdier |
+| Method | Path                                      | Funksjon                |
+| ------ | ----------------------------------------- | ----------------------- |
+| POST   | `/devices/{id}/lock`                      | Lås døren               |
+| POST   | `/devices/{id}/action`                    | Generell handling       |
+| PATCH  | `/devices/{id}/settings`                  | Endre innstillinger     |
+| GET    | `/devices/{id}/access`                    | Hent alle brukere/koder |
+| POST   | `/devices/{id}/access`                    | **Opprett ny PIN/kode** |
+| PATCH  | `/devices/{id}/access`                    | Oppdater tilgang        |
+| DELETE | `/devices/{id}/access`                    | Slett tilgang           |
+| GET    | `/devices/{id}/event-history`             | Hendelseslogg           |
+| POST   | `/devices`                                | Legg til enhet          |
+| DELETE | `/devices/{id}`                           | Fjern enhet             |
+| PATCH  | `/devices/{id}`                           | Oppdater enhet          |
+| POST   | `/devices/{id}/keychain-lock`             | Lås via keychain        |
+| PATCH  | `/devices/{id}/alarm-reaction`            | Endre alarm-reaksjon    |
+| PATCH  | `/devices/{id}/alarm-profile`             | Endre alarm-profil      |
+| POST   | `/devices/{id}/access/scan-tag`           | Scan RFID-tag           |
+| GET    | `/devices/{id}/features-history`          | Feature-historikk       |
+| PATCH  | `/devices/{id}/input-actions/{actionId}`  | Oppdater input-actions  |
+| PATCH  | `/devices/{id}/output-actions/{actionId}` | Oppdater output-actions |
+| GET    | `/devices/{id}/demand`                    | Forbruksverdier         |
 
 ### Keybox (kryptonøkler)
-| Method | Path | Funksjon |
-|--------|------|----------|
-| POST | `/keybox/users/{userId}/keys` | Opprett brukernøkkel |
-| POST | `/keybox/devices/{deviceId}/tokens` | Opprett enhetstoken |
-| GET | `/keybox/devices/{deviceId}/keys` | Hent enhetsnøkkel |
+
+| Method | Path                                | Funksjon             |
+| ------ | ----------------------------------- | -------------------- |
+| POST   | `/keybox/users/{userId}/keys`       | Opprett brukernøkkel |
+| POST   | `/keybox/devices/{deviceId}/tokens` | Opprett enhetstoken  |
+| GET    | `/keybox/devices/{deviceId}/keys`   | Hent enhetsnøkkel    |
 
 ## Tilgangstyper
 
 ```javascript
 DeviceAccessMethodType = {
-    Pin: 'pin',        // Kode på keypad
-    Tag: 'tag',        // RFID/NFC-brikke
-    Otp: 'otp',        // Engangskode
-    DigitalKey: 'digitalKey',  // Digital nøkkel (app)
-    Finger: 'finger'   // Fingeravtrykk
-}
+  Pin: "pin", // Kode på keypad
+  Tag: "tag", // RFID/NFC-brikke
+  Otp: "otp", // Engangskode
+  DigitalKey: "digitalKey", // Digital nøkkel (app)
+  Finger: "finger", // Fingeravtrykk
+};
 ```
 
 ## Brukermodell
@@ -126,16 +130,16 @@ DeviceAccessMethodType = {
 
 ```javascript
 DoorlockTypes = {
-    Yale: 'yaledoorman',
-    Danalock: 'danalock',
-    Easyaccess: 'easyaccess',
-    Easycode: 'easycode',
-    Idlock: 'idlock',
-    Easyfinger: 'easyfinger',
-    Iomodule: 'iomodule',
-    Keybox: 'keybox',
-    Dormakaba: 'dormakaba'
-}
+  Yale: "yaledoorman",
+  Danalock: "danalock",
+  Easyaccess: "easyaccess",
+  Easycode: "easycode",
+  Idlock: "idlock",
+  Easyfinger: "easyfinger",
+  Iomodule: "iomodule",
+  Keybox: "keybox",
+  Dormakaba: "dormakaba",
+};
 ```
 
 > Se også: docs/app-architecture.md for komplett DoorlockTypes-referanse.
@@ -144,28 +148,29 @@ DoorlockTypes = {
 
 ```javascript
 DoorlockLockModeValues = {
-    ManualLockAwayOff: 'MANUAL_LOCK_AWAY_OFF',
-    AutoLockAwayOff: 'AUTO_LOCK_AWAY_OFF',
-    ManualLockAwayOn: 'MANUAL_LOCK_AWAY_ON',
-    AutoLockAwayOn: 'AUTO_LOCK_AWAY_ON'
-}
+  ManualLockAwayOff: "MANUAL_LOCK_AWAY_OFF",
+  AutoLockAwayOff: "AUTO_LOCK_AWAY_OFF",
+  ManualLockAwayOn: "MANUAL_LOCK_AWAY_ON",
+  AutoLockAwayOn: "AUTO_LOCK_AWAY_ON",
+};
 ```
 
 ## Event-rapportering
 
 ```javascript
 DoorLockEventFeatureState = {
-    AUTO_LOCK: 'reportautolock',
-    LOCKED: 'reportlocked',
-    EVENT: 'reportevent',
-    SECURE_SENSOR: 'reportsecuresensor',
-    LOW_BATTERY: 'reportlowbat',
-    UNKNOWN_CARD: 'reportunknowncard',
-    LOCK_STATE: 'lockstate'
-}
+  AUTO_LOCK: "reportautolock",
+  LOCKED: "reportlocked",
+  EVENT: "reportevent",
+  SECURE_SENSOR: "reportsecuresensor",
+  LOW_BATTERY: "reportlowbat",
+  UNKNOWN_CARD: "reportunknowncard",
+  LOCK_STATE: "lockstate",
+};
 ```
 
 Doorlock-events:
+
 ```
 doorlock-settings-changed
 doorlock-access-created
@@ -184,7 +189,7 @@ Gatewayen bruker "CAS" (Command and Status?) protokoll med **AES-kryptering**:
 Nøkkelfeilkoder:
 | Kode | Navn | Betydning |
 |------|------|-----------|
-| 380000 | CAS_MSG_NO_ERROR | OK |
+| 380000 | CAS*MSG_NO_ERROR | OK |
 | 380001 | CAS_MSG_UNKNOW_ERROR | Ukjent feil |
 | 380006 | CAS_MSG_COMMAND_UNKNOW | Ukjent kommando |
 | 380041 | CAS_MSG_PU_BUSY | Enhet opptatt |
@@ -192,7 +197,7 @@ Nøkkelfeilkoder:
 | 380043 | CAS_PU_NO_CRYPTO_FOUND | Kryptonøkkel mangler |
 | 380047 | CAS_SYSTEM_COMMAND_PU_COMMAND_UNSUPPORTED | Kommando ikke støttet |
 | 380048 | CAS_SYSTEM_COMMAND_PU_NO_RIGHTS_TO_DO_COMMAND | Manglende rettigheter |
-| 380106-380111 | CAS_PU_PASSWORD_UPDATE_* | Passordfeil |
+| 380106-380111 | CAS_PU_PASSWORD_UPDATE*\* | Passordfeil |
 | 380125 | CAS_PU_REFUSE_CLIENT_CONNECTION | Tilkobling avvist |
 | 380126 | CAS_PLATFORM_CLIENT_VERIFY_AUTH_ERROR | Auth-feil |
 
@@ -212,7 +217,9 @@ Nøkkelfeilkoder:
 ## Implikasjoner for integrasjonen
 
 ### PIN-setting via cloud API
+
 I stedet for å slite med Zigbee sleepy device timeout, kan vi potensielt sette PIN via REST API:
+
 ```
 POST https://api-neutralclone.iotiliti.cloud/devices/{deviceId}/access
 Authorization: Bearer <token>
@@ -222,15 +229,19 @@ Authorization: Bearer <token>
     userId: "..."
 }
 ```
+
 Dette omgår Zigbee helt — gatewayen håndterer timing.
 
 ### Event-historikk
+
 ```
 GET /devices/{deviceId}/event-history
 ```
+
 Kan gi komplett hendelseslogg med brukerinfo — bedre enn Zigbee attribute reports.
 
 ### Forutsetninger
+
 - Krever Connect Bridge (gateway) — ikke bare Connect Module
 - Krever Nimly-konto med tilknyttet lås
 - API-et er ikke offisielt dokumentert

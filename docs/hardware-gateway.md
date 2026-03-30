@@ -7,45 +7,45 @@ Mål: dokumentere alt slik at ingen trenger å kjøpe denne hubben for å forst�
 
 Samme hardware selges under flere merker:
 
-| Nivå | Aktør | Rolle |
-|------|-------|-------|
-| **Chipmaker** | Develco Products / Onics A/S | HW-produsent (Aarhus, Danmark) |
-| **Plattform** | Squid.Link 2B | Gateway-plattformen (MGW211) |
-| **Sky** | iotiliti (Safe4 Security Group) | IoT-plattform, MQTT-broker, REST API |
-| **White-label** | EasyAccess / E-Life / Nimly / Keyfree / Salus / Forebygg / Homely | Sluttbruker-merkevarer |
+| Nivå            | Aktør                                                             | Rolle                                |
+| --------------- | ----------------------------------------------------------------- | ------------------------------------ |
+| **Chipmaker**   | Develco Products / Onics A/S                                      | HW-produsent (Aarhus, Danmark)       |
+| **Plattform**   | Squid.Link 2B                                                     | Gateway-plattformen (MGW211)         |
+| **Sky**         | iotiliti (Safe4 Security Group)                                   | IoT-plattform, MQTT-broker, REST API |
+| **White-label** | EasyAccess / E-Life / Nimly / Keyfree / Salus / Forebygg / Homely | Sluttbruker-merkevarer               |
 
 Klistremerkene på hardware sier "EasyAccess Easy Living". Connect-modulen i låsen sier "E-Life 3.0".
 Appen heter "Nimly Connect". Alt er samme system.
 
 ## Hardware-identifikasjon
 
-| Felt | Verdi |
-|------|-------|
-| **Merke** | EasyAccess (Easy Living) |
-| **Produsent** | Develco Products / Onics A/S (Aarhus, Danmark) |
-| **Modell** | MGW211-EAS2 |
-| **Plattform** | Squid.Link 2B |
-| **PN** | F0080Z0186 |
-| **HW** | 4.1.0 |
-| **S/N** | 0200 0001 3000 4433 |
-| **DHCP Vendor Class** | `HomeGate AIO` |
-| **mDNS Hostname** | `gw-4433` (siste 4 siffer av S/N) |
+| Felt                  | Verdi                                          |
+| --------------------- | ---------------------------------------------- |
+| **Merke**             | EasyAccess (Easy Living)                       |
+| **Produsent**         | Develco Products / Onics A/S (Aarhus, Danmark) |
+| **Modell**            | MGW211-EAS2                                    |
+| **Plattform**         | Squid.Link 2B                                  |
+| **PN**                | F0080Z0186                                     |
+| **HW**                | 4.1.0                                          |
+| **S/N**               | 0200 0001 3000 4433                            |
+| **DHCP Vendor Class** | `HomeGate AIO`                                 |
+| **mDNS Hostname**     | `gw-4433` (siste 4 siffer av S/N)              |
 
 ### Connect-modul (i låsen)
 
-| Felt | Verdi |
-|------|-------|
-| **Merke** | E-Life |
-| **Versjon** | 3.0 |
-| **Rolle** | Zigbee-radio i låsen, pares med hubben |
+| Felt        | Verdi                                  |
+| ----------- | -------------------------------------- |
+| **Merke**   | E-Life                                 |
+| **Versjon** | 3.0                                    |
+| **Rolle**   | Zigbee-radio i låsen, pares med hubben |
 
 ## Nettverksadresser
 
-| Interface | MAC-adresse | OUI |
-|-----------|-------------|-----|
-| Ethernet | `00:15:BC:27:D0:78` | Develco (reg. 2005) |
-| WLAN | `00:15:BC:27:D0:79` | Develco (WLAN = Ethernet +1) |
-| ZigBee IEEE | `00:15:BC:00:2C:11:1D:DE` | Develco |
+| Interface   | MAC-adresse               | OUI                          |
+| ----------- | ------------------------- | ---------------------------- |
+| Ethernet    | `00:15:BC:27:D0:78`       | Develco (reg. 2005)          |
+| WLAN        | `00:15:BC:27:D0:79`       | Develco (WLAN = Ethernet +1) |
+| ZigBee IEEE | `00:15:BC:00:2C:11:1D:DE` | Develco                      |
 
 ## Zigbee
 
@@ -54,19 +54,19 @@ Appen heter "Nimly Connect". Alt er samme system.
 - Rollen: Zigbee Coordinator — parer og styrer låser via Zigbee
 - Gateway-til-lås protokoll: CAS (Command and Status) med AES-kryptering
 
-Merk: **Hubben** er Zigbee 3.0-sertifisert, men Nimly-**låsen** (easyCodeTouch) er *ikke* sertifisert.
+Merk: **Hubben** er Zigbee 3.0-sertifisert, men Nimly-**låsen** (easyCodeTouch) er _ikke_ sertifisert.
 
 ## Strømforsyning (PSU)
 
-| Felt | Verdi |
-|------|-------|
-| **Modell** | YS16-0902000E |
-| **Input** | 100-240V~ 50/60Hz 0.5A |
-| **Output** | 9V DC 2A |
-| **Kontakt** | Barrel jack, center-positive, 5.5x2.1mm |
-| **Isolasjon** | Class II (dobbeltissolert) |
-| **Sertifiseringer** | CE, GS (TÜV Rheinland) |
-| **Produsert** | Kina, juli 2021 |
+| Felt                | Verdi                                   |
+| ------------------- | --------------------------------------- |
+| **Modell**          | YS16-0902000E                           |
+| **Input**           | 100-240V~ 50/60Hz 0.5A                  |
+| **Output**          | 9V DC 2A                                |
+| **Kontakt**         | Barrel jack, center-positive, 5.5x2.1mm |
+| **Isolasjon**       | Class II (dobbeltissolert)              |
+| **Sertifiseringer** | CE, GS (TÜV Rheinland)                  |
+| **Produsert**       | Kina, juli 2021                         |
 
 **Erstatning:** Enhver 9V/2A DC barrel jack adapter med center-positive polaritet og 5.5x2.1mm plugg.
 
@@ -89,14 +89,14 @@ Merk: **Hubben** er Zigbee 3.0-sertifisert, men Nimly-**låsen** (easyCodeTouch)
 
 ## Software-stack (fra nettverksanalyse)
 
-| Komponent | Versjon/Detalj |
-|-----------|----------------|
-| **OS** | Embedded Linux ("HomeGate AIO"), sannsynligvis Yocto/Buildroot |
-| **SSH** | Dropbear 2020.81 (ED25519 host key, publickey-only auth) |
-| **TLS** | OpenSSL 1.1.1+ eller 3.x (støtter TLS 1.0–1.3, 31 cipher suites) |
-| **NTP** | NTPv4 (syncer fra 0-3.pool.ntp.org) |
-| **mDNS** | Annonserer `gw-{SERIAL}._ssh._tcp.local` |
-| **Webserver** | Ingen (port 80/443 lukket) |
+| Komponent     | Versjon/Detalj                                                   |
+| ------------- | ---------------------------------------------------------------- |
+| **OS**        | Embedded Linux ("HomeGate AIO"), sannsynligvis Yocto/Buildroot   |
+| **SSH**       | Dropbear 2020.81 (ED25519 host key, publickey-only auth)         |
+| **TLS**       | OpenSSL 1.1.1+ eller 3.x (støtter TLS 1.0–1.3, 31 cipher suites) |
+| **NTP**       | NTPv4 (syncer fra 0-3.pool.ntp.org)                              |
+| **mDNS**      | Annonserer `gw-{SERIAL}._ssh._tcp.local`                         |
+| **Webserver** | Ingen (port 80/443 lukket)                                       |
 
 ### SSH-tilgang
 
@@ -123,27 +123,27 @@ Total tid fra strøm til MQTT-tilkobling: ~50 sekunder.
 
 #### Boot/provisioning
 
-| Endepunkt | Detalj |
-|-----------|--------|
-| **Hostname** | `boot-v2.onesti.io` |
-| **IP-er** | `3.127.252.118`, `52.29.36.20`, `63.179.222.106` (AWS eu-central-1, roterer) |
-| **Protokoll** | HTTPS (TLS 1.3, AES-128-GCM) |
-| **TLS-cert** | `CN=*.onesti.io`, issuer: Amazon RSA 2048 M04, gyldig til 2027-03-04 |
-| **HTTP** | HTTP/2 |
-| **`/health`** | `200 OK` → `{}` (Hapi/NestJS-stil) |
-| **Alt annet** | `404` — trenger sannsynligvis gateway-ID/token i path eller headers |
+| Endepunkt     | Detalj                                                                       |
+| ------------- | ---------------------------------------------------------------------------- |
+| **Hostname**  | `boot-v2.onesti.io`                                                          |
+| **IP-er**     | `3.127.252.118`, `52.29.36.20`, `63.179.222.106` (AWS eu-central-1, roterer) |
+| **Protokoll** | HTTPS (TLS 1.3, AES-128-GCM)                                                 |
+| **TLS-cert**  | `CN=*.onesti.io`, issuer: Amazon RSA 2048 M04, gyldig til 2027-03-04         |
+| **HTTP**      | HTTP/2                                                                       |
+| **`/health`** | `200 OK` → `{}` (Hapi/NestJS-stil)                                           |
+| **Alt annet** | `404` — trenger sannsynligvis gateway-ID/token i path eller headers          |
 
 #### MQTT-broker (persistent sky-forbindelse)
 
-| Felt | Verdi |
-|------|-------|
-| **IP** | `3.75.35.23` (AWS eu-central-1) |
-| **Port** | 8883 (MQTT over TLS) |
-| **Protokoll** | TLS 1.3, AES-128-GCM |
-| **TLS-cert Subject** | `CN=onesti.iotiliti.cloud` |
-| **TLS-cert Issuer** | `C=PL, ST=Some-State, O=Internet Widgits Pty Ltd` **(self-signed!)** |
-| **Cert gyldig** | 2024-11-26 til 2034-11-24 (10 år) |
-| **rDNS** | `ec2-3-75-35-23.eu-central-1.compute.amazonaws.com` |
+| Felt                 | Verdi                                                                |
+| -------------------- | -------------------------------------------------------------------- |
+| **IP**               | `3.75.35.23` (AWS eu-central-1)                                      |
+| **Port**             | 8883 (MQTT over TLS)                                                 |
+| **Protokoll**        | TLS 1.3, AES-128-GCM                                                 |
+| **TLS-cert Subject** | `CN=onesti.iotiliti.cloud`                                           |
+| **TLS-cert Issuer**  | `C=PL, ST=Some-State, O=Internet Widgits Pty Ltd` **(self-signed!)** |
+| **Cert gyldig**      | 2024-11-26 til 2034-11-24 (10 år)                                    |
+| **rDNS**             | `ec2-3-75-35-23.eu-central-1.compute.amazonaws.com`                  |
 
 **Sikkerhetsmerknad:** MQTT-sertifikatet er self-signed med OpenSSL default-verdier fra Polen.
 Hubben har CA-sertifikatet hardkodet og validerer ikke mot public CA.
@@ -151,13 +151,13 @@ Dette betyr at MITM av MQTT-trafikken er mulig dersom man erstatter CA-en på hu
 
 #### REST API (brukt av appen, ikke hubben direkte)
 
-| Merke | API URL |
-|-------|---------|
+| Merke                | API URL                           |
+| -------------------- | --------------------------------- |
 | **Nimly/EasyAccess** | `api-neutralclone.iotiliti.cloud` |
-| Keyfree | `api-keyfree.iotiliti.cloud` |
-| Salus | `api-salus.iotiliti.cloud` |
-| Forebygg | `api-forebygg.iotiliti.cloud` |
-| Homely | `api.homely.no` |
+| Keyfree              | `api-keyfree.iotiliti.cloud`      |
+| Salus                | `api-salus.iotiliti.cloud`        |
+| Forebygg             | `api-forebygg.iotiliti.cloud`     |
+| Homely               | `api.homely.no`                   |
 
 Se `reversing-notes.md` for komplett API-dokumentasjon.
 
@@ -179,11 +179,11 @@ Se `reversing-notes.md` for komplett API-dokumentasjon.
 
 ### Brannmur-krav (utgående fra hubben)
 
-| Destinasjon | Port | Protokoll | Formål |
-|-------------|------|-----------|--------|
-| `boot-v2.onesti.io` | 443 | HTTPS | Provisioning ved boot |
-| `3.75.35.23` (eller andre AWS eu-central-1) | 8883 | MQTT/TLS | Persistent sky-forbindelse |
-| `0-3.pool.ntp.org` | 123 | NTP | Klokkesynk |
+| Destinasjon                                 | Port | Protokoll | Formål                     |
+| ------------------------------------------- | ---- | --------- | -------------------------- |
+| `boot-v2.onesti.io`                         | 443  | HTTPS     | Provisioning ved boot      |
+| `3.75.35.23` (eller andre AWS eu-central-1) | 8883 | MQTT/TLS  | Persistent sky-forbindelse |
+| `0-3.pool.ntp.org`                          | 123  | NTP       | Klokkesynk                 |
 
 Hubben trenger kun disse tre for å fungere. DNS (port 53) er implisitt.
 
@@ -192,15 +192,18 @@ Hubben trenger kun disse tre for å fungere. DNS (port 53) er implisitt.
 ## Firmware-oppdatering
 
 Ved første boot (eller etter factory reset) viser hubben:
+
 > "please wait, the gateway will now run and update to the latest software version before rebooting..."
 
 Oppdateringen:
+
 1. Kjører fra intern flash (trenger ikke nett for selve oppdateringen)
 2. Reboooter automatisk etter ~5-10 minutter
 3. LED-sekvens: blinkende grønt → fast grønt (power) → fast grønt (venstre knapp) = ferdig
 4. Etter reboot kobler hubben til MQTT-broker og rapporterer "gateway online" i appen
 
 Appen kan også trigge firmware-oppdatering:
+
 > "installing updates - downloading 97%" → "completing - the gateway is installing the update and will do a restart"
 
 ---
@@ -224,6 +227,7 @@ Hvis låsen er paret med ZHA/zigbee2mqtt, må den fjernes derfra først:
 
 Denne hubben er **ikke nødvendig** for HA-integrasjonen — ZHA/zigbee2mqtt snakker direkte med låsen.
 Hubben er kun nødvendig for:
+
 - Nimly Connect-appen
 - Cloud API-tilgang (iotiliti REST API)
 - PIN-setting via cloud (omgår Zigbee sleepy device timeout)
@@ -232,5 +236,6 @@ Hubben er kun nødvendig for:
 ### Hybrid-strategi
 
 Optimal oppsett bruker **begge**:
+
 - **ZHA** for lokal kontroll (lock/unlock, tilstandsovervåking)
 - **Cloud API** via hubben for PIN-setting og event-historikk (omgår sleepy device-problemer)

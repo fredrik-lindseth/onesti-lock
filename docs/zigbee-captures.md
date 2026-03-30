@@ -9,11 +9,12 @@ Rå Zigbee-fangster fra NimlyPRO (f4:ce:36:25:5a:2c:72:87) på HA Leirnes, 28-29
 Type: enum8
 
 | Verdi | Betydning |
-|-------|-----------|
-| 0x01 | Locked |
-| 0x02 | Unlocked |
+| ----- | --------- |
+| 0x01  | Locked    |
+| 0x02  | Unlocked  |
 
 Rå ZCL frame (lock):
+
 ```
 08 d2 0a 00 00 30 01
 │  │  │  └──┘  │  └─ value: 0x01 (locked)
@@ -42,17 +43,18 @@ Ukjente source-verdier (ikke observert ennå): fingeravtrykk, RFID/NFC.
 
 Endelig mapping brukt i integrasjonen (verifisert mot Z2M converter og rå fangster):
 
-| Byte | Source | Status |
-|------|--------|--------|
-| 0x00 | Zigbee (RF) | Inferert |
-| 0x02 | Keypad | Verifisert (flere fangster) |
-| 0x03 | Fingerprint | Fra Z2M converter |
-| 0x04 | RFID | Fra Z2M converter |
-| 0x0A | Auto-lock | Verifisert (flere fangster) |
+| Byte | Source      | Status                      |
+| ---- | ----------- | --------------------------- |
+| 0x00 | Zigbee (RF) | Inferert                    |
+| 0x02 | Keypad      | Verifisert (flere fangster) |
+| 0x03 | Fingerprint | Fra Z2M converter           |
+| 0x04 | RFID        | Fra Z2M converter           |
+| 0x0A | Auto-lock   | Verifisert (flere fangster) |
 
 Merk: Session notes (2026-03-28) inneholder en tidlig hypotese med andre verdier (1=RF, 3=manual). Koden i `__init__.py` `_SOURCE_MAP` er autoritativ.
 
 Rå ZCL frame (Ola slot 3 unlock via keypad):
+
 ```
 08 c1 0a 00 01 1b 03 00 02 02
 │  │  │  └──┘  │  └──────────── value bytes (LE): [03, 00, 02, 02]
@@ -63,6 +65,7 @@ Rå ZCL frame (Ola slot 3 unlock via keypad):
 ```
 
 Rå ZCL frame (auto-lock):
+
 ```
 08 c5 0a 00 01 1b 00 00 01 0a
                    └──────────── [00, 00, 01, 0A] = slot 0, lock, auto
@@ -75,6 +78,7 @@ Type: LVBytes (octet string)
 PIN-kode i rå bytes — to BCD-siffer per byte.
 
 Rå ZCL frame (PIN "5478"):
+
 ```
 08 c2 0a 01 01 41 02 09 27
 │  │  │  └──┘  │  │  └──┘── PIN bytes: 0x54=54, 0x78=78 → "5478"
@@ -108,6 +112,7 @@ Når noen taster PIN + # på keypadet, sender låsen denne sekvensen:
 ```
 
 For auto-lock:
+
 ```
 1. attrid=0x0000 (lock state)   — 0x01 (locked)
 2. attrid=0x0100 (operation)    — 0x0A010000 (system, lock, auto)
@@ -115,32 +120,32 @@ For auto-lock:
 
 ## Alle observerte rå-verdier
 
-| Tidspunkt | attrid | Raw value | Decoded |
-|-----------|--------|-----------|---------|
-| 28.03 21:50:26 | 0x0100 | 167837696 (0x0A010000) | system, lock, auto |
-| 28.03 21:59:15 | 0x0000 | 0x01 | locked |
-| 28.03 21:59:15 | 0x0100 | 167837696 (0x0A010000) | system, lock, auto |
-| 28.03 21:59:19 | 0x0101 | b"\x54\x78" | PIN: 5478 |
-| 28.03 21:59:19 | 0x0000 | 0x02 | unlocked |
-| 28.03 21:59:21 | 0x0100 | 33685507 (0x02020003) | slot 3, unlock, keypad |
-| 28.03 21:59:26 | 0x0000 | 0x01 | locked |
-| 28.03 21:59:27 | 0x0100 | 167837696 (0x0A010000) | system, lock, auto |
-| 28.03 22:33:05 | 0x0100 | 33685507 (0x02020003) | slot 3, unlock, keypad |
-| 28.03 22:33:12 | 0x0000 | 0x01 | locked |
-| 28.03 22:33:12 | 0x0100 | 167837696 (0x0A010000) | system, lock, auto |
-| 29.03 09:17:10 | 0x0100 | 33685508 (0x02020004) | slot 4, unlock, keypad |
-| 29.03 11:07:59 | 0x0100 | 33685504 (0x02020000) | slot 0, unlock, keypad |
-| 29.03 11:33:08 | 0x0100 | 33685504 (0x02020000) | slot 0, unlock, keypad |
-| 29.03 11:33:34 | 0x0100 | 167837696 (0x0A010000) | system, lock, auto |
+| Tidspunkt      | attrid | Raw value              | Decoded                |
+| -------------- | ------ | ---------------------- | ---------------------- |
+| 28.03 21:50:26 | 0x0100 | 167837696 (0x0A010000) | system, lock, auto     |
+| 28.03 21:59:15 | 0x0000 | 0x01                   | locked                 |
+| 28.03 21:59:15 | 0x0100 | 167837696 (0x0A010000) | system, lock, auto     |
+| 28.03 21:59:19 | 0x0101 | b"\x54\x78"            | PIN: 5478              |
+| 28.03 21:59:19 | 0x0000 | 0x02                   | unlocked               |
+| 28.03 21:59:21 | 0x0100 | 33685507 (0x02020003)  | slot 3, unlock, keypad |
+| 28.03 21:59:26 | 0x0000 | 0x01                   | locked                 |
+| 28.03 21:59:27 | 0x0100 | 167837696 (0x0A010000) | system, lock, auto     |
+| 28.03 22:33:05 | 0x0100 | 33685507 (0x02020003)  | slot 3, unlock, keypad |
+| 28.03 22:33:12 | 0x0000 | 0x01                   | locked                 |
+| 28.03 22:33:12 | 0x0100 | 167837696 (0x0A010000) | system, lock, auto     |
+| 29.03 09:17:10 | 0x0100 | 33685508 (0x02020004)  | slot 4, unlock, keypad |
+| 29.03 11:07:59 | 0x0100 | 33685504 (0x02020000)  | slot 0, unlock, keypad |
+| 29.03 11:33:08 | 0x0100 | 33685504 (0x02020000)  | slot 0, unlock, keypad |
+| 29.03 11:33:34 | 0x0100 | 167837696 (0x0A010000) | system, lock, auto     |
 
 ## Node Descriptor
 
 ```json
 {
-  "logical_type": 2,          // EndDevice
-  "frequency_band": 8,        // 2.4 GHz
+  "logical_type": 2, // EndDevice
+  "frequency_band": 8, // 2.4 GHz
   "mac_capability_flags": 136, // EndDevice, battery
-  "manufacturer_code": 4660,   // 0x1234 (placeholder, not ZCL registered)
+  "manufacturer_code": 4660, // 0x1234 (placeholder, not ZCL registered)
   "maximum_buffer_size": 108,
   "maximum_incoming_transfer_size": 127,
   "maximum_outgoing_transfer_size": 127

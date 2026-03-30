@@ -38,6 +38,20 @@ Byte 3: source     — 0x01 = RF, 0x02 = keypad, 0x03 = manual, 0x0A = auto
 
 Ukjente source-verdier (ikke observert ennå): fingeravtrykk, RFID/NFC.
 
+### Verifiserte source-verdier (byte 3)
+
+Endelig mapping brukt i integrasjonen (verifisert mot Z2M converter og rå fangster):
+
+| Byte | Source | Status |
+|------|--------|--------|
+| 0x00 | Zigbee (RF) | Inferert |
+| 0x02 | Keypad | Verifisert (flere fangster) |
+| 0x03 | Fingerprint | Fra Z2M converter |
+| 0x04 | RFID | Fra Z2M converter |
+| 0x0A | Auto-lock | Verifisert (flere fangster) |
+
+Merk: Session notes (2026-03-28) inneholder en tidlig hypotese med andre verdier (1=RF, 3=manual). Koden i `__init__.py` `_SOURCE_MAP` er autoritativ.
+
 Rå ZCL frame (Fredrik slot 3 unlock via keypad):
 ```
 08 c1 0a 00 01 1b 03 00 02 02

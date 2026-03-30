@@ -1,23 +1,21 @@
-# Session Notes — 28-29. mars 2026
+# Session Notes — 28-30. mars 2026
 
 ## Gjennombrudd: "Frode låste opp med kode"
 
-Aktivitetssensoren identifiserer nå **hvem** som låste opp og **hvordan**. Verifisert med live data:
+Aktivitetssensoren identifiserer nå **hvem** som låste opp og **hvordan**. Verifisert med live data på hytta:
 
 ```
 Lock event: unlock by Frode via keypad (raw: 0x02020004)
 Lock event: lock by system via auto (raw: 0x0a010000)
 ```
 
-Ingen andre HA-integrasjoner har fått dette til med Nimly/Onesti over ZHA.
+Ingen andre ZHA-integrasjoner har fått dette til. Z2M fikk det i [PR #11332](https://github.com/Koenkk/zigbee-herdsman-converters/pull/11332) — vi fant det uavhengig.
 
 ---
 
-## Nøkkelfunn: Onesti operation event decoding
+## Onesti operation event — komplett dekodings-referanse
 
-**Attributt 0x0100 på DoorLock cluster (0x0101) inneholder komplett event-data.**
-
-Nimly/Onesti sender `Report_Attributes` med `attrid=0x0100` som bitmap32 for hver hendelse. Little-endian:
+### Attributt 0x0100 — operation event (bitmap32, little-endian)
 
 ```
 Byte 0: user_slot (0 = system/auto, 3+ = brukerslot)
@@ -27,57 +25,54 @@ Byte 3: source (1 = RF, 2 = keypad, 3 = manual, 10 = auto/system)
 ```
 
 Verifiserte eksempler:
-- `0x02020003` → slot 3, unlock, keypad = "Fredrik låste opp med kode"
-- `0x02020004` → slot 4, unlock, keypad = "Frode låste opp med kode"
-- `0x0A010000` → slot 0, lock, auto = auto-lock etter timeout
+| Raw | Bytes (LE) | Betydning |
+|-----|-----------|-----------|
+| `0x02020003` | [03, 00, 02, 02] | Slot 3 (Fredrik), unlock, keypad |
+| `0x02020004` | [04, 00, 02, 02] | Slot 4 (Frode), unlock, keypad |
+| `0x0A010000` | [00, 00, 01, 0A] | System, lock, auto |
+| `0x02020000` | [00, 00, 02, 02] | Slot 0 (master), unlock, keypad |
 
-**Attributt 0x0101** inneholder PIN-koden i BCD: `0x09 0x27` = "0927"
+### Attributt 0x0101 — PIN-kode (LVBytes, BCD)
 
-**Attributt 0x0000** inneholder lock state: enum8 (1=locked, 2=unlocked)
+`0x09 0x27` = "0927" (hver byte er to BCD-siffer)
+
+### Attributt 0x0000 — lock state (enum8)
+
+- `1` = locked
+- `2` = unlocked
 
 ---
 
-## Hva som IKKE fungerte (og hvorfor)
+## Hvorfor zigpy listener-metoder ikke fungerer
 
-### 1. ZHA `last_action_user` / `last_action_source` sensorer
-- Oppdateres IKKE ved keypad/fysisk bruk
-- Beholder stale verdier fra siste HA-kommando
-- Kjent community-problem (HA forum-tråd med 12+ sider)
+Vi testet **6 forskjellige tilnærminger** for å fange events. Bare én fungerte:
 
-### 2. `zha_event` bus events
-- `operation_event_notification` (ZCL 0x0020) mottas aldri fra Nimly
-- Nimly sender data via attribute reports, ikke cluster commands
+| # | Metode | Resultat | Årsak |
+|---|--------|----------|-------|
+| 1 | ZHA `last_action_user` sensor | ❌ Stale | ZHA-sensor oppdateres ikke på keypad-events |
+| 2 | `zha_event` bus | ❌ Ingen events | Nimly sender ikke `operation_event_notification` (0x0020) |
+| 3 | `lock.entity` state change | ⚠️ Delvis | Fanger lock↔unlock, men uten bruker/source |
+| 4 | `add_listener` + `attribute_updated` | ❌ Aldri kalt | zigpy wrapper `_update_attribute` i `_suppress_attribute_update_event` for ukjente attributter (0x0100 er ikke i ZCL spec) |
+| 5 | `add_listener` + `general_command` | ❌ Aldri kalt | `listener_event("general_command")` dispatches ikke til add_listener for Report_Attributes |
+| 6 | **`cluster.on_event("attribute_report")`** | ✅ Fungerer | zigpy sin EventBase emitter for ALLE rapporter via `cluster.emit()` |
 
-### 3. `EVENT_STATE_CHANGED` på `lock.dorlasen`
-- Fanger locked↔unlocked, men uten brukerinfo
-- `last_action_user` er stale — viser alltid siste HA-kommando
-
-### 4. `add_listener` + `attribute_updated` callback
-- Registrert på CustomDeviceV2 cluster (depth 2 i ZHA-kjeden)
-- `attribute_updated` trigges IKKE for attrid 0x0100
-- **Grunn:** zigpy wrapper `_update_attribute` i `_suppress_attribute_update_event` for ukjente attributter (0x0100 er ikke definert i ZCL Door Lock spec)
-- Selv uten suppress: zigpy cacher verdien og skipper callback hvis verdien er lik forrige
-
-### 5. `add_listener` + `handle_cluster_request` callback
-- `Report_Attributes` er en **general** ZCL-kommando, ikke en cluster-kommando
-- `handle_cluster_request` kalles bare for cluster-spesifikke kommandoer
-- zigpy dispatcher general commands via `listener_event("general_command", ...)` men det trigget heller ikke listenere pålitelig
-
-### 6. `add_listener` + `general_command` callback
-- Viste seg at `listener_event("general_command", ...)` ikke dispatches til `add_listener`-baserte listeners for Report_Attributes
-- zigpy sin handle_cluster_general_request håndterer Report_Attributes internt og emitter events via `cluster.emit()`, ikke `listener_event()`
-
-### Løsningen: `cluster.on_event("attribute_report", callback)`
-
-zigpy sin `EventBase.emit()` fyrer for **alle** attribute reports via `cluster.emit("attribute_report", event)`. Dette er den eneste pålitelige måten å fange Onesti sin custom attributt.
+### Nøkkel-innsikt fra zigpy kildekode
 
 ```python
-unsub = cluster.on_event("attribute_report", _on_attribute_report)
+# handle_message() dispatcher:
+if hdr.frame_control.is_cluster:
+    self.handle_cluster_request(hdr, args)           # → cluster commands
+    self.listener_event("cluster_command", ...)       # → add_listener callbacks
+else:
+    self.listener_event("general_command", hdr, args) # → IKKE dispatched videre
+    self.handle_cluster_general_request(hdr, args)    # → intern håndtering
+
+# handle_cluster_general_request for Report_Attributes:
+# - Ukjente attributter: _suppress_attribute_update_event → attribute_updated BLOKKERT
+# - Emitter: cluster.emit("attribute_report", event) → DETTE FUNGERER
 ```
 
-Eventen inneholder `event.attribute_id`, `event.raw_value`, `event.device_ieee` etc.
-
-### ZHA device chain (viktig for cluster-tilgang)
+### ZHA device chain
 
 ```
 ZHADeviceProxy (depth 0) — has_endpoints=False
@@ -85,76 +80,129 @@ ZHADeviceProxy (depth 0) — has_endpoints=False
     → CustomDeviceV2 (depth 2) — has_endpoints=True, in_clusters=POPULATED
 ```
 
-Clusteret med faktisk data lever på depth 2. `coordinator._get_cluster()` walker kjeden automatisk.
+`coordinator._get_cluster()` walker kjeden automatisk ned til depth 2.
 
 ---
 
-## Integrasjon: onesti_lock
+## Sleepy device og PIN-setting timeout
 
-- Directory: `custom_components/onesti_lock/`
-- Domain: `onesti_lock`
-- Renamed fra `nimly_pro` (config entry migrert i `.storage/core.config_entries`)
-- Supported models: NimlyPRO, NimlyPRO24, easyCodeTouch_v1, EasyCodeTouch, EasyFingerTouch
-- Manufacturer: Onesti Products AS
+### Problemet
 
-### Features som fungerer
-- PIN-kode sett/fjern via UI (Settings → Configure) og services
-- Slot→navn mapping, persistert i config entry options
-- Aktivitetssensor: "Frode låste opp med kode" ✅
-- 10 slot-sensorer (slot 3-12) med has_pin/has_rfid attributter
-- Options flow med norsk/engelsk UI
+Nimly/Onesti er batteribaserte Zigbee EndDevices som sover. Meldinger til sovende enheter bufres hos parent-router med **TTL 7.68 sekunder**. Etter det kastes meldingen.
 
-### Brukere på låsen
+### Hva fungerer og hva som ikke fungerer
 
-| Slot | Navn | PIN | Verifisert |
-|------|------|-----|-----------|
-| 1 | Fredrik | (gammel, pre-slot-fix) | ? |
-| 3 | Fredrik | 0927 | ✅ keypad |
-| 4 | Frode | 3293 | ✅ keypad |
-| 5 | Anna | ? | satt via UI |
-| 6 | Annicken | ? | ✅ keypad |
+| Kommando | Fungerer? | Grunn |
+|----------|-----------|-------|
+| `lock/unlock` | ✅ Ja | ZHA bruker extended timeout + retry |
+| `set_pin_code` (direkte cluster) | ❌ Timeout | Standard zigpy timeout for kort |
+| `zha.issue_zigbee_cluster_command` | ❌ Timeout | Marginalt bedre, men fortsatt for kort etter batteribytte |
+| Manuell keypad → event | ✅ Ja | Låsen sender aktivt, trenger ikke motta |
 
----
+### Hva vekker Zigbee-radioen?
 
-## HA Leirnes status
+- **Keypad-berøring** vekker keypadet, men ikke nødvendigvis Zigbee-radioen
+- **Komplett kode + # / fysisk lås/opplås** vekker radioen (trigger state report)
+- **Lock/unlock fra HA** vekker radioen (ZHA har spesiell håndtering)
+- **Ute-panel = inne-panel** — ingen forskjell for Zigbee
 
-- SSH: `ssh ha-leirnes-local` (root@192.168.80.125, nøkkel ~/.ssh/hytte_ha)
-- Custom domain: `https://ha.leirnes.no`
-- Nabu Casa: `https://6g1lby1pzdj4yibzlr4splfrelwg41ei.ui.nabu.casa`
-- Debug logging: `zigpy.zcl: debug` + `custom_components.onesti_lock: debug` — **HUSK Å SKRU AV** (fyller 32 GB eMMC)
+### Etter batteribytte
 
-### Installerte integrasjoner
-- HACS ✅
-- Nord Pool (NO5) ✅
-- Strømkalkulator ✅
-- Onesti Lock ✅
-- Frigate (addon, uten kameraer — trenger Reolink-passord)
-- Template sensor: `sensor.pappa` (Frode lokasjon: På hytten/Hjemme/Borte)
+Låsen re-joiner Zigbee-nettverket men:
+- Poll-intervall kan være langt
+- Bindings kan ha blitt reset
+- Reconfigure feiler (binding + reporting mislykkes)
+- Battery-rapportering stopper
+- Lock/unlock fungerer fortsatt (enklere kommandoer)
+- set_pin timeouter konsekvent
 
-### Oppryddet
-- Fjernet: input_helpers, scripts, automations, dashboards for dørlås (erstattet av integrasjon)
-- Fjernet: lock_code_manager, zigbee_lock_manager (fungerte ikke)
-- Fjernet: beads hooks og filer fra integrasjons-repoet
+**Løsning:** Vent timer/dager til bindinger re-etableres, eller fjern og re-par låsen i ZHA.
+
+### Forsøk på å omgå timeout
+
+1. Lock → sleep 0.5s → set_pin: **Timeout** — for treg
+2. Lock + set_pin simultant via API: **Timeout** — lock OK, set_pin for sent
+3. Loop med 20 forsøk hvert 3. sek: **Timeout** — `ha service call` finnes ikke, API auth feilet
+4. ZHA `issue_zigbee_cluster_command` service: **Implementert men utestet** (siste forsøk)
 
 ---
 
-## Gotchas
+## Relatert arbeid i community
 
-- HA Green har 32 GB eMMC — debug logging fyller fort
-- SSH addon sshd_config overskrives ved restart — nøkler må ligge i addon-config via web UI
-- Beads pre-commit hook er fjernet fra git repo
-- **Factory master code er `123` — MÅ byttes** (`*000 123* <ny kode>* <ny kode>*` på keypad)
-- PIN-koder avsluttes med `#` på keypadet
-- Slots 0-2 er reservert for master codes, brukerkoder starter på slot 3
-- Nimly ZCL response quirk: `IndexError: tuple index out of range` ved PIN-kommandoer — kommandoen når låsen, feilen er i respons-parsing. Integrasjonen catcher dette.
+### Z2M PR #11332 — PIN code parsing og user tracking
+
+[PR #11332](https://github.com/Koenkk/zigbee-herdsman-converters/pull/11332) fikser nøyaktig det samme som oss for Zigbee2MQTT:
+- PIN-koder ble vist som hex (`313131`) → nå ASCII (`111`)
+- `last_unlock_user` var tom → nå slot-nummer
+- Nye attributter: voltage, auto_relock_time, PIN limits
+
+Vi fant bitmap32-formatet uavhengig fra rå Zigbee-fangst.
+
+### Kjente Onesti-modeller
+
+Alle er samme hardware med ulikt merke:
+
+| Zigbee-modell | Merkenavn | Produsent |
+|---------------|-----------|-----------|
+| NimlyPRO | Nimly Touch Pro | Onesti Products AS |
+| NimlyPRO24 | Nimly Touch Pro 24 | Onesti Products AS |
+| easyCodeTouch_v1 | EasyAccess EasyCodeTouch | Onesti Products AS |
+| EasyCodeTouch | EasyAccess | Onesti Products AS |
+| EasyFingerTouch | EasyAccess (fingeravtrykk) | Onesti Products AS |
+
+Alle bruker samme Connect Module (Zigbee 3.0) og identisk firmware. Manualen er lik — forskjell er kun branding og fysisk design.
 
 ---
 
-## Neste steg
+## Integrasjon: onesti_lock (nåværende tilstand)
 
-- [ ] Bytte masterkode fra factory default
-- [ ] Skru av debug logging (zigpy.zcl)
-- [ ] Teste med flere opplåsingsmetoder (nøkkel, RFID, fingeravtrykk, remote)
-- [ ] Rydde warning-level logging i integrasjonen (bytte til info/debug)
-- [ ] Vurdere å bidra Onesti event-decoding upstream til zha-device-handlers
-- [ ] Publisere integrasjonen på GitHub for andre Onesti-brukere
+### Fungerer
+
+- ✅ PIN-kode sett/fjern via UI og services (når låsen er våken)
+- ✅ Aktivitetssensor: "Frode låste opp med kode" (via cluster.on_event)
+- ✅ Slot→navn mapping, persistert
+- ✅ Options flow (norsk + engelsk)
+- ✅ 28 tester passerer
+- ✅ Event firing for automations (`onesti_lock_activity`)
+
+### Kjente problemer
+
+- ⚠️ set_pin timeouter ofte pga sleepy device (spesielt etter batteribytte)
+- ⚠️ Slot 0 (master) matcher alltid først — samme kode på slot 0 og 3 bruker slot 0
+- ⚠️ Options flow dropdown viste ikke valg (fikset med string-keys)
+- ⚠️ Etter batteribytte: reconfigure feiler, battery ikke oppdatert, set_pin timeout
+
+### Deploy til begge HA-instanser
+
+```bash
+# Hjemme
+cd ~/dev/nimly-touch-pro-integration
+tar czf - custom_components/onesti_lock/ | ssh ha-local "cd /root/config && tar xzf -"
+ssh ha-local 'ha core restart'
+
+# Hytta (via Tailscale)
+tar czf - custom_components/onesti_lock/ | ssh ha-leirnes-ts "cd /root/config && tar xzf -"
+ssh ha-leirnes-ts 'ha core restart'
+```
+
+---
+
+## HA Leirnes — Tailscale oppsett
+
+- Tailscale-addon installert med Headscale (`https://headscale.serveren.0v.no`)
+- Node: `ha-leirnes` (100.64.0.6)
+- Subnet route: `192.168.80.0/24` (godkjent i Headscale, node ID 6)
+- SSH via Tailscale: `ssh ha-leirnes-ts` (100.64.0.6)
+- SSH via LAN: `ssh ha-leirnes-local` (192.168.80.125) — kun på hytta
+
+---
+
+## TODO
+
+- [ ] Vent på at hjemme-lås stabiliserer seg etter batteribytte, prøv set_pin igjen
+- [ ] Test ZHA issue_zigbee_cluster_command-metoden for set_pin
+- [ ] Skru av debug-logging på hytte-HA (fyller disk)
+- [ ] Bytt masterkode på hytte-lås (factory `123`)
+- [ ] Rydd warning-level logging i integrasjonen (bytt til info/debug)
+- [ ] Vurder å bidra event-decoding upstream til zha-device-handlers
+- [ ] Publiser integrasjonen

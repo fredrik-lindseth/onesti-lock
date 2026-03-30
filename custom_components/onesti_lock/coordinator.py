@@ -121,17 +121,27 @@ class NimlyCoordinator:
     async def _send_cluster_command(self, command: int, params: dict) -> bool:
         """Send a ZCL command, handling Nimly response quirk.
 
+        Uses ZHA's issue_zigbee_cluster_command service which has extended
+        timeout handling for sleepy battery devices.
+
         Returns True if command was sent (even if response parsing failed).
         Returns False if command could not be sent at all.
         """
-        cluster = self._get_cluster()
-        if not cluster:
-            return False
-
         try:
-            commands = cluster.server_commands
-            cmd_name = commands[command].name
-            await getattr(cluster, cmd_name)(**params)
+            await self.hass.services.async_call(
+                "zha",
+                "issue_zigbee_cluster_command",
+                {
+                    "ieee": self.ieee,
+                    "endpoint_id": 11,
+                    "cluster_id": DOORLOCK_CLUSTER_ID,
+                    "cluster_type": "in",
+                    "command": command,
+                    "command_type": "server",
+                    "params": params,
+                },
+                blocking=True,
+            )
             return True
         except IndexError:
             # Nimly quirk: command was sent and received, but response

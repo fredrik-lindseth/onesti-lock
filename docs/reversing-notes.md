@@ -138,6 +138,8 @@ DoorlockTypes = {
 }
 ```
 
+> Se også: docs/app-architecture.md for komplett DoorlockTypes-referanse.
+
 ## Låsmodus
 
 ```javascript
@@ -172,6 +174,8 @@ doorlock-access-deleted
 doorlock-failed-to-lock
 doorlock-access-updated
 ```
+
+> Se også: docs/app-architecture.md for cloud event-system.
 
 ## CAS Protocol (Gateway ↔ Lock)
 

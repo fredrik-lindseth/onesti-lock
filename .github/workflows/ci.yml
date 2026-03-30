@@ -24,17 +24,17 @@ jobs:
 
       - name: Validate manifest
         run: |
-          jq empty custom_components/nimly_pro/manifest.json || exit 1
+          jq empty custom_components/onesti_lock/manifest.json || exit 1
           echo "Manifest JSON is valid"
 
       - name: Check required files
         run: |
           REQUIRED_FILES=(
-            "custom_components/nimly_pro/__init__.py"
-            "custom_components/nimly_pro/manifest.json"
-            "custom_components/nimly_pro/config_flow.py"
-            "custom_components/nimly_pro/const.py"
-            "custom_components/nimly_pro/strings.json"
+            "custom_components/onesti_lock/__init__.py"
+            "custom_components/onesti_lock/manifest.json"
+            "custom_components/onesti_lock/config_flow.py"
+            "custom_components/onesti_lock/const.py"
+            "custom_components/onesti_lock/strings.json"
             "README.md"
           )
           for file in "${REQUIRED_FILES[@]}"; do
@@ -47,17 +47,17 @@ jobs:
 
       - name: Check Python syntax
         run: |
-          python -m py_compile custom_components/nimly_pro/*.py
+          python -m py_compile custom_components/onesti_lock/*.py
           echo "Python syntax is valid"
 
       - name: Lint with Ruff
         run: |
-          ruff check custom_components/nimly_pro/ --ignore E501,F401
+          ruff check custom_components/onesti_lock/ --ignore E501,F401
           echo "Ruff linting passed"
 
       - name: Check version consistency
         run: |
-          VERSION=$(jq -r '.version' custom_components/nimly_pro/manifest.json)
+          VERSION=$(jq -r '.version' custom_components/onesti_lock/manifest.json)
           echo "Version: $VERSION"
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Invalid version format: $VERSION"

@@ -41,6 +41,8 @@ Verifiserte eksempler:
 - `1` = locked
 - `2` = unlocked
 
+> Autoritativ referanse: docs/zigbee-captures.md og custom_components/onesti_lock/__init__.py _SOURCE_MAP
+
 ---
 
 ## Hvorfor zigpy listener-metoder ikke fungerer
@@ -81,6 +83,8 @@ ZHADeviceProxy (depth 0) — has_endpoints=False
 ```
 
 `coordinator._get_cluster()` walker kjeden automatisk ned til depth 2.
+
+> Utvidet versjon: docs/technical.md
 
 ---
 
@@ -151,6 +155,8 @@ Alle er samme hardware med ulikt merke:
 | EasyFingerTouch | EasyAccess (fingeravtrykk) | Onesti Products AS |
 
 Alle bruker samme Connect Module (Zigbee 3.0) og identisk firmware. Manualen er lik — forskjell er kun branding og fysisk design.
+
+> Oppdatert enhetsliste: README.md
 
 ### Hardware — Connect Module (ZMNC010)
 

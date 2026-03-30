@@ -77,6 +77,13 @@ Authorization: Bearer <access_token>
 | DELETE | `/devices/{id}` | Fjern enhet |
 | PATCH | `/devices/{id}` | Oppdater enhet |
 | POST | `/devices/{id}/keychain-lock` | Lås via keychain |
+| PATCH | `/devices/{id}/alarm-reaction` | Endre alarm-reaksjon |
+| PATCH | `/devices/{id}/alarm-profile` | Endre alarm-profil |
+| POST | `/devices/{id}/access/scan-tag` | Scan RFID-tag |
+| GET | `/devices/{id}/features-history` | Feature-historikk |
+| PATCH | `/devices/{id}/input-actions/{actionId}` | Oppdater input-actions |
+| PATCH | `/devices/{id}/output-actions/{actionId}` | Oppdater output-actions |
+| GET | `/devices/{id}/demand` | Forbruksverdier |
 
 ### Keybox (kryptonøkler)
 | Method | Path | Funksjon |

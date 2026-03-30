@@ -110,7 +110,7 @@ Velg én av disse tilnærmingene:
 5. **Fordel:** Unngår apk-mitm sine destruktive endringer
 
 #### D) Kontakt Onesti direkte
-1. E-postmal finnes i `docs/email-onesti-draft.md`
+1. Skriv en e-post til Onesti (kontaktinfo på onestiproducts.io)
 2. Spør om API-dokumentasjon for integrasjonspartnere
 3. Nevn at vi bygger open-source HA-integrasjon
 4. **Fordel:** Offisiell støtte, ingen reversing nødvendig

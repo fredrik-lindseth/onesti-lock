@@ -19,13 +19,15 @@ Ingen BLE-kommunikasjon funnet i denne appen (det er en separat app: `nimly BLE`
 
 Appen er en white-label fra **iotiliti** (tidligere NeutrAlClone). Samme kodebase brukes av:
 
-| Merke                | API URL                           | Company ID                             |
-| -------------------- | --------------------------------- | -------------------------------------- |
-| **Nimly/EasyAccess** | `api-neutralclone.iotiliti.cloud` | `90ded287-2356-4007-ac39-d3e1261afb59` |
-| Keyfree              | `api-keyfree.iotiliti.cloud`      | `b960e7e6-02bd-490b-8c90-e6c428c45eea` |
-| Salus                | `api-salus.iotiliti.cloud`        | `93bd9ef6-8bd0-4ad0-b045-5644fd62ef70` |
-| Forebygg             | `api-forebygg.iotiliti.cloud`     | (i koden)                              |
-| Homely               | `api.homely.no`                   | `a21f32b6-4ac9-4c85-b97a-8b6ae565f37c` |
+| Merke | API URL |
+|-------|---------|
+| **Nimly/EasyAccess** | `api-neutralclone.iotiliti.cloud` (eldre) / `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` (ny) |
+| Keyfree | `api.customer.keyfree.iotiliti.cloud` |
+| Salus | `api-salus.iotiliti.cloud` |
+| Forebygg | `api.customer.forebygg.iotiliti.cloud` |
+| Homely | `api.homely.no` |
+
+Company IDs i `secrets.md` (gitignored).
 
 ## Autentisering
 

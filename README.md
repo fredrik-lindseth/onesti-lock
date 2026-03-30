@@ -5,6 +5,49 @@
 
 Home Assistant integration for PIN code management and activity tracking on Onesti/Nimly smart locks via ZHA. Identifies **who** unlocked the door and **how** — something no other ZHA integration has achieved for these locks.
 
+## Why this instead of the Nimly app?
+
+The official Nimly ecosystem requires the **Nimly Connect Bridge** (gateway hub) and routes everything through **iotiliti cloud** — and even then, automations are locked behind an additional **"PRO Hub"** upsell. This integration replaces all of that with a direct, local Zigbee connection.
+
+|   | Nimly App (no hub) | Nimly App + Connect Hub | Nimly App + PRO Hub | **This integration** |
+|---|--------------------|-------------------------|---------------------|----------------------|
+| **Extra hardware** | None (BLE only) | Connect Bridge (~1500 kr) | PRO Hub (?) | Any Zigbee coordinator |
+| **Cloud dependency** | Partial (BLE + cloud) | Yes — iotiliti.cloud | Yes — iotiliti.cloud | **None — 100% local** |
+| **Internet required** | For remote features | Yes | Yes | **No — fully offline** |
+| **PIN management** | Via BLE (phone must be near lock) | Via cloud → hub → lock | Via cloud → hub → lock | Via HA UI → ZHA → lock |
+| **User identification** | In-app history | Cloud event history | Cloud event history | **Real-time: "Kari låste opp med kode"** |
+| **Automations** | None | **None — "requires PRO Hub"** | Yes (via Nimly cloud) | **Full HA automations** |
+| **Digital keys** | BLE unlock (nearby) | Remote unlock via cloud | Remote unlock via cloud | HA lock entity (local) |
+| **OTP (one-time codes)** | No | Yes (cloud-managed) | Yes (cloud-managed) | Planned (set_pin + auto-clear) |
+| **RFID enrollment** | Via BLE scan mode | Via cloud → hub | Via cloud → hub | Not yet (needs BLE) |
+| **Fingerprint enrollment** | Via BLE scan mode | Via cloud → hub | Via cloud → hub | Not yet (needs BLE) |
+| **Cost** | Free app | Hub + cloud account | Hub + PRO Hub + cloud | **Free and open source** |
+| **Privacy** | Events to cloud | All events to AWS | All events to AWS | **Everything stays local** |
+
+**In short:** The official Nimly setup charges for three tiers of hardware just to get automations — and still routes everything through their cloud. This integration gives you PIN management, real-time user identification, and full Home Assistant automations with zero cloud dependency, zero extra hardware cost, and zero internet requirement.
+
+## About the Nimly/Onesti lock family
+
+All locks in this ecosystem — Nimly Touch Pro, Nimly Code, EasyCodeTouch, EasyFingerTouch, and others — are manufactured by **Onesti Products AS**. They are the same hardware with different branding. The **Zigbee Connect Module** (ZMNC010) is a separate add-on sold independently and is identical across all models.
+
+The cloud platform behind these locks is **iotiliti**, owned by Safe4 Security Group. It powers a wide range of white-label brands: Nimly, EasyAccess, Keyfree (Sweden), Salus (UK), Homely, Forebygg, Copiax, Conficare, and others. The Connect Bridge (gateway hub) is also white-labeled — sold as "EasyAccess Connect Bridge", manufactured by Develco/Squid.Link. This is primarily a **B2B platform** sold to security companies, housing cooperatives, and smart home providers who rebrand it for their customers. The consumer brand "Nimly" is just one of many frontends to the same underlying system.
+
+## Zigbee limitations of these locks
+
+If you are choosing a smart lock specifically for Home Assistant, there are easier options. But if you already have a Nimly/Onesti lock, this integration makes the best of it. These are the real Zigbee limitations you should be aware of:
+
+1. **Not a standard Zigbee Door Lock.** The lock uses custom cluster attributes (0x0100, 0x0101) that are not in the ZCL specification. Standard ZHA and Zigbee2MQTT integrations will show lock/unlock state, but cannot decode *who* unlocked or *how* — you just get a generic state change. This integration exists specifically to solve that.
+
+2. **Battery-powered sleepy EndDevice.** The lock sleeps aggressively to preserve battery. Zigbee commands — especially `set_pin` — frequently timeout because the radio is not listening. You have to wake the lock first (press the keypad or trigger a lock/unlock). This integration auto-retries with a wake cycle on timeout, but it is inherently less reliable than mains-powered locks that are always listening.
+
+3. **Malformed ZCL responses.** PIN commands reach the lock and execute, but the lock returns a broken response that crashes zigpy's ZCL parser (`IndexError`). The integration catches the error and assumes success, but there is no programmatic confirmation that a PIN was actually set. You must verify by testing the code on the keypad.
+
+4. **No Zigbee slot querying.** The lock does not reliably respond to "get current PIN slots" queries. Slot state is tracked optimistically (locally) after set/clear commands, which means it can drift from reality if PINs are changed via the physical keypad or the BLE app.
+
+5. **RFID and fingerprint enrollment require BLE.** There are no Zigbee commands to enroll new RFID tags or fingerprints — this can only be done via the Nimly BLE app or the cloud hub. The integration can detect RFID and fingerprint unlock events, but cannot manage those credentials.
+
+6. **Placeholder manufacturer code.** The Connect Module identifies itself with manufacturer code `0x1234`, which is not registered with the Zigbee Alliance. This suggests the Zigbee implementation was not a high priority for Onesti — it works, but it was not built to integrate cleanly with the broader Zigbee ecosystem.
+
 ## What works
 
 - **"Kari låste opp med kode"** — activity sensor identifies user and method (keypad, RFID, manual, auto-lock)
@@ -13,21 +56,6 @@ Home Assistant integration for PIN code management and activity tracking on Ones
 - **Options flow UI** — manage PINs without Developer Tools (Norwegian + English)
 - **Slot sensors** — 10 sensor entities showing who has access
 - **HA events** — `onesti_lock_activity` event fired for automations ("send notification when someone unlocks")
-
-## How user identification works
-
-Onesti locks send a custom attribute report (`attrid 0x0100`) on the Door Lock cluster for every lock/unlock event. This bitmap32 encodes user slot, action, and source — but no existing integration decoded it.
-
-This integration listens for these reports via `cluster.on_event("attribute_report", ...)` and decodes the bitmap:
-
-```
-Byte 0: user_slot (0 = system, 3+ = user)
-Byte 1: reserved
-Byte 2: action (1 = lock, 2 = unlock)
-Byte 3: source (1 = RF, 2 = keypad, 3 = manual, 10 = auto)
-```
-
-Standard ZHA approaches (`last_action_user`, `zha_event`, `add_listener`) don't work for these locks — see [Technical details](#why-standard-approaches-dont-work) below.
 
 ## Known limitations
 
@@ -115,65 +143,11 @@ The default factory master code is `123`. **Change it immediately** — anyone w
 
 ## Important: Lock must be awake
 
-These locks are battery-powered and sleep. To send PIN commands:
-
-1. **Wake the lock** — press the keypad, or send a lock/unlock from HA
-2. **Run the command within a few seconds**
-
-## Alternatives considered
-
-| Integration | Why not |
-|------------|---------|
-| [Keymaster](https://github.com/FutureTense/keymaster) | Z-Wave only — no Zigbee support |
-| [Lock Code Manager](https://github.com/raman325/lock_code_manager) | Requires `supported_features` on lock entity. ZHA reports `supported_features: 0` for these locks |
-| [Zigbee Lock Manager](https://github.com/Fiercefish1/Zigbee-Lock-Manager) | Abandoned (last update Sep 2024). No config flow, doesn't handle Onesti response quirk |
+These locks are battery-powered and sleep. The integration auto-wakes the lock on timeout (sends a lock command, waits, retries), but if that also fails: press any key on the keypad, then retry within 5 seconds.
 
 ## Technical details
 
-### Why standard approaches don't work
-
-We tested 6 different approaches before finding one that works. The lock sends event data, but ZHA/zigpy doesn't expose it through standard APIs:
-
-| Approach | Result |
-|----------|--------|
-| ZHA `last_action_user` sensor | Never updates on keypad use — stale from last HA command |
-| `zha_event` bus events | `operation_event_notification` (0x0020) never received |
-| `add_listener` + `attribute_updated` | Suppressed by zigpy for unknown attributes (`_suppress_attribute_update_event`) |
-| `add_listener` + `handle_cluster_request` | Only for cluster commands, not general commands like Report_Attributes |
-| `add_listener` + `general_command` | Not dispatched to listeners for Report_Attributes |
-| **`cluster.on_event("attribute_report")`** | **Works — catches all attribute reports including custom 0x0100** |
-
-### Operation event format
-
-Onesti locks report `attrid 0x0100` as bitmap32 (little-endian) on every lock/unlock:
-
-```
-Byte 0: user_slot (0 = system, 3+ = user code slot)
-Byte 1: reserved (0)
-Byte 2: action (1 = lock, 2 = unlock)
-Byte 3: source (1 = RF, 2 = keypad, 3 = manual, 10 = auto)
-```
-
-`attrid 0x0101` contains the PIN code in BCD encoding.
-
-### ZHA device chain
-
-The Door Lock cluster lives on the deepest zigpy device object:
-
-```
-ZHADeviceProxy (depth 0, no endpoints)
-  → Device (depth 1, empty in_clusters)
-    → CustomDeviceV2 (depth 2, clusters here)
-```
-
-### Nimly response quirk
-
-PIN commands return a malformed ZCL response causing `IndexError: tuple index out of range` in zigpy. The command reaches the lock — the error is in response parsing only. This integration catches the error silently.
-
-### Slot data persistence
-
-User→slot mapping stored in config entry options (`.storage`), survives restarts.
-- **Slot data persistence**: stored in config entry options (`.storage`), survives restarts
+See [docs/technical.md](docs/technical.md) for implementation details — how user identification works, why standard ZHA approaches fail, the Nimly response quirk, and alternatives considered.
 
 ## License
 

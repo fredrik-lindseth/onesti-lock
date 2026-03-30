@@ -143,6 +143,44 @@ doorlock-failed-to-lock      — låsing feilet
 doorlock-access-updated      — tilgang oppdatert
 ```
 
+## App-økosystem
+
+### Connect-apper (cloud, via gateway)
+Alle er white-label av `com.easyaccess.connect` (React Native/Hermes):
+
+| Package | Navn | API | Merke |
+|---------|------|-----|-------|
+| com.easyaccess.connect | nimly connect | api-neutralclone.iotiliti.cloud | Nimly/EasyAccess |
+| com.safe4.keyfree | Keyfree | api-keyfree.iotiliti.cloud | Keyfree |
+| (ukjent) | Salus | api-salus.iotiliti.cloud | Salus |
+| (ukjent) | Forebygg | api-forebygg.iotiliti.cloud | Forebygg |
+| (ukjent) | Homely | api.homely.no | Homely |
+
+### BLE-apper (direkte til lås)
+| Package | Navn | API | Merke |
+|---------|------|-----|-------|
+| easyaccess.ekey.app | nimly BLE | api.ekey.nimly.io | Nimly |
+| no.safe4.easyaccess | Easy Access BLE | ukjent | Safe4 (eldre) |
+
+### Plattform-hierarki
+```
+Safe4 Security Group AS (morselskap)
+  └── iotiliti (cloud-plattform)
+       ├── Nimly (norsk forbrukermerke)
+       ├── EasyAccess (OEM/B2B)
+       ├── Keyfree (svensk)
+       ├── Salus (UK)
+       ├── Homely (norsk smart hjem)
+       ├── Forebygg (norsk sikkerhet)
+       ├── Copiax (svensk)
+       ├── Larmplus (svensk)
+       ├── Conficare (norsk)
+       └── Eidsiva (norsk)
+
+Onesti Products AS (hardware)
+  └── Alle fysiske låser + Connect Module (ZMNC010)
+```
+
 ## Sikkerhetsnotater
 
 - Client secrets hardkodet i APK (kan roteres server-side)

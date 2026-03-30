@@ -1,20 +1,20 @@
 # Nimly BLE Protocol Reference
 
-Dekompilert fra `easyaccess.ekey.app` v1.5.1 (native Android/Kotlin).
-All kommunikasjon skjer over én BLE-karakteristikk.
+Decompiled from `easyaccess.ekey.app` v1.5.1 (native Android/Kotlin).
+All communication happens over a single BLE characteristic.
 
 ## BLE UUIDs
 
-| Formål                         | UUID                                   |
+| Purpose                        | UUID                                   |
 | ------------------------------ | -------------------------------------- |
 | **Service**                    | `ba4bfd00-c447-19bf-f38d-4890b3a824c8` |
-| **Kommunikasjon** (r/w/notify) | `ba4bfd03-c447-19bf-f38d-4890b3a824c8` |
+| **Communication** (r/w/notify) | `ba4bfd03-c447-19bf-f38d-4890b3a824c8` |
 | **Advertising** (16-bit)       | `0xFD00`                               |
 | CCCD                           | `00002902-0000-1000-8000-00805f9b34fb` |
 | Device Info Service            | `0000180a-0000-1000-8000-00805f9b34fb` |
 | Software Revision              | `00002a28-0000-1000-8000-00805f9b34fb` |
 
-## Pakkeformat
+## Packet format
 
 ### Layer 1 — Packet
 
@@ -23,16 +23,17 @@ All kommunikasjon skjer over én BLE-karakteristikk.
 ```
 
 PacketType:
-| Byte | Type |
-|------|------|
-| 0x01 | Single (ukryptert) |
-| 0x02 | SingleEncrypted |
+
+| Byte | Type                           |
+| ---- | ------------------------------ |
+| 0x01 | Single (unencrypted)           |
+| 0x02 | SingleEncrypted                |
 | 0x03 | BlobStart (multi-packet start) |
-| 0x04 | BlobStream (fortsettelse) |
-| 0x05 | BlobComplete (slutt) |
-| 0x06 | Ack |
-| 0x07 | Nac |
-| 0xF0 | Error |
+| 0x04 | BlobStream (continuation)      |
+| 0x05 | BlobComplete (end)             |
+| 0x06 | Ack                            |
+| 0x07 | Nac                            |
+| 0xF0 | Error                          |
 
 ### Layer 2 — Command
 
@@ -47,160 +48,161 @@ PacketType:
 ```
 
 ResponseStatus:
-| Byte | Status |
-|------|--------|
-| 0 | Success |
-| 1 | Failed |
-| 2 | NotAvailable |
-| 3 | InternalError |
-| 4 | ParameterError |
-| 5 | LengthError |
-| 6 | NotFoundError |
-| 7 | NoMatchError |
-| 8 | NotSupportedError |
-| 9 | NotValidError |
-| 10 | SecurityError |
 
-## Alle BLE-kommandoer
+| Byte | Status            |
+| ---- | ----------------- |
+| 0    | Success           |
+| 1    | Failed            |
+| 2    | NotAvailable      |
+| 3    | InternalError     |
+| 4    | ParameterError    |
+| 5    | LengthError       |
+| 6    | NotFoundError     |
+| 7    | NoMatchError      |
+| 8    | NotSupportedError |
+| 9    | NotValidError     |
+| 10   | SecurityError     |
 
-| CommandId          | Hex      | Kommando                 | Payload                                                 |
+## All BLE commands
+
+| CommandId          | Hex      | Command                  | Payload                                                 |
 | ------------------ | -------- | ------------------------ | ------------------------------------------------------- |
-| ExchangeKeyPubM    | 0x01     | ECDH nøkkelutveksling    | 64B public key                                          |
-| EkeyUserAuth       | 0x17     | Ekey-autentisering       | userId(1B) + deviceId(6B) + pubKey(64B) + encToken(32B) |
-| EkeyOperate        | 0x18     | Lås/opplås               | operationType(1B): 1=unlock, 2=lock, 3=invalidate       |
-| EkeyUserAdd        | 0x1B     | Legg til ekey-bruker     | userName(12B) + publicKey                               |
-| EkeyUserRemove     | 0x1C     | Fjern ekey-bruker        | userId                                                  |
-| EkeyUsersList      | 0x1D     | List ekey-brukere        | —                                                       |
-| EkeyDeviceInfoGet  | 0x1F     | Hent enhetsinfo          | —                                                       |
-| EkeyDeviceInfoSet  | 0x20     | Sett enhetsinfo          | —                                                       |
-| UserAuthBegin      | 0x22     | Start brukerauth         | userId(1B) + deviceId(6B)                               |
-| UserAuthFinalize   | 0x23     | Fullfør brukerauth       | encryptedInvertedChallenge(16B)                         |
-| UserAuthUpdate     | 0x24     | Oppdater brukerauth      | —                                                       |
-| DeviceIdSet        | 0x30     | Sett enhets-ID           | —                                                       |
-| DeviceIdGet        | 0x31     | Hent enhets-ID           | —                                                       |
-| DeviceNameSet      | 0x32     | Sett enhetsnavn          | —                                                       |
-| DeviceNameGet      | 0x33     | Hent enhetsnavn          | —                                                       |
-| CurrentTimeGet     | 0x40     | Hent tid                 | —                                                       |
-| CurrentTimeSet     | 0x41     | Sett tid                 | —                                                       |
-| ServerKeyUpdate    | 0x42     | Oppdater servernøkkel    | —                                                       |
-| DeviceLogGet       | 0x44     | Hent enhetslogg          | —                                                       |
-| **PinCodeSet**     | **0x52** | **Sett PIN-kode**        | **slotNumber(2B LE) + pinLength(1B) + pincode(ASCII)**  |
-| **PinCodeClear**   | **0x53** | **Fjern PIN-kode**       | **slotNumber(2B LE)**                                   |
-| RfidCodeClear      | 0x55     | Fjern RFID-kode          | slotNumber                                              |
+| ExchangeKeyPubM    | 0x01     | ECDH key exchange        | 64B public key                                          |
+| EkeyUserAuth       | 0x17     | Ekey authentication      | userId(1B) + deviceId(6B) + pubKey(64B) + encToken(32B) |
+| EkeyOperate        | 0x18     | Lock/unlock              | operationType(1B): 1=unlock, 2=lock, 3=invalidate       |
+| EkeyUserAdd        | 0x1B     | Add ekey user            | userName(12B) + publicKey                               |
+| EkeyUserRemove     | 0x1C     | Remove ekey user         | userId                                                  |
+| EkeyUsersList      | 0x1D     | List ekey users          | —                                                       |
+| EkeyDeviceInfoGet  | 0x1F     | Get device info          | —                                                       |
+| EkeyDeviceInfoSet  | 0x20     | Set device info          | —                                                       |
+| UserAuthBegin      | 0x22     | Start user auth          | userId(1B) + deviceId(6B)                               |
+| UserAuthFinalize   | 0x23     | Finalize user auth       | encryptedInvertedChallenge(16B)                         |
+| UserAuthUpdate     | 0x24     | Update user auth         | —                                                       |
+| DeviceIdSet        | 0x30     | Set device ID            | —                                                       |
+| DeviceIdGet        | 0x31     | Get device ID            | —                                                       |
+| DeviceNameSet      | 0x32     | Set device name          | —                                                       |
+| DeviceNameGet      | 0x33     | Get device name          | —                                                       |
+| CurrentTimeGet     | 0x40     | Get time                 | —                                                       |
+| CurrentTimeSet     | 0x41     | Set time                 | —                                                       |
+| ServerKeyUpdate    | 0x42     | Update server key        | —                                                       |
+| DeviceLogGet       | 0x44     | Get device log           | —                                                       |
+| **PinCodeSet**     | **0x52** | **Set PIN code**         | **slotNumber(2B LE) + pinLength(1B) + pincode(ASCII)**  |
+| **PinCodeClear**   | **0x53** | **Clear PIN code**       | **slotNumber(2B LE)**                                   |
+| RfidCodeClear      | 0x55     | Clear RFID code          | slotNumber                                              |
 | ScanRfidCode       | 0x56     | Scan RFID                | —                                                       |
-| FingerprintScan    | 0x57     | Scan fingeravtrykk       | —                                                       |
-| FingerprintClear   | 0x58     | Fjern fingeravtrykk      | —                                                       |
-| VolumeSet          | 0x5A     | Sett lydvolum            | volume(1B)                                              |
-| AutoLockSet        | 0x5B     | Sett auto-lås            | enabled(1B)                                             |
-| KeypadEnableSet    | 0x5C     | Aktiver/deaktiver keypad | enabled(1B)                                             |
-| BattInfoGet        | 0x5D     | Hent batteriinfo         | —                                                       |
-| DeviceModelGet     | 0x62     | Hent modell              | —                                                       |
-| FactoryResetModule | 0x70     | Fabrikkresett modul      | —                                                       |
+| FingerprintScan    | 0x57     | Scan fingerprint         | —                                                       |
+| FingerprintClear   | 0x58     | Clear fingerprint        | —                                                       |
+| VolumeSet          | 0x5A     | Set sound volume         | volume(1B)                                              |
+| AutoLockSet        | 0x5B     | Set auto-lock            | enabled(1B)                                             |
+| KeypadEnableSet    | 0x5C     | Enable/disable keypad    | enabled(1B)                                             |
+| BattInfoGet        | 0x5D     | Get battery info         | —                                                       |
+| DeviceModelGet     | 0x62     | Get model                | —                                                       |
+| FactoryResetModule | 0x70     | Factory reset module     | —                                                       |
 
-## PIN-kode setting (0x52)
+## PIN code setting (0x52)
 
 ```
 Payload: [slotNumber: uint16 LE] [pinLength: uint8] [pincode: ASCII bytes]
 
-Eksempel — sett "8832" på slot 803:
+Example — set "8832" on slot 803:
   23 03  04  38 38 33 32
-  │      │   └──────────── "8832" som ASCII
-  │      └──────────────── lengde 4
+  │      │   └──────────── "8832" as ASCII
+  │      └──────────────── length 4
   └─────────────────────── slot 803 (little-endian: 0x0323)
 ```
 
-**Slot-nummerering (BLE):**
+**Slot numbering (BLE):**
 
-- Slot 0: Master-PIN
-- Slot 800-899: Vanlige bruker-PINer
+- Slot 0: Master PIN
+- Slot 800-899: Regular user PINs
 
-**NB:** BLE bruker slot 800-899, mens Zigbee ZCL bruker slot 3-199. Forskjellig nummerering!
+**Note:** BLE uses slots 800-899, while Zigbee ZCL uses slots 3-999. Different numbering!
 
-**Krav:** Firmware ≥ 4.7.90, PIN 4-8 siffer (0-9).
+**Requirements:** Firmware ≥ 4.7.90, PIN 4-8 digits (0-9).
 
-## Kryptering
+## Encryption
 
 ### Transport (ECDH + AES-128-CBC)
 
-Hver BLE-tilkobling:
+Each BLE connection:
 
-1. App genererer **secp256r1 (NIST P-256)** nøkkelpar
-2. App sender public key (64B) via `ExchangeKeyPubM` (0x01)
-3. Lås svarer med sin public key (64B)
-4. App beregner ECDH shared secret, **reverserer byte-rekkefølgen**
-5. **Link Key** = shared_secret[0..16] (AES-nøkkel)
+1. App generates **secp256r1 (NIST P-256)** key pair
+2. App sends public key (64B) via `ExchangeKeyPubM` (0x01)
+3. Lock responds with its public key (64B)
+4. App computes ECDH shared secret, **reverses byte order**
+5. **Link Key** = shared_secret[0..16] (AES key)
 6. **Link IV** = shared_secret[16..32] (AES IV)
-7. All videre trafikk: **AES-128-CBC** (ingen padding)
+7. All further traffic: **AES-128-CBC** (no padding)
 
-Default nøkler (før key exchange): `0x11 × 16` / `0x22 × 16`
+Default keys (before key exchange): `0x11 × 16` / `0x22 × 16`
 
-### Ekey-autentisering (token-basert)
+### Ekey authentication (token-based)
 
-For ekey-brukere (gjester etc.):
+For ekey users (guests etc.):
 
-1. App har: userId, deviceId(6B), token(32B), sessionPublicKey(64B) — fra cloud API
-2. App genererer nytt ECDH-par
-3. Beregner session secret med sessionPublicKey
-4. Krypterer token med AES-128-CBC(sessionSecret[0..16], linkIv)
-5. Sender `EkeyUserAuth` (0x17)
+1. App has: userId, deviceId(6B), token(32B), sessionPublicKey(64B) — from cloud API
+2. App generates new ECDH pair
+3. Computes session secret with sessionPublicKey
+4. Encrypts token with AES-128-CBC(sessionSecret[0..16], linkIv)
+5. Sends `EkeyUserAuth` (0x17)
 
-### Eier-autentisering (challenge-response)
+### Owner authentication (challenge-response)
 
-For låseier:
+For lock owner:
 
-1. App sender `UserAuthBegin` (0x22): userId(1B) + deviceId(6B)
-2. Lås svarer med 16-byte kryptert challenge
-3. App dekrypterer med brukerens nøkkel (`deviceEncryptionKey` fra cloud API)
-4. App **inverterer alle bits** i challenge
-5. App krypterer invertert challenge tilbake
-6. App sender `UserAuthFinalize` (0x23)
+1. App sends `UserAuthBegin` (0x22): userId(1B) + deviceId(6B)
+2. Lock responds with 16-byte encrypted challenge
+3. App decrypts with user's key (`deviceEncryptionKey` from cloud API)
+4. App **inverts all bits** in challenge
+5. App encrypts inverted challenge back
+6. App sends `UserAuthFinalize` (0x23)
 
-## Låsmodeller
+## Lock models
 
-| Modell          | Byte ID | Fingeravtrykk | Keypad Enable | Master PIN |
-| --------------- | ------- | ------------- | ------------- | ---------- |
-| EasyFingerTouch | 8       | Ja            | Nei           | Nei        |
-| EasyCodeTouch   | 9       | Nei           | Nei           | Nei        |
-| NimlyCode       | 21      | Nei           | Nei           | Nei        |
-| NimlyTouch      | 22      | Nei           | Nei           | Nei        |
-| **NimlyPro**    | **23**  | **Ja**        | Nei           | Nei        |
-| NimlyIndoor     | 24      | Nei           | Nei           | Nei        |
-| NimlyKeybox     | 26      | Nei           | Nei           | Nei        |
-| NimlyTwist      | 27      | Nei           | Nei           | Nei        |
-| NimlyCode2      | 31      | Nei           | Ja            | Ja         |
-| NimlyTouch2     | 32      | Nei           | Ja            | Ja         |
-| **NimlyPro24**  | **33**  | **Ja**        | **Ja**        | **Ja**     |
-| NimlyIndoor2    | 34      | Nei           | Ja            | Ja         |
-| NimlyKeybox2    | 36      | Nei           | Ja            | Ja         |
-| NimlyTwist2     | 37      | Nei           | Ja            | Ja         |
+| Model           | Byte ID | Fingerprint | Keypad Enable | Master PIN |
+| --------------- | ------- | ----------- | ------------- | ---------- |
+| EasyFingerTouch | 8       | Yes         | No            | No         |
+| EasyCodeTouch   | 9       | No          | No            | No         |
+| NimlyCode       | 21      | No          | No            | No         |
+| NimlyTouch      | 22      | No          | No            | No         |
+| **NimlyPro**    | **23**  | **Yes**     | No            | No         |
+| NimlyIndoor     | 24      | No          | No            | No         |
+| NimlyKeybox     | 26      | No          | No            | No         |
+| NimlyTwist      | 27      | No          | No            | No         |
+| NimlyCode2      | 31      | No          | Yes           | Yes        |
+| NimlyTouch2     | 32      | No          | Yes           | Yes        |
+| **NimlyPro24**  | **33**  | **Yes**     | **Yes**       | **Yes**    |
+| NimlyIndoor2    | 34      | No          | Yes           | Yes        |
+| NimlyKeybox2    | 36      | No          | Yes           | Yes        |
+| NimlyTwist2     | 37      | No          | Yes           | Yes        |
 
-Minimum firmware: 4.6.0 (tilkobling), 4.7.90 (modelldeteksjon, PIN, keypad, master PIN).
+Minimum firmware: 4.6.0 (connection), 4.7.90 (model detection, PIN, keypad, master PIN).
 
 ## BLE API (nimly ekey cloud)
 
-Separat API fra Connect-appen:
+Separate API from the Connect app:
 
-| Base URL                        | Miljø      |
-| ------------------------------- | ---------- |
-| `https://api.ekey.nimly.io`     | Produksjon |
-| `https://dev.api.ekey.nimly.io` | Utvikling  |
+| Base URL                        | Environment |
+| ------------------------------- | ----------- |
+| `https://api.ekey.nimly.io`     | Production  |
+| `https://dev.api.ekey.nimly.io` | Development |
 
 Auth: `POST /User/Login` (OAuth2 password grant)
 
-| Method  | Path                                                      | Formål                  |
-| ------- | --------------------------------------------------------- | ----------------------- |
-| POST    | `/User/Login`                                             | Innlogging              |
-| GET     | `/User`                                                   | Brukerinfo              |
-| GET     | `/User/Locks`                                             | Alle låser              |
-| GET     | `/User/Locks/{id}`                                        | Spesifikk lås           |
-| POST    | `/Locations/{locId}/Locks`                                | Opprett lås             |
-| GET     | `/Locations/{locId}/Locks/{id}/DeviceData`                | Public keys             |
-| POST    | `/Locations/{locId}/Locks/{id}/Ekeys`                     | Opprett ekey            |
-| GET     | `/Locations/{locId}/Locks/{id}/Ekeys/{ekeyId}/DeviceData` | Ekey tokens/nøkler      |
-| POST    | `/Locations/{locId}/Locks/{id}/Credentials`               | Opprett credential      |
-| GET/PUT | `/Locations/{locId}/Locks/{id}/Credentials/{credId}`      | Administrer credentials |
+| Method  | Path                                                      | Purpose              |
+| ------- | --------------------------------------------------------- | -------------------- |
+| POST    | `/User/Login`                                             | Login                |
+| GET     | `/User`                                                   | User info            |
+| GET     | `/User/Locks`                                             | All locks            |
+| GET     | `/User/Locks/{id}`                                        | Specific lock        |
+| POST    | `/Locations/{locId}/Locks`                                | Create lock          |
+| GET     | `/Locations/{locId}/Locks/{id}/DeviceData`                | Public keys          |
+| POST    | `/Locations/{locId}/Locks/{id}/Ekeys`                     | Create ekey          |
+| GET     | `/Locations/{locId}/Locks/{id}/Ekeys/{ekeyId}/DeviceData` | Ekey tokens/keys     |
+| POST    | `/Locations/{locId}/Locks/{id}/Credentials`               | Create credential    |
+| GET/PUT | `/Locations/{locId}/Locks/{id}/Credentials/{credId}`      | Manage credentials   |
 
-## Tilkoblingsflyt
+## Connection flow
 
 ```
 1. BLE scan → finn 0xFD00 service data
@@ -208,31 +210,31 @@ Auth: `POST /User/Login` (OAuth2 password grant)
 3. Request MTU 23
 4. Discover services
 5. Request connection priority HIGH
-6. Les Software Revision (firmware-versjon)
-7. Sjekk firmware ≥ 4.6.0
-8. Enable notifications på ba4bfd03
+6. Read Software Revision (firmware version)
+7. Check firmware ≥ 4.6.0
+8. Enable notifications on ba4bfd03
 9. ECDH key exchange → AES-128-CBC link
 10. Query device model (firmware ≥ 4.7.90)
-11. Autentiser (ekey-auth ELLER user-auth)
-12. Send kommandoer (lock/unlock/pinSet/etc.)
+11. Authenticate (ekey-auth OR user-auth)
+12. Send commands (lock/unlock/pinSet/etc.)
 ```
 
-## Lock state respons
+## Lock state response
 
-Lås-tilstand inkluderer opplåsingsmetode:
-| Byte | Metode |
+Lock state includes unlock method:
+| Byte | Method |
 |------|--------|
-| 0 | Key (nøkkel) |
-| 1 | Button (knapp) |
+| 0 | Key |
+| 1 | Button |
 | 2 | Panel (keypad) |
 | 3 | Fingerprint |
 | 4 | RFID |
 | 5 | Other |
 
-## Scan-identifisering
+## Scan identification
 
-BLE advertisements inneholder 0xFD00 service data:
+BLE advertisements contain 0xFD00 service data:
 
 - 2-byte device ID seed
-- 6-byte device ID (reversert) for uinitialiserte låser
-- For initialiserte: 2-byte seed + 6-byte SHA-1 hash prefix (seed + kjent deviceId)
+- 6-byte device ID (reversed) for uninitialized locks
+- For initialized locks: 2-byte seed + 6-byte SHA-1 hash prefix (seed + known deviceId)

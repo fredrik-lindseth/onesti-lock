@@ -132,7 +132,7 @@ class NimlyProOptionsFlow(OptionsFlow):
         """Main menu: choose action."""
         return self.async_show_menu(
             step_id="init",
-            menu_options=["set_pin", "clear_pin", "view_slots"],
+            menu_options=["set_pin", "clear_pin", "name_slot", "view_slots"],
         )
 
     # -- Set PIN: form → progress → result --
@@ -286,6 +286,27 @@ class NimlyProOptionsFlow(OptionsFlow):
 
         # Error — route back to form with preserved input
         return self.async_show_progress_done(next_step_id="clear_pin")
+
+    # -- Name slot (for RFID, fingerprint, etc.) --
+
+    async def async_step_name_slot(self, user_input=None) -> FlowResult:
+        """Assign a name to any slot (for RFID tags, fingerprints, etc.)."""
+        if user_input is not None:
+            slot = int(user_input["slot"])
+            name = user_input["name"]
+            coordinator = self.hass.data[DOMAIN][self._entry.entry_id]["coordinator"]
+            await coordinator.set_slot_name(slot, name)
+            return self.async_create_entry(data=self._entry.options)
+
+        return self.async_show_form(
+            step_id="name_slot",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("slot"): vol.Coerce(int),
+                    vol.Required("name"): str,
+                }
+            ),
+        )
 
     # -- View slots --
 

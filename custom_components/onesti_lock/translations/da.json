@@ -22,6 +22,7 @@
         "menu_options": {
           "set_pin": "Indstil PIN-kode",
           "clear_pin": "Fjern PIN-kode",
+          "name_slot": "Navngiv bruger",
           "view_slots": "Vis brugerpladser"
         }
       },
@@ -39,6 +40,14 @@
         "description": "Vælg bruger der skal fjernes.",
         "data": {
           "slot": "Bruger"
+        }
+      },
+      "name_slot": {
+        "title": "Navngiv bruger",
+        "description": "Knyt et navn til et pladsnummer. Bruges til RFID-brikker, fingeraftryk eller andre adgangsmetoder der ikke indstilles via PIN-menuen.",
+        "data": {
+          "slot": "Pladsnummer",
+          "name": "Navn"
         }
       },
       "view_slots": {

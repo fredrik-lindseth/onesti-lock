@@ -22,6 +22,7 @@
         "menu_options": {
           "set_pin": "Sett PIN-kode",
           "clear_pin": "Fjern PIN-kode",
+          "name_slot": "Navngi bruker",
           "view_slots": "Vis brukerslots"
         }
       },
@@ -39,6 +40,14 @@
         "description": "Velg bruker å fjerne.",
         "data": {
           "slot": "Bruker"
+        }
+      },
+      "name_slot": {
+        "title": "Navngi bruker",
+        "description": "Knytt et navn til et slot-nummer. Brukes for RFID-brikker, fingeravtrykk, eller andre tilgangsmetoder som ikke settes via PIN-menyen.",
+        "data": {
+          "slot": "Slot-nummer",
+          "name": "Navn"
         }
       },
       "view_slots": {

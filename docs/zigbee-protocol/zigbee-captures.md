@@ -1,19 +1,19 @@
 # Onesti Lock — Zigbee Captures & Protocol Reference
 
-Rå Zigbee-fangster fra NimlyPRO (f4:ce:36:25:5a:2c:72:87) på HA Leirnes, 28-29. mars 2026.
+Raw Zigbee captures from NimlyPRO (f4:ce:36:25:5a:2c:72:87).
 
 ## DoorLock Cluster (0x0101, endpoint 11)
 
-### Attributt 0x0000 — Lock State (standard ZCL)
+### Attribute 0x0000 — Lock State (standard ZCL)
 
 Type: enum8
 
-| Verdi | Betydning |
-| ----- | --------- |
-| 0x01  | Locked    |
-| 0x02  | Unlocked  |
+| Value | Meaning  |
+| ----- | -------- |
+| 0x01  | Locked   |
+| 0x02  | Unlocked |
 
-Rå ZCL frame (lock):
+Raw ZCL frame (lock):
 
 ```
 08 d2 0a 00 00 30 01
@@ -24,36 +24,36 @@ Rå ZCL frame (lock):
 └─────── frame_control: 0x08 (server→client, global command)
 ```
 
-### Attributt 0x0100 — Operation Event (Onesti custom)
+### Attribute 0x0100 — Operation Event (Onesti custom)
 
 Type: bitmap32
 
-Sendes ved hver lås/opplåsing. Little-endian byte-rekkefølge:
+Sent on every lock/unlock. Little-endian byte order:
 
 ```
-Byte 0: user_slot  — 0 = system/auto, 3-199 = brukerslot
-Byte 1: reserved   — alltid 0x00
+Byte 0: user_slot  — 0 = system/auto, 3-199 = user slot
+Byte 1: reserved   — always 0x00
 Byte 2: action     — 0x01 = lock, 0x02 = unlock
 Byte 3: source     — 0x01 = RF, 0x02 = keypad, 0x03 = manual, 0x0A = auto
 ```
 
-Ukjente source-verdier (ikke observert ennå): fingeravtrykk, RFID/NFC.
+Unknown source values (not yet observed): fingerprint, RFID/NFC.
 
-### Verifiserte source-verdier (byte 3)
+### Verified source values (byte 3)
 
-Endelig mapping brukt i integrasjonen (verifisert mot Z2M converter og rå fangster):
+Final mapping used in the integration (verified against Z2M converter and raw captures):
 
-| Byte | Source      | Status                      |
-| ---- | ----------- | --------------------------- |
-| 0x00 | Zigbee (RF) | Inferert                    |
-| 0x02 | Keypad      | Verifisert (flere fangster) |
-| 0x03 | Fingerprint | Fra Z2M converter           |
-| 0x04 | RFID        | Fra Z2M converter           |
-| 0x0A | Auto-lock   | Verifisert (flere fangster) |
+| Byte | Source      | Status                        |
+| ---- | ----------- | ----------------------------- |
+| 0x00 | Zigbee (RF) | Inferred                      |
+| 0x02 | Keypad      | Verified (multiple captures)  |
+| 0x03 | Fingerprint | From Z2M converter            |
+| 0x04 | RFID        | From Z2M converter            |
+| 0x0A | Auto-lock   | Verified (multiple captures)  |
 
-Merk: Session notes (2026-03-28) inneholder en tidlig hypotese med andre verdier (1=RF, 3=manual). Koden i `__init__.py` `_SOURCE_MAP` er autoritativ.
+Note: Session notes (2026-03-28) contain an early hypothesis with different values (1=RF, 3=manual). The code in `__init__.py` `_SOURCE_MAP` is authoritative.
 
-Rå ZCL frame (Ola slot 3 unlock via keypad):
+Raw ZCL frame (Ola slot 3 unlock via keypad):
 
 ```
 08 c1 0a 00 01 1b 03 00 02 02
@@ -64,20 +64,20 @@ Rå ZCL frame (Ola slot 3 unlock via keypad):
 └─────── frame_control: 0x08
 ```
 
-Rå ZCL frame (auto-lock):
+Raw ZCL frame (auto-lock):
 
 ```
 08 c5 0a 00 01 1b 00 00 01 0a
                    └──────────── [00, 00, 01, 0A] = slot 0, lock, auto
 ```
 
-### Attributt 0x0101 — Last PIN Code (Onesti custom)
+### Attribute 0x0101 — Last PIN Code (Onesti custom)
 
 Type: LVBytes (octet string)
 
-PIN-kode i rå bytes — to BCD-siffer per byte.
+PIN code in raw bytes — two BCD digits per byte.
 
-Rå ZCL frame (PIN "5478"):
+Raw ZCL frame (PIN "5478"):
 
 ```
 08 c2 0a 01 01 41 02 09 27
@@ -89,11 +89,11 @@ Rå ZCL frame (PIN "5478"):
 └─────── frame_control: 0x08
 ```
 
-### Attributt 0x0023 — Auto Relock Time (standard ZCL)
+### Attribute 0x0023 — Auto Relock Time (standard ZCL)
 
 Type: uint32
 
-Verdi i sekunder. 0 = disabled.
+Value in seconds. 0 = disabled.
 
 ```
 08 c7 0a 23 00 23 00 00 00 00
@@ -101,9 +101,9 @@ Verdi i sekunder. 0 = disabled.
             attrid 0x0023
 ```
 
-## Komplett event-sekvens for PIN-opplåsing
+## Complete event sequence for PIN unlock
 
-Når noen taster PIN + # på keypadet, sender låsen denne sekvensen:
+When someone enters PIN + # on the keypad, the lock sends this sequence:
 
 ```
 1. attrid=0x0101 (PIN code)     — b"\x54\x78" (BCD: "5478")
@@ -118,9 +118,9 @@ For auto-lock:
 2. attrid=0x0100 (operation)    — 0x0A010000 (system, lock, auto)
 ```
 
-## Alle observerte rå-verdier
+## All observed raw values
 
-| Tidspunkt      | attrid | Raw value              | Decoded                |
+| Timestamp      | attrid | Raw value              | Decoded                |
 | -------------- | ------ | ---------------------- | ---------------------- |
 | 28.03 21:50:26 | 0x0100 | 167837696 (0x0A010000) | system, lock, auto     |
 | 28.03 21:59:15 | 0x0000 | 0x01                   | locked                 |

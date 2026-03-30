@@ -269,22 +269,22 @@ Alle bruker identisk kodebase (React Native/Hermes), kun config-blokken varierer
 
 ### Alle API-instanser (prod)
 
-| Merke | Package | Prod API URL | Client Secret | Company ID |
-|-------|---------|-------------|---------------|------------|
-| **Nimly** | `com.easyaccess.connect` | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` | `55c78905-...` | `90ded287-...` |
-| **Copiax** | `com.copiax.homesecurity` | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` | `55c78905-...` | `59211d13-...` |
-| **Tekam** | `no.tekam.smarthus` | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` | `55c78905-...` | `94d06105-...` |
-| **Folklarm** | `com.folklarm.appsolutsakerhet` | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` | `55c78905-...` | `a6a2b374-...` |
-| **iotiliti** | `io.iotiliti.home` | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` | `55c78905-...` | `c1919f73-...` |
-| **Keyfree** | `com.safe4.keyfree` | `api.customer.keyfree.iotiliti.cloud` | `e1428615-...` | `b960e7e6-...` |
-| **Forebygg** | `se.forebygg.forebygg` | `api.customer.forebygg.iotiliti.cloud` | `ac252b25-...` | `474d2082-...` |
-| **Homely** | `io.homely.home` | `api.homely.no` | `71fb00d6-...` | `a21f32b6-...` |
-| **Safe4 Care** | *(i iotiliti-appen)* | `api-safe4care.iotiliti.cloud` | `5DCevi7n-...` | `ab58cff2-...` |
-| **Tryg Smart** | *(i iotiliti-appen)* | `api.tryg.iotiliti.cloud` | `9b88cb32-...` | `a418725f-...` |
-| **Salus** | `com.salusprotekt.immunity` | `api-salus.iotiliti.cloud` | `24fc232a-...` | `93bd9ef6-...` |
-| **LF** | *(i iotiliti-appen)* | `api-lf.iotiliti.cloud` | `ad9c3162-...` | `71cfa630-...` |
+| Merke | Package | Prod API URL |
+|-------|---------|-------------|
+| **Nimly** | `com.easyaccess.connect` | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` |
+| **Copiax** | `com.copiax.homesecurity` | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` |
+| **Tekam** | `no.tekam.smarthus` | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` |
+| **Folklarm** | `com.folklarm.appsolutsakerhet` | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` |
+| **iotiliti** | `io.iotiliti.home` | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` |
+| **Keyfree** | `com.safe4.keyfree` | `api.customer.keyfree.iotiliti.cloud` |
+| **Forebygg** | `se.forebygg.forebygg` | `api.customer.forebygg.iotiliti.cloud` |
+| **Homely** | `io.homely.home` | `api.homely.no` |
+| **Safe4 Care** | *(i iotiliti-appen)* | `api-safe4care.iotiliti.cloud` |
+| **Tryg Smart** | *(i iotiliti-appen)* | `api.tryg.iotiliti.cloud` |
+| **Salus** | `com.salusprotekt.immunity` | `api-salus.iotiliti.cloud` |
+| **LF** | *(i iotiliti-appen)* | `api-lf.iotiliti.cloud` |
 
-Fulle secrets i `secrets.md` (gitignored).
+Client secrets, company IDs og test-credentials i `secrets.md` (gitignored).
 
 ### API-URL migrering
 
@@ -294,8 +294,8 @@ Begge URLer peker til samme database — testet med fersk token, identiske respo
 
 ### Intern test-API
 
-`https://test-api-neurosys.iotiliti.cloud` med client_secret `fde2ad9f-f55b-4ed4-9a01-ddb0421c5efa`.
-Utviklerselskapet Neurosys (Polen) sin interne test-instans.
+`https://test-api-neurosys.iotiliti.cloud` — Neurosys (Polen) sin interne test-instans.
+Client secret i `secrets.md`.
 
 ### Skjult Developer Options
 
@@ -309,7 +309,7 @@ Alle apper har en skjult "Developer Options"-meny:
 ### LF-instans (separat auth)
 
 LF-merket bruker egen Keycloak-realm: `realms/lftt-kong-oidc/protocol/openid-connect/token`.
-Ekstern auth: `https://test-auth.lfhub.net`, clientId `kong-oidc`, clientSecret i secrets.md.
+Ekstern auth: `https://test-auth.lfhub.net`. Credentials i secrets.md.
 Username-login (ikke email), ingen passordbytte, ingen kontosletting.
 
 ### Funn: group-devices tom på alle APIer

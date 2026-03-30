@@ -164,7 +164,6 @@ Integrasjonen bør være en **hybrid** — ZHA for lokal kontroll, cloud API for
 
 ## Tidslinje
 
-- **2026-03-28:** Dekompilert Nimly Connect, funnet API-endepunkter
-- **2026-03-29:** Dekompilert BLE-app, dokumentert ekey-protokoll
-- **2026-03-30:** Wireshark boot-capture, paret lås med hub, testet cloud API,
-  dekompilert alle white-label-apper, MITM-forsøk feilet, options flow UX forbedret
+- Dekompilert Nimly Connect, funnet API-endepunkter
+- Dekompilert BLE-app, dokumentert ekey-protokoll
+- Wireshark boot-capture, paret lås med hub, testet cloud API, dekompilert alle white-label-apper, MITM-forsøk feilet, options flow UX forbedret

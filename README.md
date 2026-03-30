@@ -24,17 +24,17 @@ Manages PIN codes, identifies **who** unlocked the door and **how** (keypad, RFI
 
 All Onesti Products AS locks with Zigbee Connect Module (ZMNC010):
 
-| Zigbee model | Product | Verified |
-|--------------|---------|----------|
-| NimlyPRO | Nimly Touch Pro | Yes — tested with PIN, RFID, fingerprint |
-| NimlyPRO24 | Nimly Touch Pro (2024) | Supported |
-| NimlyCode | Nimly Code | Supported |
-| NimlyTouch | Nimly Touch | Supported |
-| NimlyIn | Nimly InDoor | Supported |
-| NimlyShared | Nimly Shared | Supported |
-| easyCodeTouch_v1 | EasyAccess EasyCodeTouch | Supported |
-| EasyCodeTouch | EasyAccess EasyCodeTouch | Supported |
-| EasyFingerTouch | EasyAccess EasyFingerTouch | Supported |
+| Zigbee model     | Product                    | Verified                                 |
+| ---------------- | -------------------------- | ---------------------------------------- |
+| NimlyPRO         | Nimly Touch Pro            | Yes — tested with PIN, RFID, fingerprint |
+| NimlyPRO24       | Nimly Touch Pro (2024)     | Supported                                |
+| NimlyCode        | Nimly Code                 | Supported                                |
+| NimlyTouch       | Nimly Touch                | Supported                                |
+| NimlyIn          | Nimly InDoor               | Supported                                |
+| NimlyShared      | Nimly Shared               | Supported                                |
+| easyCodeTouch_v1 | EasyAccess EasyCodeTouch   | Supported                                |
+| EasyCodeTouch    | EasyAccess EasyCodeTouch   | Supported                                |
+| EasyFingerTouch  | EasyAccess EasyFingerTouch | Supported                                |
 
 These are all the same hardware by **Onesti Products AS** — different branding, identical Zigbee module. Sold under Nimly, EasyAccess, Keyfree, Salus, Homely, Forebygg, and other brands.
 
@@ -80,12 +80,12 @@ data:
   code: "5478"
 ```
 
-| Service | Description |
-|---------|-------------|
-| `onesti_lock.set_pin` | Set PIN code with name for a slot |
-| `onesti_lock.clear_pin` | Remove PIN code from a slot |
-| `onesti_lock.set_name` | Set name without changing credentials |
-| `onesti_lock.clear_slot` | Remove all credentials and name |
+| Service                  | Description                           |
+| ------------------------ | ------------------------------------- |
+| `onesti_lock.set_pin`    | Set PIN code with name for a slot     |
+| `onesti_lock.clear_pin`  | Remove PIN code from a slot           |
+| `onesti_lock.set_name`   | Set name without changing credentials |
+| `onesti_lock.clear_slot` | Remove all credentials and name       |
 
 ### RFID and fingerprint
 
@@ -95,11 +95,11 @@ RFID tags and fingerprints must be enrolled via the physical lock (using master 
 
 From the Nimly/EasyAccess manual:
 
-| Slots | Purpose |
-|-------|---------|
-| 000 | First master code (factory: `123` — **change immediately**) |
-| 001-002 | Additional master codes (optional) |
-| 003-999 | User codes, RFID tags, fingerprints |
+| Slots   | Purpose                                                     |
+| ------- | ----------------------------------------------------------- |
+| 000     | First master code (factory: `123` — **change immediately**) |
+| 001-002 | Additional master codes (optional)                          |
+| 003-999 | User codes, RFID tags, fingerprints                         |
 
 ## Entities
 
@@ -132,14 +132,14 @@ Three automation blueprints are included:
 
 ## Why this instead of the Nimly app?
 
-|  | Nimly App + Hub | **This integration** |
-|--|----------------|---------------------|
-| **Extra hardware** | Connect Bridge (~1500 kr) | Any Zigbee coordinator |
-| **Cloud dependency** | Yes — iotiliti.cloud (AWS) | **None — 100% local** |
-| **Automations** | Requires "PRO Hub" upsell | **Full HA automations** |
-| **User identification** | Cloud event history | **Real-time in HA** |
-| **Privacy** | All events to AWS | **Everything stays local** |
-| **Cost** | Hub + cloud account | **Free and open source** |
+|                         | Nimly App + Hub            | **This integration**       |
+| ----------------------- | -------------------------- | -------------------------- |
+| **Extra hardware**      | Connect Bridge (~1500 kr)  | Any Zigbee coordinator     |
+| **Cloud dependency**    | Yes — iotiliti.cloud (AWS) | **None — 100% local**      |
+| **Automations**         | Requires "PRO Hub" upsell  | **Full HA automations**    |
+| **User identification** | Cloud event history        | **Real-time in HA**        |
+| **Privacy**             | All events to AWS          | **Everything stays local** |
+| **Cost**                | Hub + cloud account        | **Free and open source**   |
 
 ## Alternative approaches (and why they don't work)
 
@@ -153,12 +153,12 @@ If you're researching how to integrate these locks, here's what we've tried:
 
 ## Documentation
 
-| Document | Content |
-|----------|---------|
-| [Debugging guide](docs/debugging.md) | LED indicators, troubleshooting, debug logging |
-| [Technical details](docs/technical.md) | Event decoding, coordinator, auto-wake |
-| [Slot numbering](docs/slot-numbering.md) | Zigbee vs BLE vs cloud slot mapping |
-| [Cloud API status](docs/cloud-api-status.md) | Reverse engineering progress and next steps |
+| Document                                     | Content                                        |
+| -------------------------------------------- | ---------------------------------------------- |
+| [Debugging guide](docs/debugging.md)         | LED indicators, troubleshooting, debug logging |
+| [Technical details](docs/technical.md)       | Event decoding, coordinator, auto-wake         |
+| [Slot numbering](docs/slot-numbering.md)     | Zigbee vs BLE vs cloud slot mapping            |
+| [Cloud API status](docs/cloud-api-status.md) | Reverse engineering progress and next steps    |
 
 ## License
 

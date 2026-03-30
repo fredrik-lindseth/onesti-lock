@@ -8,13 +8,13 @@ Kilde: [Nimly Touch Pro Manual](https://nimly.se/wp-content/uploads/2024/09/EN-T
 
 ### Keypad (utside)
 
-| Indikator | Betydning |
-|-----------|-----------|
-| **Grønt blink + kort pip** | Suksess (opplåsing, registrering, programmering) |
-| **Rødt blink** | Mislykket (feil kode, tidsavbrudd, registrering feilet) |
-| **Langt pip + grønt blink** | Vellykket factory reset |
-| **Gjentatte hyppige pip ved låsing** | Lavt batterinivå — bytt batterier snart |
-| **Hvitt bakgrunnsbelyst keypad** | Keypad vekket (berøring), klar for input |
+| Indikator                            | Betydning                                               |
+| ------------------------------------ | ------------------------------------------------------- |
+| **Grønt blink + kort pip**           | Suksess (opplåsing, registrering, programmering)        |
+| **Rødt blink**                       | Mislykket (feil kode, tidsavbrudd, registrering feilet) |
+| **Langt pip + grønt blink**          | Vellykket factory reset                                 |
+| **Gjentatte hyppige pip ved låsing** | Lavt batterinivå — bytt batterier snart                 |
+| **Hvitt bakgrunnsbelyst keypad**     | Keypad vekket (berøring), klar for input                |
 
 **Anti-tamper:** Tre feil koder på rad → keypad deaktiveres i 5 minutter.
 
@@ -24,22 +24,22 @@ Kilde: [Nimly Touch Pro Manual](https://nimly.se/wp-content/uploads/2024/09/EN-T
 
 Konfigurerbart via master-kode (programmeringssekvens `#0`):
 
-| Verdi | Nivå |
-|-------|------|
-| 0 | Stille |
-| 1 | Lavt |
-| 2 | Normal (standard) |
+| Verdi | Nivå              |
+| ----- | ----------------- |
+| 0     | Stille            |
+| 1     | Lavt              |
+| 2     | Normal (standard) |
 
 ### Connect Module LED (E-Life 3.0 / ZMNC010)
 
-| LED | Mønster | Betydning |
-|-----|---------|-----------|
-| **Blått** langsomt blinkende | BLE paringsmodus (søker) |
-| **Oransje** langsomt blinkende | Zigbee paringsmodus (søker) |
-| **Oransje** raskt blinkende | Reset pågår (hold knappen ~15 sek) |
-| **Blått** fast lys | BLE tilkoblet |
-| **Oransje** fast lys | Zigbee tilkoblet |
-| Ingen LED | Normaltilstand (paret og i dvale) |
+| LED                            | Mønster                            | Betydning |
+| ------------------------------ | ---------------------------------- | --------- |
+| **Blått** langsomt blinkende   | BLE paringsmodus (søker)           |
+| **Oransje** langsomt blinkende | Zigbee paringsmodus (søker)        |
+| **Oransje** raskt blinkende    | Reset pågår (hold knappen ~15 sek) |
+| **Blått** fast lys             | BLE tilkoblet                      |
+| **Oransje** fast lys           | Zigbee tilkoblet                   |
+| Ingen LED                      | Normaltilstand (paret og i dvale)  |
 
 ### Reset av Connect Module
 
@@ -70,13 +70,13 @@ Konfigurerbart via master-kode (programmeringssekvens `#0`):
 
 ### Slot-nummerering (fra manualen)
 
-| Slot | Formål |
-|------|--------|
-| 000 | Første master-kode (fabrikkode 123) |
-| 001-002 | Ekstra master-koder (valgfritt) |
-| 003-199 | Bruker-fingeravtrykk |
-| 003-999 | Brukerkoder (PIN) |
-| 003-999 | Nøkkelbrikker (RFID) |
+| Slot    | Formål                              |
+| ------- | ----------------------------------- |
+| 000     | Første master-kode (fabrikkode 123) |
+| 001-002 | Ekstra master-koder (valgfritt)     |
+| 003-199 | Bruker-fingeravtrykk                |
+| 003-999 | Brukerkoder (PIN)                   |
+| 003-999 | Nøkkelbrikker (RFID)                |
 
 ## 1. Zigbee-tilkobling
 

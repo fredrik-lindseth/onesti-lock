@@ -1,7 +1,5 @@
 # Cloud API reversing — status og veien videre
 
-Sist oppdatert: 2026-03-30
-
 ## Mål
 
 Gjenskape all funksjonalitet fra Nimly Connect-appen i Home Assistant:
@@ -53,8 +51,7 @@ Gjenskape all funksjonalitet fra Nimly Connect-appen i Home Assistant:
 
 ### group-devices returnerer `[]`
 
-**Dette er hovedblokkeringen.** `GET /locations/{id}/group-devices` returnerer tom array
-selv om appen viser enheter (gateway + Touch Pro) under samme location.
+**Dette er hovedblokkeringen.** `GET /locations/{id}/group-devices` returnerer tom array selv om appen viser enheter (gateway + Touch Pro) under samme location.
 
 Testet med:
 

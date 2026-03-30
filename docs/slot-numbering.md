@@ -8,13 +8,14 @@ Onesti-låsen har brukerslots for PIN-koder, RFID-brikker og fingeravtrykk. Slot
 
 Verifisert via rå Zigbee-fangster og ZCL `set_pin_code` (0x0005):
 
-| Slot-område | Rolle | Kilde |
-|---|---|---|
-| 0 | Master-PIN (0927) | Verifisert: `attrid 0x0100` rapporterer `user_slot=0` ved opplasing med master-kode |
-| 1-2 | Reservert (antatt) | Aldri observert i bruk. Nimly/EasyAccess-manualen sier "slots 0-2 reserved for master codes" |
-| 3-199 | Brukerslots | Verifisert: slot 3 og 4 observert i `attrid 0x0100` event-rapporter |
+| Slot-område | Rolle              | Kilde                                                                                        |
+| ----------- | ------------------ | -------------------------------------------------------------------------------------------- |
+| 0           | Master-PIN (0927)  | Verifisert: `attrid 0x0100` rapporterer `user_slot=0` ved opplasing med master-kode          |
+| 1-2         | Reservert (antatt) | Aldri observert i bruk. Nimly/EasyAccess-manualen sier "slots 0-2 reserved for master codes" |
+| 3-199       | Brukerslots        | Verifisert: slot 3 og 4 observert i `attrid 0x0100` event-rapporter                          |
 
 **Kommandoer som bruker slot-nummer:**
+
 - `set_pin_code` (0x0005): `user_id`-parameter = ZCL slot-nummer
 - `get_pin_code` (0x0006): `user_id`-parameter = ZCL slot-nummer
 - `clear_pin_code` (0x0007): `user_id`-parameter = ZCL slot-nummer
@@ -24,10 +25,10 @@ Verifisert via rå Zigbee-fangster og ZCL `set_pin_code` (0x0005):
 
 Dekompilert fra `easyaccess.ekey.app` v1.5.1 (se `docs/nimly-ble-app/ble-protocol.md`):
 
-| Slot-omrade | Rolle | Kilde |
-|---|---|---|
-| 0 | Master-PIN | Fra dekompilert kode |
-| 800-899 | Vanlige bruker-PINer | Fra dekompilert kode (`PinCodeSet` 0x52, `slotNumber` uint16 LE) |
+| Slot-omrade | Rolle                | Kilde                                                            |
+| ----------- | -------------------- | ---------------------------------------------------------------- |
+| 0           | Master-PIN           | Fra dekompilert kode                                             |
+| 800-899     | Vanlige bruker-PINer | Fra dekompilert kode (`PinCodeSet` 0x52, `slotNumber` uint16 LE) |
 
 **Eksempel:** Sette PIN "8832" pa slot 803 via BLE sendes som `23 03 04 38 38 33 32` (slot 803 little-endian + lengde + ASCII).
 

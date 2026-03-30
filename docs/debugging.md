@@ -190,6 +190,7 @@ Lock event: unlock by Kari via keypad (raw: 0x02020003)
 ```
 
 Rå-verdien dekodes slik (little-endian bitmap32):
+
 - `0x02020003` → bytes `[03, 00, 02, 02]` → slot 3, action unlock, source keypad
 
 **Auto-wake sekvens:**

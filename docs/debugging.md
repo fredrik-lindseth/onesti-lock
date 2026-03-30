@@ -1,167 +1,149 @@
-# Feilsøking
+# Debugging guide
 
-Praktisk guide for å diagnostisere og løse vanlige problemer med Onesti Lock-integrasjonen.
+Practical guide for diagnosing common issues with the Onesti Lock integration.
 
-## 0. LED-indikatorer og lyd
+## LED indicators and sounds
 
-Kilde: [Nimly Touch Pro Manual](https://nimly.se/wp-content/uploads/2024/09/EN-Touch-Pro-Installation-Manual-150324.pdf)
+Source: [Nimly Touch Pro Manual](https://nimly.se/wp-content/uploads/2024/09/EN-Touch-Pro-Installation-Manual-150324.pdf)
 
-### Keypad (utside)
+### Keypad (outside unit)
 
-| Indikator                            | Betydning                                               |
-| ------------------------------------ | ------------------------------------------------------- |
-| **Grønt blink + kort pip**           | Suksess (opplåsing, registrering, programmering)        |
-| **Rødt blink**                       | Mislykket (feil kode, tidsavbrudd, registrering feilet) |
-| **Langt pip + grønt blink**          | Vellykket factory reset                                 |
-| **Gjentatte hyppige pip ved låsing** | Lavt batterinivå — bytt batterier snart                 |
-| **Hvitt bakgrunnsbelyst keypad**     | Keypad vekket (berøring), klar for input                |
+| Indicator | Meaning |
+|-----------|---------|
+| **Green flash + short beep** | Success (unlock, registration, programming) |
+| **Red flash** | Failure (wrong code, timeout, registration failed) |
+| **Long beep + green flash** | Successful factory reset |
+| **Repeated frequent beeps on locking** | Low battery — replace batteries soon |
+| **White backlit keypad** | Keypad woken (touch), ready for input |
 
-**Anti-tamper:** Tre feil koder på rad → keypad deaktiveres i 5 minutter.
+**Anti-tamper:** Three wrong codes in a row disables the keypad for 5 minutes.
 
-**Camouflage-funksjon:** Man kan taste falske siffer før og etter koden. F.eks. `21345681#` der den ekte koden er `3456`.
+**Camouflage function:** You can enter false digits before and after the real code. For example, `21345681#` where the real code is `3456`.
 
-### Lydnivå
+### Sound volume
 
-Konfigurerbart via master-kode (programmeringssekvens `#0`):
+Configurable via master code (programming sequence `#0`):
 
-| Verdi | Nivå              |
-| ----- | ----------------- |
-| 0     | Stille            |
-| 1     | Lavt              |
-| 2     | Normal (standard) |
+| Value | Level |
+|-------|-------|
+| 0 | Silent |
+| 1 | Low |
+| 2 | Normal (default) |
 
 ### Connect Module LED (E-Life 3.0 / ZMNC010)
 
-| LED                            | Mønster                            | Betydning |
-| ------------------------------ | ---------------------------------- | --------- |
-| **Blått** langsomt blinkende   | BLE paringsmodus (søker)           |
-| **Oransje** langsomt blinkende | Zigbee paringsmodus (søker)        |
-| **Oransje** raskt blinkende    | Reset pågår (hold knappen ~15 sek) |
-| **Blått** fast lys             | BLE tilkoblet                      |
-| **Oransje** fast lys           | Zigbee tilkoblet                   |
-| Ingen LED                      | Normaltilstand (paret og i dvale)  |
+| LED | Pattern | Meaning |
+|-----|---------|---------|
+| **Blue** slow blink | BLE pairing mode (searching) |
+| **Orange** slow blink | Zigbee pairing mode (searching) |
+| **Orange** fast blink | Reset in progress (hold button ~15 sec) |
+| **Blue** solid | BLE connected |
+| **Orange** solid | Zigbee connected |
+| No LED | Normal state (paired and sleeping) |
 
-### Reset av Connect Module
+### Connect Module reset
 
-1. Hold **reset-knappen** på modulen i **15 sekunder**
-2. Slipp når oransje LED blinker raskt
-3. Modulen er nullstilt og klar for ny paring
-4. Modulen går automatisk i paringsmodus i 4 minutter etter reset
+1. Hold the **reset button** on the module for **15 seconds**
+2. Release when the orange LED blinks rapidly
+3. Module is reset and ready for new pairing
+4. Enters pairing mode automatically for 4 minutes after reset
 
-### Factory reset av låsen
+### Lock factory reset
 
-**Sletter alle registrerte fingeravtrykk, koder og nøkkelbrikker.** Innstillinger beholdes.
+**Deletes all registered fingerprints, codes and key tags.** Settings are preserved.
 
-1. Avinstaller innsiden fra døren
-2. Koble til kabelen og sett i batterier
-3. Snu innsiden med baksiden mot deg
-4. Hold ned den **gullfargede reset-knappen** på kretskortet
-5. Låsen bekrefter med **langt pip + grønt blink**
-6. Fabrikkode `123#` er gjenopprettet
+1. Remove the inside unit from the door
+2. Connect the cable and insert batteries
+3. Turn the inside unit around with the back facing you
+4. Hold down the **gold-colored reset button** on the circuit board
+5. Lock confirms with **long beep + green flash**
+6. Factory code `123#` is restored
 
-### Paring med ZHA etter reset
+### Pairing with ZHA after reset
 
-1. Reset Connect Module (se over)
-2. Tast en PIN + `#` på keypadet rett etter reset (holder radioen våken)
-3. Start "Legg til enhet" i ZHA innen noen sekunder
-4. Modulen skal dukke opp som `Onesti Products AS` med modellnavn
+1. Reset the Connect Module (see above)
+2. Enter a PIN + `#` on the keypad right after (keeps the radio awake)
+3. Start "Add device" in ZHA within a few seconds
+4. Module should appear as `Onesti Products AS` with model name
 
-**Merk:** PIN-koder overlever re-paring av Connect Module, men slettes ved factory reset av låsen.
+**Note:** PIN codes survive Connect Module re-pairing, but are deleted by lock factory reset.
 
-### Slot-nummerering (fra manualen)
+## 1. Zigbee connectivity
 
-| Slot    | Formål                              |
-| ------- | ----------------------------------- |
-| 000     | Første master-kode (fabrikkode 123) |
-| 001-002 | Ekstra master-koder (valgfritt)     |
-| 003-199 | Bruker-fingeravtrykk                |
-| 003-999 | Brukerkoder (PIN)                   |
-| 003-999 | Nøkkelbrikker (RFID)                |
+### Lock not responding (sleepy device)
 
-## 1. Zigbee-tilkobling
+These locks are battery-powered Zigbee EndDevices. The radio sleeps most of the time to save battery. Messages queued at the parent router are discarded after **7.68 seconds**.
 
-### Låsen svarer ikke (sleepy device)
+**What wakes the Zigbee radio:**
+- Entering a complete PIN code + `#` on the keypad
+- Physical lock/unlock (turning the knob)
+- Lock/unlock command from HA (ZHA uses extended timeout)
 
-Onesti/Nimly-låser er batteriopererte Zigbee EndDevices. Radioen sover mesteparten av tiden for å spare batteri. Meldinger som venter hos parent-routeren kastes etter **7,68 sekunder**.
+**What does NOT wake the radio:**
+- Touching the keypad alone (wakes the backlight, but not the Zigbee radio)
 
-**Hva vekker Zigbee-radioen:**
+### How auto-wake works
 
-- Taste en komplett PIN-kode + `#` på keypadet
-- Fysisk låsing/opplåsing (vriding av knotten)
-- Lås/lås opp-kommando fra HA (ZHA bruker forlenget timeout)
+The integration has a built-in wake mechanism in `coordinator.py` (`_send_cluster_command`):
 
-**Hva vekker IKKE radioen:**
+1. **Attempt 1:** Sends ZCL command via `zha.issue_zigbee_cluster_command`
+2. **On timeout:** Calls `_wake_lock()` — sends `lock.lock` service call to the ZHA lock entity
+3. **Waits 1 second** for the radio to stabilize
+4. **Attempt 2:** Retries the original command
 
-- Berøring av keypadet alene (vekker bakgrunnsbelysningen, men ikke Zigbee-radioen)
+### Signal issues
 
-### Hvordan auto-wake fungerer
+Metal door and metal casing = Faraday cage. Zigbee signal is heavily attenuated.
 
-Integrasjonen har en innebygd vekke-mekanisme i `coordinator.py` (`_send_cluster_command`):
+**Mitigations:**
+- Place a Zigbee router (e.g. a smart plug) within 2-3 meters of the lock
+- Avoid multiple walls between the lock and coordinator
+- Check LQI (link quality) in ZHA: **Settings → Devices → [lock] → Zigbee info**
 
-1. **Forsøk 1:** Sender ZCL-kommandoen via `zha.issue_zigbee_cluster_command`
-2. **Ved timeout:** Kaller `_wake_lock()` — sender `lock.lock` service call til ZHA-lås-entiteten
-3. **Venter 1 sekund** for at radioen skal stabilisere seg
-4. **Forsøk 2:** Prøver den opprinnelige kommandoen på nytt
+### After battery change
 
-`_wake_lock()` finner ZHA-lås-entiteten ved å lete i entity registry etter en entitet der `platform == "zha"`, `unique_id` inneholder enhetens IEEE-adresse, og `unique_id` ender med `"257"` (DoorLock cluster endpoint).
+When batteries are replaced, the lock re-joins the Zigbee network but bindings may reset:
 
-### Signalproblemer
+- Attribute reporting (0x0100 events) stops
+- `set_pin_code` consistently times out
+- Lock/unlock still works (simpler command with ZHA's extended timeout)
+- Reconfigure in ZHA often fails (binding setup times out)
 
-Metalldør og metallkapsling = Faraday-bur. Zigbee-signalet dempes kraftig.
+**Solutions:**
+1. Try **Reconfigure** in ZHA (see below)
+2. If that fails: wait hours/days for bindings to re-establish on their own
+3. Last resort: remove and re-pair the lock in ZHA
 
-**Tiltak:**
+### Reconfigure in ZHA
 
-- Plasser en Zigbee-router (f.eks. en smart plugg) innen 2-3 meter fra låsen
-- Unngå at låsen må kommunisere gjennom flere vegger til koordinatoren
-- Sjekk LQI (link quality) i ZHA: **Innstillinger → Enheter → [låsen] → Zigbee-info**
+Reconfigure (Settings → Devices → [lock] → "Reconfigure device") re-establishes bindings and reporting configuration. For sleepy devices this often fails because the device falls asleep during the process.
 
-### Etter batteribytte
+**Tips for success:**
+1. Enter a PIN + `#` on the keypad (wakes the radio)
+2. Click "Reconfigure" within 2-3 seconds
+3. Repeat if needed — the radio stays awake longer after an unlock than after just touching the keypad
+4. If it never succeeds: remove the device from ZHA and re-pair
 
-Når batteriene byttes, re-joiner låsen Zigbee-nettverket, men bindinger kan resette:
+## 2. PIN code failures
 
-- Attribute reporting (0x0100-events) slutter å komme
-- `set_pin_code` timer konsekvent ut (timer eller dager)
-- Lås/lås opp fungerer fortsatt (enklere kommando med ZHAs forlengede timeout)
-- `Reconfigure` i ZHA feiler ofte (binding + reporting-oppsett timer ut)
+### "Could not reach the lock" in Options flow
 
-**Løsning:**
+This error means both attempts in `_send_cluster_command` failed:
 
-1. Prøv **Reconfigure** i ZHA (se neste avsnitt)
-2. Hvis det ikke hjelper: vent timer/dager for at bindinger re-etableres av seg selv
-3. Siste utvei: fjern og par låsen på nytt i ZHA
+1. Attempt 1 timed out (lock was asleep)
+2. Auto-wake sent `lock.lock` to wake the radio
+3. Attempt 2 also timed out
 
-### Reconfigure i ZHA
+**Troubleshooting:**
+- Press a PIN + `#` on the keypad to manually wake the lock
+- Retry within 5 seconds (while the radio is awake)
+- Check that the ZHA lock entity works (lock/unlock via Lovelace). If it also doesn't respond, the problem is Zigbee connectivity, not the integration.
 
-Reconfigure (Innstillinger → Enheter → [låsen] → "Reconfigure device") re-oppretter bindinger og reporting-konfigurasjon. For sleepy devices feiler dette ofte fordi enheten sovner under prosessen.
+### IndexError quirk (Nimly response parsing)
 
-**Tips for å lykkes:**
+PIN commands (`set_pin_code`, `clear_pin_code`) return a malformed ZCL response that crashes zigpy's parser with `IndexError: tuple index out of range`. The command reached the lock and executed — the error is only in response parsing.
 
-1. Gå til Reconfigure-dialogen i ZHA
-2. Tast en PIN + `#` på keypadet (vekker radioen)
-3. Klikk "Reconfigure" innen 2-3 sekunder
-4. Hvis det feiler: prøv igjen, radioen er våken lenger etter en opplåsing
-
-## 2. PIN-kode-feil
-
-### "Kunne ikke nå låsen" i Options flow
-
-Denne feilmeldingen betyr at begge forsøkene i `_send_cluster_command` feilet:
-
-1. Forsøk 1 timet ut (låsen sov)
-2. Auto-wake sendte `lock.lock` for å vekke radioen
-3. Forsøk 2 timet også ut
-
-**Feilsøking:**
-
-- Trykk en PIN + `#` på keypadet for å vekke låsen manuelt
-- Prøv igjen innen 5 sekunder (mens radioen er våken)
-- Sjekk at ZHA-lås-entiteten fungerer (lås/lås opp via Lovelace). Hvis den heller ikke svarer, er problemet Zigbee-tilkobling, ikke integrasjonen.
-
-### IndexError-quirken (Nimly response parsing)
-
-PIN-kommandoer (`set_pin_code`, `clear_pin_code`) returnerer et malformatert ZCL-svar fra låsen som krasjer zigpy-parseren med `IndexError: tuple index out of range`. Kommandoen nådde låsen og ble utført — feilen er kun i responsparsing.
-
-Integrasjonen fanger denne feilen og behandler den som suksess:
+The integration catches this and treats it as success:
 
 ```python
 except IndexError:
@@ -171,61 +153,57 @@ except IndexError:
     return True
 ```
 
-**Viktig:** Det finnes ingen programmatisk bekreftelse på at PIN-en faktisk ble satt. Du **må** teste koden på keypadet for å verifisere.
+**Important:** There is no programmatic confirmation that the PIN was actually set. You **must** test the code on the keypad to verify.
 
-### Verifisering av PIN
+### Verifying a PIN
 
-Etter å ha satt en PIN:
+After setting a PIN:
 
-1. Gå til låsen fysisk
-2. Tast den nye koden + `#`
-3. Sjekk at låsen åpner
-4. Sjekk activity-sensoren i HA — den bør vise riktig bruker og slot
+1. Go to the lock physically
+2. Enter the new code + `#`
+3. Check that the lock opens
+4. Check the activity sensor in HA — it should show the correct user and slot
 
-## 3. Aktivitetssensor oppdaterer ikke
+## 3. Activity sensor not updating
 
-### attribute_report (attrid 0x0100) mottas ikke
+### attribute_report (attrid 0x0100) not received
 
-Aktivitetssensoren er avhengig av at låsen sender attribute reports med attrid `0x0100` (Onesti custom operation event). Hvis sensoren aldri oppdaterer:
+The activity sensor depends on the lock sending attribute reports with attrid `0x0100` (Onesti custom operation event). If the sensor never updates:
 
-**Sjekk at event-listeneren er registrert.** I loggen ved oppstart skal du se:
+**Check that the event listener is registered.** In the log at startup you should see:
 
 ```
 Event listener registered on DoorLock (events: ['attribute_report'])
 ```
 
-Hvis du ser `Could not find DoorLock cluster for event listener`, har integrasjonen ikke funnet clusteret. Prøv å laste inn integrasjonen på nytt (Innstillinger → Integrasjoner → Onesti Lock → Last inn på nytt).
+If you see `Could not find DoorLock cluster for event listener`, the integration couldn't find the cluster. Try reloading the integration (Settings → Integrations → Onesti Lock → Reload).
 
-**Sjekk at attribute reports faktisk kommer.** Skru på debug-logging (se avsnitt 4) og utfør en opplåsing. Du bør se:
+**Check that attribute reports are actually coming.** Enable debug logging (see section 4) and perform an unlock. You should see:
 
 ```
-Lock event: unlock by Ola via keypad (raw: 0x02020003)
+Lock event: unlock by Kari via keypad (raw: 0x02020003)
 ```
 
-Hvis ingenting logges ved opplåsing: låsen sender ikke reports. Se "Etter batteribytte" i avsnitt 1.
+If nothing is logged on unlock: the lock is not sending reports. See "After battery change" in section 1.
 
-### Auto-lock overskriver brukerevents
+### Auto-lock overwrites user events
 
-Eldre versjoner av integrasjonen lot auto-lock-events overskrive meningsfulle events. For eksempel: "Kari låste opp med kode" ble umiddelbart erstattet av "Auto-lås" 5 sekunder senere.
+Older versions of the integration let auto-lock events overwrite meaningful events. For example: "Kari unlocked with code" was immediately replaced by "Auto-lock" 5 seconds later.
 
-Dette er fikset — `source != "auto"` filtrerer auto-lock fra aktivitetssensoren:
+This is fixed — `source != "auto"` filters auto-lock from the activity sensor:
 
 ```python
 if decoded["source"] != "auto":
     coordinator.update_activity(...)
 ```
 
-HA-eventet `onesti_lock_activity` fyres fortsatt for alle events inkludert auto-lock, slik at automasjoner kan bruke det.
+The HA event `onesti_lock_activity` still fires for all events including auto-lock, so automations can use it.
 
-### Etter batteribytte
+## 4. Debug logging
 
-Attribute reports kan stoppe helt etter batteribytte fordi bindinger resettes. Se avsnitt 1 ("Etter batteribytte") for løsninger.
+### Integration logging
 
-## 4. Debug-logging
-
-### Integrasjonens egen logging
-
-Legg til i `configuration.yaml`:
+Add to `configuration.yaml`:
 
 ```yaml
 logger:
@@ -234,17 +212,17 @@ logger:
     custom_components.onesti_lock: debug
 ```
 
-Start HA på nytt. Du vil se:
+Restart HA. You will see:
 
-- Event listener-registrering ved oppstart
-- Alle innkommende operation events (attrid 0x0100) med rå-verdier
-- Auto-wake-forsøk og resultater
-- Nimly response quirk (IndexError) når de skjer
-- Cluster-lookup-feil
+- Event listener registration at startup
+- All incoming operation events (attrid 0x0100) with raw values
+- Auto-wake attempts and results
+- Nimly response quirk (IndexError) when they occur
+- Cluster lookup errors
 
-### Zigpy/ZHA debug-logging for rå Zigbee-trafikk
+### Zigpy/ZHA debug logging for raw Zigbee traffic
 
-For å se alle rå Zigbee-frames (nyttig når du mistenker at reports ikke sendes):
+To see all raw Zigbee frames (useful when you suspect reports are not being sent):
 
 ```yaml
 logger:
@@ -255,28 +233,26 @@ logger:
     homeassistant.components.zha: debug
 ```
 
-**Advarsel:** `zigpy.zcl: debug` genererer _mye_ logg. Bruk det kun for feilsøking, ikke permanent.
+**Warning:** `zigpy.zcl: debug` generates a lot of log data. Use it only for troubleshooting, not permanently.
 
-### Hva du ser etter i loggen
+### What to look for in the log
 
-**Vellykket operation event:**
+**Successful operation event:**
 
 ```
 Lock event: unlock by Kari via keypad (raw: 0x02020003)
 ```
 
-Rå-verdien dekodes slik (little-endian bitmap32):
+The raw value is decoded as (bitmap32): `0x02020003` → source=0x02 (keypad), action=0x02 (unlock), slot=3
 
-- `0x02020003` → bytes `[03, 00, 02, 02]` → slot 3, action unlock, source keypad
-
-**Auto-wake sekvens:**
+**Auto-wake sequence:**
 
 ```
 Timeout on attempt 1 for command 0x0005 — waking lock and retrying
 Waking lock via lock.onesti_lock_nimly_pro_...
 ```
 
-**Mislykket kommando:**
+**Failed command:**
 
 ```
 Timeout sending command 0x0005 to f4:ce:36:... after wake+retry — lock may be unreachable
@@ -288,49 +264,48 @@ Timeout sending command 0x0005 to f4:ce:36:... after wake+retry — lock may be 
 Nimly response quirk (IndexError) for command 0x0005 — command was sent successfully
 ```
 
-**Event listener ikke registrert:**
+**Event listener not registered:**
 
 ```
 Could not find DoorLock cluster for event listener
 ```
 
-eller:
+or:
 
 ```
 ZHA not found
 ZHA gateway_proxy not found
 ```
 
-**Rå attribute report fra zigpy (med `zigpy.zcl: debug`):**
+**Raw attribute report from zigpy (with `zigpy.zcl: debug`):**
 
 ```
 [0x...] DoorLock: Received report for attr 0x0100: <bitmap32 value>
 ```
 
-Hvis du ser reports for `0x0000` (lock state) men ikke `0x0100` (operation event), har låsen mistet sin reporting-konfigurasjon — prøv Reconfigure.
+If you see reports for `0x0000` (lock state) but not `0x0100` (operation event), the lock has lost its reporting configuration — try Reconfigure.
 
-## 5. Vanlige ZHA-problemer
+## 5. Common ZHA issues
 
-### Enheten vises som "utilgjengelig"
+### Device shows as "unavailable"
 
-- **Batteri:** Sjekk batterinivå. Når batteriet er lavt, rapporterer låsen sjeldnere og kommandoer timer ut oftere.
-- **Signal:** Låsen er for langt fra nærmeste Zigbee-router. Plasser en router nærmere.
-- **Etter batteribytte:** Låsen kan ha havnet i en tilstand der den har re-joinet men bindinger er tapt. Se avsnitt 1.
+- **Battery:** Check battery level. Low battery means less frequent reports and more command timeouts.
+- **Signal:** Lock is too far from the nearest Zigbee router. Place a router closer.
+- **After battery change:** The lock may have re-joined but lost bindings. See section 1.
 
-### Reconfigure feiler gjentatte ganger
+### Reconfigure fails repeatedly
 
-Låsen sovner for raskt til at Reconfigure rekker å fullføre binding-oppsettet.
+The lock falls asleep too quickly for Reconfigure to complete the binding setup.
 
-**Fremgangsmåte:**
+**Approach:**
+1. Enter PIN + `#` to wake the lock
+2. Start Reconfigure immediately (within 2-3 seconds)
+3. Repeat if needed — the radio stays awake longer after an unlock
+4. If it never succeeds: remove the device from ZHA and re-pair
 
-1. Tast PIN + `#` for å vekke låsen
-2. Start Reconfigure umiddelbart (innen 2-3 sekunder)
-3. Gjenta om nødvendig — låsen er våken lenger etter en opplåsing enn ved bare å røre keypadet
-4. Hvis det aldri lykkes etter flere forsøk: fjern enheten fra ZHA og par på nytt
+### Tips for stable operation
 
-### Tips for stabil drift
-
-- **Zigbee-router nær låsen.** En smart plugg med Zigbee-router-funksjon 1-3 meter fra døren gjør enorm forskjell for sleepy devices.
-- **Ikke flytt koordinatoren.** Zigbee-nettverket bruker tid på å re-rute etter topologiendringer.
-- **Hold firmware oppdatert.** ZHA støtter OTA for noen enheter, men Onesti/Nimly-låser har ikke OTA via Zigbee — firmware oppdateres kun via BLE-appen.
-- **Overvåk batterinivå.** Opprett en automasjon som varsler ved lavt batteri, slik at du unngår problemene som oppstår ved batteribytte.
+- **Zigbee router near the lock.** A smart plug with Zigbee router function 1-3 meters from the door makes an enormous difference for sleepy devices.
+- **Don't move the coordinator.** The Zigbee network takes time to re-route after topology changes.
+- **Keep firmware updated.** ZHA supports OTA for some devices, but Onesti/Nimly locks do not have OTA via Zigbee — firmware is only updated via the BLE app.
+- **Monitor battery level.** Create an automation that alerts on low battery to avoid the problems that occur during battery replacement.

@@ -142,7 +142,7 @@ DoorlockTypes = {
 };
 ```
 
-> Se også: docs/app-architecture.md for komplett DoorlockTypes-referanse.
+> Se også: docs/nimly-connect-app/app-architecture.md for komplett DoorlockTypes-referanse.
 
 ## Låsmodus
 
@@ -180,7 +180,7 @@ doorlock-failed-to-lock
 doorlock-access-updated
 ```
 
-> Se også: docs/app-architecture.md for cloud event-system.
+> Se også: docs/nimly-connect-app/app-architecture.md for cloud event-system.
 
 ## CAS Protocol (Gateway ↔ Lock)
 

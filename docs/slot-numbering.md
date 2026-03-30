@@ -22,7 +22,7 @@ Verifisert via rå Zigbee-fangster og ZCL `set_pin_code` (0x0005):
 
 ### BLE ekey-protokoll
 
-Dekompilert fra `easyaccess.ekey.app` v1.5.1 (se `docs/ble-protocol.md`):
+Dekompilert fra `easyaccess.ekey.app` v1.5.1 (se `docs/nimly-ble-app/ble-protocol.md`):
 
 | Slot-omrade | Rolle | Kilde |
 |---|---|---|

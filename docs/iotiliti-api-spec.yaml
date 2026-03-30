@@ -974,7 +974,6 @@ components:
   # ──────────────────────────────────────────────
 
   schemas:
-
     # --- Authentication ---
 
     TokenResponse:

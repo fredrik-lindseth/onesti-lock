@@ -46,6 +46,7 @@ Basert på reverse engineering av `com.easyaccess.connect` v1.27.84.
 ## Apper
 
 ### nimly connect (`com.easyaccess.connect`)
+
 - **Framework:** React Native (Hermes bytecode)
 - **Formål:** Full låsadministrasjon via cloud
 - **Kommunikasjon:** Phone → iotiliti cloud → Gateway → Lock
@@ -53,6 +54,7 @@ Basert på reverse engineering av `com.easyaccess.connect` v1.27.84.
 - **Ingen direkte BLE** til låsen
 
 ### nimly BLE (`easyaccess.ekey.app`)
+
 - **Formål:** Direkte BLE-kommunikasjon med låsen
 - **Kommunikasjon:** Phone → BLE → Lock (ingen cloud)
 - **Brukes for:** Grunnleggende lock/unlock, oppsett
@@ -62,42 +64,42 @@ Basert på reverse engineering av `com.easyaccess.connect` v1.27.84.
 
 Samme kodebase, forskjellig branding og API-URL:
 
-| Config-nøkkel | Nimly | Keyfree | Salus | Homely |
-|---------------|-------|---------|-------|--------|
-| API URL | api-neutralclone | api-keyfree | api-salus | api.homely.no |
-| Intern navn | "neutralclone" | "keyfree" | "salus" | "homely" |
-| Font | Stabil Grotesk | - | Raleway | - |
-| AMS | Ja | Ja | Nei | Nei |
-| Alarm | Nei | Nei | Nei | Nei |
-| Keychain | Ja | Ja | - | - |
-| Safe Unlock | Ja | Ja | Ja | - |
-| Fingerprint events synlig | Nei | - | - | - |
+| Config-nøkkel             | Nimly            | Keyfree     | Salus     | Homely        |
+| ------------------------- | ---------------- | ----------- | --------- | ------------- |
+| API URL                   | api-neutralclone | api-keyfree | api-salus | api.homely.no |
+| Intern navn               | "neutralclone"   | "keyfree"   | "salus"   | "homely"      |
+| Font                      | Stabil Grotesk   | -           | Raleway   | -             |
+| AMS                       | Ja               | Ja          | Nei       | Nei           |
+| Alarm                     | Nei              | Nei         | Nei       | Nei           |
+| Keychain                  | Ja               | Ja          | -         | -             |
+| Safe Unlock               | Ja               | Ja          | Ja        | -             |
+| Fingerprint events synlig | Nei              | -           | -         | -             |
 
 ## Støttede enhetstyper
 
 ```javascript
 DoorlockTypes = {
-    Yale: 'yaledoorman',
-    Danalock: 'danalock',
-    Easyaccess: 'easyaccess',     // EasyAccess/Nimly kodelås
-    Easycode: 'easycode',         // Variant
-    Idlock: 'idlock',             // ID Lock (norsk)
-    Easyfinger: 'easyfinger',     // Med fingeravtrykk
-    Iomodule: 'iomodule',         // I/O-modul
-    Keybox: 'keybox',             // Nøkkelboks
-    Dormakaba: 'dormakaba'        // Dormakaba-låser
-}
+  Yale: "yaledoorman",
+  Danalock: "danalock",
+  Easyaccess: "easyaccess", // EasyAccess/Nimly kodelås
+  Easycode: "easycode", // Variant
+  Idlock: "idlock", // ID Lock (norsk)
+  Easyfinger: "easyfinger", // Med fingeravtrykk
+  Iomodule: "iomodule", // I/O-modul
+  Keybox: "keybox", // Nøkkelboks
+  Dormakaba: "dormakaba", // Dormakaba-låser
+};
 ```
 
 ## Tilgangstyper
 
-| Type | Beskrivelse | Zigbee source |
-|------|------------|---------------|
-| `pin` | PIN-kode på keypad | 0x02 (keypad) |
-| `finger` | Fingeravtrykk | 0x03 (fingerprint) |
-| `tag` | RFID/NFC-brikke | 0x04 (rfid) |
-| `digitalKey` | Digital nøkkel i app | 0x00 (zigbee) |
-| `otp` | Engangskode | - |
+| Type         | Beskrivelse          | Zigbee source      |
+| ------------ | -------------------- | ------------------ |
+| `pin`        | PIN-kode på keypad   | 0x02 (keypad)      |
+| `finger`     | Fingeravtrykk        | 0x03 (fingerprint) |
+| `tag`        | RFID/NFC-brikke      | 0x04 (rfid)        |
+| `digitalKey` | Digital nøkkel i app | 0x00 (zigbee)      |
+| `otp`        | Engangskode          | -                  |
 
 ## API-flyt for PIN-setting
 
@@ -120,6 +122,7 @@ DoorlockTypes = {
 Intern protokoll mellom cloud og gateway. AES-kryptert.
 
 Feilkode-prefikser:
+
 - `380xxx` — CAS systemfeil
 - `380000` — OK
 - `380041-380048` — Enhetsfeil (busy, failed, unsupported, no rights)
@@ -131,11 +134,13 @@ Feilkode-prefikser:
 ## Event-system
 
 Doorlock-events rapporteres via:
+
 1. **Zigbee attribute reports** (0x0100) — direkte fra lås til coordinator
 2. **Cloud event-historikk** — `GET /devices/{id}/event-history`
 3. **Cloud event stream** — `/v1/apps/{id}/eventstream` (sanntid)
 
 Event-typer:
+
 ```
 doorlock-settings-changed    — innstillinger endret
 doorlock-access-created      — ny tilgang opprettet
@@ -150,23 +155,26 @@ doorlock-access-updated      — tilgang oppdatert
 ## App-økosystem
 
 ### Connect-apper (cloud, via gateway)
+
 Alle er white-label av `com.easyaccess.connect` (React Native/Hermes):
 
-| Package | Navn | API | Merke |
-|---------|------|-----|-------|
+| Package                | Navn          | API                             | Merke            |
+| ---------------------- | ------------- | ------------------------------- | ---------------- |
 | com.easyaccess.connect | nimly connect | api-neutralclone.iotiliti.cloud | Nimly/EasyAccess |
-| com.safe4.keyfree | Keyfree | api-keyfree.iotiliti.cloud | Keyfree |
-| (ukjent) | Salus | api-salus.iotiliti.cloud | Salus |
-| (ukjent) | Forebygg | api-forebygg.iotiliti.cloud | Forebygg |
-| (ukjent) | Homely | api.homely.no | Homely |
+| com.safe4.keyfree      | Keyfree       | api-keyfree.iotiliti.cloud      | Keyfree          |
+| (ukjent)               | Salus         | api-salus.iotiliti.cloud        | Salus            |
+| (ukjent)               | Forebygg      | api-forebygg.iotiliti.cloud     | Forebygg         |
+| (ukjent)               | Homely        | api.homely.no                   | Homely           |
 
 ### BLE-apper (direkte til lås)
-| Package | Navn | API | Merke |
-|---------|------|-----|-------|
-| easyaccess.ekey.app | nimly BLE | api.ekey.nimly.io | Nimly |
-| no.safe4.easyaccess | Easy Access BLE | ukjent | Safe4 (eldre) |
+
+| Package             | Navn            | API               | Merke         |
+| ------------------- | --------------- | ----------------- | ------------- |
+| easyaccess.ekey.app | nimly BLE       | api.ekey.nimly.io | Nimly         |
+| no.safe4.easyaccess | Easy Access BLE | ukjent            | Safe4 (eldre) |
 
 ### Plattform-hierarki
+
 ```
 Safe4 Security Group AS (morselskap)
   └── iotiliti (cloud-plattform)

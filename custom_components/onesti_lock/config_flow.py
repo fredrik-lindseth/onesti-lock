@@ -92,7 +92,7 @@ class NimlyProOptionsFlow(OptionsFlow):
         errors = {}
 
         if user_input is not None:
-            slot = user_input["slot"]
+            slot = int(user_input["slot"])
             name = user_input["name"]
             code = user_input["code"]
 
@@ -112,13 +112,13 @@ class NimlyProOptionsFlow(OptionsFlow):
         for i in range(SLOT_FIRST_USER, SLOT_FIRST_USER + 10):
             name = slots.get(str(i), {}).get("name", "")
             label = f"Slot {i} — {name}" if name else f"Slot {i} — Ledig"
-            slot_options[i] = label
+            slot_options[str(i)] = label
 
         return self.async_show_form(
             step_id="set_pin",
             data_schema=vol.Schema(
                 {
-                    vol.Required("slot", default=SLOT_FIRST_USER): vol.In(slot_options),
+                    vol.Required("slot", default=str(SLOT_FIRST_USER)): vol.In(slot_options),
                     vol.Required("name"): str,
                     vol.Required("code"): str,
                 }
@@ -131,7 +131,7 @@ class NimlyProOptionsFlow(OptionsFlow):
         errors = {}
 
         if user_input is not None:
-            slot = user_input["slot"]
+            slot = int(user_input["slot"])
             coordinator = self.hass.data[DOMAIN][self._entry.entry_id]["coordinator"]
             success = await coordinator.clear_slot(slot)
             if success:
@@ -146,7 +146,7 @@ class NimlyProOptionsFlow(OptionsFlow):
             if slot_data.get("has_pin") or slot_data.get("name"):
                 name = slot_data.get("name", "")
                 label = f"Slot {i} — {name}" if name else f"Slot {i}"
-                active_slots[i] = label
+                active_slots[str(i)] = label
 
         if not active_slots:
             return self.async_abort(reason="no_active_slots")

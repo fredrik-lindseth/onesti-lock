@@ -152,6 +152,30 @@ Alle er samme hardware med ulikt merke:
 
 Alle bruker samme Connect Module (Zigbee 3.0) og identisk firmware. Manualen er lik — forskjell er kun branding og fysisk design.
 
+### Hardware — Connect Module (ZMNC010)
+
+- **Zigbee manufacturer code:** `0x1234` (4660) — placeholder/test-kode, IKKE registrert hos Zigbee Alliance. Tyder på OEM-modul.
+- **Chip:** Ukjent — ingen offentlig teardown. Sannsynligvis TI CC2530 eller lignende basert på:
+  - `maximum_buffer_size: 108`
+  - `maximum_incoming_transfer_size: 127` (tyder på enklere chip)
+  - `maximum_outgoing_transfer_size: 127`
+- **Radio:** 2.4 GHz (frequency_band: 8), Zigbee 3.0
+- **Strøm:** 3x AA batterier (EndDevice, battery-powered)
+- **Modell-ID:** ZMNC010 (selges separat som tilbehør)
+- **CE-merket** — ingen FCC ID funnet (europeisk produkt)
+- **Produsent hevder:** "open and ready to go for any zigbee system" — men bruker ikke-standard manufacturer code og custom attributter (0x0100, 0x0101)
+
+### Community-referanser
+
+- [Z2M PR #11332 — PIN fix](https://github.com/Koenkk/zigbee-herdsman-converters/pull/11332)
+- [Z2M issue #17205 — Not fully supported](https://github.com/Koenkk/zigbee2mqtt/issues/17205)
+- [Z2M issue #5884 — Original device support](https://github.com/Koenkk/zigbee2mqtt/issues/5884)
+- [ZHA issue #3095 — Device support request](https://github.com/zigpy/zha-device-handlers/issues/3095)
+- [HA community — Nimly lock thread (12+ sider)](https://community.home-assistant.io/t/nimly-lock-with-zigbee-module/523634)
+- [Blakadder — ZMNC010](https://zigbee.blakadder.com/Nimly_ZMNC010.html)
+- [Z2M Nimly docs](https://www.zigbee2mqtt.io/devices/Nimly.html)
+- [Silicon Labs — Sleepy End Devices](https://docs.silabs.com/zigbee/9.0.0/zigbee-concepts-network/end-devices)
+
 ---
 
 ## Integrasjon: onesti_lock (nåværende tilstand)

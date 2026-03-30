@@ -88,6 +88,10 @@ NUM_USER_SLOTS = 10   # Viser slots 3-12 i UI
 - Hvis brukeren ogsa bruker Nimly Connect-appen (cloud), kan PINer satt via appen havne pa andre slots enn de som er synlige i HA (3-12).
 - PINer satt via BLE-appen bruker slot 800+. Disse er usynlige i HA med mindre operation events rapporterer dem via `attrid 0x0100`.
 
+## Bekreftet
+
+- **PIN-koder overlever re-paring.** PIN 2510 satt via ZHA (slot 4) fungerte fortsatt etter at låsen ble fjernet fra ZHA og paret med Connect Bridge (hub). PIN-lagring er lokal på låsen og uavhengig av hvilken Zigbee-koordinator som er tilkoblet. (Testet 2026-03-30.)
+
 ## Verifiseringsplan
 
 For a lase usikkerheten trengs disse testene:

@@ -12,7 +12,7 @@ import pytest
 import random
 
 # Replicate decode logic
-SOURCE_MAP = {0x01: "rf", 0x02: "keypad", 0x03: "manual", 0x0A: "auto"}
+SOURCE_MAP = {0x00: "zigbee", 0x02: "keypad", 0x03: "fingerprint", 0x04: "rfid", 0x0A: "auto"}
 ACTION_MAP = {0x01: "lock", 0x02: "unlock"}
 
 
@@ -60,12 +60,13 @@ class TestRoundtrip:
         assert decode(val)["action"] == expected
 
     @pytest.mark.parametrize("source_byte,expected", [
-        (0x01, "rf"),
+        (0x00, "zigbee"),
         (0x02, "keypad"),
-        (0x03, "manual"),
+        (0x03, "fingerprint"),
+        (0x04, "rfid"),
         (0x0A, "auto"),
-        (0x00, "unknown"),
-        (0x04, "unknown"),
+        (0x01, "unknown"),
+        (0x05, "unknown"),
         (0xFF, "unknown"),
     ])
     def test_source_values(self, source_byte, expected):
@@ -91,7 +92,7 @@ class TestEdgeCases:
         assert result is not None
         assert result["user_slot"] is None
         assert result["action"] == "unknown"
-        assert result["source"] == "unknown"
+        assert result["source"] == "zigbee"  # 0x00 = zigbee
 
     def test_max_uint32(self):
         result = decode(0xFFFFFFFF)
@@ -141,7 +142,7 @@ class TestEncodeConsistency:
 
     @pytest.mark.parametrize("slot", [0, 1, 3, 4, 50, 199, 255])
     @pytest.mark.parametrize("action", [0x01, 0x02])
-    @pytest.mark.parametrize("source", [0x01, 0x02, 0x03, 0x0A])
+    @pytest.mark.parametrize("source", [0x00, 0x02, 0x03, 0x04, 0x0A])
     def test_encode_decode_roundtrip(self, slot, action, source):
         val = encode(slot, 0, action, source)
         result = decode(val)

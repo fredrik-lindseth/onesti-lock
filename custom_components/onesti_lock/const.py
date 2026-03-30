@@ -40,10 +40,11 @@ DEFAULT_SLOT = {
     "has_rfid": False,
 }
 
-# Operation event sources
+# Operation event sources (verified against Z2M converter)
+SOURCE_ZIGBEE = "zigbee"
 SOURCE_KEYPAD = "keypad"
-SOURCE_RF = "rf"
-SOURCE_MANUAL = "manual"
+SOURCE_FINGERPRINT = "fingerprint"
+SOURCE_RFID = "rfid"
 SOURCE_AUTO = "auto"
 SOURCE_UNKNOWN = "unknown"
 

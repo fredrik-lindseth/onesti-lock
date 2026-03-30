@@ -1,0 +1,55 @@
+blueprint:
+  name: Onesti Lock — varsle ved opplåsing
+  description: >
+    Sender en varsling når noen låser opp døren. Viser hvem som låste opp
+    og hvordan (PIN, fingeravtrykk, RFID, Zigbee). Krever Onesti Lock-integrasjonen
+    for brukeridentifisering.
+  domain: automation
+  input:
+    activity_sensor:
+      name: Aktivitetssensor
+      description: Velg "Siste aktivitet"-sensoren fra Onesti Lock-integrasjonen
+      selector:
+        entity:
+          filter:
+            - integration: onesti_lock
+    notify_service:
+      name: Varslingstjeneste
+      description: Velg varslingstjeneste (f.eks. notify.mobile_app)
+      default: persistent_notification.create
+      selector:
+        text:
+    only_unlock:
+      name: Kun opplåsing
+      description: Varsle kun ved opplåsing, ikke låsing
+      default: true
+      selector:
+        boolean:
+
+mode: single
+
+triggers:
+  - trigger: state
+    entity_id: !input activity_sensor
+    not_from:
+      - "unknown"
+      - "unavailable"
+
+conditions:
+  - condition: template
+    value_template: >
+      {% if only_unlock %}
+        {{ state_attr(trigger.entity_id, 'action') == 'unlock' }}
+      {% else %}
+        true
+      {% endif %}
+
+actions:
+  - variables:
+      user_name: "{{ state_attr(trigger.entity_id, 'user_name') or 'Ukjent' }}"
+      source: "{{ state_attr(trigger.entity_id, 'source') or 'ukjent' }}"
+      action: "{{ state_attr(trigger.entity_id, 'action') or 'ukjent' }}"
+  - action: "{{ notify_service }}"
+    data:
+      title: "Dørlås: {{ action }}"
+      message: "{{ user_name }} {{ 'låste opp' if action == 'unlock' else 'låste' }} via {{ source }}"

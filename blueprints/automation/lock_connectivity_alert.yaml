@@ -1,0 +1,66 @@
+blueprint:
+  name: Onesti Lock — varsle om tilkoblingsstatus
+  description: >
+    Sender en varsling når låsen blir utilgjengelig (frakoblet) eller
+    kommer tilbake online. Nyttig for å fange opp batteriproblemer
+    eller Zigbee-signalfeil tidlig.
+  domain: automation
+  input:
+    lock_entity:
+      name: Låsentitet
+      description: Velg din Onesti/Nimly-lås
+      selector:
+        entity:
+          filter:
+            - domain: lock
+              integration: zha
+    unavailable_minutes:
+      name: Minutter før varsel
+      description: Hvor lenge låsen må være utilgjengelig før varsling sendes
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 60
+          unit_of_measurement: minutter
+
+mode: single
+
+triggers:
+  - trigger: state
+    entity_id: !input lock_entity
+    to: "unavailable"
+    for:
+      minutes: !input unavailable_minutes
+    id: offline
+  - trigger: state
+    entity_id: !input lock_entity
+    from: "unavailable"
+    to:
+      - "locked"
+      - "unlocked"
+    id: online
+
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: offline
+        sequence:
+          - action: persistent_notification.create
+            data:
+              title: "Dørlås frakoblet"
+              message: >
+                {{ state_attr(trigger.entity_id, 'friendly_name') or 'Dørlåsen' }}
+                har vært utilgjengelig i {{ unavailable_minutes | default(5) }} minutter.
+                Sjekk batterier og Zigbee-dekning.
+      - conditions:
+          - condition: trigger
+            id: online
+        sequence:
+          - action: persistent_notification.create
+            data:
+              title: "Dørlås tilbake"
+              message: >
+                {{ state_attr(trigger.entity_id, 'friendly_name') or 'Dørlåsen' }}
+                er tilgjengelig igjen ({{ trigger.to_state.state }}).

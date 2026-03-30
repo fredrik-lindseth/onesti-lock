@@ -32,7 +32,7 @@ class TestConstants:
 
     def test_max_slots(self):
         c = _load_const()
-        assert c["MAX_SLOTS"] == 200
+        assert c["MAX_SLOTS"] == 1000
 
     def test_num_user_slots(self):
         """UI shows 10 slots (3-12)."""

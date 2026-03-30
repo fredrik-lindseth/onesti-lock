@@ -9,7 +9,7 @@ DOORLOCK_CLUSTER_ID = 0x0101
 ZHA_DOMAIN = "zha"
 
 # Onesti hardware — all known whitelabel models
-MAX_SLOTS = 200  # ZCL slots 0-199
+MAX_SLOTS = 1000  # ZCL slots 0-999 (per Nimly manual)
 # Slots 0-2: reserved for master codes (per Nimly/EasyAccess manual)
 # Slots 3-199: user codes
 SLOT_FIRST_USER = 3

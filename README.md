@@ -1,7 +1,7 @@
 # Onesti Lock
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
-[![GitHub release](https://img.shields.io/github/release/fredrik-lindseth/nimly-touch-pro-integration.svg)](https://github.com/fredrik-lindseth/nimly-touch-pro-integration/releases)
+[![GitHub release](https://img.shields.io/github/release/fredrik-lindseth/onesti-lock.svg)](https://github.com/fredrik-lindseth/onesti-lock/releases)
 
 Home Assistant integration for PIN code management and activity tracking on Onesti/Nimly smart locks via ZHA. Identifies **who** unlocked the door and **how** — something no other ZHA integration has achieved for these locks.
 
@@ -80,7 +80,7 @@ These are all the same hardware with different branding.
 ### Via HACS (recommended)
 
 1. HACS → Integrations → ⋮ → Custom repositories
-2. Add `https://github.com/fredrik-lindseth/nimly-touch-pro-integration` as Integration
+2. Add `https://github.com/fredrik-lindseth/onesti-lock` as Integration
 3. Install "Onesti Lock"
 4. Restart Home Assistant
 

@@ -32,12 +32,13 @@ class NimlyCoordinator:
         self._load_slots()
 
     def _load_slots(self) -> None:
-        """Load slot data from config entry options."""
+        """Load slot data from config entry options.
+
+        Only loads slots that have been used — no pre-allocation.
+        get_slot() returns DEFAULT_SLOT for unknown slots.
+        """
         stored = self.entry.options.get("slots", {})
-        self._slots = {}
-        for i in range(MAX_SLOTS):
-            key = str(i)
-            self._slots[key] = {**DEFAULT_SLOT, **stored.get(key, {})}
+        self._slots = {k: {**DEFAULT_SLOT, **v} for k, v in stored.items()}
 
     async def _save_slots(self) -> None:
         """Persist slot data to config entry options."""

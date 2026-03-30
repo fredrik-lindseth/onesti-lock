@@ -9,20 +9,20 @@ Home Assistant integration for PIN code management and activity tracking on Ones
 
 The official Nimly ecosystem requires the **Nimly Connect Bridge** (gateway hub) and routes everything through **iotiliti cloud** — and even then, automations are locked behind an additional **"PRO Hub"** upsell. This integration replaces all of that with a direct, local Zigbee connection.
 
-|                            | Nimly App (no hub)                | Nimly App + Connect Hub       | Nimly App + PRO Hub     | **This integration**                      |
-| -------------------------- | --------------------------------- | ----------------------------- | ----------------------- | ----------------------------------------- |
-| **Extra hardware**         | None (BLE only)                   | Connect Bridge (~1500 kr)     | PRO Hub (?)             | Any Zigbee coordinator                    |
-| **Cloud dependency**       | Partial (BLE + cloud)             | Yes — iotiliti.cloud          | Yes — iotiliti.cloud    | **None — 100% local**                     |
-| **Internet required**      | For remote features               | Yes                           | Yes                     | **No — fully offline**                    |
-| **PIN management**         | Via BLE (phone must be near lock) | Via cloud → hub → lock        | Via cloud → hub → lock  | Via HA UI → ZHA → lock                    |
+|                            | Nimly App (no hub)                | Nimly App + Connect Hub       | Nimly App + PRO Hub     | **This integration**                     |
+| -------------------------- | --------------------------------- | ----------------------------- | ----------------------- | ---------------------------------------- |
+| **Extra hardware**         | None (BLE only)                   | Connect Bridge (~1500 kr)     | PRO Hub (?)             | Any Zigbee coordinator                   |
+| **Cloud dependency**       | Partial (BLE + cloud)             | Yes — iotiliti.cloud          | Yes — iotiliti.cloud    | **None — 100% local**                    |
+| **Internet required**      | For remote features               | Yes                           | Yes                     | **No — fully offline**                   |
+| **PIN management**         | Via BLE (phone must be near lock) | Via cloud → hub → lock        | Via cloud → hub → lock  | Via HA UI → ZHA → lock                   |
 | **User identification**    | In-app history                    | Cloud event history           | Cloud event history     | **Real-time: "Kari låste opp med kode"** |
-| **Automations**            | None                              | **None — "requires PRO Hub"** | Yes (via Nimly cloud)   | **Full HA automations**                   |
-| **Digital keys**           | BLE unlock (nearby)               | Remote unlock via cloud       | Remote unlock via cloud | HA lock entity (local)                    |
-| **OTP (one-time codes)**   | No                                | Yes (cloud-managed)           | Yes (cloud-managed)     | Planned (set_pin + auto-clear)            |
-| **RFID enrollment**        | Via BLE scan mode                 | Via cloud → hub               | Via cloud → hub         | Not yet (needs BLE)                       |
-| **Fingerprint enrollment** | Via BLE scan mode                 | Via cloud → hub               | Via cloud → hub         | Not yet (needs BLE)                       |
-| **Cost**                   | Free app                          | Hub + cloud account           | Hub + PRO Hub + cloud   | **Free and open source**                  |
-| **Privacy**                | Events to cloud                   | All events to AWS             | All events to AWS       | **Everything stays local**                |
+| **Automations**            | None                              | **None — "requires PRO Hub"** | Yes (via Nimly cloud)   | **Full HA automations**                  |
+| **Digital keys**           | BLE unlock (nearby)               | Remote unlock via cloud       | Remote unlock via cloud | HA lock entity (local)                   |
+| **OTP (one-time codes)**   | No                                | Yes (cloud-managed)           | Yes (cloud-managed)     | Planned (set_pin + auto-clear)           |
+| **RFID enrollment**        | Via BLE scan mode                 | Via cloud → hub               | Via cloud → hub         | Not yet (needs BLE)                      |
+| **Fingerprint enrollment** | Via BLE scan mode                 | Via cloud → hub               | Via cloud → hub         | Not yet (needs BLE)                      |
+| **Cost**                   | Free app                          | Hub + cloud account           | Hub + PRO Hub + cloud   | **Free and open source**                 |
+| **Privacy**                | Events to cloud                   | All events to AWS             | All events to AWS       | **Everything stays local**               |
 
 **In short:** The official Nimly setup charges for three tiers of hardware just to get automations — and still routes everything through their cloud. This integration gives you PIN management, real-time user identification, and full Home Assistant automations with zero cloud dependency, zero extra hardware cost, and zero internet requirement.
 

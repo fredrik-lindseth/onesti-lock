@@ -64,17 +64,17 @@ Basert på reverse engineering av `com.easyaccess.connect` v1.27.84.
 
 Samme kodebase, forskjellig branding og API-URL:
 
-| Config-nøkkel             | Nimly            | Keyfree     | Salus     | Homely        | Forebygg   | Tryg Smart |
-| ------------------------- | ---------------- | ----------- | --------- | ------------- | ---------- | ---------- |
-| Prod API URL              | prod-neutralclone | keyfree    | salus     | api.homely.no | forebygg   | tryg       |
-| Font                      | Stabil Grotesk   | -           | -         | Gilroy        | Futura     | 27Sans     |
-| AMS                       | Ja               | Ja          | Nei       | Nei           | Nei        | Nei        |
-| ARC (alarmsentral)        | Nei              | Nei         | Nei       | Nei           | Ja         | Nei        |
-| Keychain                  | Ja               | Ja          | -         | -             | -          | -          |
-| Safe Unlock               | Ja               | Ja          | Ja        | -             | -          | -          |
-| Fingerprint events synlig | Nei              | -           | -         | -             | -          | -          |
-| Safe Living (helse)       | Nei              | Nei         | Nei       | Nei           | Nei        | Nei        |
-| Certified mode            | Nei              | Nei         | Nei       | Nei           | Nei        | Nei        |
+| Config-nøkkel             | Nimly             | Keyfree | Salus | Homely        | Forebygg | Tryg Smart |
+| ------------------------- | ----------------- | ------- | ----- | ------------- | -------- | ---------- |
+| Prod API URL              | prod-neutralclone | keyfree | salus | api.homely.no | forebygg | tryg       |
+| Font                      | Stabil Grotesk    | -       | -     | Gilroy        | Futura   | 27Sans     |
+| AMS                       | Ja                | Ja      | Nei   | Nei           | Nei      | Nei        |
+| ARC (alarmsentral)        | Nei               | Nei     | Nei   | Nei           | Ja       | Nei        |
+| Keychain                  | Ja                | Ja      | -     | -             | -        | -          |
+| Safe Unlock               | Ja                | Ja      | Ja    | -             | -        | -          |
+| Fingerprint events synlig | Nei               | -       | -     | -             | -        | -          |
+| Safe Living (helse)       | Nei               | Nei     | Nei   | Nei           | Nei      | Nei        |
+| Certified mode            | Nei               | Nei     | Nei   | Nei           | Nei      | Nei        |
 
 > Komplett API-URL og client_secret oversikt: docs/nimly-connect-app/reversing-notes.md
 
@@ -161,16 +161,16 @@ doorlock-access-updated      — tilgang oppdatert
 
 Alle er white-label av `com.easyaccess.connect` (React Native/Hermes):
 
-| Package | Navn | Prod API | Merke |
-|---------|------|----------|-------|
-| `com.easyaccess.connect` | nimly connect | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` | Nimly/EasyAccess |
-| `com.safe4.keyfree` | Keyfree | `api.customer.keyfree.iotiliti.cloud` | Keyfree |
-| `com.salusprotekt.immunity` | Salus | `api-salus.iotiliti.cloud` | Salus |
-| `se.forebygg.forebygg` | Forebygg | `api.customer.forebygg.iotiliti.cloud` | Forebygg |
-| `io.homely.home` | Homely | `api.homely.no` | Homely |
-| `com.copiax.homesecurity` | HomeSecurity | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` | Copiax |
-| `no.tekam.smarthus` | Tekam Smarthus | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` | Tekam |
-| `io.iotiliti.home` | iotiliti | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` | iotiliti (base) |
+| Package                     | Navn           | Prod API                                                 | Merke            |
+| --------------------------- | -------------- | -------------------------------------------------------- | ---------------- |
+| `com.easyaccess.connect`    | nimly connect  | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` | Nimly/EasyAccess |
+| `com.safe4.keyfree`         | Keyfree        | `api.customer.keyfree.iotiliti.cloud`                    | Keyfree          |
+| `com.salusprotekt.immunity` | Salus          | `api-salus.iotiliti.cloud`                               | Salus            |
+| `se.forebygg.forebygg`      | Forebygg       | `api.customer.forebygg.iotiliti.cloud`                   | Forebygg         |
+| `io.homely.home`            | Homely         | `api.homely.no`                                          | Homely           |
+| `com.copiax.homesecurity`   | HomeSecurity   | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` | Copiax           |
+| `no.tekam.smarthus`         | Tekam Smarthus | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` | Tekam            |
+| `io.iotiliti.home`          | iotiliti       | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` | iotiliti (base)  |
 
 ### BLE-apper (direkte til lås)
 

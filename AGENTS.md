@@ -63,19 +63,19 @@ Session notes and stale plans contain earlier incorrect guesses. Code is authori
 
 ## Documentation Map
 
-| Doc                                               | Content                                                                                      |
-| ------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `README.md`                                       | User-facing: features, comparison, install, setup, supported devices                         |
-| `docs/technical.md`                               | Integration internals: event decoding, coordinator, auto-wake, sleepy device, community refs |
-| `docs/zigbee-protocol/zigbee-captures.md`         | Raw ZCL frames and verified protocol values (canonical for attrid 0x0100)                    |
-| `docs/nimly-connect-app/app-architecture.md`      | iotiliti cloud ecosystem, white-label hierarchy, DoorlockTypes, cloud events                 |
-| `docs/nimly-connect-app/reversing-notes.md`       | Nimly Connect APK reverse engineering, REST API, CAS error codes                             |
-| `docs/nimly-connect-app/iotiliti-api-spec.yaml`   | OpenAPI spec for iotiliti cloud (reverse-engineered)                                         |
-| `docs/nimly-ble-app/ble-protocol.md`              | BLE protocol from decompiled nimly BLE app (not used by integration)                         |
-| `docs/connect-bridge/hardware-gateway.md`         | Connect Bridge hardware, network stack, firmware                                             |
-| `docs/slot-numbering.md`                          | Slot-nummerering usikkerhet mellom Zigbee, BLE og cloud                                      |
-| `docs/debugging.md`                               | Feilsøkingsguide for vanlige problemer                                                       |
-| `docs/cloud-api-status.md`                        | Cloud API reversing status — hva vi har prøvd og veien videre                                |
+| Doc                                             | Content                                                                                      |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `README.md`                                     | User-facing: features, comparison, install, setup, supported devices                         |
+| `docs/technical.md`                             | Integration internals: event decoding, coordinator, auto-wake, sleepy device, community refs |
+| `docs/zigbee-protocol/zigbee-captures.md`       | Raw ZCL frames and verified protocol values (canonical for attrid 0x0100)                    |
+| `docs/nimly-connect-app/app-architecture.md`    | iotiliti cloud ecosystem, white-label hierarchy, DoorlockTypes, cloud events                 |
+| `docs/nimly-connect-app/reversing-notes.md`     | Nimly Connect APK reverse engineering, REST API, CAS error codes                             |
+| `docs/nimly-connect-app/iotiliti-api-spec.yaml` | OpenAPI spec for iotiliti cloud (reverse-engineered)                                         |
+| `docs/nimly-ble-app/ble-protocol.md`            | BLE protocol from decompiled nimly BLE app (not used by integration)                         |
+| `docs/connect-bridge/hardware-gateway.md`       | Connect Bridge hardware, network stack, firmware                                             |
+| `docs/slot-numbering.md`                        | Slot-nummerering usikkerhet mellom Zigbee, BLE og cloud                                      |
+| `docs/debugging.md`                             | Feilsøkingsguide for vanlige problemer                                                       |
+| `docs/cloud-api-status.md`                      | Cloud API reversing status — hva vi har prøvd og veien videre                                |
 
 ## Testing
 

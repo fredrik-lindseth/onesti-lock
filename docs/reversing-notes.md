@@ -246,7 +246,7 @@ Kan gi komplett hendelseslogg med brukerinfo — bedre enn Zigbee attribute repo
 
 - Client secrets og API-URLer er hardkodet i appen
 - Test-miljø credentials er tilgjengelige
-- Bug report credentials funnet: `credentials redacted (see secrets.md)`
+- Bug report credentials funnet i APK (se secrets.md)
 - Sentry DSN eksponert
 - AWS Cognito pool IDs tilgjengelige
 - Ingen certificate pinning observert

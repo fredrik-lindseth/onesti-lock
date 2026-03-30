@@ -27,7 +27,7 @@
       },
       "set_pin": {
         "title": "Sett PIN-kode",
-        "description": "Velg slot, skriv navn og PIN-kode (4-8 siffer).",
+        "description": "Velg slot, skriv navn og PIN-kode (4-8 siffer). Slot-numrene tilsvarer lasens interne brukerslots (ZCL DoorLock). Slot 0-2 er reservert for master-koder.",
         "data": {
           "slot": "Brukerslot",
           "name": "Navn",

@@ -30,7 +30,7 @@ def _decode(val: int) -> dict | None:
     except (OverflowError, ValueError):
         return None
 
-    SOURCE_MAP = {0x01: "rf", 0x02: "keypad", 0x03: "manual", 0x0A: "auto"}
+    SOURCE_MAP = {0x00: "zigbee", 0x02: "keypad", 0x03: "fingerprint", 0x04: "rfid", 0x0A: "auto"}
     ACTION_MAP = {0x01: "lock", 0x02: "unlock"}
 
     user_slot = b[0]
@@ -72,21 +72,29 @@ class TestEventDecoding:
         assert result["action"] == "lock"
         assert result["source"] == "auto"
 
-    def test_manual_unlock(self):
-        """Manual unlock from inside (key turn)."""
-        # bytes LE: [00, 00, 02, 03]
-        result = _decode(0x03020000)
-        assert result["user_slot"] is None
+    def test_fingerprint_unlock(self):
+        """Unlock via fingerprint sensor."""
+        # bytes LE: [05, 00, 02, 03] — slot 5, unlock, fingerprint
+        result = _decode(0x03020005)
+        assert result["user_slot"] == 5
         assert result["action"] == "unlock"
-        assert result["source"] == "manual"
+        assert result["source"] == "fingerprint"
 
-    def test_rf_lock(self):
-        """Lock via RF (Zigbee command from HA)."""
-        # bytes LE: [00, 00, 01, 01]
-        result = _decode(0x01010000)
+    def test_rfid_unlock(self):
+        """Unlock via RFID/NFC tag."""
+        # bytes LE: [06, 00, 02, 04] — slot 6, unlock, rfid
+        result = _decode(0x04020006)
+        assert result["user_slot"] == 6
+        assert result["action"] == "unlock"
+        assert result["source"] == "rfid"
+
+    def test_zigbee_lock(self):
+        """Lock via Zigbee command (from HA)."""
+        # bytes LE: [00, 00, 01, 00]
+        result = _decode(0x00010000)
         assert result["user_slot"] is None
         assert result["action"] == "lock"
-        assert result["source"] == "rf"
+        assert result["source"] == "zigbee"
 
     def test_unknown_action(self):
         """Unknown action byte."""
@@ -105,11 +113,11 @@ class TestEventDecoding:
         assert result["source"] == "unknown"
 
     def test_zero_value(self):
-        """All zeros — system lock with no info."""
+        """All zeros — zigbee command with no user."""
         result = _decode(0)
         assert result["user_slot"] is None
         assert result["action"] == "unknown"
-        assert result["source"] == "unknown"
+        assert result["source"] == "zigbee"  # 0x00 = zigbee per Z2M
 
     def test_high_slot_number(self):
         """User slot 199 (max)."""

@@ -117,14 +117,14 @@ class NimlyActivitySensor(SensorEntity):
 
         if source == "keypad":
             return f"{name} {verb} med kode"
-        elif source == "rf":
+        elif source == "fingerprint":
+            return f"{name} {verb} med fingeravtrykk"
+        elif source == "rfid":
             return f"{name} {verb} med RFID"
-        elif source == "manual":
-            return f"Manuell {verb.replace('låste', 'lås')}"
+        elif source == "zigbee":
+            return f"{verb.capitalize()} via Zigbee"
         elif source == "auto":
             return "Auto-lås"
-        elif source == "remote":
-            return f"{verb.capitalize()} via HA"
         else:
             return f"{name} {verb}"
 

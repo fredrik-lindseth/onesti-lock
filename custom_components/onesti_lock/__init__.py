@@ -8,8 +8,8 @@ from homeassistant.core import HomeAssistant
 
 from .const import (
     ACTION_LOCK,
-    ACTION_UNLOCK,
     ACTION_UNKNOWN,
+    ACTION_UNLOCK,
     CONF_IEEE,
     DOMAIN,
     DOORLOCK_CLUSTER_ID,
@@ -17,8 +17,8 @@ from .const import (
     SOURCE_FINGERPRINT,
     SOURCE_KEYPAD,
     SOURCE_RFID,
-    SOURCE_ZIGBEE,
     SOURCE_UNKNOWN,
+    SOURCE_ZIGBEE,
 )
 from .coordinator import NimlyCoordinator
 

@@ -6,7 +6,6 @@ import logging
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
 from homeassistant.data_entry_flow import FlowResult
 
@@ -191,7 +190,7 @@ class NimlyProOptionsFlow(OptionsFlow):
 
         try:
             success = task.result()
-        except (asyncio.TimeoutError, TimeoutError):
+        except TimeoutError:
             _LOGGER.warning("Timeout setting PIN for %s", self._entry.entry_id)
             self._set_pin_error = "lock_unreachable"
         except Exception:
@@ -273,7 +272,7 @@ class NimlyProOptionsFlow(OptionsFlow):
 
         try:
             success = task.result()
-        except (asyncio.TimeoutError, TimeoutError):
+        except TimeoutError:
             _LOGGER.warning("Timeout clearing PIN for %s", self._entry.entry_id)
             self._clear_pin_error = "lock_unreachable"
         except Exception:

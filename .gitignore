@@ -13,3 +13,4 @@ venv/
 *.log
 .DS_Store
 .ruff_cache/
+reversing/

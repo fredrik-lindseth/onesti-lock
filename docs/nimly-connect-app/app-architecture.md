@@ -1,8 +1,8 @@
 # Nimly/iotiliti — System Architecture
 
-Basert på reverse engineering av `com.easyaccess.connect` v1.27.84.
+Based on reverse engineering of `com.easyaccess.connect` v1.27.84.
 
-## Oversikt
+## Overview
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -24,7 +24,7 @@ Basert på reverse engineering av `com.easyaccess.connect` v1.27.84.
 │  ┌───────────────────┐              │                   │
 │  │  Session Manager  │ ◄────────────┘                   │
 │  └─────────┬─────────┘                                  │
-│            │ CAS Protocol (AES-kryptert)                │
+│            │ CAS Protocol (AES-encrypted)               │
 └────────────┼────────────────────────────────────────────┘
              │
              ▼
@@ -43,125 +43,125 @@ Basert på reverse engineering av `com.easyaccess.connect` v1.27.84.
 └──────────────────────┘  └──────────────────────┘
 ```
 
-## Apper
+## Apps
 
 ### nimly connect (`com.easyaccess.connect`)
 
 - **Framework:** React Native (Hermes bytecode)
-- **Formål:** Full låsadministrasjon via cloud
-- **Kommunikasjon:** Phone → iotiliti cloud → Gateway → Lock
-- **Auth:** OAuth2 password grant ELLER AWS Cognito
-- **Ingen direkte BLE** til låsen
+- **Purpose:** Full lock administration via cloud
+- **Communication:** Phone → iotiliti cloud → Gateway → Lock
+- **Auth:** OAuth2 password grant OR AWS Cognito
+- **No direct BLE** to the lock
 
 ### nimly BLE (`easyaccess.ekey.app`)
 
-- **Formål:** Direkte BLE-kommunikasjon med låsen
-- **Kommunikasjon:** Phone → BLE → Lock (ingen cloud)
-- **Brukes for:** Grunnleggende lock/unlock, oppsett
-- **Ikke dekompilert ennå** — APK utilgjengelig via automatiserte verktøy
+- **Purpose:** Direct BLE communication with the lock
+- **Communication:** Phone → BLE → Lock (no cloud)
+- **Used for:** Basic lock/unlock, setup
+- **Not yet decompiled** — APK unavailable via automated tools
 
-## White-label konfigurasjon
+## White-label configuration
 
-Samme kodebase, forskjellig branding og API-URL:
+Same codebase, different branding and API URL:
 
-| Config-nøkkel             | Nimly             | Keyfree | Salus | Homely        | Forebygg | Tryg Smart |
+| Config key                | Nimly             | Keyfree | Salus | Homely        | Forebygg | Tryg Smart |
 | ------------------------- | ----------------- | ------- | ----- | ------------- | -------- | ---------- |
 | Prod API URL              | prod-neutralclone | keyfree | salus | api.homely.no | forebygg | tryg       |
 | Font                      | Stabil Grotesk    | -       | -     | Gilroy        | Futura   | 27Sans     |
-| AMS                       | Ja                | Ja      | Nei   | Nei           | Nei      | Nei        |
-| ARC (alarmsentral)        | Nei               | Nei     | Nei   | Nei           | Ja       | Nei        |
-| Keychain                  | Ja                | Ja      | -     | -             | -        | -          |
-| Safe Unlock               | Ja                | Ja      | Ja    | -             | -        | -          |
-| Fingerprint events synlig | Nei               | -       | -     | -             | -        | -          |
-| Safe Living (helse)       | Nei               | Nei     | Nei   | Nei           | Nei      | Nei        |
-| Certified mode            | Nei               | Nei     | Nei   | Nei           | Nei      | Nei        |
+| AMS                       | Yes               | Yes     | No    | No            | No       | No         |
+| ARC (alarm center)        | No                | No      | No    | No            | Yes      | No         |
+| Keychain                  | Yes               | Yes     | -     | -             | -        | -          |
+| Safe Unlock               | Yes               | Yes     | Yes   | -             | -        | -          |
+| Fingerprint events visible | No               | -       | -     | -             | -        | -          |
+| Safe Living (health)      | No                | No      | No    | No            | No       | No         |
+| Certified mode            | No                | No      | No    | No            | No       | No         |
 
-> Komplett API-URL og client_secret oversikt: docs/nimly-connect-app/reversing-notes.md
+> Complete API URL and client_secret overview: docs/nimly-connect-app/reversing-notes.md
 
-## Støttede enhetstyper
+## Supported device types
 
 ```javascript
 DoorlockTypes = {
   Yale: "yaledoorman",
   Danalock: "danalock",
-  Easyaccess: "easyaccess", // EasyAccess/Nimly kodelås
+  Easyaccess: "easyaccess", // EasyAccess/Nimly code lock
   Easycode: "easycode", // Variant
-  Idlock: "idlock", // ID Lock (norsk)
-  Easyfinger: "easyfinger", // Med fingeravtrykk
-  Iomodule: "iomodule", // I/O-modul
-  Keybox: "keybox", // Nøkkelboks
-  Dormakaba: "dormakaba", // Dormakaba-låser
+  Idlock: "idlock", // ID Lock (Norwegian)
+  Easyfinger: "easyfinger", // With fingerprint
+  Iomodule: "iomodule", // I/O module
+  Keybox: "keybox", // Key box
+  Dormakaba: "dormakaba", // Dormakaba locks
 };
 ```
 
-## Tilgangstyper
+## Access types
 
-| Type         | Beskrivelse          | Zigbee source      |
+| Type         | Description          | Zigbee source      |
 | ------------ | -------------------- | ------------------ |
-| `pin`        | PIN-kode på keypad   | 0x02 (keypad)      |
-| `finger`     | Fingeravtrykk        | 0x03 (fingerprint) |
-| `tag`        | RFID/NFC-brikke      | 0x04 (rfid)        |
-| `digitalKey` | Digital nøkkel i app | 0x00 (zigbee)      |
-| `otp`        | Engangskode          | -                  |
+| `pin`        | PIN code on keypad   | 0x02 (keypad)      |
+| `finger`     | Fingerprint          | 0x03 (fingerprint) |
+| `tag`        | RFID/NFC tag         | 0x04 (rfid)        |
+| `digitalKey` | Digital key in app   | 0x00 (zigbee)      |
+| `otp`        | One-time code        | -                  |
 
-## API-flyt for PIN-setting
+## API flow for PIN setting
 
 ```
-1. Bruker åpner nimly connect-appen
-2. App autentiserer mot iotiliti.cloud (OAuth2)
-3. App henter enhetsliste: GET /devices
-4. Bruker velger lås og klikker "Legg til kode"
-5. App sender: POST /devices/{id}/access
+1. User opens the nimly connect app
+2. App authenticates against iotiliti.cloud (OAuth2)
+3. App fetches device list: GET /devices
+4. User selects lock and clicks "Add code"
+5. App sends: POST /devices/{id}/access
    Body: { type: "pin", code: "8832", userId: "..." }
-6. Cloud sender kommando til Gateway via CAS protocol
-7. Gateway sender ZCL set_pin_code til låsen
-8. Lås bekrefter → Gateway → Cloud → App
+6. Cloud sends command to Gateway via CAS protocol
+7. Gateway sends ZCL set_pin_code to the lock
+8. Lock confirms → Gateway → Cloud → App
 ```
 
-**Nøkkelinnsikt:** Steg 6-7 håndterer timing/wake automatisk — gatewayen venter til låsen poller og leverer kommandoen. Dette er hvorfor appen aldri har timeout-problemer, mens direkte ZHA-kall fra HA gjør det.
+**Key insight:** Steps 6-7 handle timing/wake automatically — the gateway waits until the lock polls and delivers the command. This is why the app never has timeout issues, while direct ZHA calls from HA do.
 
 ## CAS Protocol
 
-Intern protokoll mellom cloud og gateway. AES-kryptert.
+Internal protocol between cloud and gateway. AES-encrypted.
 
-Feilkode-prefikser:
+Error code prefixes:
 
-- `380xxx` — CAS systemfeil
+- `380xxx` — CAS system errors
 - `380000` — OK
-- `380041-380048` — Enhetsfeil (busy, failed, unsupported, no rights)
-- `380106-380111` — Passordfeil
-- `380125-380126` — Auth/tilkoblingsfeil
+- `380041-380048` — Device errors (busy, failed, unsupported, no rights)
+- `380106-380111` — Password errors
+- `380125-380126` — Auth/connection errors
 
-> Komplett CAS-feilkodetabell: docs/nimly-connect-app/reversing-notes.md
+> Complete CAS error code table: docs/nimly-connect-app/reversing-notes.md
 
-## Event-system
+## Event system
 
-Doorlock-events rapporteres via:
+Doorlock events are reported via:
 
-1. **Zigbee attribute reports** (0x0100) — direkte fra lås til coordinator
-2. **Cloud event-historikk** — `GET /devices/{id}/event-history`
-3. **Cloud event stream** — `/v1/apps/{id}/eventstream` (sanntid)
+1. **Zigbee attribute reports** (0x0100) — directly from lock to coordinator
+2. **Cloud event history** — `GET /devices/{id}/event-history`
+3. **Cloud event stream** — `/v1/apps/{id}/eventstream` (real-time)
 
-Event-typer:
+Event types:
 
 ```
-doorlock-settings-changed    — innstillinger endret
-doorlock-access-created      — ny tilgang opprettet
-doorlock-access-scan-requested — RFID-scan forespurt
-doorlock-access-deleted      — tilgang slettet
-doorlock-failed-to-lock      — låsing feilet
-doorlock-access-updated      — tilgang oppdatert
+doorlock-settings-changed    — settings changed
+doorlock-access-created      — new access created
+doorlock-access-scan-requested — RFID scan requested
+doorlock-access-deleted      — access deleted
+doorlock-failed-to-lock      — locking failed
+doorlock-access-updated      — access updated
 ```
 
-> Zigbee-level event-format: docs/zigbee-protocol/zigbee-captures.md
+> Zigbee-level event format: docs/zigbee-protocol/zigbee-captures.md
 
-## App-økosystem
+## App ecosystem
 
-### Connect-apper (cloud, via gateway)
+### Connect apps (cloud, via gateway)
 
-Alle er white-label av `com.easyaccess.connect` (React Native/Hermes):
+All are white-labels of `com.easyaccess.connect` (React Native/Hermes):
 
-| Package                     | Navn           | Prod API                                                 | Merke            |
+| Package                     | Name           | Prod API                                                 | Brand            |
 | --------------------------- | -------------- | -------------------------------------------------------- | ---------------- |
 | `com.easyaccess.connect`    | nimly connect  | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` | Nimly/EasyAccess |
 | `com.safe4.keyfree`         | Keyfree        | `api.customer.keyfree.iotiliti.cloud`                    | Keyfree          |
@@ -172,40 +172,40 @@ Alle er white-label av `com.easyaccess.connect` (React Native/Hermes):
 | `no.tekam.smarthus`         | Tekam Smarthus | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` | Tekam            |
 | `io.iotiliti.home`          | iotiliti       | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` | iotiliti (base)  |
 
-### BLE-apper (direkte til lås)
+### BLE apps (direct to lock)
 
-| Package             | Navn            | API               | Merke         |
+| Package             | Name            | API               | Brand         |
 | ------------------- | --------------- | ----------------- | ------------- |
 | easyaccess.ekey.app | nimly BLE       | api.ekey.nimly.io | Nimly         |
-| no.safe4.easyaccess | Easy Access BLE | ukjent            | Safe4 (eldre) |
+| no.safe4.easyaccess | Easy Access BLE | unknown           | Safe4 (older) |
 
-### Plattform-hierarki
+### Platform hierarchy
 
 ```
-Safe4 Security Group AS (morselskap)
-  └── iotiliti (cloud-plattform, utviklet av Neurosys, Polen)
-       ├── Nimly (norsk forbrukermerke)
+Safe4 Security Group AS (parent company)
+  └── iotiliti (cloud platform, developed by Neurosys, Poland)
+       ├── Nimly (Norwegian consumer brand)
        ├── EasyAccess (OEM/B2B)
-       ├── Keyfree (norsk, Safe4-merke)
+       ├── Keyfree (Norwegian, Safe4 brand)
        ├── Salus Protect / Immunity (UK)
-       ├── Homely (norsk smart hjem)
-       ├── Forebygg (svensk sikkerhet)
-       ├── Copiax / HomeSecurity (svensk)
-       ├── Tekam Smarthus (norsk)
-       ├── Folklarm / Appsolut Säkerhet (svensk)
-       ├── Tryg Smart (norsk forsikring)
-       ├── Safe4 Care / Confi.care (norsk helse)
-       ├── LF (svensk, egen Keycloak-realm)
-       └── Larmify (svensk)
+       ├── Homely (Norwegian smart home)
+       ├── Forebygg (Swedish security)
+       ├── Copiax / HomeSecurity (Swedish)
+       ├── Tekam Smarthus (Norwegian)
+       ├── Folklarm / Appsolut Säkerhet (Swedish)
+       ├── Tryg Smart (Norwegian insurance)
+       ├── Safe4 Care / Confi.care (Norwegian health)
+       ├── LF (Swedish, own Keycloak realm)
+       └── Larmify (Swedish)
 
 Onesti Products AS (hardware)
-  └── Alle fysiske låser + Connect Module (ZMNC010)
+  └── All physical locks + Connect Module (ZMNC010)
 ```
 
-## Sikkerhetsnotater
+## Security notes
 
-- Client secrets hardkodet i APK (kan roteres server-side)
-- Ingen certificate pinning observert
-- Test-credentials tilgjengelige i koden
-- AES-kryptering mellom gateway og lock (CAS)
-- OAuth2 tokens lagres i AsyncStorage (Android)
+- Client secrets hardcoded in APK (can be rotated server-side)
+- No certificate pinning observed
+- Test credentials accessible in the code
+- AES encryption between gateway and lock (CAS)
+- OAuth2 tokens stored in AsyncStorage (Android)

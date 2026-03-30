@@ -1,37 +1,37 @@
 # Nimly Connect App — Reverse Engineering
 
 APK: `com.easyaccess.connect` v1.27.84 (171 MB)
-Framework: React Native med Hermes bytecode
-Dekompilert med: `jadx` + `hermes-dec` → 3.1M linjer JavaScript
+Framework: React Native with Hermes bytecode
+Decompiled with: `jadx` + `hermes-dec` → 3.1M lines of JavaScript
 
-## Arkitektur
+## Architecture
 
-Appen snakker **aldri direkte med låsen**. Kommunikasjonen er:
+The app **never communicates directly with the lock**. The communication path is:
 
 ```
 Phone → Cloud API (iotiliti.cloud) → ZigBee Gateway (Connect Bridge) → Lock
-         ↕ OAuth2/Cognito              ↕ CAS protocol (AES-kryptert)
+         ↕ OAuth2/Cognito              ↕ CAS protocol (AES-encrypted)
 ```
 
-Ingen BLE-kommunikasjon funnet i denne appen (det er en separat app: `nimly BLE`).
+No BLE communication found in this app (that is a separate app: `nimly BLE`).
 
-## White-label plattform
+## White-label platform
 
-Appen er en white-label fra **iotiliti** (tidligere NeutrAlClone). Samme kodebase brukes av:
+The app is a white-label from **iotiliti** (formerly NeutrAlClone). The same codebase is used by:
 
-| Merke                | API URL                                                                                                   |
+| Brand                | API URL                                                                                                   |
 | -------------------- | --------------------------------------------------------------------------------------------------------- |
-| **Nimly/EasyAccess** | `api-neutralclone.iotiliti.cloud` (eldre) / `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` (ny) |
+| **Nimly/EasyAccess** | `api-neutralclone.iotiliti.cloud` (older) / `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` (new) |
 | Keyfree              | `api.customer.keyfree.iotiliti.cloud`                                                                     |
 | Salus                | `api-salus.iotiliti.cloud`                                                                                |
 | Forebygg             | `api.customer.forebygg.iotiliti.cloud`                                                                    |
 | Homely               | `api.homely.no`                                                                                           |
 
-Company IDs i `secrets.md` (gitignored).
+Company IDs in `secrets.md` (gitignored).
 
-## Autentisering
+## Authentication
 
-### OAuth2 (primær)
+### OAuth2 (primary)
 
 ```
 POST /oauth/v2/token
@@ -52,7 +52,7 @@ POST /oauth/v2/refresh-token
 }
 ```
 
-### AWS Cognito (alternativ)
+### AWS Cognito (alternative)
 
 ```
 Region: eu-central-1
@@ -66,51 +66,51 @@ Client ID (prod): <extracted-from-apk, see secrets.md>
 Authorization: Bearer <access_token>
 ```
 
-## REST API — Dørlås-endepunkter
+## REST API — Door lock endpoints
 
-| Method | Path                                      | Funksjon                |
-| ------ | ----------------------------------------- | ----------------------- |
-| POST   | `/devices/{id}/lock`                      | Lås døren               |
-| POST   | `/devices/{id}/action`                    | Generell handling       |
-| PATCH  | `/devices/{id}/settings`                  | Endre innstillinger     |
-| GET    | `/devices/{id}/access`                    | Hent alle brukere/koder |
-| POST   | `/devices/{id}/access`                    | **Opprett ny PIN/kode** |
-| PATCH  | `/devices/{id}/access`                    | Oppdater tilgang        |
-| DELETE | `/devices/{id}/access`                    | Slett tilgang           |
-| GET    | `/devices/{id}/event-history`             | Hendelseslogg           |
-| POST   | `/devices`                                | Legg til enhet          |
-| DELETE | `/devices/{id}`                           | Fjern enhet             |
-| PATCH  | `/devices/{id}`                           | Oppdater enhet          |
-| POST   | `/devices/{id}/keychain-lock`             | Lås via keychain        |
-| PATCH  | `/devices/{id}/alarm-reaction`            | Endre alarm-reaksjon    |
-| PATCH  | `/devices/{id}/alarm-profile`             | Endre alarm-profil      |
-| POST   | `/devices/{id}/access/scan-tag`           | Scan RFID-tag           |
-| GET    | `/devices/{id}/features-history`          | Feature-historikk       |
-| PATCH  | `/devices/{id}/input-actions/{actionId}`  | Oppdater input-actions  |
-| PATCH  | `/devices/{id}/output-actions/{actionId}` | Oppdater output-actions |
-| GET    | `/devices/{id}/demand`                    | Forbruksverdier         |
+| Method | Path                                      | Function                 |
+| ------ | ----------------------------------------- | ------------------------ |
+| POST   | `/devices/{id}/lock`                      | Lock the door            |
+| POST   | `/devices/{id}/action`                    | General action           |
+| PATCH  | `/devices/{id}/settings`                  | Change settings          |
+| GET    | `/devices/{id}/access`                    | Get all users/codes      |
+| POST   | `/devices/{id}/access`                    | **Create new PIN/code**  |
+| PATCH  | `/devices/{id}/access`                    | Update access            |
+| DELETE | `/devices/{id}/access`                    | Delete access            |
+| GET    | `/devices/{id}/event-history`             | Event log                |
+| POST   | `/devices`                                | Add device               |
+| DELETE | `/devices/{id}`                           | Remove device            |
+| PATCH  | `/devices/{id}`                           | Update device            |
+| POST   | `/devices/{id}/keychain-lock`             | Lock via keychain        |
+| PATCH  | `/devices/{id}/alarm-reaction`            | Change alarm reaction    |
+| PATCH  | `/devices/{id}/alarm-profile`             | Change alarm profile     |
+| POST   | `/devices/{id}/access/scan-tag`           | Scan RFID tag            |
+| GET    | `/devices/{id}/features-history`          | Feature history          |
+| PATCH  | `/devices/{id}/input-actions/{actionId}`  | Update input actions     |
+| PATCH  | `/devices/{id}/output-actions/{actionId}` | Update output actions    |
+| GET    | `/devices/{id}/demand`                    | Consumption values       |
 
-### Keybox (kryptonøkler)
+### Keybox (crypto keys)
 
-| Method | Path                                | Funksjon             |
-| ------ | ----------------------------------- | -------------------- |
-| POST   | `/keybox/users/{userId}/keys`       | Opprett brukernøkkel |
-| POST   | `/keybox/devices/{deviceId}/tokens` | Opprett enhetstoken  |
-| GET    | `/keybox/devices/{deviceId}/keys`   | Hent enhetsnøkkel    |
+| Method | Path                                | Function            |
+| ------ | ----------------------------------- | ------------------- |
+| POST   | `/keybox/users/{userId}/keys`       | Create user key     |
+| POST   | `/keybox/devices/{deviceId}/tokens` | Create device token |
+| GET    | `/keybox/devices/{deviceId}/keys`   | Get device key      |
 
-## Tilgangstyper
+## Access types
 
 ```javascript
 DeviceAccessMethodType = {
-  Pin: "pin", // Kode på keypad
-  Tag: "tag", // RFID/NFC-brikke
-  Otp: "otp", // Engangskode
-  DigitalKey: "digitalKey", // Digital nøkkel (app)
-  Finger: "finger", // Fingeravtrykk
+  Pin: "pin", // Code on keypad
+  Tag: "tag", // RFID/NFC tag
+  Otp: "otp", // One-time code
+  DigitalKey: "digitalKey", // Digital key (app)
+  Finger: "finger", // Fingerprint
 };
 ```
 
-## Brukermodell
+## User model
 
 ```javascript
 {
@@ -128,7 +128,7 @@ DeviceAccessMethodType = {
 }
 ```
 
-## Låstyper i plattformen
+## Lock types in the platform
 
 ```javascript
 DoorlockTypes = {
@@ -144,9 +144,9 @@ DoorlockTypes = {
 };
 ```
 
-> Se også: docs/nimly-connect-app/app-architecture.md for komplett DoorlockTypes-referanse.
+> See also: docs/nimly-connect-app/app-architecture.md for complete DoorlockTypes reference.
 
-## Låsmodus
+## Lock modes
 
 ```javascript
 DoorlockLockModeValues = {
@@ -157,7 +157,7 @@ DoorlockLockModeValues = {
 };
 ```
 
-## Event-rapportering
+## Event reporting
 
 ```javascript
 DoorLockEventFeatureState = {
@@ -171,7 +171,7 @@ DoorLockEventFeatureState = {
 };
 ```
 
-Doorlock-events:
+Doorlock events:
 
 ```
 doorlock-settings-changed
@@ -182,45 +182,45 @@ doorlock-failed-to-lock
 doorlock-access-updated
 ```
 
-> Se også: docs/nimly-connect-app/app-architecture.md for cloud event-system.
+> See also: docs/nimly-connect-app/app-architecture.md for cloud event system.
 
 ## CAS Protocol (Gateway ↔ Lock)
 
-Gatewayen bruker "CAS" (Command and Status?) protokoll med **AES-kryptering**:
+The gateway uses the "CAS" (Command and Status?) protocol with **AES encryption**:
 
-Nøkkelfeilkoder:
-| Kode | Navn | Betydning |
-|------|------|-----------|
+Key error codes:
+| Code | Name | Meaning |
+|------|------|---------|
 | 380000 | CAS*MSG_NO_ERROR | OK |
-| 380001 | CAS_MSG_UNKNOW_ERROR | Ukjent feil |
-| 380006 | CAS_MSG_COMMAND_UNKNOW | Ukjent kommando |
-| 380041 | CAS_MSG_PU_BUSY | Enhet opptatt |
-| 380042 | CAS_MSG_OPERATION_FAILED | Operasjon feilet |
-| 380043 | CAS_PU_NO_CRYPTO_FOUND | Kryptonøkkel mangler |
-| 380047 | CAS_SYSTEM_COMMAND_PU_COMMAND_UNSUPPORTED | Kommando ikke støttet |
-| 380048 | CAS_SYSTEM_COMMAND_PU_NO_RIGHTS_TO_DO_COMMAND | Manglende rettigheter |
-| 380106-380111 | CAS_PU_PASSWORD_UPDATE*\* | Passordfeil |
-| 380125 | CAS_PU_REFUSE_CLIENT_CONNECTION | Tilkobling avvist |
-| 380126 | CAS_PLATFORM_CLIENT_VERIFY_AUTH_ERROR | Auth-feil |
+| 380001 | CAS_MSG_UNKNOW_ERROR | Unknown error |
+| 380006 | CAS_MSG_COMMAND_UNKNOW | Unknown command |
+| 380041 | CAS_MSG_PU_BUSY | Device busy |
+| 380042 | CAS_MSG_OPERATION_FAILED | Operation failed |
+| 380043 | CAS_PU_NO_CRYPTO_FOUND | Crypto key missing |
+| 380047 | CAS_SYSTEM_COMMAND_PU_COMMAND_UNSUPPORTED | Command not supported |
+| 380048 | CAS_SYSTEM_COMMAND_PU_NO_RIGHTS_TO_DO_COMMAND | Insufficient rights |
+| 380106-380111 | CAS_PU_PASSWORD_UPDATE*\* | Password error |
+| 380125 | CAS_PU_REFUSE_CLIENT_CONNECTION | Connection refused |
+| 380126 | CAS_PLATFORM_CLIENT_VERIFY_AUTH_ERROR | Auth error |
 
-## Konfigurasjon (Nimly-spesifikt)
+## Configuration (Nimly-specific)
 
 ```javascript
 {
     safeUnlockEnabled: true,
     amsServiceEnabled: true,
-    showUserForFingerprintEvents: false,  // ← bevisst skjult!
+    showUserForFingerprintEvents: false,  // ← intentionally hidden!
     keypadAsAccessDeviceEnabled: true,
     installationPartnerCountryListEnabled: true,
     fontFamily: 'Stabil Grotesk'
 }
 ```
 
-## Implikasjoner for integrasjonen
+## Implications for the integration
 
-### PIN-setting via cloud API
+### PIN setting via cloud API
 
-I stedet for å slite med Zigbee sleepy device timeout, kan vi potensielt sette PIN via REST API:
+Instead of struggling with Zigbee sleepy device timeouts, we can potentially set PINs via REST API:
 
 ```
 POST https://api-neutralclone.iotiliti.cloud/devices/{deviceId}/access
@@ -232,46 +232,46 @@ Authorization: Bearer <token>
 }
 ```
 
-Dette omgår Zigbee helt — gatewayen håndterer timing.
+This bypasses Zigbee entirely — the gateway handles timing.
 
-### Event-historikk
+### Event history
 
 ```
 GET /devices/{deviceId}/event-history
 ```
 
-Kan gi komplett hendelseslogg med brukerinfo — bedre enn Zigbee attribute reports.
+Can provide complete event log with user info — better than Zigbee attribute reports.
 
-### Forutsetninger
+### Prerequisites
 
-- Krever Connect Bridge (gateway) — ikke bare Connect Module
-- Krever Nimly-konto med tilknyttet lås
-- API-et er ikke offisielt dokumentert
+- Requires Connect Bridge (gateway) — not just Connect Module
+- Requires a Nimly account with an associated lock
+- The API is not officially documented
 
-## Verktøy
+## Tools
 
-- `apkeep` — APK fra Play Store
+- `apkeep` — APK from Play Store
 - `jadx` — Android APK → Java
 - `hermes-dec` — React Native Hermes bytecode → JavaScript
-- Kilde: `com.easyaccess.connect.xapk` v1.27.84
+- Source: `com.easyaccess.connect.xapk` v1.27.84
 
-## Sikkerhetsobservasjoner
+## Security observations
 
-- Client secrets og API-URLer er hardkodet i appen
-- Test-miljø credentials er tilgjengelige
-- Bug report credentials funnet i APK (se secrets.md)
-- Sentry DSN eksponert
-- AWS Cognito pool IDs tilgjengelige
-- Ingen certificate pinning observert
+- Client secrets and API URLs are hardcoded in the app
+- Test environment credentials are accessible
+- Bug report credentials found in APK (see secrets.md)
+- Sentry DSN exposed
+- AWS Cognito pool IDs accessible
+- No certificate pinning observed
 
-## White-label dekompilering (2026-03-30)
+## White-label decompilation (2026-03-30)
 
-Dekompilerte alle 7 white-label-apper i iotiliti-økosystemet via `apkeep` + `hbc-decompiler`.
-Alle bruker identisk kodebase (React Native/Hermes), kun config-blokken varierer.
+Decompiled all 7 white-label apps in the iotiliti ecosystem via `apkeep` + `hbc-decompiler`.
+All use identical codebase (React Native/Hermes), only the config block varies.
 
-### Alle API-instanser (prod)
+### All API instances (prod)
 
-| Merke          | Package                         | Prod API URL                                             |
+| Brand          | Package                         | Prod API URL                                             |
 | -------------- | ------------------------------- | -------------------------------------------------------- |
 | **Nimly**      | `com.easyaccess.connect`        | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` |
 | **Copiax**     | `com.copiax.homesecurity`       | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` |
@@ -281,47 +281,47 @@ Alle bruker identisk kodebase (React Native/Hermes), kun config-blokken varierer
 | **Keyfree**    | `com.safe4.keyfree`             | `api.customer.keyfree.iotiliti.cloud`                    |
 | **Forebygg**   | `se.forebygg.forebygg`          | `api.customer.forebygg.iotiliti.cloud`                   |
 | **Homely**     | `io.homely.home`                | `api.homely.no`                                          |
-| **Safe4 Care** | _(i iotiliti-appen)_            | `api-safe4care.iotiliti.cloud`                           |
-| **Tryg Smart** | _(i iotiliti-appen)_            | `api.tryg.iotiliti.cloud`                                |
+| **Safe4 Care** | _(in iotiliti app)_             | `api-safe4care.iotiliti.cloud`                           |
+| **Tryg Smart** | _(in iotiliti app)_             | `api.tryg.iotiliti.cloud`                                |
 | **Salus**      | `com.salusprotekt.immunity`     | `api-salus.iotiliti.cloud`                               |
-| **LF**         | _(i iotiliti-appen)_            | `api-lf.iotiliti.cloud`                                  |
+| **LF**         | _(in iotiliti app)_             | `api-lf.iotiliti.cloud`                                  |
 
-Client secrets, company IDs og test-credentials i `secrets.md` (gitignored).
+Client secrets, company IDs, and test credentials in `secrets.md` (gitignored).
 
-### API-URL migrering
+### API URL migration
 
-Nimly Connect v1.27.84 (vår versjon) bruker `api-neutralclone.iotiliti.cloud`.
-Nyere versjoner (fra iotiliti-appen) har migrert til `api.customer.prod-neutralclone.onesti.aws.neurosys.pro`.
-Begge URLer peker til samme database — testet med fersk token, identiske responser.
+Nimly Connect v1.27.84 (our version) uses `api-neutralclone.iotiliti.cloud`.
+Newer versions (from the iotiliti app) have migrated to `api.customer.prod-neutralclone.onesti.aws.neurosys.pro`.
+Both URLs point to the same database — tested with a fresh token, identical responses.
 
-### Intern test-API
+### Internal test API
 
-`https://test-api-neurosys.iotiliti.cloud` — Neurosys (Polen) sin interne test-instans.
-Client secret i `secrets.md`.
+`https://test-api-neurosys.iotiliti.cloud` — Neurosys (Poland) internal test instance.
+Client secret in `secrets.md`.
 
-### Skjult Developer Options
+### Hidden Developer Options
 
-Alle apper har en skjult "Developer Options"-meny:
+All apps have a hidden "Developer Options" menu:
 
-- Bytt mellom Production / Test / Internal API
-- Enable Instabug (feilrapportering)
+- Switch between Production / Test / Internal API
+- Enable Instabug (error reporting)
 - Copy Device Token (push notification token)
 - Enable Error Reports
-- Vis app-versjon og build-nummer
+- Show app version and build number
 
-### LF-instans (separat auth)
+### LF instance (separate auth)
 
-LF-merket bruker egen Keycloak-realm: `realms/lftt-kong-oidc/protocol/openid-connect/token`.
-Ekstern auth: `https://test-auth.lfhub.net`. Credentials i secrets.md.
-Username-login (ikke email), ingen passordbytte, ingen kontosletting.
+The LF brand uses its own Keycloak realm: `realms/lftt-kong-oidc/protocol/openid-connect/token`.
+External auth: `https://test-auth.lfhub.net`. Credentials in secrets.md.
+Username login (not email), no password change, no account deletion.
 
-### Funn: group-devices tom på alle APIer
+### Finding: group-devices empty on all APIs
 
-Testet `GET /locations/{id}/group-devices` med fersk token mot:
+Tested `GET /locations/{id}/group-devices` with a fresh token against:
 
 - `api-neutralclone.iotiliti.cloud` → `[]`
 - `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` → `[]`
 
-Appen viser enheter (gateway + touch pro), men API returnerer tom liste.
-Mulige årsaker: server-side tilgangskontroll, caching, eller devicene
-er registrert via en mekanisme vi ikke har reprodusert via API.
+The app shows devices (gateway + touch pro), but the API returns an empty list.
+Possible causes: server-side access control, caching, or the devices
+are registered via a mechanism we have not reproduced via API.

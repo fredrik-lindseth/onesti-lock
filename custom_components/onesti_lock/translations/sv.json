@@ -22,6 +22,7 @@
         "menu_options": {
           "set_pin": "Ställ in PIN-kod",
           "clear_pin": "Ta bort PIN-kod",
+          "name_slot": "Namnge användare",
           "view_slots": "Visa användarplatser"
         }
       },
@@ -39,6 +40,14 @@
         "description": "Välj användare att ta bort.",
         "data": {
           "slot": "Användare"
+        }
+      },
+      "name_slot": {
+        "title": "Namnge användare",
+        "description": "Koppla ett namn till ett platsnummer. Används för RFID-taggar, fingeravtryck eller andra åtkomstmetoder som inte ställs in via PIN-menyn.",
+        "data": {
+          "slot": "Platsnummer",
+          "name": "Namn"
         }
       },
       "view_slots": {

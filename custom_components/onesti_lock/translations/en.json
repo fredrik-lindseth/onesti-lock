@@ -22,6 +22,7 @@
         "menu_options": {
           "set_pin": "Set PIN code",
           "clear_pin": "Clear PIN code",
+          "name_slot": "Name a user slot",
           "view_slots": "View user slots"
         }
       },
@@ -39,6 +40,14 @@
         "description": "Select user to remove.",
         "data": {
           "slot": "User"
+        }
+      },
+      "name_slot": {
+        "title": "Name a user slot",
+        "description": "Assign a name to a slot number. Used for RFID tags, fingerprints, or other access methods not set via the PIN menu.",
+        "data": {
+          "slot": "Slot number",
+          "name": "Name"
         }
       },
       "view_slots": {

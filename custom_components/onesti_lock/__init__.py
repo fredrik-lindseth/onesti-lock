@@ -14,9 +14,10 @@ from .const import (
     DOMAIN,
     DOORLOCK_CLUSTER_ID,
     SOURCE_AUTO,
+    SOURCE_FINGERPRINT,
     SOURCE_KEYPAD,
-    SOURCE_MANUAL,
-    SOURCE_RF,
+    SOURCE_RFID,
+    SOURCE_ZIGBEE,
     SOURCE_UNKNOWN,
 )
 from .coordinator import NimlyCoordinator
@@ -30,9 +31,10 @@ PLATFORMS = ["sensor"]
 ATTR_OPERATION_EVENT = 0x0100
 
 _SOURCE_MAP = {
-    0x01: SOURCE_RF,
+    0x00: SOURCE_ZIGBEE,
     0x02: SOURCE_KEYPAD,
-    0x03: SOURCE_MANUAL,
+    0x03: SOURCE_FINGERPRINT,
+    0x04: SOURCE_RFID,
     0x0A: SOURCE_AUTO,
 }
 

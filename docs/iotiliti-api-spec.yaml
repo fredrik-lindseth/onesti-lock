@@ -1,0 +1,1373 @@
+openapi: "3.0.3"
+
+info:
+  title: iotiliti Cloud API (Nimly Connect / EasyAccess)
+  version: "1.0.0-draft"
+  description: |
+    Reverse-engineered API specification for the iotiliti cloud platform,
+    used by Nimly Connect, EasyAccess, Keyfree, Salus, Forebygg, and Homely
+    smart lock apps.
+
+    **WARNING: This entire specification is reverse-engineered from the
+    decompiled Nimly Connect APK (com.easyaccess.connect v1.27.84) and has
+    NOT been verified against official documentation. Field names, types,
+    and required/optional status are best-effort guesses. Use at your own risk.**
+
+    ## Architecture
+
+    The mobile app never communicates directly with the lock. The flow is:
+
+    ```
+    Phone -> Cloud API (iotiliti.cloud) -> ZigBee Gateway (Connect Bridge) -> Lock
+              OAuth2/Cognito                 CAS protocol (AES-encrypted)
+    ```
+
+    ## White-label instances
+
+    The same API is deployed for multiple brands:
+
+    | Brand | API Base URL | Company ID |
+    |-------|-------------|------------|
+    | Nimly / EasyAccess | api-neutralclone.iotiliti.cloud | 90ded287-2356-4007-ac39-d3e1261afb59 |
+    | Keyfree | api-keyfree.iotiliti.cloud | b960e7e6-02bd-490b-8c90-e6c428c45eea |
+    | Salus | api-salus.iotiliti.cloud | 93bd9ef6-8bd0-4ad0-b045-5644fd62ef70 |
+    | Homely | api.homely.no | a21f32b6-4ac9-4c85-b97a-8b6ae565f37e |
+
+    ## Authentication
+
+    Two authentication methods exist:
+
+    1. **OAuth2 password grant** (primary) — documented in this spec
+    2. **AWS Cognito** (alternative) — Region: eu-central-1, User Pool: <extracted-from-apk, see secrets.md>
+
+    All authenticated endpoints require `Authorization: Bearer <access_token>`.
+
+  contact:
+    name: Reverse-engineered — not an official spec
+  license:
+    name: Unlicensed — research purposes only
+
+servers:
+  - url: https://api-neutralclone.iotiliti.cloud
+    description: Nimly / EasyAccess production (reverse-engineered, not verified)
+  - url: https://api-keyfree.iotiliti.cloud
+    description: Keyfree instance (reverse-engineered, not verified)
+  - url: https://api-salus.iotiliti.cloud
+    description: Salus instance (reverse-engineered, not verified)
+
+tags:
+  - name: Authentication
+    description: OAuth2 token endpoints
+  - name: Devices
+    description: Device (lock/gateway) management
+  - name: Device Actions
+    description: Lock/unlock and other device actions
+  - name: Device Settings
+    description: Device configuration and settings
+  - name: Access Management
+    description: PIN codes, RFID tags, fingerprints, OTP, and digital keys
+  - name: Event History
+    description: Device event log
+  - name: Users
+    description: User account management
+  - name: Home & Locations
+    description: Home and location grouping
+  - name: Keybox
+    description: Cryptographic key management for device communication
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ──────────────────────────────────────────────
+  # Authentication
+  # ──────────────────────────────────────────────
+
+  /oauth/v2/token:
+    post:
+      operationId: obtainToken
+      tags: [Authentication]
+      summary: Obtain access token (password grant)
+      description: |
+        OAuth2 Resource Owner Password Credentials grant.
+        Returns access and refresh tokens.
+
+        Reverse-engineered, not verified. The client_id is always "account"
+        and the client_secret is hardcoded in the mobile app.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - grant_type
+                - username
+                - password
+                - client_id
+                - client_secret
+              properties:
+                grant_type:
+                  type: string
+                  enum: [password]
+                username:
+                  type: string
+                  format: email
+                  description: User's email address
+                  example: user@example.com
+                password:
+                  type: string
+                  format: password
+                  description: User's password
+                client_id:
+                  type: string
+                  description: Always "account"
+                  example: account
+                client_secret:
+                  type: string
+                  description: Client secret (from environment / app config)
+      responses:
+        "200":
+          description: Token issued successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        "401":
+          description: Invalid credentials
+
+  /oauth/v2/refresh-token:
+    post:
+      operationId: refreshToken
+      tags: [Authentication]
+      summary: Refresh access token
+      description: |
+        Exchange a refresh token for a new access token.
+        Reverse-engineered, not verified.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - grant_type
+                - refresh_token
+                - client_id
+                - client_secret
+              properties:
+                grant_type:
+                  type: string
+                  enum: [refresh_token]
+                refresh_token:
+                  type: string
+                  description: Refresh token from a previous token response
+                client_id:
+                  type: string
+                  example: account
+                client_secret:
+                  type: string
+                  description: Client secret (from environment / app config)
+      responses:
+        "200":
+          description: New token pair issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        "401":
+          description: Invalid or expired refresh token
+
+  # ──────────────────────────────────────────────
+  # Devices
+  # ──────────────────────────────────────────────
+
+  /devices:
+    post:
+      operationId: addDevice
+      tags: [Devices]
+      summary: Add a new device
+      description: |
+        Register a new device (lock, gateway, keybox, etc.) to the user's account.
+        Reverse-engineered, not verified. Request body fields are speculative.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceCreateRequest"
+      responses:
+        "200":
+          description: Device created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /devices/{deviceId}:
+    parameters:
+      - $ref: "#/components/parameters/deviceId"
+
+    patch:
+      operationId: updateDevice
+      tags: [Devices]
+      summary: Update device properties
+      description: |
+        Update device metadata such as name or configuration.
+        Reverse-engineered, not verified.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceUpdateRequest"
+      responses:
+        "200":
+          description: Device updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      operationId: deleteDevice
+      tags: [Devices]
+      summary: Delete a device
+      description: |
+        Remove a device from the user's account.
+        Reverse-engineered, not verified.
+      responses:
+        "200":
+          description: Device deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ──────────────────────────────────────────────
+  # Device Actions
+  # ──────────────────────────────────────────────
+
+  /devices/{deviceId}/lock:
+    parameters:
+      - $ref: "#/components/parameters/deviceId"
+    post:
+      operationId: lockDevice
+      tags: [Device Actions]
+      summary: Lock the door
+      description: |
+        Send a lock command to the device. The command is relayed through
+        the cloud to the ZigBee gateway, which forwards it to the lock.
+        Reverse-engineered, not verified.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Request body structure unknown — may be empty or contain action parameters
+      responses:
+        "200":
+          description: Lock command sent
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /devices/{deviceId}/action:
+    parameters:
+      - $ref: "#/components/parameters/deviceId"
+    post:
+      operationId: deviceAction
+      tags: [Device Actions]
+      summary: Perform a generic device action
+      description: |
+        Send a generic action command to the device. The specific actions
+        available likely depend on the device type (doorlock, gateway, etc.).
+        Reverse-engineered, not verified. Possible actions include unlock,
+        but the exact action enum/format is unknown.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action:
+                  type: string
+                  description: |
+                    Action to perform. Exact values unknown — likely includes
+                    "lock", "unlock", and device-type-specific actions.
+              description: Speculative schema — actual fields unknown
+      responses:
+        "200":
+          description: Action sent
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /devices/{deviceId}/keychain-lock:
+    parameters:
+      - $ref: "#/components/parameters/deviceId"
+    post:
+      operationId: keychainLock
+      tags: [Device Actions]
+      summary: Lock via keychain (digital key)
+      description: |
+        Lock the device using the keychain/digital key mechanism. This may
+        use a different authentication flow involving the keybox subsystem.
+        Reverse-engineered, not verified.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Request body structure unknown
+      responses:
+        "200":
+          description: Keychain lock command sent
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ──────────────────────────────────────────────
+  # Device Settings
+  # ──────────────────────────────────────────────
+
+  /devices/{deviceId}/settings:
+    parameters:
+      - $ref: "#/components/parameters/deviceId"
+    patch:
+      operationId: updateDeviceSettings
+      tags: [Device Settings]
+      summary: Update device settings
+      description: |
+        Modify device-specific settings such as lock mode, auto-lock,
+        event reporting preferences, etc.
+        Reverse-engineered, not verified.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceSettings"
+      responses:
+        "200":
+          description: Settings updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceSettings"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ──────────────────────────────────────────────
+  # Access Management (PIN, tag, fingerprint, OTP, digital key)
+  # ──────────────────────────────────────────────
+
+  /devices/{deviceId}/access:
+    parameters:
+      - $ref: "#/components/parameters/deviceId"
+
+    get:
+      operationId: listAccess
+      tags: [Access Management]
+      summary: List all user accesses for a device
+      description: |
+        Retrieve all access entries (PINs, RFID tags, fingerprints, OTPs,
+        digital keys) configured on the device.
+        Reverse-engineered, not verified.
+      responses:
+        "200":
+          description: List of access entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AccessEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    post:
+      operationId: createAccess
+      tags: [Access Management]
+      summary: Create a new access entry (PIN, tag, OTP, digitalKey, finger)
+      description: |
+        Add a new access method to the device. The type field determines
+        what kind of access is created:
+        - `pin` — numeric keypad code
+        - `tag` — RFID/NFC tag
+        - `otp` — one-time password
+        - `digitalKey` — app-based digital key
+        - `finger` — fingerprint
+
+        The command is sent to the lock via the gateway. For PIN codes,
+        the gateway handles the ZigBee timing to the sleepy end device.
+
+        Reverse-engineered, not verified.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccessCreateRequest"
+            examples:
+              pinCode:
+                summary: Create a PIN code
+                value:
+                  type: pin
+                  code: "1234"
+                  userId: "550e8400-e29b-41d4-a716-446655440000"
+              rfidTag:
+                summary: Register an RFID tag
+                value:
+                  type: tag
+                  userId: "550e8400-e29b-41d4-a716-446655440000"
+              fingerprint:
+                summary: Register a fingerprint
+                value:
+                  type: finger
+                  userId: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: Access entry created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    patch:
+      operationId: updateAccess
+      tags: [Access Management]
+      summary: Update an existing access entry
+      description: |
+        Modify an existing access entry, e.g. change a PIN code
+        or update scheduling/permissions.
+        Reverse-engineered, not verified.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccessUpdateRequest"
+      responses:
+        "200":
+          description: Access entry updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      operationId: deleteAccess
+      tags: [Access Management]
+      summary: Delete an access entry
+      description: |
+        Remove an access method from the device (e.g. revoke a PIN code
+        or remove a fingerprint).
+        Reverse-engineered, not verified.
+
+        Note: The delete endpoint uses the request body (not a path parameter)
+        to identify the access entry to remove. This is unusual but consistent
+        with the decompiled app code.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                  description: ID of the access entry to delete
+                type:
+                  $ref: "#/components/schemas/AccessMethodType"
+                userId:
+                  type: string
+                  format: uuid
+                  description: User ID associated with the access entry
+              description: Speculative — exact fields required for deletion are unknown
+      responses:
+        "200":
+          description: Access entry deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ──────────────────────────────────────────────
+  # Event History
+  # ──────────────────────────────────────────────
+
+  /devices/{deviceId}/event-history:
+    parameters:
+      - $ref: "#/components/parameters/deviceId"
+    get:
+      operationId: getEventHistory
+      tags: [Event History]
+      summary: Get device event history
+      description: |
+        Retrieve the event log for a device. Events include lock/unlock
+        actions, settings changes, access creation/deletion, failures, etc.
+
+        Known event types (from decompiled app):
+        - `doorlock-settings-changed`
+        - `doorlock-access-created`
+        - `doorlock-access-scan-requested`
+        - `doorlock-access-deleted`
+        - `doorlock-failed-to-lock`
+        - `doorlock-access-updated`
+
+        May include user identification and method of action (keypad, RF, manual, auto).
+
+        Reverse-engineered, not verified. Query parameters for pagination
+        and filtering are speculative.
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+          description: Maximum number of events to return (speculative)
+        - name: offset
+          in: query
+          schema:
+            type: integer
+          description: Offset for pagination (speculative)
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Start of time range filter (speculative)
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: End of time range filter (speculative)
+      responses:
+        "200":
+          description: Event history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DeviceEvent"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ──────────────────────────────────────────────
+  # Users
+  # ──────────────────────────────────────────────
+
+  /users/check-email:
+    post:
+      operationId: checkEmail
+      tags: [Users]
+      summary: Check if an email is registered
+      description: |
+        Check whether an email address is already associated with an account.
+        Reverse-engineered, not verified.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        "200":
+          description: Email check result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  exists:
+                    type: boolean
+                    description: Whether the email is registered (speculative field name)
+
+  /users/forgotten-password:
+    post:
+      operationId: forgottenPassword
+      tags: [Users]
+      summary: Request password reset
+      description: |
+        Initiate a password reset flow for the given email address.
+        Reverse-engineered, not verified.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        "200":
+          description: Password reset initiated (email sent)
+
+  /users/me:
+    get:
+      operationId: getCurrentUser
+      tags: [Users]
+      summary: Get current user info
+      description: |
+        Retrieve the profile of the currently authenticated user.
+        Reverse-engineered, not verified.
+      responses:
+        "200":
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    patch:
+      operationId: updateCurrentUser
+      tags: [Users]
+      summary: Update current user info
+      description: |
+        Update the authenticated user's profile fields.
+        Reverse-engineered, not verified.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdateRequest"
+      responses:
+        "200":
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ──────────────────────────────────────────────
+  # Home & Locations
+  # ──────────────────────────────────────────────
+
+  /home/{homeId}:
+    parameters:
+      - name: homeId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Home identifier
+    get:
+      operationId: getHome
+      tags: [Home & Locations]
+      summary: Get home details
+      description: |
+        Retrieve details of a home (location grouping), including
+        associated devices and users.
+        Reverse-engineered, not verified.
+      responses:
+        "200":
+          description: Home details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Home"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /home/{homeId}/new-devices/{type}:
+    parameters:
+      - name: homeId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Home identifier
+      - name: type
+        in: path
+        required: true
+        schema:
+          type: string
+        description: |
+          Device type to discover. Exact values unknown — likely matches
+          DoorlockType enum or a broader device category.
+    get:
+      operationId: getNewDevices
+      tags: [Home & Locations]
+      summary: Discover new devices of a given type
+      description: |
+        Get a list of new/unclaimed devices of the specified type
+        that are available for pairing in the given home.
+        Reverse-engineered, not verified.
+      responses:
+        "200":
+          description: List of discoverable devices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Device"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /locations/{locationId}/group-devices:
+    parameters:
+      - name: locationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Location identifier
+    get:
+      operationId: getGroupDevices
+      tags: [Home & Locations]
+      summary: Get grouped devices for a location
+      description: |
+        Retrieve devices grouped by type or area within a location.
+        Reverse-engineered, not verified.
+      responses:
+        "200":
+          description: Grouped devices
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Structure unknown — likely grouped by device type or room
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /locations/{locationId}/users/{userId}/accesses:
+    parameters:
+      - name: locationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Location identifier
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: User identifier
+    get:
+      operationId: getUserDoorAccesses
+      tags: [Home & Locations]
+      summary: Get a user's door accesses at a location
+      description: |
+        Retrieve all door access entries for a specific user at a
+        specific location. This provides a cross-device view of
+        what access methods the user has.
+        Reverse-engineered, not verified.
+      responses:
+        "200":
+          description: User's access entries across devices at this location
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AccessEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ──────────────────────────────────────────────
+  # Keybox (cryptographic key management)
+  # ──────────────────────────────────────────────
+
+  /keybox/users/{userId}/keys:
+    parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: User identifier
+    post:
+      operationId: createUserKey
+      tags: [Keybox]
+      summary: Create a cryptographic key for a user
+      description: |
+        Generate or register a cryptographic key for the specified user.
+        Used for the digital key / keychain authentication mechanism.
+        Reverse-engineered, not verified.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: |
+                Request body structure unknown. Likely includes key type
+                and device association parameters.
+      responses:
+        "200":
+          description: User key created
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Key details — structure unknown
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /keybox/devices/{deviceId}/tokens:
+    parameters:
+      - $ref: "#/components/parameters/deviceId"
+    post:
+      operationId: createDeviceToken
+      tags: [Keybox]
+      summary: Create a device token
+      description: |
+        Create an authentication token for the specified device.
+        Used for secure communication between the app and the device
+        via the gateway.
+        Reverse-engineered, not verified.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Request body structure unknown
+      responses:
+        "200":
+          description: Device token created
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Token details — structure unknown
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /keybox/devices/{deviceId}/keys:
+    parameters:
+      - $ref: "#/components/parameters/deviceId"
+    get:
+      operationId: getDeviceKeys
+      tags: [Keybox]
+      summary: Get cryptographic keys for a device
+      description: |
+        Retrieve the cryptographic keys associated with a device.
+        Used for the AES-encrypted CAS protocol between the gateway
+        and the lock.
+        Reverse-engineered, not verified.
+      responses:
+        "200":
+          description: Device keys
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Key material — structure unknown
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+components:
+  # ──────────────────────────────────────────────
+  # Security Schemes
+  # ──────────────────────────────────────────────
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        OAuth2 access token obtained from /oauth/v2/token.
+        Pass as: `Authorization: Bearer <access_token>`
+
+    oauth2:
+      type: oauth2
+      description: |
+        OAuth2 password grant. The client_id is always "account".
+        The client_secret must be provided from app configuration
+        or environment variables.
+      flows:
+        password:
+          tokenUrl: /oauth/v2/token
+          refreshUrl: /oauth/v2/refresh-token
+          scopes: {}
+
+  # ──────────────────────────────────────────────
+  # Parameters
+  # ──────────────────────────────────────────────
+
+  parameters:
+    deviceId:
+      name: deviceId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Device identifier (UUID)
+
+  # ──────────────────────────────────────────────
+  # Reusable Responses
+  # ──────────────────────────────────────────────
+
+  responses:
+    Unauthorized:
+      description: Authentication required or token expired
+    NotFound:
+      description: Resource not found
+
+  # ──────────────────────────────────────────────
+  # Schemas
+  # ──────────────────────────────────────────────
+
+  schemas:
+
+    # --- Authentication ---
+
+    TokenResponse:
+      type: object
+      description: |
+        OAuth2 token response. Reverse-engineered, not verified.
+        Field names follow standard OAuth2 conventions.
+      properties:
+        access_token:
+          type: string
+          description: JWT access token for API calls
+        refresh_token:
+          type: string
+          description: Token used to obtain a new access token
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          description: Access token lifetime in seconds
+
+    # --- Enumerations ---
+
+    AccessMethodType:
+      type: string
+      description: |
+        Type of access method. From decompiled DeviceAccessMethodType enum.
+        Reverse-engineered, not verified.
+      enum:
+        - pin
+        - tag
+        - otp
+        - digitalKey
+        - finger
+
+    DoorlockType:
+      type: string
+      description: |
+        Lock hardware type. From decompiled DoorlockTypes enum.
+        Reverse-engineered, not verified.
+      enum:
+        - yaledoorman
+        - danalock
+        - easyaccess
+        - easycode
+        - idlock
+        - easyfinger
+        - iomodule
+        - keybox
+        - dormakaba
+
+    LockMode:
+      type: string
+      description: |
+        Lock operating mode controlling auto-lock and away-mode behavior.
+        From decompiled DoorlockLockModeValues enum.
+        Reverse-engineered, not verified.
+      enum:
+        - MANUAL_LOCK_AWAY_OFF
+        - AUTO_LOCK_AWAY_OFF
+        - MANUAL_LOCK_AWAY_ON
+        - AUTO_LOCK_AWAY_ON
+
+    EventReportingFeature:
+      type: string
+      description: |
+        Event reporting feature flags. From decompiled DoorLockEventFeatureState enum.
+        Reverse-engineered, not verified.
+      enum:
+        - reportautolock
+        - reportlocked
+        - reportevent
+        - reportsecuresensor
+        - reportlowbat
+        - reportunknowncard
+        - lockstate
+
+    DeviceEventType:
+      type: string
+      description: |
+        Known event types observed in the decompiled app code.
+        Reverse-engineered, not verified. Additional types likely exist.
+      enum:
+        - doorlock-settings-changed
+        - doorlock-access-created
+        - doorlock-access-scan-requested
+        - doorlock-access-deleted
+        - doorlock-failed-to-lock
+        - doorlock-access-updated
+
+    # --- Core Models ---
+
+    User:
+      type: object
+      description: |
+        User profile model. Fields from decompiled app code.
+        Reverse-engineered, not verified.
+      properties:
+        id:
+          type: string
+          format: uuid
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        language:
+          type: string
+          description: Language/locale code (e.g., "nb", "en")
+        hasDoorlockAccess:
+          type: boolean
+          default: false
+        hasAlarmPin:
+          type: boolean
+          default: false
+        hasAlarmTag:
+          type: boolean
+          default: false
+        hasDoorlockPin:
+          type: boolean
+          default: false
+        hasDoorlockTag:
+          type: boolean
+          default: false
+        hasDoorlockFingerprint:
+          type: boolean
+          default: false
+        roles:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: User roles — exact role names unknown
+        active:
+          type: boolean
+          default: true
+        keychainEnabled:
+          type: boolean
+          default: false
+          description: Whether the digital keychain feature is enabled
+        hasLocations:
+          type: boolean
+          default: false
+          description: Whether the user has any associated locations/homes
+
+    UserUpdateRequest:
+      type: object
+      description: |
+        Fields that can be updated on the current user.
+        Reverse-engineered, not verified.
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+        language:
+          type: string
+
+    Device:
+      type: object
+      description: |
+        Device representation. Speculative schema based on endpoint
+        usage patterns in the decompiled app.
+        Reverse-engineered, not verified.
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: User-assigned device name
+        type:
+          $ref: "#/components/schemas/DoorlockType"
+        locationId:
+          type: string
+          format: uuid
+        homeId:
+          type: string
+          format: uuid
+        lockMode:
+          $ref: "#/components/schemas/LockMode"
+        online:
+          type: boolean
+          description: Whether the device is reachable via the gateway
+        batteryLevel:
+          type: integer
+          description: Battery percentage (speculative)
+        firmwareVersion:
+          type: string
+          description: Device firmware version (speculative)
+
+    DeviceCreateRequest:
+      type: object
+      description: |
+        Request to add a new device. Exact required fields unknown.
+        Reverse-engineered, not verified.
+      properties:
+        name:
+          type: string
+        type:
+          $ref: "#/components/schemas/DoorlockType"
+        homeId:
+          type: string
+          format: uuid
+        locationId:
+          type: string
+          format: uuid
+
+    DeviceUpdateRequest:
+      type: object
+      description: |
+        Request to update device properties.
+        Reverse-engineered, not verified.
+      properties:
+        name:
+          type: string
+
+    DeviceSettings:
+      type: object
+      description: |
+        Device settings model. Combines known settings from the decompiled
+        app with reasonable assumptions.
+        Reverse-engineered, not verified.
+      properties:
+        lockMode:
+          $ref: "#/components/schemas/LockMode"
+        reportAutoLock:
+          type: boolean
+          description: Report auto-lock events
+        reportLocked:
+          type: boolean
+          description: Report manual lock events
+        reportEvent:
+          type: boolean
+          description: Report general events
+        reportSecureSensor:
+          type: boolean
+          description: Report secure sensor state
+        reportLowBattery:
+          type: boolean
+          description: Report low battery
+        reportUnknownCard:
+          type: boolean
+          description: Report unknown card/tag attempts
+
+    AccessEntry:
+      type: object
+      description: |
+        An access method configured on a device. Represents a PIN code,
+        RFID tag, fingerprint, OTP, or digital key associated with a user.
+        Reverse-engineered, not verified.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique access entry identifier
+        type:
+          $ref: "#/components/schemas/AccessMethodType"
+        userId:
+          type: string
+          format: uuid
+          description: User this access belongs to
+        code:
+          type: string
+          description: |
+            PIN code digits (only for type "pin"). May be omitted
+            in responses for security reasons.
+          example: "1234"
+        slot:
+          type: integer
+          description: |
+            Slot number on the lock hardware (speculative).
+            Slot 0 is typically the master code.
+        active:
+          type: boolean
+          description: Whether this access entry is currently active
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp (speculative)
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp (speculative)
+
+    AccessCreateRequest:
+      type: object
+      description: |
+        Request to create a new access entry on a device.
+        Reverse-engineered, not verified.
+      required:
+        - type
+      properties:
+        type:
+          $ref: "#/components/schemas/AccessMethodType"
+        code:
+          type: string
+          description: |
+            PIN code (required for type "pin", ignored for others).
+            Numeric string, typically 4-8 digits.
+          example: "1234"
+        userId:
+          type: string
+          format: uuid
+          description: User to associate this access with
+
+    AccessUpdateRequest:
+      type: object
+      description: |
+        Request to update an existing access entry.
+        Reverse-engineered, not verified.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID of the access entry to update
+        type:
+          $ref: "#/components/schemas/AccessMethodType"
+        code:
+          type: string
+          description: New PIN code (for type "pin")
+        userId:
+          type: string
+          format: uuid
+        active:
+          type: boolean
+
+    DeviceEvent:
+      type: object
+      description: |
+        An event from the device event history.
+        Reverse-engineered, not verified.
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          $ref: "#/components/schemas/DeviceEventType"
+        deviceId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+          nullable: true
+          description: User who triggered the event, if applicable
+        timestamp:
+          type: string
+          format: date-time
+        details:
+          type: object
+          description: |
+            Event-specific details. Structure varies by event type.
+            May include access method, slot number, lock state, etc.
+
+    Home:
+      type: object
+      description: |
+        A home/location grouping that contains devices and users.
+        Reverse-engineered, not verified.
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        devices:
+          type: array
+          items:
+            $ref: "#/components/schemas/Device"
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+
+    # --- CAS Error Codes (reference only) ---
+    # These are gateway-to-lock protocol errors, not HTTP API errors.
+    # Included here for completeness as they may surface in API responses.
+    #
+    # 380000 - CAS_MSG_NO_ERROR (OK)
+    # 380001 - CAS_MSG_UNKNOW_ERROR (Unknown error)
+    # 380006 - CAS_MSG_COMMAND_UNKNOW (Unknown command)
+    # 380041 - CAS_MSG_PU_BUSY (Device busy)
+    # 380042 - CAS_MSG_OPERATION_FAILED (Operation failed)
+    # 380043 - CAS_PU_NO_CRYPTO_FOUND (Missing crypto key)
+    # 380047 - CAS_SYSTEM_COMMAND_PU_COMMAND_UNSUPPORTED (Unsupported command)
+    # 380048 - CAS_SYSTEM_COMMAND_PU_NO_RIGHTS_TO_DO_COMMAND (Insufficient rights)
+    # 380106-380111 - CAS_PU_PASSWORD_UPDATE_* (Password update errors)
+    # 380125 - CAS_PU_REFUSE_CLIENT_CONNECTION (Connection refused)
+    # 380126 - CAS_PLATFORM_CLIENT_VERIFY_AUTH_ERROR (Auth verification error)

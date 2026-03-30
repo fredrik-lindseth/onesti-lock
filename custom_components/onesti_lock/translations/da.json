@@ -1,0 +1,62 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Tilføj Onesti Lock",
+        "description": "Vælg hvilken Onesti-lås du vil administrere PIN-koder for.",
+        "data": {
+          "device": "Lås"
+        }
+      }
+    },
+    "abort": {
+      "zha_not_found": "ZHA-integration ikke fundet. Konfigurer ZHA først.",
+      "no_devices_found": "Ingen Onesti Lock-låse fundet i ZHA.",
+      "already_configured": "Denne lås er allerede konfigureret."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Onesti Lock — PIN-administration",
+        "menu_options": {
+          "set_pin": "Indstil PIN-kode",
+          "clear_pin": "Fjern PIN-kode",
+          "view_slots": "Vis brugerpladser"
+        }
+      },
+      "set_pin": {
+        "title": "Indstil PIN-kode",
+        "description": "Vælg plads, indtast navn og PIN-kode (4-8 cifre). Pladsnumrene svarer til låsens interne brugerpladser (ZCL DoorLock). Plads 0-2 er reserveret til masterkoder.",
+        "data": {
+          "slot": "Brugerplads",
+          "name": "Navn",
+          "code": "PIN-kode"
+        }
+      },
+      "clear_pin": {
+        "title": "Fjern PIN-kode",
+        "description": "Vælg bruger der skal fjernes.",
+        "data": {
+          "slot": "Bruger"
+        }
+      },
+      "view_slots": {
+        "title": "Brugerpladser",
+        "description": "{slot_status}"
+      }
+    },
+    "progress": {
+      "set_pin_progress": "Sender PIN-kode til låsen...",
+      "clear_pin_progress": "Fjerner PIN-kode fra låsen..."
+    },
+    "error": {
+      "invalid_pin": "PIN-kode skal være 4-8 cifre",
+      "lock_unreachable": "Kunne ikke nå låsen. Tryk på tastaturet og prøv igen.",
+      "unknown": "En uventet fejl opstod. Tjek logfilerne."
+    },
+    "abort": {
+      "no_active_slots": "Ingen aktive PIN-koder at fjerne"
+    }
+  }
+}

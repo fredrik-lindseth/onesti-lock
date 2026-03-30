@@ -137,7 +137,7 @@ def _register_event_listener(
         if not decoded:
             return
 
-        _LOGGER.warning(
+        _LOGGER.info(
             "Lock event: %s by %s via %s (raw: 0x%08x)",
             decoded["action"],
             decoded["user_name"] or "system",
@@ -157,7 +157,7 @@ def _register_event_listener(
     unsub = cluster.on_event("attribute_report", _on_attribute_report)
     hass.data[DOMAIN][entry.entry_id]["unsub_listener"] = unsub
 
-    _LOGGER.warning(
+    _LOGGER.debug(
         "Event listener registered on %s (events: %s)",
         type(cluster).__name__,
         list(cluster._event_listeners.keys()),

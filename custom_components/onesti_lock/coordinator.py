@@ -118,52 +118,87 @@ class NimlyCoordinator:
         _LOGGER.error("Door Lock cluster not found for %s", self.ieee)
         return None
 
+    async def _wake_lock(self) -> None:
+        """Wake the lock by sending a lock state read via ZHA.
+
+        ZHA's lock entity uses extended timeout for sleepy devices,
+        so this reliably wakes the lock's Zigbee radio.
+        """
+        try:
+            # Find the lock entity for this device
+            from homeassistant.helpers import entity_registry as er
+            registry = er.async_get(self.hass)
+            for entity in registry.entities.values():
+                if entity.platform != "zha":
+                    continue
+                uid = entity.unique_id or ""
+                if self.ieee.lower() in uid.lower() and uid.endswith("257"):
+                    _LOGGER.debug("Waking lock via %s", entity.entity_id)
+                    await self.hass.services.async_call(
+                        "lock", "lock",
+                        {"entity_id": entity.entity_id},
+                        blocking=True,
+                    )
+                    await asyncio.sleep(1)
+                    return
+        except Exception:
+            _LOGGER.debug("Wake attempt failed, proceeding anyway")
+
     async def _send_cluster_command(self, command: int, params: dict) -> bool:
         """Send a ZCL command, handling Nimly response quirk.
 
-        Uses ZHA's issue_zigbee_cluster_command service which has extended
-        timeout handling for sleepy battery devices.
+        Tries ZHA issue_zigbee_cluster_command first. If it times out,
+        wakes the lock and retries once.
 
         Returns True if command was sent (even if response parsing failed).
         Returns False if command could not be sent at all.
         """
-        try:
-            await self.hass.services.async_call(
-                "zha",
-                "issue_zigbee_cluster_command",
-                {
-                    "ieee": self.ieee,
-                    "endpoint_id": 11,
-                    "cluster_id": DOORLOCK_CLUSTER_ID,
-                    "cluster_type": "in",
-                    "command": command,
-                    "command_type": "server",
-                    "params": params,
-                },
-                blocking=True,
-            )
-            return True
-        except IndexError:
-            # Nimly quirk: command was sent and received, but response
-            # format is unexpected causing "tuple index out of range"
-            # in zigpy response parsing. Command still reached the lock.
-            _LOGGER.debug(
-                "Nimly response quirk (IndexError) for command 0x%04x — "
-                "command was sent successfully",
-                command,
-            )
-            return True
-        except asyncio.TimeoutError:
-            _LOGGER.warning(
-                "Timeout sending command 0x%04x to %s — "
-                "lock may be asleep, press a button and retry",
-                command,
-                self.ieee,
-            )
-            return False
-        except Exception:
-            _LOGGER.exception("Failed to send command 0x%04x to %s", command, self.ieee)
-            return False
+        for attempt in range(2):
+            try:
+                await self.hass.services.async_call(
+                    "zha",
+                    "issue_zigbee_cluster_command",
+                    {
+                        "ieee": self.ieee,
+                        "endpoint_id": 11,
+                        "cluster_id": DOORLOCK_CLUSTER_ID,
+                        "cluster_type": "in",
+                        "command": command,
+                        "command_type": "server",
+                        "params": params,
+                    },
+                    blocking=True,
+                )
+                return True
+            except IndexError:
+                # Nimly quirk: command was sent and received, but response
+                # format is unexpected causing "tuple index out of range"
+                # in zigpy response parsing. Command still reached the lock.
+                _LOGGER.debug(
+                    "Nimly response quirk (IndexError) for command 0x%04x — "
+                    "command was sent successfully",
+                    command,
+                )
+                return True
+            except (asyncio.TimeoutError, TimeoutError):
+                if attempt == 0:
+                    _LOGGER.info(
+                        "Timeout on attempt 1 for command 0x%04x — waking lock and retrying",
+                        command,
+                    )
+                    await self._wake_lock()
+                    continue
+                _LOGGER.warning(
+                    "Timeout sending command 0x%04x to %s after wake+retry — "
+                    "lock may be unreachable",
+                    command,
+                    self.ieee,
+                )
+                return False
+            except Exception:
+                _LOGGER.exception("Failed to send command 0x%04x to %s", command, self.ieee)
+                return False
+        return False
 
     # -- PIN operations --
 

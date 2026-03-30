@@ -1,7 +1,9 @@
 """Config flow and options flow for Onesti Lock."""
 from __future__ import annotations
 
+import asyncio
 import logging
+from typing import Any
 
 import voluptuous as vol
 
@@ -79,6 +81,53 @@ class NimlyProOptionsFlow(OptionsFlow):
 
     def __init__(self, config_entry: ConfigEntry) -> None:
         self._entry = config_entry
+        self._set_pin_task: asyncio.Task | None = None
+        self._set_pin_input: dict[str, Any] | None = None
+        self._set_pin_error: str | None = None
+        self._clear_pin_task: asyncio.Task | None = None
+        self._clear_pin_error: str | None = None
+
+    # -- Helpers --
+
+    def _build_set_pin_schema(
+        self, suggested: dict[str, Any] | None = None,
+    ) -> vol.Schema:
+        """Build set_pin form schema, optionally pre-filling values."""
+        slots = self._entry.options.get("slots", {})
+        slot_options = {}
+        for i in range(SLOT_FIRST_USER, SLOT_FIRST_USER + 10):
+            name = slots.get(str(i), {}).get("name", "")
+            label = f"Slot {i} — {name}" if name else f"Slot {i} — Ledig"
+            slot_options[str(i)] = label
+
+        schema = vol.Schema(
+            {
+                vol.Required("slot", default=str(SLOT_FIRST_USER)): vol.In(slot_options),
+                vol.Required("name"): str,
+                vol.Required("code"): str,
+            }
+        )
+        if suggested:
+            schema = self.add_suggested_values_to_schema(schema, suggested)
+        return schema
+
+    async def _do_set_pin(self) -> bool:
+        """Background task: send set_pin command to coordinator."""
+        inp = self._set_pin_input
+        assert inp is not None
+        coordinator = self.hass.data[DOMAIN][self._entry.entry_id]["coordinator"]
+        return await coordinator.set_pin(
+            int(inp["slot"]), inp["name"], inp["code"],
+        )
+
+    async def _do_clear_pin(self) -> bool:
+        """Background task: send clear_slot command to coordinator."""
+        inp = self._set_pin_input  # reused for clear_pin slot
+        assert inp is not None
+        coordinator = self.hass.data[DOMAIN][self._entry.entry_id]["coordinator"]
+        return await coordinator.clear_slot(int(inp["slot"]))
+
+    # -- Main menu --
 
     async def async_step_init(self, user_input=None) -> FlowResult:
         """Main menu: choose action."""
@@ -87,58 +136,83 @@ class NimlyProOptionsFlow(OptionsFlow):
             menu_options=["set_pin", "clear_pin", "view_slots"],
         )
 
-    async def async_step_set_pin(self, user_input=None) -> FlowResult:
-        """Set a PIN code for a slot."""
-        errors = {}
+    # -- Set PIN: form → progress → result --
 
-        if user_input is not None:
-            slot = int(user_input["slot"])
-            name = user_input["name"]
+    async def async_step_set_pin(self, user_input=None) -> FlowResult:
+        """Set a PIN code — show form, validate, start background task."""
+        errors: dict[str, str] = {}
+        suggested: dict[str, Any] | None = None
+
+        # Returning from failed progress step — show error with preserved input
+        if self._set_pin_error:
+            errors["base"] = self._set_pin_error
+            suggested = self._set_pin_input
+            self._set_pin_error = None
+        elif user_input is not None:
             code = user_input["code"]
 
             if not code.isdigit() or len(code) < 4 or len(code) > 8:
                 errors["code"] = "invalid_pin"
+                suggested = user_input
             else:
-                # Get coordinator and set PIN
-                coordinator = self.hass.data[DOMAIN][self._entry.entry_id]["coordinator"]
-                success = await coordinator.set_pin(slot, name, code)
-                if success:
-                    return self.async_create_entry(data=self._entry.options)
-                errors["base"] = "lock_unreachable"
-
-        # Build slot descriptions for the dropdown
-        slots = self._entry.options.get("slots", {})
-        slot_options = {}
-        for i in range(SLOT_FIRST_USER, SLOT_FIRST_USER + 10):
-            name = slots.get(str(i), {}).get("name", "")
-            label = f"Slot {i} — {name}" if name else f"Slot {i} — Ledig"
-            slot_options[str(i)] = label
+                # Input valid — store and kick off background task
+                self._set_pin_input = user_input
+                return await self.async_step_set_pin_progress()
 
         return self.async_show_form(
             step_id="set_pin",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("slot", default=str(SLOT_FIRST_USER)): vol.In(slot_options),
-                    vol.Required("name"): str,
-                    vol.Required("code"): str,
-                }
-            ),
+            data_schema=self._build_set_pin_schema(suggested),
             errors=errors,
         )
 
-    async def async_step_clear_pin(self, user_input=None) -> FlowResult:
-        """Clear a PIN code from a slot."""
-        errors = {}
+    async def async_step_set_pin_progress(
+        self, user_input=None,
+    ) -> FlowResult:
+        """Show spinner while set_pin runs in background."""
+        if not self._set_pin_task:
+            self._set_pin_task = self.hass.async_create_task(
+                self._do_set_pin()
+            )
 
-        if user_input is not None:
-            slot = int(user_input["slot"])
-            coordinator = self.hass.data[DOMAIN][self._entry.entry_id]["coordinator"]
-            success = await coordinator.clear_slot(slot)
+        return self.async_show_progress(
+            step_id="set_pin_progress",
+            progress_action="set_pin_progress",
+            progress_task=self._set_pin_task,
+        )
+
+    async def async_step_set_pin_progress_done(
+        self, user_input=None,
+    ) -> FlowResult:
+        """Called automatically when set_pin_task completes."""
+        # NOTE: HA calls this step when the progress_task finishes.
+        # The naming convention is {progress_action}_done.
+        task = self._set_pin_task
+        self._set_pin_task = None
+
+        try:
+            success = task.result()
+        except (asyncio.TimeoutError, TimeoutError):
+            _LOGGER.warning("Timeout setting PIN for %s", self._entry.entry_id)
+            self._set_pin_error = "lock_unreachable"
+        except Exception:
+            _LOGGER.exception("Unexpected error setting PIN for %s", self._entry.entry_id)
+            self._set_pin_error = "unknown"
+        else:
             if success:
+                self._set_pin_input = None
                 return self.async_create_entry(data=self._entry.options)
-            errors["base"] = "lock_unreachable"
+            self._set_pin_error = "lock_unreachable"
 
-        # Only show slots that have a PIN
+        # Error — route back to form with preserved input
+        return self.async_show_progress_done(next_step_id="set_pin")
+
+    # -- Clear PIN: form → progress → result --
+
+    async def async_step_clear_pin(self, user_input=None) -> FlowResult:
+        """Clear a PIN code — show form, start background task."""
+        errors: dict[str, str] = {}
+
+        # Build schema first to check for active slots
         slots = self._entry.options.get("slots", {})
         active_slots = {}
         for i in range(MAX_SLOTS):
@@ -151,13 +225,70 @@ class NimlyProOptionsFlow(OptionsFlow):
         if not active_slots:
             return self.async_abort(reason="no_active_slots")
 
+        if user_input is not None:
+            # Store input and kick off background task
+            self._set_pin_input = user_input  # reuse for slot reference
+            self._clear_pin_error = None
+            return await self.async_step_clear_pin_progress()
+
+        # Show form (possibly with error from previous attempt)
+        if self._clear_pin_error:
+            errors["base"] = self._clear_pin_error
+            self._clear_pin_error = None
+
+        suggested = self._set_pin_input if errors else None
+        schema = vol.Schema(
+            {vol.Required("slot"): vol.In(active_slots)}
+        )
+        if suggested:
+            schema = self.add_suggested_values_to_schema(schema, suggested)
+
         return self.async_show_form(
             step_id="clear_pin",
-            data_schema=vol.Schema(
-                {vol.Required("slot"): vol.In(active_slots)}
-            ),
+            data_schema=schema,
             errors=errors,
         )
+
+    async def async_step_clear_pin_progress(
+        self, user_input=None,
+    ) -> FlowResult:
+        """Show spinner while clear_pin runs in background."""
+        if not self._clear_pin_task:
+            self._clear_pin_task = self.hass.async_create_task(
+                self._do_clear_pin()
+            )
+
+        return self.async_show_progress(
+            step_id="clear_pin_progress",
+            progress_action="clear_pin_progress",
+            progress_task=self._clear_pin_task,
+        )
+
+    async def async_step_clear_pin_progress_done(
+        self, user_input=None,
+    ) -> FlowResult:
+        """Called automatically when clear_pin_task completes."""
+        task = self._clear_pin_task
+        self._clear_pin_task = None
+
+        try:
+            success = task.result()
+        except (asyncio.TimeoutError, TimeoutError):
+            _LOGGER.warning("Timeout clearing PIN for %s", self._entry.entry_id)
+            self._clear_pin_error = "lock_unreachable"
+        except Exception:
+            _LOGGER.exception("Unexpected error clearing PIN for %s", self._entry.entry_id)
+            self._clear_pin_error = "unknown"
+        else:
+            if success:
+                self._set_pin_input = None
+                return self.async_create_entry(data=self._entry.options)
+            self._clear_pin_error = "lock_unreachable"
+
+        # Error — route back to form with preserved input
+        return self.async_show_progress_done(next_step_id="clear_pin")
+
+    # -- View slots --
 
     async def async_step_view_slots(self, user_input=None) -> FlowResult:
         """View current slot status — shown as description text."""

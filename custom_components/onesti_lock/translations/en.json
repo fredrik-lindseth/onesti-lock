@@ -27,7 +27,7 @@
       },
       "set_pin": {
         "title": "Set PIN code",
-        "description": "Select slot, enter name and PIN code (4-8 digits). Wake the lock first!",
+        "description": "Select slot, enter name and PIN code (4-8 digits).",
         "data": {
           "slot": "User slot",
           "name": "Name",
@@ -36,7 +36,7 @@
       },
       "clear_pin": {
         "title": "Clear PIN code",
-        "description": "Select user to remove. Wake the lock first!",
+        "description": "Select user to remove.",
         "data": {
           "slot": "User"
         }
@@ -46,9 +46,14 @@
         "description": "{slot_status}"
       }
     },
+    "progress": {
+      "set_pin_progress": "Sending PIN code to the lock...",
+      "clear_pin_progress": "Clearing PIN code from the lock..."
+    },
     "error": {
       "invalid_pin": "PIN code must be 4-8 digits",
-      "lock_unreachable": "Could not reach the lock — press a button on the lock and try again"
+      "lock_unreachable": "Could not reach the lock. Press the keypad and try again.",
+      "unknown": "An unexpected error occurred. Check the logs."
     },
     "abort": {
       "no_active_slots": "No active PIN codes to remove"

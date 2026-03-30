@@ -180,7 +180,7 @@ class NimlyCoordinator:
                     command,
                 )
                 return True
-            except (asyncio.TimeoutError, TimeoutError):
+            except TimeoutError:
                 if attempt == 0:
                     _LOGGER.info(
                         "Timeout on attempt 1 for command 0x%04x — waking lock and retrying",

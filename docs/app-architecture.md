@@ -126,6 +126,8 @@ Feilkode-prefikser:
 - `380106-380111` — Passordfeil
 - `380125-380126` — Auth/tilkoblingsfeil
 
+> Komplett CAS-feilkodetabell: docs/reversing-notes.md
+
 ## Event-system
 
 Doorlock-events rapporteres via:
@@ -142,6 +144,8 @@ doorlock-access-deleted      — tilgang slettet
 doorlock-failed-to-lock      — låsing feilet
 doorlock-access-updated      — tilgang oppdatert
 ```
+
+> Zigbee-level event-format: docs/zigbee-captures.md
 
 ## App-økosystem
 

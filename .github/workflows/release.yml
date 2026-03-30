@@ -72,7 +72,7 @@ jobs:
             
             ---
             
-            **Full Changelog**: https://github.com/fredrik-lindseth/nimly-touch-pro-integration/compare/${{ steps.changelog.outputs.prev_tag || 'initial' }}...v${{ steps.version.outputs.version }}
+            **Full Changelog**: https://github.com/fredrik-lindseth/onesti-lock/compare/${{ steps.changelog.outputs.prev_tag || 'initial' }}...v${{ steps.version.outputs.version }}
           draft: false
           prerelease: false
 

@@ -18,9 +18,9 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install linters
+      - name: Install dependencies
         run: |
-          pip install ruff
+          pip install ruff pytest
 
       - name: Validate manifest
         run: |
@@ -54,6 +54,10 @@ jobs:
         run: |
           ruff check custom_components/onesti_lock/ --ignore E501,F401
           echo "Ruff linting passed"
+
+      - name: Run tests
+        run: |
+          pytest tests/ -v
 
       - name: Check version consistency
         run: |

@@ -11,7 +11,6 @@ from homeassistant.config_entries import (
     ConfigFlow,
     ConfigFlowResult,
     OptionsFlow,
-    OptionsFlowResult,
 )
 
 from .const import (
@@ -133,7 +132,7 @@ class NimlyProOptionsFlow(OptionsFlow):
 
     # -- Main menu --
 
-    async def async_step_init(self, user_input=None) -> OptionsFlowResult:
+    async def async_step_init(self, user_input=None) -> ConfigFlowResult:
         """Main menu: choose action."""
         return self.async_show_menu(
             step_id="init",
@@ -142,7 +141,7 @@ class NimlyProOptionsFlow(OptionsFlow):
 
     # -- Set PIN: form → progress → result --
 
-    async def async_step_set_pin(self, user_input=None) -> OptionsFlowResult:
+    async def async_step_set_pin(self, user_input=None) -> ConfigFlowResult:
         """Set a PIN code — show form, validate, start background task."""
         errors: dict[str, str] = {}
         suggested: dict[str, Any] | None = None
@@ -171,7 +170,7 @@ class NimlyProOptionsFlow(OptionsFlow):
 
     async def async_step_set_pin_progress(
         self, user_input=None,
-    ) -> OptionsFlowResult:
+    ) -> ConfigFlowResult:
         """Show spinner while set_pin runs in background."""
         if not self._set_pin_task:
             self._set_pin_task = self.hass.async_create_task(
@@ -186,7 +185,7 @@ class NimlyProOptionsFlow(OptionsFlow):
 
     async def async_step_set_pin_progress_done(
         self, user_input=None,
-    ) -> OptionsFlowResult:
+    ) -> ConfigFlowResult:
         """Called automatically when set_pin_task completes."""
         # NOTE: HA calls this step when the progress_task finishes.
         # The naming convention is {progress_action}_done.
@@ -212,7 +211,7 @@ class NimlyProOptionsFlow(OptionsFlow):
 
     # -- Clear PIN: form → progress → result --
 
-    async def async_step_clear_pin(self, user_input=None) -> OptionsFlowResult:
+    async def async_step_clear_pin(self, user_input=None) -> ConfigFlowResult:
         """Clear a PIN code — show form, start background task."""
         errors: dict[str, str] = {}
 
@@ -255,7 +254,7 @@ class NimlyProOptionsFlow(OptionsFlow):
 
     async def async_step_clear_pin_progress(
         self, user_input=None,
-    ) -> OptionsFlowResult:
+    ) -> ConfigFlowResult:
         """Show spinner while clear_pin runs in background."""
         if not self._clear_pin_task:
             self._clear_pin_task = self.hass.async_create_task(
@@ -270,7 +269,7 @@ class NimlyProOptionsFlow(OptionsFlow):
 
     async def async_step_clear_pin_progress_done(
         self, user_input=None,
-    ) -> OptionsFlowResult:
+    ) -> ConfigFlowResult:
         """Called automatically when clear_pin_task completes."""
         task = self._clear_pin_task
         self._clear_pin_task = None
@@ -294,7 +293,7 @@ class NimlyProOptionsFlow(OptionsFlow):
 
     # -- Name slot (for RFID, fingerprint, etc.) --
 
-    async def async_step_name_slot(self, user_input=None) -> OptionsFlowResult:
+    async def async_step_name_slot(self, user_input=None) -> ConfigFlowResult:
         """Assign a name to any slot (for RFID tags, fingerprints, etc.)."""
         if user_input is not None:
             slot = int(user_input["slot"])
@@ -315,7 +314,7 @@ class NimlyProOptionsFlow(OptionsFlow):
 
     # -- View slots --
 
-    async def async_step_view_slots(self, user_input=None) -> OptionsFlowResult:
+    async def async_step_view_slots(self, user_input=None) -> ConfigFlowResult:
         """View current slot status — shown as description text."""
         slots = self._entry.options.get("slots", {})
         lines = []

@@ -44,8 +44,11 @@ class TestConfigFlowImports:
             source = f.read()
         assert "ConfigFlowResult" in source
 
-    def test_uses_options_flow_result(self):
-        """Options flow steps should return OptionsFlowResult."""
+    def test_no_options_flow_result(self):
+        """Must not use OptionsFlowResult — it doesn't exist in HA.
+
+        Options flow methods should use ConfigFlowResult instead.
+        """
         with open(_config_flow_path()) as f:
             source = f.read()
-        assert "OptionsFlowResult" in source
+        assert "OptionsFlowResult" not in source

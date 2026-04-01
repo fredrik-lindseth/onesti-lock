@@ -63,7 +63,7 @@ class NimlyCoordinator:
 
     async def set_slot_name(self, slot: int, name: str) -> None:
         """Set name for a slot (does not send ZCL command)."""
-        self._slots[str(slot)]["name"] = name
+        self._slots.setdefault(str(slot), {**DEFAULT_SLOT})["name"] = name
         await self._save_slots()
         self._notify_listeners()
 
@@ -215,8 +215,9 @@ class NimlyCoordinator:
             },
         )
         if success:
-            self._slots[str(slot)]["name"] = name
-            self._slots[str(slot)]["has_pin"] = True
+            slot_data = self._slots.setdefault(str(slot), {**DEFAULT_SLOT})
+            slot_data["name"] = name
+            slot_data["has_pin"] = True
             await self._save_slots()
             self._notify_listeners()
         return success
@@ -228,7 +229,7 @@ class NimlyCoordinator:
             {"user_id": slot},
         )
         if success:
-            self._slots[str(slot)]["has_pin"] = False
+            self._slots.setdefault(str(slot), {**DEFAULT_SLOT})["has_pin"] = False
             await self._save_slots()
             self._notify_listeners()
         return success

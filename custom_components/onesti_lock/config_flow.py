@@ -12,6 +12,7 @@ from homeassistant.config_entries import (
     ConfigFlowResult,
     OptionsFlow,
 )
+from homeassistant.core import callback
 
 from .const import (
     CONF_IEEE,
@@ -32,8 +33,9 @@ class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 2
 
     @staticmethod
+    @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
-        return NimlyProOptionsFlow(config_entry)
+        return NimlyProOptionsFlow()
 
     async def async_step_user(self, user_input=None) -> ConfigFlowResult:
         """Handle user step — select a Nimly lock from ZHA."""
@@ -82,13 +84,11 @@ class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
 class NimlyProOptionsFlow(OptionsFlow):
     """Options flow for Onesti Lock — PIN code management UI."""
 
-    def __init__(self, config_entry: ConfigEntry) -> None:
-        self._entry = config_entry
-        self._set_pin_task: asyncio.Task | None = None
-        self._set_pin_input: dict[str, Any] | None = None
-        self._set_pin_error: str | None = None
-        self._clear_pin_task: asyncio.Task | None = None
-        self._clear_pin_error: str | None = None
+    _set_pin_task: asyncio.Task | None = None
+    _set_pin_input: dict[str, Any] | None = None
+    _set_pin_error: str | None = None
+    _clear_pin_task: asyncio.Task | None = None
+    _clear_pin_error: str | None = None
 
     # -- Helpers --
 
@@ -96,7 +96,7 @@ class NimlyProOptionsFlow(OptionsFlow):
         self, suggested: dict[str, Any] | None = None,
     ) -> vol.Schema:
         """Build set_pin form schema, optionally pre-filling values."""
-        slots = self._entry.options.get("slots", {})
+        slots = self.config_entry.options.get("slots", {})
         slot_options = {}
         for i in range(SLOT_FIRST_USER, SLOT_FIRST_USER + 10):
             name = slots.get(str(i), {}).get("name", "")
@@ -118,7 +118,7 @@ class NimlyProOptionsFlow(OptionsFlow):
         """Background task: send set_pin command to coordinator."""
         inp = self._set_pin_input
         assert inp is not None
-        coordinator = self.hass.data[DOMAIN][self._entry.entry_id]["coordinator"]
+        coordinator = self.hass.data[DOMAIN][self.config_entry.entry_id]["coordinator"]
         return await coordinator.set_pin(
             int(inp["slot"]), inp["name"], inp["code"],
         )
@@ -127,7 +127,7 @@ class NimlyProOptionsFlow(OptionsFlow):
         """Background task: send clear_slot command to coordinator."""
         inp = self._set_pin_input  # reused for clear_pin slot
         assert inp is not None
-        coordinator = self.hass.data[DOMAIN][self._entry.entry_id]["coordinator"]
+        coordinator = self.hass.data[DOMAIN][self.config_entry.entry_id]["coordinator"]
         return await coordinator.clear_slot(int(inp["slot"]))
 
     # -- Main menu --
@@ -195,15 +195,15 @@ class NimlyProOptionsFlow(OptionsFlow):
         try:
             success = task.result()
         except TimeoutError:
-            _LOGGER.warning("Timeout setting PIN for %s", self._entry.entry_id)
+            _LOGGER.warning("Timeout setting PIN for %s", self.config_entry.entry_id)
             self._set_pin_error = "lock_unreachable"
         except Exception:
-            _LOGGER.exception("Unexpected error setting PIN for %s", self._entry.entry_id)
+            _LOGGER.exception("Unexpected error setting PIN for %s", self.config_entry.entry_id)
             self._set_pin_error = "unknown"
         else:
             if success:
                 self._set_pin_input = None
-                return self.async_create_entry(data=self._entry.options)
+                return self.async_create_entry(data=self.config_entry.options)
             self._set_pin_error = "lock_unreachable"
 
         # Error — route back to form with preserved input
@@ -216,7 +216,7 @@ class NimlyProOptionsFlow(OptionsFlow):
         errors: dict[str, str] = {}
 
         # Build schema first to check for active slots
-        slots = self._entry.options.get("slots", {})
+        slots = self.config_entry.options.get("slots", {})
         active_slots = {}
         for i in range(MAX_SLOTS):
             slot_data = slots.get(str(i), {})
@@ -277,15 +277,15 @@ class NimlyProOptionsFlow(OptionsFlow):
         try:
             success = task.result()
         except TimeoutError:
-            _LOGGER.warning("Timeout clearing PIN for %s", self._entry.entry_id)
+            _LOGGER.warning("Timeout clearing PIN for %s", self.config_entry.entry_id)
             self._clear_pin_error = "lock_unreachable"
         except Exception:
-            _LOGGER.exception("Unexpected error clearing PIN for %s", self._entry.entry_id)
+            _LOGGER.exception("Unexpected error clearing PIN for %s", self.config_entry.entry_id)
             self._clear_pin_error = "unknown"
         else:
             if success:
                 self._set_pin_input = None
-                return self.async_create_entry(data=self._entry.options)
+                return self.async_create_entry(data=self.config_entry.options)
             self._clear_pin_error = "lock_unreachable"
 
         # Error — route back to form with preserved input
@@ -298,9 +298,9 @@ class NimlyProOptionsFlow(OptionsFlow):
         if user_input is not None:
             slot = int(user_input["slot"])
             name = user_input["name"]
-            coordinator = self.hass.data[DOMAIN][self._entry.entry_id]["coordinator"]
+            coordinator = self.hass.data[DOMAIN][self.config_entry.entry_id]["coordinator"]
             await coordinator.set_slot_name(slot, name)
-            return self.async_create_entry(data=self._entry.options)
+            return self.async_create_entry(data=self.config_entry.options)
 
         return self.async_show_form(
             step_id="name_slot",
@@ -316,7 +316,7 @@ class NimlyProOptionsFlow(OptionsFlow):
 
     async def async_step_view_slots(self, user_input=None) -> ConfigFlowResult:
         """View current slot status — shown as description text."""
-        slots = self._entry.options.get("slots", {})
+        slots = self.config_entry.options.get("slots", {})
         lines = []
         for i in range(SLOT_FIRST_USER, SLOT_FIRST_USER + 10):
             slot_data = slots.get(str(i), {})

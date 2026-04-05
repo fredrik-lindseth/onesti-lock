@@ -192,10 +192,10 @@ class TestOptionsFlowStructure:
 
 
 class TestOptionsFlowInstanceVars:
-    """Verify the options flow has required instance variables."""
+    """Verify the options flow has required class/instance variables."""
 
     def test_has_task_and_error_vars(self):
-        """__init__ must declare all progress-related instance variables."""
+        """Class must declare all progress-related variables."""
         source = _load_source()
         assert "_set_pin_task" in source
         assert "_set_pin_input" in source

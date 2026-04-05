@@ -52,3 +52,29 @@ class TestConfigFlowImports:
         with open(_config_flow_path()) as f:
             source = f.read()
         assert "OptionsFlowResult" not in source
+
+    def test_options_flow_no_config_entry_in_constructor(self):
+        """OptionsFlow should not take config_entry in __init__.
+
+        Modern HA auto-populates self.config_entry. Passing it to
+        the constructor is the deprecated OptionsFlowWithConfigEntry pattern.
+        """
+        tree = _parse_config_flow()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef) and "OptionsFlow" in node.name:
+                for item in node.body:
+                    if isinstance(item, ast.FunctionDef) and item.name == "__init__":
+                        # __init__ should not have config_entry parameter
+                        args = [a.arg for a in item.args.args if a.arg != "self"]
+                        assert "config_entry" not in args, (
+                            "OptionsFlow should not take config_entry in __init__ — "
+                            "use self.config_entry (auto-populated by HA)"
+                        )
+
+    def test_options_flow_uses_self_config_entry(self):
+        """OptionsFlow should use self.config_entry, not self._entry."""
+        with open(_config_flow_path()) as f:
+            source = f.read()
+        assert "self._entry" not in source, (
+            "Use self.config_entry (auto-populated) instead of self._entry"
+        )

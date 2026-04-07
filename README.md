@@ -54,7 +54,7 @@ These are all the same hardware by **Onesti Products AS** — different branding
 
 ## Setup
 
-1. Pair the lock with ZHA (the lock's Zigbee Connect Module must be installed)
+1. Pair the lock with **ZHA** (the lock's Zigbee Connect Module must be installed). Zigbee2MQTT is not supported.
 2. **Settings → Devices & Services → Add Integration → Onesti Lock**
 3. Select your lock from the list
 4. Done — slot sensors and activity sensor appear automatically
@@ -118,17 +118,25 @@ Three automation blueprints are included:
 - **Goodnight lock** — lock the door automatically at a set time
 - **Unlock notification** — notify when someone unlocks, with user and method
 
+## Requirements
+
+This integration requires **ZHA** (Zigbee Home Automation). It does **not** work with Zigbee2MQTT. The lock's custom attribute 0x0100 is decoded via ZHA cluster events, which Z2M does not expose in the same way.
+
 ## Limitations
 
-1. **PIN verification** — the lock returns a malformed ZCL response. The command reaches the lock, but we can't confirm success programmatically. Always test the code on the keypad.
+1. **ZHA only** — Zigbee2MQTT is not supported. Z2M has partial support via the `onesti.ts` converter but cannot provide user identification.
 
-2. **Sleepy device** — the lock sleeps aggressively to save battery. Commands may timeout on first attempt. The integration auto-wakes and retries, but place a Zigbee router near the door for best results.
+2. **PIN verification** — the lock returns a malformed ZCL response. The command reaches the lock, but we can't confirm success programmatically. Always test the code on the keypad.
 
-3. **Attribute reporting after battery change** — the lock may stop sending activity events after a battery change. Try "Reconfigure" in ZHA (wake the lock first by entering a code). If that fails, remove and re-pair the lock.
+3. **Sleepy device** — the lock sleeps aggressively to save battery. Commands may timeout on first attempt. The integration auto-wakes and retries, but place a Zigbee router right next to the door. The metal casing acts as a Faraday cage.
 
-4. **RFID/fingerprint enrollment** — can only be done via the physical keypad or BLE app, not via Zigbee.
+4. **Attribute reporting after battery change** — the lock may stop sending activity events after a battery change. Try "Reconfigure" in ZHA (wake the lock first by entering a code). If that fails, remove and re-pair the lock.
 
-5. **Slot state drift** — if PINs are changed via the physical keypad or another app, the integration's slot data may be out of sync. Use "View slots" to check.
+5. **RFID/fingerprint enrollment** — can only be done via the physical keypad or BLE app, not via Zigbee.
+
+6. **Slot state drift** — if PINs are changed via the physical keypad or another app, the integration's slot data may be out of sync. Use "View slots" to check.
+
+7. **No OTA firmware updates** — the Zigbee module does not support over-the-air updates.
 
 ## Why this instead of the Nimly app?
 
@@ -141,12 +149,22 @@ Three automation blueprints are included:
 | **Privacy**             | All events to AWS          | **Everything stays local** |
 | **Cost**                | Hub + cloud account        | **Free and open source**   |
 
+## If you're buying a new lock
+
+If you don't already own a Nimly/Onesti lock, consider a **Matter over Thread** lock instead. HA 2026.4 has [native PIN management for Matter locks](https://www.home-assistant.io/blog/2026/04/01/release-20264/) directly in the UI, which makes custom integrations like this one unnecessary.
+
+Matter lock support in HA is still maturing (as of April 2026), but the direction is clear: standardized user management, reliable Thread communication without sleepy device workarounds, and no custom integration to maintain.
+
+For Scandinavian doors, look at Nuki Smart Lock Ultra Nordics, Aqara U200, or Tedee GO2 with Scandinavian adapter.
+
+If you already have a Nimly/Onesti lock, this integration is the best option available. It works today on stable ZHA.
+
 ## Alternative approaches (and why they don't work)
 
 If you're researching how to integrate these locks, here's what we've tried:
 
 - **Standard ZHA** — shows lock/unlock state, but cannot identify _who_ unlocked or _how_. Custom attribute 0x0100 is not decoded.
-- **Zigbee2MQTT** — has better support via `onesti.ts` converter, but still limited user identification.
+- **Zigbee2MQTT** — has partial support via `onesti.ts` converter, but no user identification and this integration does not work with Z2M.
 - **Nimly Connect app** — requires Connect Bridge hub, routes through iotiliti cloud, no HA automations without PRO Hub.
 - **Nimly BLE app** — direct BLE to lock, but no Home Assistant integration and must be near the lock.
 - **Cloud API (iotiliti)** — we've reverse-engineered the full REST API, but device listing is blocked (see `docs/cloud-api-status.md`).

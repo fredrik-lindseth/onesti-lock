@@ -10,7 +10,7 @@
       }
     },
     "abort": {
-      "zha_not_found": "ZHA integration not found. Set up ZHA first.",
+      "zha_not_found": "ZHA integration not found or not configured. This integration requires ZHA to decode custom Zigbee attribute reports for user identification. Zigbee2MQTT does not expose these events in the same way.",
       "no_devices_found": "No Onesti Lock locks found in ZHA.",
       "already_configured": "This lock is already configured."
     }

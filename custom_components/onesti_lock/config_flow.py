@@ -43,7 +43,7 @@ class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="zha_not_found")
 
         zha_data = self.hass.data[ZHA_DOMAIN]
-        if not hasattr(zha_data, "gateway_proxy"):
+        if not hasattr(zha_data, "gateway_proxy") or zha_data.gateway_proxy is None:
             return self.async_abort(reason="zha_not_found")
 
         devices = {}

@@ -10,7 +10,7 @@
       }
     },
     "abort": {
-      "zha_not_found": "ZHA-integration hittades inte. Konfigurera ZHA först.",
+      "zha_not_found": "ZHA-integration hittades inte eller är inte konfigurerad. Denna integration kräver ZHA för att avkoda anpassade Zigbee-attributrapporter för användaridentifiering. Zigbee2MQTT exponerar inte dessa händelser på samma sätt.",
       "no_devices_found": "Inga Onesti Lock-lås hittades i ZHA.",
       "already_configured": "Det här låset är redan konfigurerat."
     }

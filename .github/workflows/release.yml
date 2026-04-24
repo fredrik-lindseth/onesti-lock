@@ -39,27 +39,71 @@ jobs:
         id: changelog
         if: steps.check_release.outputs.exists == 'false'
         run: |
-          # Get all tags, find the one before current version
           CURRENT_VERSION="v${{ steps.version.outputs.version }}"
           PREV_TAG=$(git tag --sort=-version:refname | grep -v "$CURRENT_VERSION" | head -n 1)
-          
+
+          echo "prev_tag=${PREV_TAG}" >> $GITHUB_OUTPUT
+
           if [ -z "$PREV_TAG" ]; then
-            # First release - get recent commits (limit to 20)
-            COMMITS=$(git log --pretty=format:"- %s" --no-merges -20)
-            echo "First release - showing recent commits"
+            RANGE=""
+            RANGE_DESC="first release"
           else
-            # Get commits since previous tag
-            COMMITS=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s" --no-merges)
-            echo "Commits since $PREV_TAG"
+            RANGE="${PREV_TAG}..HEAD"
+            RANGE_DESC="since ${PREV_TAG}"
           fi
-          
-          if [ -z "$COMMITS" ]; then
-            COMMITS="- Initial release"
+
+          # Group commits by conventional commit prefix
+          declare -A sections=(
+            ["feat"]="### Features"
+            ["fix"]="### Bug fixes"
+            ["docs"]="### Documentation"
+            ["chore"]="### Chores"
+            ["refactor"]="### Refactoring"
+            ["test"]="### Tests"
+            ["ci"]="### CI/CD"
+          )
+          order=("feat" "fix" "docs" "refactor" "test" "ci" "chore")
+
+          body=""
+          for prefix in "${order[@]}"; do
+            if [ -z "$PREV_TAG" ]; then
+              commits=$(git log --pretty=format:"%s" --no-merges -20 | grep -E "^${prefix}(\(.+\))?!?:" || true)
+            else
+              commits=$(git log ${RANGE} --pretty=format:"%s" --no-merges | grep -E "^${prefix}(\(.+\))?!?:" || true)
+            fi
+            if [ -n "$commits" ]; then
+              body="${body}${sections[$prefix]}"$'\n\n'
+              while IFS= read -r line; do
+                # Strip "prefix: " or "prefix(scope): " from the start
+                clean=$(echo "$line" | sed -E "s/^${prefix}(\(.+\))?!?:\s*//")
+                body="${body}- ${clean}"$'\n'
+              done <<< "$commits"
+              body="${body}"$'\n'
+            fi
+          done
+
+          # Fallback: any commits that didn't match known prefixes
+          if [ -z "$PREV_TAG" ]; then
+            other=$(git log --pretty=format:"%s" --no-merges -20 | grep -vE "^(feat|fix|docs|chore|refactor|test|ci)(\(.+\))?!?:" || true)
+          else
+            other=$(git log ${RANGE} --pretty=format:"%s" --no-merges | grep -vE "^(feat|fix|docs|chore|refactor|test|ci)(\(.+\))?!?:" || true)
           fi
-          
-          echo "commits<<EOF" >> $GITHUB_OUTPUT
-          echo "$COMMITS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          if [ -n "$other" ]; then
+            body="${body}### Other"$'\n\n'
+            while IFS= read -r line; do
+              body="${body}- ${line}"$'\n'
+            done <<< "$other"
+          fi
+
+          if [ -z "$body" ]; then
+            body="No commits ${RANGE_DESC}."
+          fi
+
+          {
+            echo "body<<EOF"
+            echo "$body"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
 
       - name: Create Release
         if: steps.check_release.outputs.exists == 'false'
@@ -68,13 +112,11 @@ jobs:
           tag_name: v${{ steps.version.outputs.version }}
           name: v${{ steps.version.outputs.version }}
           body: |
-            ## Changes
-            
-            ${{ steps.changelog.outputs.commits }}
-            
+            ${{ steps.changelog.outputs.body }}
+
             ---
-            
-            **Full Changelog**: https://github.com/fredrik-lindseth/onesti-lock/compare/${{ steps.changelog.outputs.prev_tag || 'initial' }}...v${{ steps.version.outputs.version }}
+
+            **Full changelog**: https://github.com/fredrik-lindseth/onesti-lock/compare/${{ steps.changelog.outputs.prev_tag }}...v${{ steps.version.outputs.version }}
           draft: false
           prerelease: false
 

@@ -91,8 +91,8 @@ class NimlyCoordinator:
     async def read_lock_capabilities(self) -> None:
         """Read static lock properties from the DoorLock cluster.
 
-        Populates lock_capabilities with max_pin_users, min_pin_length,
-        max_pin_length. Degrades silently if the lock does not expose them —
+        Populates lock_capabilities with num_pin_users, max_pin_length,
+        min_pin_length. Degrades silently if the lock does not expose them —
         some Onesti variants skip these standard ZCL attributes, and a sleepy
         device may never respond.
         """

@@ -1,7 +1,7 @@
 """Tests for lock capabilities read at setup.
 
-Verifies that the coordinator exposes max_pin_users, min_pin_length,
-max_pin_length as attributes when the lock reports them.
+Verifies that the coordinator exposes num_pin_users, max_pin_length,
+min_pin_length as attributes when the lock reports them.
 """
 from __future__ import annotations
 

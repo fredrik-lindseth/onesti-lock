@@ -99,15 +99,15 @@ class NimlyCoordinator:
         cluster = self._get_cluster()
         if cluster is None:
             return
-        # Standard ZCL DoorLock attributes:
+        # Standard ZCL DoorLock attributes (per zigpy.zcl.clusters.closures):
         #   0x0012 NumberOfPINUsersSupported
-        #   0x0017 MinPINCodeLength
-        #   0x0018 MaxPINCodeLength
+        #   0x0017 MaxPINCodeLength
+        #   0x0018 MinPINCodeLength
         attr_ids = [0x0012, 0x0017, 0x0018]
         attr_names = {
-            0x0012: "max_pin_users",
-            0x0017: "min_pin_length",
-            0x0018: "max_pin_length",
+            0x0012: "num_pin_users",
+            0x0017: "max_pin_length",
+            0x0018: "min_pin_length",
         }
         try:
             result = await cluster.read_attributes(attr_ids)

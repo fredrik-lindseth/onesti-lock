@@ -37,10 +37,22 @@ class TestLockCapabilities:
     def test_reads_standard_zcl_capability_attributes(self):
         """Must read 0x0012, 0x0017, 0x0018 (standard ZCL DoorLock attributes)."""
         source = _source()
-        # Standard ZCL: NumberOfPINUsersSupported, MinPINCodeLength, MaxPINCodeLength
+        # Standard ZCL: NumberOfPINUsersSupported, MaxPINCodeLength, MinPINCodeLength
         assert "0x0012" in source
         assert "0x0017" in source
         assert "0x0018" in source
+
+    def test_attribute_mapping_matches_zcl_spec(self):
+        """Attribute IDs must map to the correct names per zigpy.
+
+        Verified against live NimlyPRO: 0x0012=50 (num users), 0x0017=8 (max len),
+        0x0018=4 (min len). Source: zigpy.zcl.clusters.closures.DoorLock.
+        """
+        source = _source()
+        # 0x0017 must be max_pin_length (not min)
+        assert '0x0017: "max_pin_length"' in source
+        # 0x0018 must be min_pin_length (not max)
+        assert '0x0018: "min_pin_length"' in source
 
     def test_handles_missing_capabilities_silently(self):
         """Must not crash if lock doesn't expose capabilities — some variants don't."""

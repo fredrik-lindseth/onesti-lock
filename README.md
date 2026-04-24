@@ -111,7 +111,7 @@ Per configured lock:
 The activity sensor also exposes these attributes when the lock reports them:
 
 - `last_pin_code` — actual PIN digits from the last keypad unlock (attribute 0x0101)
-- `max_pin_users` — number of PIN user slots supported
+- `num_pin_users` — number of PIN user slots supported
 - `min_pin_length` / `max_pin_length` — PIN length bounds
 
 The activity sensor fires `onesti_lock_activity` events for use in automations.

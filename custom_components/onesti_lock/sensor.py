@@ -95,6 +95,7 @@ class NimlyActivitySensor(SensorEntity):
         self._attr_unique_id = f"{coordinator.ieee}-activity"
         self._attr_translation_key = "last_activity"
         self._activity: dict = {}
+        self._last_pin_code: str | None = None
 
     @property
     def name(self) -> str:
@@ -130,7 +131,12 @@ class NimlyActivitySensor(SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict:
-        return dict(self._activity) if self._activity else {}
+        attrs = dict(self._activity) if self._activity else {}
+        if self._last_pin_code is not None:
+            attrs["last_pin_code"] = self._last_pin_code
+        if self._coordinator.lock_capabilities:
+            attrs.update(self._coordinator.lock_capabilities)
+        return attrs
 
     @property
     def device_info(self):
@@ -161,4 +167,9 @@ class NimlyActivitySensor(SensorEntity):
             "source": source,
             "timestamp": datetime.now().isoformat(),
         }
+        self.async_write_ha_state()
+
+    def update_last_pin_code(self, pin_code: str | None) -> None:
+        """Called by coordinator when attrid 0x0101 reports a PIN."""
+        self._last_pin_code = pin_code
         self.async_write_ha_state()

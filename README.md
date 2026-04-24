@@ -108,7 +108,22 @@ Per configured lock:
 - `sensor.*_slot_3` through `sensor.*_slot_12` — slot occupant name, `has_pin`/`has_rfid` attributes
 - `sensor.*_siste_aktivitet` — last activity ("Kari låste opp med kode", "Auto-lås")
 
+The activity sensor also exposes these attributes when the lock reports them:
+
+- `last_pin_code` — actual PIN digits from the last keypad unlock (attribute 0x0101)
+- `max_pin_users` — number of PIN user slots supported
+- `min_pin_length` / `max_pin_length` — PIN length bounds
+
 The activity sensor fires `onesti_lock_activity` events for use in automations.
+
+**Privacy note:** `last_pin_code` contains the actual digits typed, including the master code if it was used. HA's recorder persists sensor attributes to its SQLite history, so recent PINs are retrievable by anyone with `history.read` access. If this is a concern, exclude the activity sensor from the recorder:
+
+```yaml
+recorder:
+  exclude:
+    entity_glob:
+      - sensor.*_siste_aktivitet
+```
 
 ## Blueprints
 
@@ -159,12 +174,35 @@ For Scandinavian doors, look at Nuki Smart Lock Ultra Nordics, Aqara U200, or Te
 
 If you already have a Nimly/Onesti lock, this integration is the best option available. It works today on stable ZHA.
 
+## Comparison with Zigbee2MQTT
+
+Z2M has an `onesti.ts` converter that supports these locks. This integration decodes the same Onesti attributes and aims for feature parity. The key differences:
+
+| Feature | This integration (ZHA) | Z2M `onesti.ts` |
+|---------|------------------------|-----------------|
+| Decode attrid 0x0100 (user/source/action) | Yes | Yes |
+| Last used PIN code (attrid 0x0101) | Yes — attribute on activity sensor | Yes — `last_used_pin_code` state |
+| Lock capabilities (max users, min/max PIN length) | Yes — read at setup | Yes |
+| Set / clear PIN codes | Yes — via HA UI and services | Yes — via MQTT |
+| Name any slot (for RFID/fingerprint) | Yes — persisted in HA | No |
+| Activity sensor with human-readable messages | Yes | No — raw fields only |
+| HA events for automations | Yes — `onesti_lock_activity` | Via MQTT events |
+| Auto-wake for sleepy device | Yes — send lock command before retry | No |
+| Blueprints included | Yes (connectivity, goodnight, notifications) | No |
+| Protocol | ZHA only | Zigbee2MQTT only |
+
+Both integrations hit the same firmware-level issues:
+
+- **PIN set confirmation** — the lock returns a malformed ZCL response. Both silently treat the command as successful. Neither can confirm the code was stored; test on the keypad.
+- **Sleepy device timeouts** — the lock sleeps aggressively. Z2M handles retries generically; this integration explicitly wakes the lock via the lock entity before retrying.
+
+If you already use Z2M, use the Z2M converter directly. If you use ZHA, use this integration. We don't support cross-protocol setups.
+
 ## Alternative approaches (and why they don't work)
 
 If you're researching how to integrate these locks, here's what we've tried:
 
 - **Standard ZHA** — shows lock/unlock state, but cannot identify _who_ unlocked or _how_. Custom attribute 0x0100 is not decoded.
-- **Zigbee2MQTT** — has partial support via `onesti.ts` converter, but no user identification and this integration does not work with Z2M.
 - **Nimly Connect app** — requires Connect Bridge hub, routes through iotiliti cloud, no HA automations without PRO Hub.
 - **Nimly BLE app** — direct BLE to lock, but no Home Assistant integration and must be near the lock.
 - **Cloud API (iotiliti)** — we've reverse-engineered the full REST API, but device listing is blocked (see `docs/cloud-api-status.md`).

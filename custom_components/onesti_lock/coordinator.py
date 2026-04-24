@@ -29,6 +29,7 @@ class NimlyCoordinator:
         self._slots: dict[str, dict[str, Any]] = {}
         self._listeners: list = []
         self._activity_sensor = None
+        self.lock_capabilities: dict[str, Any] = {}
         self._load_slots()
 
     def _load_slots(self) -> None:
@@ -77,6 +78,62 @@ class NimlyCoordinator:
         """Update the activity sensor."""
         if self._activity_sensor:
             self._activity_sensor.update_activity(user_slot, action, source)
+
+    def update_last_pin_code(self, pin_code: str | None) -> None:
+        """Store the last-used PIN code (attrid 0x0101).
+
+        Onesti reports the actual digits used on the keypad. Kept as an
+        attribute on the activity sensor for audit and automation use.
+        """
+        if self._activity_sensor:
+            self._activity_sensor.update_last_pin_code(pin_code)
+
+    async def read_lock_capabilities(self) -> None:
+        """Read static lock properties from the DoorLock cluster.
+
+        Populates lock_capabilities with max_pin_users, min_pin_length,
+        max_pin_length. Degrades silently if the lock does not expose them —
+        some Onesti variants skip these standard ZCL attributes, and a sleepy
+        device may never respond.
+        """
+        cluster = self._get_cluster()
+        if cluster is None:
+            return
+        # Standard ZCL DoorLock attributes:
+        #   0x0012 NumberOfPINUsersSupported
+        #   0x0017 MinPINCodeLength
+        #   0x0018 MaxPINCodeLength
+        attr_ids = [0x0012, 0x0017, 0x0018]
+        attr_names = {
+            0x0012: "max_pin_users",
+            0x0017: "min_pin_length",
+            0x0018: "max_pin_length",
+        }
+        try:
+            result = await cluster.read_attributes(attr_ids)
+        except (asyncio.TimeoutError, TimeoutError):
+            _LOGGER.debug("Lock capabilities read timed out — lock asleep or out of range")
+            return
+        except (AttributeError, TypeError):
+            _LOGGER.debug("Lock capabilities read failed — cluster API shape changed", exc_info=True)
+            return
+        except Exception:
+            # zigpy/ZHA-side errors: DeliveryError, ZigbeeException, etc.
+            # We deliberately keep this wide so an exotic firmware quirk on one
+            # lock does not block integration setup for everyone else.
+            _LOGGER.debug("Lock capabilities read failed", exc_info=True)
+            return
+
+        # zigpy returns (success_dict, failure_dict). Keys may be attribute
+        # IDs or attribute names depending on cluster metadata.
+        success = result[0] if isinstance(result, tuple) and len(result) >= 1 else {}
+        failure = result[1] if isinstance(result, tuple) and len(result) >= 2 else {}
+        if failure:
+            _LOGGER.debug("Lock did not expose capabilities: %s", failure)
+        for attr_id, value in success.items():
+            name = attr_names.get(attr_id)
+            if name and value is not None:
+                self.lock_capabilities[name] = int(value)
 
     # -- ZHA cluster access --
 

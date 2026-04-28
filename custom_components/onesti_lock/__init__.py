@@ -106,9 +106,7 @@ def _decode_pin_code(raw) -> str | None:
         return text or None
 
     try:
-        if isinstance(raw, bytes | bytearray):
-            data = bytes(raw)
-        elif isinstance(raw, list):
+        if isinstance(raw, bytes | bytearray | list):
             data = bytes(raw)
         else:
             text = str(raw).strip().strip("\x00").strip()

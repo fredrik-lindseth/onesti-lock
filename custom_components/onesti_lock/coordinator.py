@@ -111,7 +111,7 @@ class NimlyCoordinator:
         }
         try:
             result = await cluster.read_attributes(attr_ids)
-        except (asyncio.TimeoutError, TimeoutError):
+        except TimeoutError:
             _LOGGER.debug("Lock capabilities read timed out — lock asleep or out of range")
             return
         except (AttributeError, TypeError):

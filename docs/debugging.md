@@ -68,6 +68,14 @@ Configurable via master code (programming sequence `#0`):
 
 **Note:** PIN codes survive Connect Module re-pairing, but are deleted by lock factory reset.
 
+### Module not discovered during pairing
+
+If the Connect Module never shows up in ZHA's "Add device", even after multiple attempts:
+
+1. **Reset the module first.** After a Zigbee network change (HA migrated to new hardware, coordinator replaced, ZHA re-created without restoring the network backup), the module still holds the old network key and will not rejoin the new network on its own. A reset clears those credentials.
+2. **Wait out pairing mode before resetting.** On some modules the reset button behaves differently while pairing mode is active. If you have just triggered pairing, wait ~4 minutes for it to time out, then hold reset.
+3. After a successful reset, give it a few minutes before the module appears in ZHA discovery.
+
 ## 1. Zigbee connectivity
 
 ### Lock not responding (sleepy device)

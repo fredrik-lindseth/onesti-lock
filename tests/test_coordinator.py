@@ -46,6 +46,7 @@ class TestConstants:
         models = c["SUPPORTED_MODELS"]
         assert "NimlyPRO" in models
         assert "NimlyPRO24" in models
+        assert "NimlyCodePRO" in models
         assert "easyCodeTouch_v1" in models
         assert "EasyCodeTouch" in models
         assert "EasyFingerTouch" in models

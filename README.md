@@ -29,6 +29,7 @@ All Onesti Products AS locks with Zigbee Connect Module (ZMNC010):
 | NimlyPRO         | Nimly Touch Pro            | Yes — tested with PIN, RFID, fingerprint |
 | NimlyPRO24       | Nimly Touch Pro (2024)     | Supported                                |
 | NimlyCode        | Nimly Code                 | Supported                                |
+| NimlyCodePRO     | Nimly Code Pro             | Supported                                |
 | NimlyTouch       | Nimly Touch                | Supported                                |
 | NimlyIn          | Nimly InDoor               | Supported                                |
 | NimlyShared      | Nimly Shared               | Supported                                |

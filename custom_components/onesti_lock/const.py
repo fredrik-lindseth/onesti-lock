@@ -17,11 +17,12 @@ SLOT_FIRST_USER = 3
 NUM_USER_SLOTS = 10  # Shows slots 3-12
 # All model_id strings from zigbee-herdsman-converters (onesti.ts)
 # EasyAccess series: easyCodeTouch_v1, EasyCodeTouch, EasyFingerTouch
-# Nimly series: NimlyPRO, NimlyPRO24, NimlyCode, NimlyTouch, NimlyIn, NimlyShared
+# Nimly series: NimlyPRO, NimlyPRO24, NimlyCode, NimlyCodePRO, NimlyTouch, NimlyIn, NimlyShared
 SUPPORTED_MODELS = [
     "NimlyPRO",
     "NimlyPRO24",
     "NimlyCode",
+    "NimlyCodePRO",
     "NimlyTouch",
     "NimlyIn",
     "NimlyShared",

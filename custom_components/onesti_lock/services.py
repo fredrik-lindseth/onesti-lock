@@ -136,7 +136,14 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             )
 
         coordinator = _get_coordinator(hass, ieee)
-        await coordinator.clear_slot(slot)
+        success = await coordinator.clear_slot(slot)
+        if not success:
+            raise HomeAssistantError(
+                "Could not reach the lock. Press a button on the lock to wake it "
+                "and try again.",
+                translation_domain=DOMAIN,
+                translation_key="lock_unreachable",
+            )
 
     hass.services.async_register(
         DOMAIN,

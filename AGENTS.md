@@ -88,7 +88,58 @@ pytest tests/ -v            # Run all tests
 pytest tests/ -v -k event   # Run event-related tests
 ```
 
-Tests mock ZHA entirely. No real hardware needed.
+Tests mock ZHA entirely. No real hardware needed. Home Assistant is not
+installed here, and CI installs only `ruff` and `pytest`, so no test may import
+`homeassistant` or `voluptuous` without stubbing them. See
+`tests/test_coordinator_behavior.py` for the harness that runs real coordinator
+code under stubs.
+
+### Testing on the real lock
+
+Fredrik's Home Assistant is reachable as `ssh ha-local` (the SSH add-on, so
+`/config` is the HA config directory). Use it when something cannot be settled
+without a running instance. That is not a formality: `_attr_name` was added as a
+harmless-looking fallback for entity names and silently disabled every
+translated name, and only a deployment showed it, because HA checks `_attr_name`
+before the translation key.
+
+Back up before touching anything:
+
+```bash
+ssh ha-local 'cd /config/custom_components && tar czf /config/onesti_lock-backup-$(date +%Y%m%d-%H%M%S).tar.gz onesti_lock'
+```
+
+Copy into a staging directory and swap, so a failed transfer never leaves a
+half-written integration behind:
+
+```bash
+ssh ha-local 'rm -rf /config/custom_components/onesti_lock.new && mkdir -p /config/custom_components/onesti_lock.new'
+scp -r custom_components/onesti_lock/. ha-local:/config/custom_components/onesti_lock.new/
+ssh ha-local 'rm -rf /config/custom_components/onesti_lock && mv /config/custom_components/onesti_lock.new /config/custom_components/onesti_lock'
+```
+
+Strip `__pycache__` from the copy first. Then `ha core check`, `ha core restart`,
+and read the result. States and entity names come back through the Supervisor
+proxy, which needs no token of its own:
+
+```bash
+ssh ha-local 'curl -s -H "Authorization: Bearer $SUPERVISOR_TOKEN" http://supervisor/core/api/states'
+ssh ha-local 'ha core logs | grep -i onesti_lock'
+```
+
+The integration's own entities are `sensor.dorlasen_*` on that instance. The
+`sensor.onesti_products_as_nimlypro_*` entities belong to the ZHA quirk, not to
+us.
+
+Restore afterwards unless the new version is the one meant to ship:
+
+```bash
+ssh ha-local 'cd /config/custom_components && rm -rf onesti_lock && tar xzf /config/onesti_lock-backup-<timestamp>.tar.gz'
+```
+
+Leave the backup tarball in place, and restart once more after restoring. Slot
+names and PIN status live in `.storage`, not in the integration directory, so
+they survive a swap either way.
 
 ## Common Tasks
 

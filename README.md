@@ -30,6 +30,8 @@ All Onesti Products AS locks with Zigbee Connect Module (ZMNC010):
 
 These are all the same hardware by **Onesti Products AS**, different branding on an identical Zigbee module. Sold under Nimly, EasyAccess, Keyfree, Salus, Homely, Forebygg, and other brands.
 
+The table is not the whole list of what you can set up. Setup offers any ZHA device from Onesti Products AS that exposes a Door Lock cluster, since a Connect Module sometimes reports a sibling model name rather than the lock it sits on. A model string outside the table still works, and the integration writes a warning to the log when it sees one. Please report that model string as an issue so it can be added here.
+
 NimlyCodePRO (firmware 4.8) reports the same source code for Zigbee commands, auto-relock and the interior keypad, so those events get the source `unattributed` and the activity sensor reads plain "Locked" or "Unlocked". An unattributed lock with no user slot is treated as auto-relock and leaves the activity sensor alone, so an unlock with a code stays visible.
 
 ## Installation

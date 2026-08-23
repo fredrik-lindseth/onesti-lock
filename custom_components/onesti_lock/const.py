@@ -15,9 +15,12 @@ MAX_SLOTS = 1000  # ZCL slots 0-999 (per Nimly manual)
 SLOT_FIRST_USER = 3
 # Number of user slots to show as sensors in UI
 NUM_USER_SLOTS = 10  # Shows slots 3-12
-# All model_id strings from zigbee-herdsman-converters (onesti.ts)
-# EasyAccess series: easyCodeTouch_v1, EasyCodeTouch, EasyFingerTouch
-# Nimly series: NimlyPRO, NimlyPRO24, NimlyCode, NimlyCodePRO, NimlyTouch, NimlyIn, NimlyShared
+# Known model_id strings from zigbee-herdsman-converters (onesti.ts). This list
+# is informational: it labels the hardware we know about and lets config flow
+# warn about a model string nobody has seen before. It is not a discovery
+# filter, because a Connect Module can report a sibling model name (issue #5: a
+# NimlyCodePRO presenting itself as NimlyTwist), and every Onesti lock runs the
+# same firmware on the same module either way.
 SUPPORTED_MODELS = [
     "NimlyPRO",
     "NimlyPRO24",

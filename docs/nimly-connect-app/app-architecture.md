@@ -1,4 +1,4 @@
-# Nimly/iotiliti — System Architecture
+# Nimly/iotiliti: System Architecture
 
 Based on reverse engineering of `com.easyaccess.connect` v1.27.84.
 
@@ -58,7 +58,7 @@ Based on reverse engineering of `com.easyaccess.connect` v1.27.84.
 - **Purpose:** Direct BLE communication with the lock
 - **Communication:** Phone → BLE → Lock (no cloud)
 - **Used for:** Basic lock/unlock, setup
-- **Not yet decompiled** — APK unavailable via automated tools
+- **Not yet decompiled:** APK unavailable via automated tools
 
 ## White-label configuration
 
@@ -118,7 +118,7 @@ DoorlockTypes = {
 8. Lock confirms → Gateway → Cloud → App
 ```
 
-**Key insight:** Steps 6-7 handle timing/wake automatically — the gateway waits until the lock polls and delivers the command. This is why the app never has timeout issues, while direct ZHA calls from HA do.
+**Key insight:** steps 6-7 handle timing and wake automatically. The gateway waits until the lock polls, then delivers the command, so the app never hits the timeouts that direct ZHA calls from HA do.
 
 ## CAS Protocol
 
@@ -126,11 +126,11 @@ Internal protocol between cloud and gateway. AES-encrypted.
 
 Error code prefixes:
 
-- `380xxx` — CAS system errors
-- `380000` — OK
-- `380041-380048` — Device errors (busy, failed, unsupported, no rights)
-- `380106-380111` — Password errors
-- `380125-380126` — Auth/connection errors
+- `380xxx`: CAS system errors
+- `380000`: OK
+- `380041-380048`: Device errors (busy, failed, unsupported, no rights)
+- `380106-380111`: Password errors
+- `380125-380126`: Auth/connection errors
 
 > Complete CAS error code table: docs/nimly-connect-app/reversing-notes.md
 
@@ -138,19 +138,19 @@ Error code prefixes:
 
 Doorlock events are reported via:
 
-1. **Zigbee attribute reports** (0x0100) — directly from lock to coordinator
-2. **Cloud event history** — `GET /devices/{id}/event-history`
-3. **Cloud event stream** — `/v1/apps/{id}/eventstream` (real-time)
+1. **Zigbee attribute reports** (0x0100): directly from lock to coordinator
+2. **Cloud event history**: `GET /devices/{id}/event-history`
+3. **Cloud event stream**: `/v1/apps/{id}/eventstream` (real-time)
 
 Event types:
 
 ```
-doorlock-settings-changed    — settings changed
-doorlock-access-created      — new access created
-doorlock-access-scan-requested — RFID scan requested
-doorlock-access-deleted      — access deleted
-doorlock-failed-to-lock      — locking failed
-doorlock-access-updated      — access updated
+doorlock-settings-changed       settings changed
+doorlock-access-created         new access created
+doorlock-access-scan-requested  RFID scan requested
+doorlock-access-deleted         access deleted
+doorlock-failed-to-lock         locking failed
+doorlock-access-updated         access updated
 ```
 
 > Zigbee-level event format: docs/zigbee-protocol/zigbee-captures.md

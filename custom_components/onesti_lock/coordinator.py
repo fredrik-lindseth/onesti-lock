@@ -195,13 +195,14 @@ class NimlyCoordinator:
         """Wake the lock's radio by sending a real lock command via ZHA.
 
         This is a physical actuation: an unlocked door gets locked, and an
-        open door drives the bolt into the air. We still use lock.lock
-        because ZHA's lock entity wraps it in extended timeouts and retries
-        for sleepy end devices, which is what reliably re-arms the parent
-        router's short message window; plain attribute reads through our
-        cluster path just time out (see read_lock_capabilities). Swapping
-        this for a non-actuating wake needs hardware verification first,
-        tracked as a separate issue.
+        open door drives the bolt into the air. We use lock.lock because it
+        works and attribute reads through our own cluster path time out (see
+        read_lock_capabilities). Why it works is not established. ZHA's lock
+        entity wraps the command in longer timeouts and retries for sleepy
+        devices, which is the likely reason, but at the radio level a read
+        and a write are queued the same way. Swapping this for a wake that
+        does not move the bolt needs hardware verification first, tracked as
+        a separate issue.
         """
         try:
             # Find the lock entity for this device

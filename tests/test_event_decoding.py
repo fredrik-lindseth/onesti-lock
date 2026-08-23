@@ -30,7 +30,14 @@ def _decode(val: int) -> dict | None:
     except (OverflowError, ValueError):
         return None
 
-    SOURCE_MAP = {0x00: "zigbee", 0x02: "keypad", 0x03: "fingerprint", 0x04: "rfid", 0x0A: "auto"}
+    SOURCE_MAP = {
+        0x00: "zigbee",
+        0x02: "keypad",
+        0x03: "fingerprint",
+        0x04: "rfid",
+        0x05: "unattributed",
+        0x0A: "auto",
+    }
     ACTION_MAP = {0x01: "lock", 0x02: "unlock"}
 
     user_slot = b[0]
@@ -95,6 +102,14 @@ class TestEventDecoding:
         assert result["user_slot"] is None
         assert result["action"] == "lock"
         assert result["source"] == "zigbee"
+
+    def test_unattributed_lock_codepro(self):
+        """NimlyCodePRO fw 4.8: zigbee/auto-relock/interior keypad all report 0x05."""
+        # bytes LE: [00, 00, 01, 05]
+        result = _decode(0x05010000)
+        assert result["user_slot"] is None
+        assert result["action"] == "lock"
+        assert result["source"] == "unattributed"
 
     def test_unknown_action(self):
         """Unknown action byte."""

@@ -12,7 +12,14 @@ import pytest
 import random
 
 # Replicate decode logic
-SOURCE_MAP = {0x00: "zigbee", 0x02: "keypad", 0x03: "fingerprint", 0x04: "rfid", 0x0A: "auto"}
+SOURCE_MAP = {
+    0x00: "zigbee",
+    0x02: "keypad",
+    0x03: "fingerprint",
+    0x04: "rfid",
+    0x05: "unattributed",
+    0x0A: "auto",
+}
 ACTION_MAP = {0x01: "lock", 0x02: "unlock"}
 
 
@@ -64,9 +71,9 @@ class TestRoundtrip:
         (0x02, "keypad"),
         (0x03, "fingerprint"),
         (0x04, "rfid"),
+        (0x05, "unattributed"),
         (0x0A, "auto"),
         (0x01, "unknown"),
-        (0x05, "unknown"),
         (0xFF, "unknown"),
     ])
     def test_source_values(self, source_byte, expected):
@@ -127,6 +134,7 @@ class TestKnownValues:
         (0x02020004, 4, "unlock", "keypad", "Kari slot 4 unlock via keypad — hytta"),
         (0x0A010000, None, "lock", "auto", "Auto-lock — hytta"),
         (0x02020000, None, "unlock", "keypad", "Master slot 0 unlock via keypad — hjemme"),
+        (0x05010000, None, "lock", "unattributed", "NimlyCodePRO zigbee/auto/interior lock — supersej"),
     ]
 
     @pytest.mark.parametrize("raw,expected_slot,expected_action,expected_source,desc", CAPTURES)

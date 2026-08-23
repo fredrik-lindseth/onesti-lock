@@ -60,6 +60,7 @@ SOURCE_KEYPAD = "keypad"
 SOURCE_FINGERPRINT = "fingerprint"
 SOURCE_RFID = "rfid"
 SOURCE_AUTO = "auto"
+SOURCE_UNATTRIBUTED = "unattributed"
 SOURCE_UNKNOWN = "unknown"
 
 # Operation event actions

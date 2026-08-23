@@ -126,6 +126,8 @@ class NimlyActivitySensor(SensorEntity):
             return f"{verb.capitalize()} via Zigbee"
         elif source == "auto":
             return "Auto-lås"
+        elif source == "unattributed":
+            return verb.capitalize()
         else:
             return f"{name} {verb}"
 

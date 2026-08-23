@@ -7,10 +7,9 @@ Onesti locks send a custom attribute report (`attrid 0x0100`) on the Door Lock c
 This integration listens for these reports via `cluster.on_event("attribute_report", ...)` and decodes the bitmap:
 
 ```
-Byte 0: user_slot (0 = system, 3+ = user)
-Byte 1: reserved
-Byte 2: action (1 = lock, 2 = unlock)
-Byte 3: source (1 = RF, 2 = keypad, 3 = manual, 10 = auto)
+Bits 0-15:  user_slot (uint16 LE; 0 = system, 3-999 = user)
+Bits 16-23: action (1 = lock, 2 = unlock)
+Bits 24-31: source (see _SOURCE_MAP in __init__.py)
 ```
 
 `attrid 0x0101` contains the PIN code in BCD encoding.

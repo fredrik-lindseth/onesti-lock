@@ -31,11 +31,19 @@ Type: bitmap32
 Sent on every lock/unlock. Little-endian byte order:
 
 ```
-Byte 0: user_slot  — 0 = system/auto, 3-199 = user slot
-Byte 1: reserved   — always 0x00
-Byte 2: action     — 0x01 = lock, 0x02 = unlock
-Byte 3: source     — see table below
+Bytes 0-1: user_slot  (uint16 LE) 0 = system/auto, 3-999 = user slot
+Byte 2:    action     0x01 = lock, 0x02 = unlock
+Byte 3:    source     see table below
 ```
+
+Slot width caveat: every capture below has byte 1 = 0x00 because no observed
+slot exceeds 255, so the 16-bit read is an assumption, not a captured fact.
+It follows the Nimly manual (slots 0-999) and the upstream converter in
+[zha-device-handlers#4881](https://github.com/zigpy/zha-device-handlers/pull/4881)
+(`value & 0xFFFF`). To confirm on hardware: set a PIN in slot 300 via the
+`onesti_lock.set_pin` service, unlock on the keypad, and capture attrid
+0x0100. Expected raw value: `0x0202012C` (LE bytes `[2C, 01, 02, 02]`).
+Add the capture to the table below once observed.
 
 ### Verified source values (byte 3)
 

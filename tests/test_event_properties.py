@@ -1,17 +1,26 @@
 """Property-based tests for Onesti operation event decoding.
 
-Tests all possible byte combinations to verify:
-- Encoding/decoding roundtrips
-- Byte boundaries
+Exercises the bitmap32 fields of attrid 0x0100 to verify:
+- Encoding/decoding roundtrips across the full 16-bit slot range
+- Field boundaries between slot, action and source
 - No crashes on any input
 - Consistency of the bitmap32 format
+
+The decoder is loaded from the real source via test_event_decoding, so these
+tests fail when production decoding changes.
 """
 from __future__ import annotations
 
-import pytest
+import os
 import random
+import sys
 
-# Replicate decode logic
+import pytest
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from tests.test_event_decoding import MockCoordinator, _load_decode_operation_event
+
 SOURCE_MAP = {
     0x00: "zigbee",
     0x02: "keypad",
@@ -22,33 +31,25 @@ SOURCE_MAP = {
 }
 ACTION_MAP = {0x01: "lock", 0x02: "unlock"}
 
+_real_decode = _load_decode_operation_event()
+
 
 def decode(val: int) -> dict | None:
-    try:
-        b = val.to_bytes(4, "little")
-    except (OverflowError, ValueError):
-        return None
-    return {
-        "user_slot": b[0] if b[0] > 0 else None,
-        "reserved": b[1],
-        "action": ACTION_MAP.get(b[2], "unknown"),
-        "source": SOURCE_MAP.get(b[3], "unknown"),
-        "raw_bytes": list(b),
-    }
+    return _real_decode(MockCoordinator(), val)
 
 
-def encode(slot: int, reserved: int, action: int, source: int) -> int:
-    b = bytes([slot, reserved, action, source])
-    return int.from_bytes(b, "little")
+def encode(slot: int, action: int, source: int) -> int:
+    """Test-side inverse of the decoder; slot occupies bits 0-15."""
+    return (source << 24) | (action << 16) | slot
 
 
 class TestRoundtrip:
     """Verify encode→decode roundtrips for all valid combinations."""
 
-    @pytest.mark.parametrize("slot", range(200))
+    @pytest.mark.parametrize("slot", range(1000))
     def test_all_user_slots(self, slot):
-        """Every valid user slot (0-199) decodes correctly."""
-        val = encode(slot, 0, 0x02, 0x02)
+        """Every valid user slot (0-999) decodes correctly."""
+        val = encode(slot, 0x02, 0x02)
         result = decode(val)
         expected_slot = slot if slot > 0 else None
         assert result["user_slot"] == expected_slot
@@ -63,7 +64,7 @@ class TestRoundtrip:
         (0xFF, "unknown"),
     ])
     def test_action_values(self, action_byte, expected):
-        val = encode(3, 0, action_byte, 0x02)
+        val = encode(3, action_byte, 0x02)
         assert decode(val)["action"] == expected
 
     @pytest.mark.parametrize("source_byte,expected", [
@@ -77,18 +78,17 @@ class TestRoundtrip:
         (0xFF, "unknown"),
     ])
     def test_source_values(self, source_byte, expected):
-        val = encode(3, 0, 0x02, source_byte)
+        val = encode(3, 0x02, source_byte)
         assert decode(val)["source"] == expected
 
-    @pytest.mark.parametrize("reserved", range(256))
-    def test_reserved_byte_ignored(self, reserved):
-        """Reserved byte should not affect slot/action/source."""
-        val = encode(5, reserved, 0x02, 0x02)
+    @pytest.mark.parametrize("slot", [256, 300, 511, 512, 800, 999])
+    def test_slot_over_255_roundtrip(self, slot):
+        """Byte 1 is the high slot byte, not reserved (issues-4c287z)."""
+        val = encode(slot, 0x02, 0x02)
         result = decode(val)
-        assert result["user_slot"] == 5
+        assert result["user_slot"] == slot
         assert result["action"] == "unlock"
         assert result["source"] == "keypad"
-        assert result["reserved"] == reserved
 
 
 class TestEdgeCases:
@@ -104,7 +104,7 @@ class TestEdgeCases:
     def test_max_uint32(self):
         result = decode(0xFFFFFFFF)
         assert result is not None
-        assert result["user_slot"] == 255
+        assert result["user_slot"] == 0xFFFF
         assert result["action"] == "unknown"
         assert result["source"] == "unknown"
 
@@ -148,14 +148,13 @@ class TestKnownValues:
 class TestEncodeConsistency:
     """Verify that encode produces values that decode back correctly."""
 
-    @pytest.mark.parametrize("slot", [0, 1, 3, 4, 50, 199, 255])
+    @pytest.mark.parametrize("slot", [0, 1, 3, 4, 50, 199, 255, 256, 300, 999])
     @pytest.mark.parametrize("action", [0x01, 0x02])
     @pytest.mark.parametrize("source", [0x00, 0x02, 0x03, 0x04, 0x0A])
     def test_encode_decode_roundtrip(self, slot, action, source):
-        val = encode(slot, 0, action, source)
+        val = encode(slot, action, source)
         result = decode(val)
         expected_slot = slot if slot > 0 else None
         assert result["user_slot"] == expected_slot
         assert result["action"] == ACTION_MAP[action]
         assert result["source"] == SOURCE_MAP[source]
-        assert result["reserved"] == 0

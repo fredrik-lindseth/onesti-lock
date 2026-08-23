@@ -45,9 +45,19 @@ class NimlyCoordinator:
         self._slots = {k: {**DEFAULT_SLOT, **v} for k, v in stored.items()}
 
     async def _save_slots(self) -> None:
-        """Persist slot data to config entry options."""
+        """Persist slot data to config entry options.
+
+        The slot dicts are copied because async_update_entry only writes to
+        .storage when the new options compare unequal to entry.options.
+        Handing HA the live _slots dict makes entry.options alias it, so
+        every later in-place change compares equal and is never persisted.
+        """
         self.hass.config_entries.async_update_entry(
-            self.entry, options={**self.entry.options, "slots": self._slots}
+            self.entry,
+            options={
+                **self.entry.options,
+                "slots": {k: dict(v) for k, v in self._slots.items()},
+            },
         )
 
     # -- Slot data access --
@@ -293,10 +303,13 @@ class NimlyCoordinator:
             0x0007,
             {"user_id": slot},
         )
-        # Reset slot even if command failed — user wants it cleared
-        self._slots[str(slot)] = {**DEFAULT_SLOT}
-        await self._save_slots()
-        self._notify_listeners()
+        if success:
+            # Local state only follows a command that reached the lock.
+            # Wiping the slot after a failed send would show it as vacant
+            # while the lock still accepts the old code.
+            self._slots[str(slot)] = {**DEFAULT_SLOT}
+            await self._save_slots()
+            self._notify_listeners()
         return success
 
     # -- Listener pattern for sensors --

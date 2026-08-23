@@ -12,7 +12,10 @@ Bits 16-23: action (1 = lock, 2 = unlock)
 Bits 24-31: source (see _SOURCE_MAP in __init__.py)
 ```
 
-`attrid 0x0101` contains the PIN code in BCD encoding.
+`attrid 0x0101` contains the PIN code in BCD plaintext. The integration deliberately
+does not decode or expose it: every state attribute ends up in the recorder, the
+logbook and diagnostics, which would put real access codes on disk (see
+zha-device-handlers#4881). The slot number from 0x0100 already identifies the user.
 
 ## Why standard ZHA approaches don't work
 

@@ -115,7 +115,7 @@ Parkert. Bygges hvis det er tilstrekkelig etterspørsel fra Z2M-brukere. Lenkes 
 1. **Håkon leverer MQTT-dump** fra sin Onesti-lås på Z2M, se [`z2m-mqtt-test-instructions.md`](z2m-mqtt-test-instructions.md)
 2. **Analyser dumpen:**
    - Kommer `last_unlock_source`, `last_unlock_user` gjennom med verdier, eller er de `null`?
-   - Hvilket format er `last_used_pin_code` i — ASCII eller BCD? (ZHA-integrasjonen støtter begge etter v1.1.0)
+   - Hvilket format er `last_used_pin_code` i — ASCII eller BCD? (ZHA-integrasjonen dekoder ikke lenger 0x0101: verdien er selve PIN-koden, se README)
    - Hvilke andre felter eksponeres i praksis?
 3. **Beslutt implementering** basert på dumpen
 4. **Hvis ja: opprett nytt repo** `onesti-lock-z2m` med MQTT-basert coordinator
@@ -125,6 +125,6 @@ Parkert. Bygges hvis det er tilstrekkelig etterspørsel fra Z2M-brukere. Lenkes 
 Vi undersøkte Z2M grundig før vi la til parity-features i ZHA-integrasjonen. Relevant for en evt. Z2M-implementasjon:
 
 - **PIN-set "handshake" er ikke løsbart i software:** Både zigpy (Python) og zigbee-herdsman (TS) sender samme ZCL-kommando og får samme malformerte respons. zigpy kaster `IndexError`, herdsman returnerer stille. Ingen av oss får faktisk bekreftelse. Dette er 100% firmware.
-- **PIN-koding varierer mellom firmware:** NimlyPRO-captures viser BCD (`b"\x54\x78"` → "5478"). Z2M PR #11332 viser ASCII (`b"\x35\x34\x37\x38"` → "5478"). Z2M-implementasjonen må (som vår) auto-detektere begge.
+- **PIN-koding varierer mellom firmware:** NimlyPRO-captures viser BCD (`b"\x54\x78"` → "5478"). Z2M PR #11332 viser ASCII (`b"\x35\x34\x37\x38"` → "5478"). En Z2M-implementasjon må auto-detektere begge hvis den i det hele tatt skal røre feltet. ZHA-versjonen dekodet begge til og med 1.2.0, men eksponerer ikke lenger PIN-en i det hele tatt.
 - **Z2M-converteren gjør tyngst arbeid:** `onesti.ts` dekoder 0x0100 og 0x0101 allerede. MQTT-implementasjonen trenger bare å konsumere ferdig-dekodede felter.
 - **Standard ZCL-capabilities (0x0012, 0x0017, 0x0018):** Z2M leser disse. Hvis de faktisk kommer gjennom på Håkons lås, er det nyttig metadata å eksponere.

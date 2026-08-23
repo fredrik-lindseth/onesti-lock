@@ -31,8 +31,11 @@ PLATFORMS = ["sensor"]
 # Onesti operation event: attrid 0x0100 on DoorLock cluster (0x0101)
 # bitmap32: bits 0-15 user_slot (uint16 LE), bits 16-23 action, bits 24-31 source
 ATTR_OPERATION_EVENT = 0x0100
-# Onesti custom: last used PIN code as ASCII digits (attribute 0x0101)
-ATTR_LAST_PIN_CODE = 0x0101
+# Attribute 0x0101 carries the actual PIN digits in BCD plaintext, not an
+# opaque id (zha-device-handlers#4881). We deliberately ignore it: exposing
+# it would write real access codes into HA's recorder, logbook and
+# diagnostics. The frame format is documented in
+# docs/zigbee-protocol/zigbee-captures.md if it is ever needed again.
 
 _SOURCE_MAP = {
     0x00: SOURCE_ZIGBEE,
@@ -93,54 +96,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-def _decode_pin_code(raw) -> str | None:
-    """Decode attrid 0x0101 as PIN digits.
-
-    Onesti sends the last-used PIN as bytes in one of two formats depending
-    on firmware:
-      - BCD (packed nibbles): b"\\x54\\x78" → "5478"  (NimlyPRO captures)
-      - ASCII: b"\\x35\\x34\\x37\\x38" → "5478"  (seen in Z2M PR #11332)
-
-    We detect format heuristically: if every byte is a printable digit
-    (0x30-0x39) the data is ASCII, otherwise treat as BCD. Empty/None
-    returns None.
-    """
-    if raw is None:
-        return None
-
-    if isinstance(raw, str):
-        text = raw.strip().strip("\x00").strip()
-        return text or None
-
-    try:
-        if isinstance(raw, bytes | bytearray | list):
-            data = bytes(raw)
-        else:
-            text = str(raw).strip().strip("\x00").strip()
-            return text or None
-    except (TypeError, ValueError):
-        return None
-
-    # Strip trailing null-padding
-    data = data.rstrip(b"\x00")
-    if not data:
-        return None
-
-    # ASCII digits: every byte in 0x30-0x39
-    if all(0x30 <= b <= 0x39 for b in data):
-        return data.decode("ascii")
-
-    # BCD packed: every nibble must be 0-9
-    nibbles: list[str] = []
-    for byte in data:
-        high = (byte >> 4) & 0x0F
-        low = byte & 0x0F
-        if high > 9 or low > 9:
-            return None  # Not valid BCD either
-        nibbles.append(f"{high}{low}")
-    return "".join(nibbles) or None
-
-
 def _decode_operation_event(coordinator, val: int) -> dict | None:
     """Decode attrid 0x0100 bitmap32 into action/source/user."""
     if not 0 <= val <= 0xFFFFFFFF:
@@ -182,10 +137,6 @@ def _register_event_listener(
         return
 
     def _on_attribute_report(event) -> None:
-        if event.attribute_id == ATTR_LAST_PIN_CODE:
-            coordinator.update_last_pin_code(_decode_pin_code(event.raw_value))
-            return
-
         if event.attribute_id != ATTR_OPERATION_EVENT:
             return
 

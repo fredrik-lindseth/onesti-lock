@@ -243,6 +243,12 @@ logger:
 
 **Warning:** `zigpy.zcl: debug` generates a lot of log data. Use it only for troubleshooting, not permanently.
 
+### PIN codes appear in raw logs and diagnostics
+
+`zigpy.zcl: debug` prints raw ZCL frames, and frames for attribute 0x0101 on the DoorLock cluster carry the last used PIN in plaintext. The same goes for ZHA's "Download diagnostics" on the device, which dumps zigpy's attribute cache including the last reported 0x0101 value.
+
+Scrub those values before pasting a log or a diagnostics file into a GitHub issue or a forum post. If you already shared one, change the codes on the lock.
+
 ### What to look for in the log
 
 **Successful operation event:**
@@ -317,3 +323,21 @@ The lock falls asleep too quickly for Reconfigure to complete the binding setup.
 - **Don't move the coordinator.** The Zigbee network takes time to re-route after topology changes.
 - **Keep firmware updated.** ZHA supports OTA for some devices, but Onesti/Nimly locks do not have OTA via Zigbee — firmware is only updated via the BLE app.
 - **Monitor battery level.** Create an automation that alerts on low battery to avoid the problems that occur during battery replacement.
+
+## 6. Cleanup after versions 1.1.0 through 1.2.0
+
+Versions 1.1.0 through 1.2.0 published a `last_pin_code` attribute on `sensor.*_siste_aktivitet`. Attribute 0x0101 is the PIN itself, not an opaque id, so real access codes were written to the recorder database. The attribute has since been removed, but old values stay in the database until they are purged.
+
+Purge the history for the activity sensor:
+
+```yaml
+service: recorder.purge_entities
+target:
+  entity_id: sensor.NAME_siste_aktivitet
+data:
+  keep_days: 0
+```
+
+This deletes all history for that entity, not only the PIN attribute. There is no way to purge a single attribute.
+
+Purging does not reach everything. zigpy keeps the last reported 0x0101 value in its own `zigbee.db` attribute cache, and ZHA diagnostics dumps that cache regardless of what this integration does. If a diagnostics file or a zigpy debug log has been shared publicly, changing the codes on the lock is the only reliable cleanup.

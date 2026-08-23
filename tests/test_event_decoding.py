@@ -1,16 +1,21 @@
 """Tests for Onesti operation event decoding.
 
 Verifies the bitmap32 decoding of attrid 0x0100 from the DoorLock cluster.
-Format (little-endian): [user_slot, reserved, action, source]
+Format (little-endian): bits 0-15 user_slot, bits 16-23 action, bits 24-31 source.
 """
 from __future__ import annotations
 
+import ast
+import importlib.util
+import os
+
 import pytest
 
-# Import the decode function directly
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+_PKG = os.path.join(
+    os.path.dirname(__file__), "..", "custom_components", "onesti_lock"
+)
+_INIT_PATH = os.path.join(_PKG, "__init__.py")
+_CONST_PATH = os.path.join(_PKG, "const.py")
 
 
 class MockCoordinator:
@@ -23,33 +28,41 @@ class MockCoordinator:
         return self._slots.get(slot, f"Slot {slot}")
 
 
-def _decode(val: int) -> dict | None:
-    """Decode operation event — extracted logic for testing."""
-    try:
-        b = val.to_bytes(4, "little")
-    except (OverflowError, ValueError):
-        return None
+def _load_decode_operation_event():
+    """Load the real decoder from source (avoids HA imports).
 
-    SOURCE_MAP = {
-        0x00: "zigbee",
-        0x02: "keypad",
-        0x03: "fingerprint",
-        0x04: "rfid",
-        0x05: "unattributed",
-        0x0A: "auto",
-    }
-    ACTION_MAP = {0x01: "lock", 0x02: "unlock"}
+    Same ast-extraction pattern as test_pin_code_decoding.py. Tests used to
+    replicate the decode logic instead, which let an 8-bit slot bug pass a
+    fully green suite. Never replicate; always load from source.
+    """
+    spec = importlib.util.spec_from_file_location("onesti_const", _CONST_PATH)
+    const = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(const)
+    ns = dict(vars(const))
 
-    user_slot = b[0]
-    action = ACTION_MAP.get(b[2], "unknown")
-    source = SOURCE_MAP.get(b[3], "unknown")
-    user_slot_or_none = user_slot if user_slot > 0 else None
+    with open(_INIT_PATH) as f:
+        tree = ast.parse(f.read())
+    wanted: list[ast.stmt] = []
+    for node in tree.body:
+        is_map = isinstance(node, ast.Assign) and any(
+            getattr(t, "id", None) in ("_SOURCE_MAP", "_ACTION_MAP")
+            for t in node.targets
+        )
+        is_decoder = (
+            isinstance(node, ast.FunctionDef) and node.name == "_decode_operation_event"
+        )
+        if is_map or is_decoder:
+            wanted.append(node)
+    module = ast.Module(body=wanted, type_ignores=[])
+    exec(compile(module, _INIT_PATH, "exec"), ns)
+    return ns["_decode_operation_event"]
 
-    return {
-        "user_slot": user_slot_or_none,
-        "action": action,
-        "source": source,
-    }
+
+_real_decode = _load_decode_operation_event()
+
+
+def _decode(val: int, coordinator: MockCoordinator | None = None) -> dict | None:
+    return _real_decode(coordinator or MockCoordinator(), val)
 
 
 class TestEventDecoding:
@@ -141,6 +154,42 @@ class TestEventDecoding:
         assert result["user_slot"] == 199
         assert result["action"] == "unlock"
         assert result["source"] == "keypad"
+
+    def test_slot_300_keypad_unlock(self):
+        """Regression issues-4c287z: byte-0 read decoded slot 300 as 44."""
+        # bytes LE: [2C, 01, 02, 02] — slot 300, unlock, keypad
+        result = _decode(0x0202012C)
+        assert result["user_slot"] == 300
+        assert result["action"] == "unlock"
+        assert result["source"] == "keypad"
+
+    def test_slot_256_boundary(self):
+        """Slot 256 has byte 0 == 0x00; byte-0 read decoded it as system."""
+        # bytes LE: [00, 01, 02, 02] — slot 256, unlock, keypad
+        result = _decode(0x02020100)
+        assert result["user_slot"] == 256
+
+    def test_slot_255_boundary(self):
+        """Slot 255 decodes identically before and after the 16-bit fix."""
+        # bytes LE: [FF, 00, 02, 02] — slot 255, unlock, keypad
+        result = _decode(0x020200FF)
+        assert result["user_slot"] == 255
+
+    def test_slot_999_max(self):
+        """Max slot per the Nimly manual (MAX_SLOTS - 1)."""
+        # bytes LE: [E7, 03, 02, 02] — slot 999, unlock, keypad
+        result = _decode(0x020203E7)
+        assert result["user_slot"] == 999
+
+    def test_high_slot_name_attribution(self):
+        """A named high slot attributes the event to the right user."""
+        coord = MockCoordinator({300: "Bjarte"})
+        result = _decode(0x0202012C, coord)
+        assert result["user_name"] == "Bjarte"
+
+    def test_overflow_returns_none(self):
+        """Values above uint32 are rejected by the explicit range guard."""
+        assert _decode(0x1FFFFFFFF) is None
 
     def test_negative_value_returns_none(self):
         """Negative values should return None."""

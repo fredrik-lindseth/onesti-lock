@@ -22,7 +22,7 @@ NimlyCoordinator (one per lock)
 
 Event listener (in __init__.py)
   ├── cluster.on_event("attribute_report") — catches custom attrid 0x0100
-  ├── Decodes bitmap32: [user_slot, reserved, action, source]
+  ├── Decodes bitmap32: bits 0-15 user_slot (uint16 LE), bits 16-23 action, bits 24-31 source
   ├── Updates activity sensor (skips auto-lock to preserve "Kari låste opp med kode")
   └── Fires onesti_lock_activity HA event (always, including auto-lock)
 ```

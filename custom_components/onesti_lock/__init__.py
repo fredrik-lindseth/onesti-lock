@@ -29,7 +29,7 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["sensor"]
 
 # Onesti operation event: attrid 0x0100 on DoorLock cluster (0x0101)
-# bitmap32 little-endian: [user_slot, reserved, action, source]
+# bitmap32: bits 0-15 user_slot (uint16 LE), bits 16-23 action, bits 24-31 source
 ATTR_OPERATION_EVENT = 0x0100
 # Onesti custom: last used PIN code as ASCII digits (attribute 0x0101)
 ATTR_LAST_PIN_CODE = 0x0101
@@ -143,14 +143,15 @@ def _decode_pin_code(raw) -> str | None:
 
 def _decode_operation_event(coordinator, val: int) -> dict | None:
     """Decode attrid 0x0100 bitmap32 into action/source/user."""
-    try:
-        b = val.to_bytes(4, "little")
-    except (OverflowError, ValueError):
+    if not 0 <= val <= 0xFFFFFFFF:
         return None
 
-    user_slot = b[0]
-    action = _ACTION_MAP.get(b[2], ACTION_UNKNOWN)
-    source = _SOURCE_MAP.get(b[3], SOURCE_UNKNOWN)
+    # Slot spans bits 0-15: the manual allows slots up to 999, and the
+    # upstream converter (zha-device-handlers#4881) reads value & 0xFFFF.
+    # Reading byte 0 alone truncated slot 300 to 44.
+    user_slot = val & 0xFFFF
+    action = _ACTION_MAP.get((val >> 16) & 0xFF, ACTION_UNKNOWN)
+    source = _SOURCE_MAP.get((val >> 24) & 0xFF, SOURCE_UNKNOWN)
     user_slot_or_none = user_slot if user_slot > 0 else None
 
     return {

@@ -78,6 +78,8 @@ Battery-powered Zigbee EndDevices sleep most of the time. ZCL commands like `set
 3. `_wake_lock()` sends a `lock.lock` service call to the ZHA lock entity — ZHA's lock entity uses extended timeout for sleepy devices, which reliably wakes the radio
 4. After a 1-second delay (for the radio to stabilize), the original command is retried
 
+**Side effect:** the wake is a real lock command, not a read. An unlocked door is physically locked, and an open door drives the bolt out into the air. This is documented in the README limitations and in the options flow texts. Replacing the mechanism with a non-actuating wake requires hardware testing and is tracked as a separate issue.
+
 **Lock entity discovery:** `_wake_lock()` finds the ZHA lock entity by scanning the entity registry for an entity where `platform == "zha"`, the `unique_id` contains the device's IEEE address, and the `unique_id` ends with `"257"` (the DoorLock cluster endpoint identifier).
 
 **Service used:** `zha.issue_zigbee_cluster_command` — not direct cluster access. This goes through ZHA's service layer which handles ZCL framing and transport.

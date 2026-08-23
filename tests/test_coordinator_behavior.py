@@ -165,3 +165,30 @@ class TestClearSlotFailure:
         assert result is False
         assert coord.get_slot(5)["has_pin"] is False
         assert hass.config_entries.written == []
+
+
+class TestGetSlotIsolation:
+    """get_slot hands out copies so callers cannot corrupt _slots."""
+
+    def test_occupied_slot_is_a_copy(self):
+        _hass, _entry, coord = _make_coordinator({"slots": {}})
+        asyncio.run(coord.set_slot_name(3, "Kari"))
+        assert coord.get_slot(3) is not coord._slots["3"]
+
+    def test_mutating_the_returned_dict_does_not_leak(self):
+        hass, entry, coord = _make_coordinator({"slots": {}})
+        asyncio.run(coord.set_slot_name(3, "Kari"))
+        writes_before = len(hass.config_entries.written)
+        returned = coord.get_slot(3)
+        returned["name"] = "Mallory"
+        returned["has_pin"] = True
+        assert coord.get_slot(3)["name"] == "Kari"
+        assert coord.get_slot(3)["has_pin"] is False
+        assert entry.options["slots"]["3"]["name"] == "Kari"
+        assert len(hass.config_entries.written) == writes_before
+
+    def test_vacant_slot_mutation_does_not_create_state(self):
+        _hass, _entry, coord = _make_coordinator({"slots": {}})
+        coord.get_slot(9)["name"] = "ghost"
+        assert coord.get_slot(9)["name"] == ""
+        assert "9" not in coord._slots

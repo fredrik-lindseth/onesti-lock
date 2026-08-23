@@ -156,7 +156,7 @@ This integration requires **ZHA** (Zigbee Home Automation). It does **not** work
 
 2. **PIN verification** — the lock returns a malformed ZCL response. The command reaches the lock, but we can't confirm success programmatically. Always test the code on the keypad.
 
-3. **Sleepy device** — the lock sleeps aggressively to save battery. Commands may timeout on first attempt. The integration auto-wakes and retries, but place a Zigbee router right next to the door. The metal casing acts as a Faraday cage.
+3. **Sleepy device** — the lock sleeps aggressively to save battery, so commands may time out on the first attempt. The integration auto-wakes and retries, but the auto-wake works by sending a **lock command** to the lock. If the door is unlocked when you set or clear a PIN, the door will physically lock; if the door is standing open, the bolt is driven out into the air. Close the door before managing PIN codes, or wake the lock yourself first by turning the thumb-turn. Also place a Zigbee router right next to the door, since the metal casing acts as a Faraday cage.
 
 4. **Attribute reporting after battery change** — the lock may stop sending activity events after a battery change. Try "Reconfigure" in ZHA (wake the lock first by entering a code). If that fails, remove and re-pair the lock.
 

@@ -5,6 +5,7 @@ stub is enough to import the module without HA installed.
 """
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import os
 import sys
@@ -167,3 +168,37 @@ class TestFormatActivity:
     def test_empty_strings_do_not_raise(self):
         """Both translation files unreadable is survivable, not fatal."""
         assert localize.format_activity({}, "unlock", "keypad", "Kari")
+
+
+class FakeHass:
+    """Just enough hass for async_get_strings: data dict + executor."""
+
+    def __init__(self):
+        self.data = {}
+
+    async def async_add_executor_job(self, func, *args):
+        return func(*args)
+
+
+class TestAsyncGetStringsCache:
+    """The shared cache must be reusable but never writable."""
+
+    def test_cache_returns_same_object_per_language(self):
+        hass = FakeHass()
+        first = asyncio.run(localize.async_get_strings(hass, "nb"))
+        second = asyncio.run(localize.async_get_strings(hass, "nb"))
+        assert first is second
+        assert first.get("slot_vacant")
+
+    def test_cached_strings_are_read_only(self):
+        hass = FakeHass()
+        strings = asyncio.run(localize.async_get_strings(hass, "en"))
+        with pytest.raises(TypeError):
+            strings["slot_vacant"] = "poisoned"
+
+    def test_languages_get_separate_entries(self):
+        hass = FakeHass()
+        en = asyncio.run(localize.async_get_strings(hass, "en"))
+        nb = asyncio.run(localize.async_get_strings(hass, "no"))
+        assert en is not nb
+        assert nb.get("slot_vacant") != en.get("slot_vacant")

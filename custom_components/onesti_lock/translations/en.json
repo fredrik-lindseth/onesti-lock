@@ -28,7 +28,7 @@
       },
       "set_pin": {
         "title": "Set PIN code",
-        "description": "Select slot, enter name and PIN code (4-8 digits). Slot numbers correspond to the lock's internal user slots (ZCL DoorLock). Slots 0-2 are reserved for master codes.",
+        "description": "Select slot, enter name and PIN code (4-8 digits). Slot numbers correspond to the lock's internal user slots (ZCL DoorLock). Slots 0-2 are reserved for master codes. Note: if the lock is asleep, the first attempt times out and the integration wakes the lock by sending a lock command. An unlocked door will be physically locked, so close the door before you start.",
         "data": {
           "slot": "User slot",
           "name": "Name",
@@ -37,7 +37,7 @@
       },
       "clear_pin": {
         "title": "Clear PIN code",
-        "description": "Select user to remove.",
+        "description": "Select user to remove. If the lock is asleep, the integration wakes it by sending a lock command; an unlocked door will be physically locked.",
         "data": {
           "slot": "User"
         }

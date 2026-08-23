@@ -28,7 +28,7 @@
       },
       "set_pin": {
         "title": "Ställ in PIN-kod",
-        "description": "Välj plats, ange namn och PIN-kod (4-8 siffror). Platsnumren motsvarar låsets interna användarplatser (ZCL DoorLock). Plats 0-2 är reserverade för masterkoder.",
+        "description": "Välj plats, ange namn och PIN-kod (4-8 siffror). Platsnumren motsvarar låsets interna användarplatser (ZCL DoorLock). Plats 0-2 är reserverade för masterkoder. Obs: om låset sover får första försöket timeout och integrationen väcker låset genom att skicka ett låskommando. En olåst dörr blir fysiskt låst, så stäng dörren innan du börjar.",
         "data": {
           "slot": "Användarplats",
           "name": "Namn",
@@ -37,7 +37,7 @@
       },
       "clear_pin": {
         "title": "Ta bort PIN-kod",
-        "description": "Välj användare att ta bort.",
+        "description": "Välj användare att ta bort. Om låset sover väcker integrationen det genom att skicka ett låskommando; en olåst dörr blir fysiskt låst.",
         "data": {
           "slot": "Användare"
         }

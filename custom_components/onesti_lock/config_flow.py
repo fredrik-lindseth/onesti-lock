@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Mapping
 from typing import Any
 
 import voluptuous as vol
@@ -95,7 +96,7 @@ class NimlyProOptionsFlow(OptionsFlow):
 
     def _build_set_pin_schema(
         self,
-        strings: dict[str, str],
+        strings: Mapping[str, str],
         suggested: dict[str, Any] | None = None,
     ) -> vol.Schema:
         """Build set_pin form schema, optionally pre-filling values."""

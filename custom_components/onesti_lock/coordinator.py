@@ -30,6 +30,9 @@ class NimlyCoordinator:
         self._listeners: list = []
         self._activity_sensor = None
         self.lock_capabilities: dict[str, Any] = {}
+        # Populated from async_setup_entry: reading the translation files is
+        # blocking IO and this constructor runs on the event loop.
+        self.strings: dict[str, str] = {}
         self._load_slots()
 
     def _load_slots(self) -> None:
@@ -56,7 +59,9 @@ class NimlyCoordinator:
     def get_slot_name(self, slot: int) -> str:
         """Get human-readable name for slot."""
         name = self._slots.get(str(slot), {}).get("name", "")
-        return name if name else f"Slot {slot}"
+        if name:
+            return name
+        return self.strings.get("slot_fallback_name", "Slot {slot}").format(slot=slot)
 
     def get_all_slots(self) -> dict[str, dict[str, Any]]:
         """Get all slot data."""

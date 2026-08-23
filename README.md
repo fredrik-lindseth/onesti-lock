@@ -134,6 +134,14 @@ Three automation blueprints are included:
 - **Goodnight lock** — lock the door automatically at a set time
 - **Unlock notification** — notify when someone unlocks, with user and method
 
+## Languages
+
+English, Norwegian (bokmål), Swedish and Danish. Sensor states, entity names, options flow labels and service errors follow the Home Assistant server language (Settings > System > General), not the per-user frontend language, because the integration builds these strings before it knows who is looking.
+
+Reload the integration (or restart HA) after upgrading, and again whenever you change the HA language. Entity IDs are generated from the name at creation time and do not change afterwards, so a lock set up on a Norwegian server keeps `sensor.*_siste_aktivitet` even after switching to English.
+
+Translations live in `custom_components/onesti_lock/translations/`. Adding a language means copying `en.json` and translating it, including the `runtime` section.
+
 ## Requirements
 
 This integration requires **ZHA** (Zigbee Home Automation). It does **not** work with Zigbee2MQTT. The lock's custom attribute 0x0100 is decoded via ZHA cluster events, which Z2M does not expose in the same way.

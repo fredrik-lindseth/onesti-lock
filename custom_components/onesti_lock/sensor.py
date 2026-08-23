@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN, NUM_USER_SLOTS, SLOT_FIRST_USER
+from .localize import format_activity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,16 +46,17 @@ class NimlySlotSensor(SensorEntity):
         self._coordinator = coordinator
         self._slot = slot
         self._attr_unique_id = f"{coordinator.ieee}-slot-{slot}"
-        self._attr_translation_key = f"slot_{slot}"
-
-    @property
-    def name(self) -> str:
-        return f"Slot {self._slot}"
+        self._attr_translation_key = "slot"
+        self._attr_translation_placeholders = {"slot": str(slot)}
+        # Safety net: HA prefers the translation key and only falls back
+        # here if the entity translations fail to load, which would
+        # otherwise leave the entity with no name at all.
+        self._attr_name = f"Slot {slot}"
 
     @property
     def native_value(self) -> str:
         slot_data = self._coordinator.get_slot(self._slot)
-        return slot_data.get("name") or "Ledig"
+        return slot_data.get("name") or self._coordinator.strings.get("slot_vacant", "Vacant")
 
     @property
     def extra_state_attributes(self) -> dict:
@@ -94,42 +96,25 @@ class NimlyActivitySensor(SensorEntity):
         self._coordinator = coordinator
         self._attr_unique_id = f"{coordinator.ieee}-activity"
         self._attr_translation_key = "last_activity"
+        # Safety net: HA prefers the translation key and only falls back
+        # here if the entity translations fail to load, which would
+        # otherwise leave the entity with no name at all.
+        self._attr_name = "Last activity"
         self._activity: dict = {}
         self._last_pin_code: str | None = None
-
-    @property
-    def name(self) -> str:
-        return "Siste aktivitet"
 
     @property
     def native_value(self) -> str | None:
         if not self._activity:
             return None
-        name = self._activity.get("user_name", "Ukjent")
-        action = self._activity.get("action", "unknown")
-        source = self._activity.get("source", "")
-
-        if action == "unlock":
-            verb = "låste opp"
-        elif action == "lock":
-            verb = "låste"
-        else:
-            verb = action
-
-        if source == "keypad":
-            return f"{name} {verb} med kode"
-        elif source == "fingerprint":
-            return f"{name} {verb} med fingeravtrykk"
-        elif source == "rfid":
-            return f"{name} {verb} med RFID"
-        elif source == "zigbee":
-            return f"{verb.capitalize()} via Zigbee"
-        elif source == "auto":
-            return "Auto-lås"
-        elif source == "unattributed":
-            return verb.capitalize()
-        else:
-            return f"{name} {verb}"
+        strings = self._coordinator.strings
+        name = self._activity.get("user_name") or strings.get("unknown_user", "Unknown")
+        return format_activity(
+            strings,
+            self._activity.get("action", "unknown"),
+            self._activity.get("source", "unknown"),
+            name,
+        )
 
     @property
     def extra_state_attributes(self) -> dict:
@@ -158,7 +143,7 @@ class NimlyActivitySensor(SensorEntity):
         source: str,
     ) -> None:
         """Called by coordinator when lock activity occurs."""
-        user_name = "Ukjent"
+        user_name = None
         if user_slot is not None:
             user_name = self._coordinator.get_slot_name(user_slot)
 

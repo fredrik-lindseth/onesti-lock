@@ -22,6 +22,7 @@ from .const import (
     SOURCE_ZIGBEE,
 )
 from .coordinator import NimlyCoordinator
+from .localize import async_get_strings
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -54,6 +55,7 @@ _ACTION_MAP = {
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Onesti Lock from a config entry."""
     coordinator = NimlyCoordinator(hass, entry)
+    coordinator.strings = await async_get_strings(hass, hass.config.language)
 
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = {

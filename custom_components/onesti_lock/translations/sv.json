@@ -61,6 +61,7 @@
     },
     "error": {
       "invalid_pin": "PIN-koden måste vara 4-8 siffror",
+      "invalid_slot": "Platsnumret måste vara mellan 3 och 999",
       "lock_unreachable": "Kunde inte nå låset. Tryck på knappsatsen och försök igen.",
       "unknown": "Ett oväntat fel uppstod. Kontrollera loggarna."
     },

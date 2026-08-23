@@ -61,6 +61,7 @@
     },
     "error": {
       "invalid_pin": "PIN code must be 4-8 digits",
+      "invalid_slot": "Slot number must be between 3 and 999",
       "lock_unreachable": "Could not reach the lock. Press the keypad and try again.",
       "unknown": "An unexpected error occurred. Check the logs."
     },

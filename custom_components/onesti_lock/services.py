@@ -45,15 +45,19 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         code = call.data["code"]
         ieee = call.data.get("ieee")
 
-        if not SLOT_FIRST_USER <= slot < MAX_SLOTS:
+        # The coordinator is looked up before validation because the slot
+        # ceiling depends on the PIN capacity this particular lock reported.
+        coordinator = _get_coordinator(hass, ieee)
+        max_slot = coordinator.max_user_slot()
+        if not SLOT_FIRST_USER <= slot <= max_slot:
             raise HomeAssistantError(
-                f"Slot must be between {SLOT_FIRST_USER} and {MAX_SLOTS - 1}",
+                f"Slot must be between {SLOT_FIRST_USER} and {max_slot}",
                 translation_domain=DOMAIN,
                 translation_key="invalid_slot",
                 # HA rejects non-string placeholder values.
                 translation_placeholders={
                     "min": str(SLOT_FIRST_USER),
-                    "max": str(MAX_SLOTS - 1),
+                    "max": str(max_slot),
                 },
             )
         if not code.isdigit() or len(code) < 4 or len(code) > 8:
@@ -63,7 +67,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 translation_key="invalid_pin",
             )
 
-        coordinator = _get_coordinator(hass, ieee)
         success = await coordinator.set_pin(slot, name, code)
         if not success:
             raise HomeAssistantError(

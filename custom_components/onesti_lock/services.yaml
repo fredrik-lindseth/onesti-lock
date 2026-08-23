@@ -4,7 +4,7 @@ set_pin:
   fields:
     slot:
       name: Slot
-      description: User slot (3-199, slots 0-2 reserved for master codes)
+      description: User slot (3-199, slots 0-2 reserved for master codes). Slots above the lock's reported PIN capacity are rejected.
       required: true
       selector:
         number:

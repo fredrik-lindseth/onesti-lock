@@ -9,6 +9,7 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
+from . import pin_rules
 from .const import (
     CONF_IEEE,
     DEFAULT_SLOT,
@@ -80,6 +81,10 @@ class NimlyCoordinator:
         if name:
             return name
         return self.strings.get("slot_fallback_name", "Slot {slot}").format(slot=slot)
+
+    def max_user_slot(self) -> int:
+        """Highest slot set_pin should accept for this lock."""
+        return pin_rules.max_user_slot(self.lock_capabilities)
 
     async def set_slot_name(self, slot: int, name: str) -> None:
         """Set name for a slot (does not send ZCL command)."""

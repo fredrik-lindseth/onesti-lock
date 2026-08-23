@@ -23,6 +23,7 @@ from .const import (
     SUPPORTED_MODELS,
     ZHA_DOMAIN,
 )
+from .localize import async_get_strings
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -93,15 +94,18 @@ class NimlyProOptionsFlow(OptionsFlow):
     # -- Helpers --
 
     def _build_set_pin_schema(
-        self, suggested: dict[str, Any] | None = None,
+        self,
+        strings: dict[str, str],
+        suggested: dict[str, Any] | None = None,
     ) -> vol.Schema:
         """Build set_pin form schema, optionally pre-filling values."""
         slots = self.config_entry.options.get("slots", {})
+        label_template = strings.get("slot_label", "Slot {slot}: {name}")
+        vacant = strings.get("slot_vacant", "Vacant")
         slot_options = {}
         for i in range(SLOT_FIRST_USER, SLOT_FIRST_USER + 10):
             name = slots.get(str(i), {}).get("name", "")
-            label = f"Slot {i} — {name}" if name else f"Slot {i} — Ledig"
-            slot_options[str(i)] = label
+            slot_options[str(i)] = label_template.format(slot=i, name=name or vacant)
 
         schema = vol.Schema(
             {
@@ -162,9 +166,12 @@ class NimlyProOptionsFlow(OptionsFlow):
                 self._set_pin_input = user_input
                 return await self.async_step_set_pin_progress()
 
+        # The schema builder is synchronous, so the strings are resolved here
+        # and passed in.
+        strings = await async_get_strings(self.hass, self.hass.config.language)
         return self.async_show_form(
             step_id="set_pin",
-            data_schema=self._build_set_pin_schema(suggested),
+            data_schema=self._build_set_pin_schema(strings, suggested),
             errors=errors,
         )
 
@@ -216,14 +223,19 @@ class NimlyProOptionsFlow(OptionsFlow):
         errors: dict[str, str] = {}
 
         # Build schema first to check for active slots
+        strings = await async_get_strings(self.hass, self.hass.config.language)
+        label_template = strings.get("slot_label", "Slot {slot}: {name}")
+        fallback_template = strings.get("slot_fallback_name", "Slot {slot}")
         slots = self.config_entry.options.get("slots", {})
         active_slots = {}
         for i in range(MAX_SLOTS):
             slot_data = slots.get(str(i), {})
             if slot_data.get("has_pin") or slot_data.get("name"):
                 name = slot_data.get("name", "")
-                label = f"Slot {i} — {name}" if name else f"Slot {i}"
-                active_slots[str(i)] = label
+                if name:
+                    active_slots[str(i)] = label_template.format(slot=i, name=name)
+                else:
+                    active_slots[str(i)] = fallback_template.format(slot=i)
 
         if not active_slots:
             return self.async_abort(reason="no_active_slots")
@@ -316,6 +328,11 @@ class NimlyProOptionsFlow(OptionsFlow):
 
     async def async_step_view_slots(self, user_input=None) -> ConfigFlowResult:
         """View current slot status — shown as description text."""
+        strings = await async_get_strings(self.hass, self.hass.config.language)
+        label_template = strings.get("slot_label", "Slot {slot}: {name}")
+        pin_active = strings.get("slot_status_pin_active", "(PIN active)")
+        no_pin = strings.get("slot_status_no_pin", "(no PIN)")
+        vacant = strings.get("slot_vacant", "Vacant")
         slots = self.config_entry.options.get("slots", {})
         lines = []
         for i in range(SLOT_FIRST_USER, SLOT_FIRST_USER + 10):
@@ -323,11 +340,13 @@ class NimlyProOptionsFlow(OptionsFlow):
             name = slot_data.get("name", "")
             has_pin = slot_data.get("has_pin", False)
             if name and has_pin:
-                lines.append(f"Slot {i}: **{name}** (PIN aktiv)")
+                line = label_template.format(slot=i, name=f"**{name}**")
+                lines.append(f"{line} {pin_active}")
             elif name:
-                lines.append(f"Slot {i}: {name} (ingen PIN)")
+                line = label_template.format(slot=i, name=name)
+                lines.append(f"{line} {no_pin}")
             else:
-                lines.append(f"Slot {i}: Ledig")
+                lines.append(label_template.format(slot=i, name=vacant))
 
         # Return to menu
         if user_input is not None:

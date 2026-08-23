@@ -2,10 +2,10 @@
   "config": {
     "step": {
       "user": {
-        "title": "Legg til Onesti Lock",
-        "description": "Velg hvilken Onesti-lås du vil administrere PIN-koder for.",
+        "title": "Add Onesti Lock",
+        "description": "Select the Onesti lock to manage PIN codes for.",
         "data": {
-          "device": "Lås"
+          "device": "Lock"
         }
       }
     },
@@ -18,54 +18,104 @@
   "options": {
     "step": {
       "init": {
-        "title": "Onesti Lock — PIN-administrasjon",
+        "title": "Onesti Lock — PIN Management",
         "menu_options": {
-          "set_pin": "Sett PIN-kode",
-          "clear_pin": "Fjern PIN-kode",
-          "name_slot": "Navngi bruker",
-          "view_slots": "Vis brukerslots"
+          "set_pin": "Set PIN code",
+          "clear_pin": "Clear PIN code",
+          "name_slot": "Name a user slot",
+          "view_slots": "View user slots"
         }
       },
       "set_pin": {
-        "title": "Sett PIN-kode",
-        "description": "Velg slot, skriv navn og PIN-kode (4-8 siffer). Slot-numrene tilsvarer lasens interne brukerslots (ZCL DoorLock). Slot 0-2 er reservert for master-koder.",
+        "title": "Set PIN code",
+        "description": "Select slot, enter name and PIN code (4-8 digits). Slot numbers correspond to the lock's internal user slots (ZCL DoorLock). Slots 0-2 are reserved for master codes.",
         "data": {
-          "slot": "Brukerslot",
-          "name": "Navn",
-          "code": "PIN-kode"
+          "slot": "User slot",
+          "name": "Name",
+          "code": "PIN code"
         }
       },
       "clear_pin": {
-        "title": "Fjern PIN-kode",
-        "description": "Velg bruker å fjerne.",
+        "title": "Clear PIN code",
+        "description": "Select user to remove.",
         "data": {
-          "slot": "Bruker"
+          "slot": "User"
         }
       },
       "name_slot": {
-        "title": "Navngi bruker",
-        "description": "Knytt et navn til et slot-nummer. Brukes for RFID-brikker, fingeravtrykk, eller andre tilgangsmetoder som ikke settes via PIN-menyen.",
+        "title": "Name a user slot",
+        "description": "Assign a name to a slot number. Used for RFID tags, fingerprints, or other access methods not set via the PIN menu.",
         "data": {
-          "slot": "Slot-nummer",
-          "name": "Navn"
+          "slot": "Slot number",
+          "name": "Name"
         }
       },
       "view_slots": {
-        "title": "Brukerslots",
+        "title": "User slots",
         "description": "{slot_status}"
       }
     },
     "progress": {
-      "set_pin_progress": "Sender PIN-kode til låsen...",
-      "clear_pin_progress": "Fjerner PIN-kode fra låsen..."
+      "set_pin_progress": "Sending PIN code to the lock...",
+      "clear_pin_progress": "Clearing PIN code from the lock..."
     },
     "error": {
-      "invalid_pin": "PIN-kode må være 4-8 siffer",
-      "lock_unreachable": "Kunne ikke nå låsen. Trykk på keypadet og prøv igjen.",
-      "unknown": "En uventet feil oppstod. Sjekk loggene."
+      "invalid_pin": "PIN code must be 4-8 digits",
+      "lock_unreachable": "Could not reach the lock. Press the keypad and try again.",
+      "unknown": "An unexpected error occurred. Check the logs."
     },
     "abort": {
-      "no_active_slots": "Ingen aktive PIN-koder å fjerne"
+      "no_active_slots": "No active PIN codes to remove"
     }
+  },
+  "entity": {
+    "sensor": {
+      "slot": {
+        "name": "Slot {slot}"
+      },
+      "last_activity": {
+        "name": "Last activity"
+      }
+    }
+  },
+  "exceptions": {
+    "lock_unreachable": {
+      "message": "Could not reach the lock. Press a button on the lock to wake it and try again."
+    },
+    "invalid_slot": {
+      "message": "Slot must be between {min} and {max}"
+    },
+    "invalid_pin": {
+      "message": "PIN code must be 4-8 digits"
+    },
+    "lock_not_found": {
+      "message": "No Onesti lock found"
+    },
+    "lock_not_found_ieee": {
+      "message": "No Onesti lock found with IEEE {ieee}"
+    }
+  },
+  "runtime": {
+    "unknown_user": "Unknown",
+    "slot_vacant": "Vacant",
+    "slot_fallback_name": "Slot {slot}",
+    "slot_label": "Slot {slot}: {name}",
+    "slot_status_pin_active": "(PIN active)",
+    "slot_status_no_pin": "(no PIN)",
+    "lock_keypad": "{name} locked with code",
+    "unlock_keypad": "{name} unlocked with code",
+    "lock_fingerprint": "{name} locked with fingerprint",
+    "unlock_fingerprint": "{name} unlocked with fingerprint",
+    "lock_rfid": "{name} locked with RFID",
+    "unlock_rfid": "{name} unlocked with RFID",
+    "lock_zigbee": "Locked via Zigbee",
+    "unlock_zigbee": "Unlocked via Zigbee",
+    "lock_auto": "Auto-lock",
+    "unlock_auto": "Auto-unlock",
+    "lock_unattributed": "Locked",
+    "unlock_unattributed": "Unlocked",
+    "lock_unknown": "{name} locked",
+    "unlock_unknown": "{name} unlocked",
+    "activity_unknown": "Unknown activity"
   }
 }

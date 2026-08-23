@@ -67,5 +67,55 @@
     "abort": {
       "no_active_slots": "No active PIN codes to remove"
     }
+  },
+  "entity": {
+    "sensor": {
+      "slot": {
+        "name": "Slot {slot}"
+      },
+      "last_activity": {
+        "name": "Last activity"
+      }
+    }
+  },
+  "exceptions": {
+    "lock_unreachable": {
+      "message": "Could not reach the lock. Press a button on the lock to wake it and try again."
+    },
+    "invalid_slot": {
+      "message": "Slot must be between {min} and {max}"
+    },
+    "invalid_pin": {
+      "message": "PIN code must be 4-8 digits"
+    },
+    "lock_not_found": {
+      "message": "No Onesti lock found"
+    },
+    "lock_not_found_ieee": {
+      "message": "No Onesti lock found with IEEE {ieee}"
+    }
+  },
+  "runtime": {
+    "unknown_user": "Unknown",
+    "slot_vacant": "Vacant",
+    "slot_fallback_name": "Slot {slot}",
+    "slot_label": "Slot {slot}: {name}",
+    "slot_status_pin_active": "(PIN active)",
+    "slot_status_no_pin": "(no PIN)",
+    "lock_keypad": "{name} locked with code",
+    "unlock_keypad": "{name} unlocked with code",
+    "lock_fingerprint": "{name} locked with fingerprint",
+    "unlock_fingerprint": "{name} unlocked with fingerprint",
+    "lock_rfid": "{name} locked with RFID",
+    "unlock_rfid": "{name} unlocked with RFID",
+    "lock_zigbee": "Locked via Zigbee",
+    "unlock_zigbee": "Unlocked via Zigbee",
+    "lock_auto": "Auto-lock",
+    "unlock_auto": "Auto-unlock",
+    "lock_unattributed": "Locked",
+    "unlock_unattributed": "Unlocked",
+    "lock_unknown": "{name} locked",
+    "unlock_unknown": "{name} unlocked",
+    "activity_unknown": "Unknown activity"
   }
 }

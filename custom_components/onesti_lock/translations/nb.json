@@ -67,5 +67,55 @@
     "abort": {
       "no_active_slots": "Ingen aktive PIN-koder å fjerne"
     }
+  },
+  "entity": {
+    "sensor": {
+      "slot": {
+        "name": "Slot {slot}"
+      },
+      "last_activity": {
+        "name": "Siste aktivitet"
+      }
+    }
+  },
+  "exceptions": {
+    "lock_unreachable": {
+      "message": "Kunne ikke nå låsen. Trykk på en knapp på låsen for å vekke den og prøv igjen."
+    },
+    "invalid_slot": {
+      "message": "Slot må være mellom {min} og {max}"
+    },
+    "invalid_pin": {
+      "message": "PIN-koden må være 4-8 siffer"
+    },
+    "lock_not_found": {
+      "message": "Fant ingen Onesti-lås"
+    },
+    "lock_not_found_ieee": {
+      "message": "Fant ingen Onesti-lås med IEEE {ieee}"
+    }
+  },
+  "runtime": {
+    "unknown_user": "Ukjent",
+    "slot_vacant": "Ledig",
+    "slot_fallback_name": "Slot {slot}",
+    "slot_label": "Slot {slot}: {name}",
+    "slot_status_pin_active": "(PIN aktiv)",
+    "slot_status_no_pin": "(ingen PIN)",
+    "lock_keypad": "{name} låste med kode",
+    "unlock_keypad": "{name} låste opp med kode",
+    "lock_fingerprint": "{name} låste med fingeravtrykk",
+    "unlock_fingerprint": "{name} låste opp med fingeravtrykk",
+    "lock_rfid": "{name} låste med RFID",
+    "unlock_rfid": "{name} låste opp med RFID",
+    "lock_zigbee": "Låst via Zigbee",
+    "unlock_zigbee": "Låst opp via Zigbee",
+    "lock_auto": "Auto-lås",
+    "unlock_auto": "Auto-opplåsing",
+    "lock_unattributed": "Låst",
+    "unlock_unattributed": "Låst opp",
+    "lock_unknown": "{name} låste",
+    "unlock_unknown": "{name} låste opp",
+    "activity_unknown": "Ukjent aktivitet"
   }
 }

@@ -51,6 +51,7 @@ Session notes and stale plans contain earlier incorrect guesses. Code is authori
 | `custom_components/onesti_lock/sensor.py`      | Slot sensors (3-12) + Activity sensor                             |
 | `custom_components/onesti_lock/services.py`    | set_pin, clear_pin, set_name, clear_slot services                 |
 | `custom_components/onesti_lock/const.py`       | Constants, source/action enums, supported models, slot ranges     |
+| `custom_components/onesti_lock/localize.py`    | Runtime string lookup (reads the `runtime` section of translations/*.json) |
 
 ## Gotchas
 
@@ -60,6 +61,7 @@ Session notes and stale plans contain earlier incorrect guesses. Code is authori
 4. **Activity sensor auto-lock suppression**: Auto-lock events fire the HA event but do NOT update the activity sensor, to avoid overwriting "Kari låste opp med kode" with "Auto-lås".
 5. **CI/release workflows**: Both `.github/workflows/` files must reference `custom_components/onesti_lock/` (not `nimly_pro`).
 6. **NimlyCoordinator is NOT DataUpdateCoordinator**: Custom pattern — event-driven, no polling. Intentional for battery-powered devices.
+7. **No user-facing strings in Python**: sensor states and options flow labels come from the `runtime` section of `translations/*.json` via `localize.py`; entity names and service errors go through HA's own `entity`/`exceptions` sections. `tests/test_no_hardcoded_language.py` fails the build if a Norwegian literal reappears. `strings.json` is the English source and must stay identical to `translations/en.json`.
 
 ## Documentation Map
 
@@ -88,7 +90,7 @@ Tests mock ZHA entirely. No real hardware needed.
 
 ## Common Tasks
 
-- **Add new source type**: Update `_SOURCE_MAP` in `__init__.py` + `SOURCE_*` in `const.py` + display string in `sensor.py`
+- **Add new source type**: Update `_SOURCE_MAP` in `__init__.py` + `SOURCE_*` in `const.py` + `lock_<source>`/`unlock_<source>` in the `runtime` section of all four `translations/*.json` (and `strings.json`)
 - **Change slot range**: Update `SLOT_FIRST_USER`, `NUM_USER_SLOTS`, `MAX_SLOTS` in `const.py`
 - **Add new lock model**: Add to `SUPPORTED_MODELS` in `const.py`
 - **Add new service**: Follow pattern in `services.py`, add schema + handler, register in `async_setup_services`

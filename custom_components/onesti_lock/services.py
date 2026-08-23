@@ -22,7 +22,18 @@ def _get_coordinator(hass: HomeAssistant, ieee: str | None = None):
             continue
         if ieee is None or coordinator.ieee.lower() == ieee.lower():
             return coordinator
-    raise HomeAssistantError(f"Nimly lock not found{f' for {ieee}' if ieee else ''}")
+    if ieee:
+        raise HomeAssistantError(
+            f"No Onesti lock found with IEEE {ieee}",
+            translation_domain=DOMAIN,
+            translation_key="lock_not_found_ieee",
+            translation_placeholders={"ieee": ieee},
+        )
+    raise HomeAssistantError(
+        "No Onesti lock found",
+        translation_domain=DOMAIN,
+        translation_key="lock_not_found",
+    )
 
 
 async def async_setup_services(hass: HomeAssistant) -> None:
@@ -35,15 +46,31 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         ieee = call.data.get("ieee")
 
         if not SLOT_FIRST_USER <= slot < MAX_SLOTS:
-            raise HomeAssistantError(f"Slot must be {SLOT_FIRST_USER}-{MAX_SLOTS - 1}")
+            raise HomeAssistantError(
+                f"Slot must be between {SLOT_FIRST_USER} and {MAX_SLOTS - 1}",
+                translation_domain=DOMAIN,
+                translation_key="invalid_slot",
+                # HA rejects non-string placeholder values.
+                translation_placeholders={
+                    "min": str(SLOT_FIRST_USER),
+                    "max": str(MAX_SLOTS - 1),
+                },
+            )
         if not code.isdigit() or len(code) < 4 or len(code) > 8:
-            raise HomeAssistantError("PIN must be 4-8 digits")
+            raise HomeAssistantError(
+                "PIN code must be 4-8 digits",
+                translation_domain=DOMAIN,
+                translation_key="invalid_pin",
+            )
 
         coordinator = _get_coordinator(hass, ieee)
         success = await coordinator.set_pin(slot, name, code)
         if not success:
             raise HomeAssistantError(
-                "Kunne ikke nå låsen — trykk en knapp på låsen og prøv igjen"
+                "Could not reach the lock. Press a button on the lock to wake it "
+                "and try again.",
+                translation_domain=DOMAIN,
+                translation_key="lock_unreachable",
             )
 
     async def handle_clear_pin(call: ServiceCall) -> None:
@@ -51,13 +78,25 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         ieee = call.data.get("ieee")
 
         if not SLOT_FIRST_USER <= slot < MAX_SLOTS:
-            raise HomeAssistantError(f"Slot must be {SLOT_FIRST_USER}-{MAX_SLOTS - 1}")
+            raise HomeAssistantError(
+                f"Slot must be between {SLOT_FIRST_USER} and {MAX_SLOTS - 1}",
+                translation_domain=DOMAIN,
+                translation_key="invalid_slot",
+                # HA rejects non-string placeholder values.
+                translation_placeholders={
+                    "min": str(SLOT_FIRST_USER),
+                    "max": str(MAX_SLOTS - 1),
+                },
+            )
 
         coordinator = _get_coordinator(hass, ieee)
         success = await coordinator.clear_pin(slot)
         if not success:
             raise HomeAssistantError(
-                "Kunne ikke nå låsen — trykk en knapp på låsen og prøv igjen"
+                "Could not reach the lock. Press a button on the lock to wake it "
+                "and try again.",
+                translation_domain=DOMAIN,
+                translation_key="lock_unreachable",
             )
 
     async def handle_set_name(call: ServiceCall) -> None:
@@ -66,7 +105,16 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         ieee = call.data.get("ieee")
 
         if not SLOT_FIRST_USER <= slot < MAX_SLOTS:
-            raise HomeAssistantError(f"Slot must be {SLOT_FIRST_USER}-{MAX_SLOTS - 1}")
+            raise HomeAssistantError(
+                f"Slot must be between {SLOT_FIRST_USER} and {MAX_SLOTS - 1}",
+                translation_domain=DOMAIN,
+                translation_key="invalid_slot",
+                # HA rejects non-string placeholder values.
+                translation_placeholders={
+                    "min": str(SLOT_FIRST_USER),
+                    "max": str(MAX_SLOTS - 1),
+                },
+            )
 
         coordinator = _get_coordinator(hass, ieee)
         await coordinator.set_slot_name(slot, name)
@@ -76,7 +124,16 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         ieee = call.data.get("ieee")
 
         if not SLOT_FIRST_USER <= slot < MAX_SLOTS:
-            raise HomeAssistantError(f"Slot must be {SLOT_FIRST_USER}-{MAX_SLOTS - 1}")
+            raise HomeAssistantError(
+                f"Slot must be between {SLOT_FIRST_USER} and {MAX_SLOTS - 1}",
+                translation_domain=DOMAIN,
+                translation_key="invalid_slot",
+                # HA rejects non-string placeholder values.
+                translation_placeholders={
+                    "min": str(SLOT_FIRST_USER),
+                    "max": str(MAX_SLOTS - 1),
+                },
+            )
 
         coordinator = _get_coordinator(hass, ieee)
         await coordinator.clear_slot(slot)

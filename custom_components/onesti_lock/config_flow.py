@@ -18,6 +18,7 @@ from homeassistant.core import callback
 from .const import (
     CONF_IEEE,
     DOMAIN,
+    DOORLOCK_CLUSTER_ID,
     MANUFACTURER,
     MAX_SLOTS,
     SLOT_FIRST_USER,
@@ -27,6 +28,27 @@ from .const import (
 from .localize import async_get_strings
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _has_door_lock_cluster(proxy) -> bool:
+    """Whether the ZHA device exposes the Door Lock cluster.
+
+    Same chain walk as NimlyCoordinator._get_cluster: clusters live on the
+    deepest zigpy device object, not on the ZHA wrapper layers.
+    """
+    obj = proxy
+    for _ in range(4):
+        if hasattr(obj, "endpoints"):
+            for ep_id, ep in obj.endpoints.items():
+                if ep_id == 0:
+                    continue
+                if DOORLOCK_CLUSTER_ID in getattr(ep, "in_clusters", {}):
+                    return True
+        if hasattr(obj, "device"):
+            obj = obj.device
+        else:
+            break
+    return False
 
 
 class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -49,18 +71,30 @@ class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="zha_not_found")
 
         devices = {}
+        existing = {
+            entry.data.get(CONF_IEEE)
+            for entry in self._async_current_entries()
+        }
         for ieee, proxy in zha_data.gateway_proxy.device_proxies.items():
             device = proxy.device if hasattr(proxy, "device") else proxy
             manufacturer = getattr(device, "manufacturer", "")
             model = getattr(device, "model", "")
-            if manufacturer == MANUFACTURER and model in SUPPORTED_MODELS:
-                ieee_str = str(ieee)
-                existing = {
-                    entry.data.get(CONF_IEEE)
-                    for entry in self._async_current_entries()
-                }
-                if ieee_str not in existing:
-                    devices[ieee_str] = f"{model} ({ieee_str})"
+            # The model string is informational, not a gate. All Onesti
+            # locks share hardware and the ZMNC010 Zigbee module, and a
+            # module can report a sibling model name (issue #5: a CodePRO
+            # presenting as Twist), so any Onesti device with a Door Lock
+            # cluster is offered.
+            if manufacturer != MANUFACTURER or not _has_door_lock_cluster(proxy):
+                continue
+            if model not in SUPPORTED_MODELS:
+                _LOGGER.warning(
+                    "Unrecognized Onesti model %r, offering it anyway. "
+                    "Please report the model string on GitHub",
+                    model,
+                )
+            ieee_str = str(ieee)
+            if ieee_str not in existing:
+                devices[ieee_str] = f"{model} ({ieee_str})"
 
         if not devices:
             return self.async_abort(reason="no_devices_found")

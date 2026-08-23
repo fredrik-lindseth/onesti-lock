@@ -76,6 +76,12 @@ If the Connect Module never shows up in ZHA's "Add device", even after multiple 
 2. **Wait out pairing mode before resetting.** On some modules the reset button behaves differently while pairing mode is active. If you have just triggered pairing, wait ~4 minutes for it to time out, then hold reset.
 3. After a successful reset, give it a few minutes before the module appears in ZHA discovery.
 
+### Lock not offered when adding the integration
+
+If the module is paired and visible in ZHA, but "Add integration" ends in "No devices found", the config flow found nothing that matched its two criteria: the ZHA device manufacturer must be `Onesti Products AS`, and the device must expose a Door Lock cluster (0x0101). The model name is not part of the test, so a module reporting a sibling model such as `NimlyTwist` is still offered, with a warning in the log naming the unknown model string.
+
+Check the manufacturer and clusters in ZHA under Device info → Zigbee info. A device with the right manufacturer but no Door Lock cluster usually has not finished interview; re-interview it from the same page. Also note that a lock already set up is filtered out, so an existing config entry is the other reason the list can come back empty.
+
 ## 1. Zigbee connectivity
 
 ### Lock not responding (sleepy device)

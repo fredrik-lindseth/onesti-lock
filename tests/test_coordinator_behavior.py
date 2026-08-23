@@ -192,3 +192,16 @@ class TestGetSlotIsolation:
         coord.get_slot(9)["name"] = "ghost"
         assert coord.get_slot(9)["name"] == ""
         assert "9" not in coord._slots
+
+
+class TestCapabilitySlotCeiling:
+    """max_user_slot follows the lock's reported capacity, else the manual."""
+
+    def test_default_ceiling_without_capabilities(self):
+        _hass, _entry, coord = _make_coordinator({"slots": {}})
+        assert coord.max_user_slot() == 999
+
+    def test_ceiling_follows_reported_capacity(self):
+        _hass, _entry, coord = _make_coordinator({"slots": {}})
+        coord.lock_capabilities["num_pin_users"] = 50
+        assert coord.max_user_slot() == 49

@@ -68,6 +68,7 @@ NUM_USER_SLOTS = 10    # UI shows slots 3-12
 
 - **Options flow**: shows slots 3-12 in dropdown for PIN management
 - **Name slot**: user slots 3-999 can be named for RFID/fingerprint identification (same range the services accept)
+- **set_pin capacity check**: when the lock has reported `NumberOfPINUsersSupported` (50 on both NimlyPRO and NimlyCodePRO), `set_pin` rejects slots at or above it. Before the attribute has been read (sleepy lock at setup, or a variant without the attribute) the manual's 3-999 range applies. Whether slots >= 50 actually work on real hardware is still unverified; see the capacity test below.
 - **Sensors**: 10 slot sensors (3-12), showing name and PIN status
 - **Event decoding**: `attrid 0x0100` bytes 0-1 give the slot number, always in ZCL numbering regardless of how the credential was enrolled
 

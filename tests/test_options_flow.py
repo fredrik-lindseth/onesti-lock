@@ -51,7 +51,7 @@ class TestOptionsFlowErrorStrings:
         # and self._set_pin_error = "lock_unreachable"
         import re
         error_codes = set()
-        for match in re.finditer(r'errors\["(?:base|code)"\]\s*=\s*"(\w+)"', source):
+        for match in re.finditer(r'errors\["(?:base|code|slot)"\]\s*=\s*"(\w+)"', source):
             error_codes.add(match.group(1))
         for match in re.finditer(r'self\._(?:set_pin|clear_pin)_error\s*=\s*"(\w+)"', source):
             error_codes.add(match.group(1))
@@ -202,3 +202,24 @@ class TestOptionsFlowInstanceVars:
         assert "_set_pin_error" in source
         assert "_clear_pin_task" in source
         assert "_clear_pin_error" in source
+
+
+class TestNameSlotValidation:
+    """name_slot must enforce the same slot range as the services."""
+
+    def _name_slot_source(self):
+        source = _load_source()
+        tree = _load_source_ast()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.AsyncFunctionDef) and node.name == "async_step_name_slot":
+                return ast.get_source_segment(source, node)
+        pytest.fail("async_step_name_slot not found in config_flow.py")
+
+    def test_validates_against_slot_constants(self):
+        body = self._name_slot_source()
+        assert "SLOT_FIRST_USER" in body, "name_slot must use the shared slot constants"
+        assert "MAX_SLOTS" in body, "name_slot must use the shared slot constants"
+
+    def test_out_of_range_maps_to_invalid_slot(self):
+        body = self._name_slot_source()
+        assert 'errors["slot"] = "invalid_slot"' in body

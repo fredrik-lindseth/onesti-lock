@@ -307,21 +307,33 @@ class NimlyProOptionsFlow(OptionsFlow):
 
     async def async_step_name_slot(self, user_input=None) -> ConfigFlowResult:
         """Assign a name to any slot (for RFID tags, fingerprints, etc.)."""
+        errors: dict[str, str] = {}
+        suggested: dict[str, Any] | None = None
         if user_input is not None:
             slot = int(user_input["slot"])
-            name = user_input["name"]
-            coordinator = self.hass.data[DOMAIN][self.config_entry.entry_id]["coordinator"]
-            await coordinator.set_slot_name(slot, name)
-            return self.async_create_entry(data=self.config_entry.options)
+            # Same range the services enforce, so the two entry points
+            # cannot drift apart on what a valid slot is.
+            if not SLOT_FIRST_USER <= slot < MAX_SLOTS:
+                errors["slot"] = "invalid_slot"
+                suggested = user_input
+            else:
+                coordinator = self.hass.data[DOMAIN][self.config_entry.entry_id]["coordinator"]
+                await coordinator.set_slot_name(slot, user_input["name"])
+                return self.async_create_entry(data=self.config_entry.options)
+
+        schema = vol.Schema(
+            {
+                vol.Required("slot"): vol.Coerce(int),
+                vol.Required("name"): str,
+            }
+        )
+        if suggested:
+            schema = self.add_suggested_values_to_schema(schema, suggested)
 
         return self.async_show_form(
             step_id="name_slot",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("slot"): vol.Coerce(int),
-                    vol.Required("name"): str,
-                }
-            ),
+            data_schema=schema,
+            errors=errors,
         )
 
     # -- View slots --

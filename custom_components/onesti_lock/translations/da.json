@@ -61,6 +61,7 @@
     },
     "error": {
       "invalid_pin": "PIN-kode skal være 4-8 cifre",
+      "invalid_slot": "Pladsnummeret skal være mellem 3 og 999",
       "lock_unreachable": "Kunne ikke nå låsen. Tryk på tastaturet og prøv igen.",
       "unknown": "En uventet fejl opstod. Tjek logfilerne."
     },

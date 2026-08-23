@@ -36,10 +36,9 @@ NimlyCodePRO (firmware 4.8) reports the same source code for Zigbee commands, au
 
 ### Via HACS (recommended)
 
-1. HACS → Integrations → ⋮ → Custom repositories
-2. Add `https://github.com/fredrik-lindseth/onesti-lock` as Integration
-3. Install "Onesti Lock"
-4. Restart Home Assistant
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=fredrik-lindseth&repository=onesti-lock&category=integration)
+
+That button adds this repository to HACS. Install "Onesti Lock" and restart Home Assistant. To do it by hand instead: HACS → Integrations → ⋮ → Custom repositories, add `https://github.com/fredrik-lindseth/onesti-lock` as Integration.
 
 ### Manual
 
@@ -48,10 +47,11 @@ NimlyCodePRO (firmware 4.8) reports the same source code for Zigbee commands, au
 
 ## Setup
 
-1. Pair the lock with **ZHA** (the lock's Zigbee Connect Module must be installed)
-2. **Settings → Devices & Services → Add Integration → Onesti Lock**
-3. Select your lock from the list
-4. Slot sensors and the activity sensor appear automatically
+Pair the lock with **ZHA** first. The lock's Zigbee Connect Module must be installed.
+
+[![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=onesti_lock)
+
+Or go to **Settings → Devices & Services → Add Integration → Onesti Lock**. Select your lock from the list, and the slot sensors and activity sensor appear automatically.
 
 ## Managing access
 

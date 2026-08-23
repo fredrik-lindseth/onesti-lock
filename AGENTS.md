@@ -31,13 +31,14 @@ Event listener (in __init__.py)
 
 Final correct values used in code (`__init__.py` `_SOURCE_MAP`):
 
-| Byte | Source      |
-| ---- | ----------- |
-| 0x00 | zigbee      |
-| 0x02 | keypad      |
-| 0x03 | fingerprint |
-| 0x04 | rfid        |
-| 0x0A | auto        |
+| Byte | Source                      |
+| ---- | --------------------------- |
+| 0x00 | zigbee                      |
+| 0x02 | keypad                      |
+| 0x03 | fingerprint                 |
+| 0x04 | rfid                        |
+| 0x05 | unattributed (NimlyCodePRO) |
+| 0x0A | auto                        |
 
 Session notes and stale plans contain earlier incorrect guesses. Code is authoritative.
 
@@ -58,7 +59,7 @@ Session notes and stale plans contain earlier incorrect guesses. Code is authori
 1. **ZHA device chain depth**: Clusters live on depth-2 object (CustomDeviceV2), not the ZHADeviceProxy. `_get_cluster()` walks .device chain up to 4 levels.
 2. **Slot numbering**: Zigbee ZCL uses 0-199 (0-2 master, 3+ users). BLE uses 800-899. UI shows 10 sensors for slots 3-12.
 3. **Options flow progress**: HA's `async_show_progress` requires step `foo_progress` with action `foo_progress` — then auto-calls `foo_progress_done` → `async_step_foo_result`.
-4. **Activity sensor auto-lock suppression**: Auto-lock events fire the HA event but do NOT update the activity sensor, to avoid overwriting "Kari låste opp med kode" with "Auto-lås".
+4. **Activity sensor suppression**: System-initiated locking (source `auto`, and on NimlyCodePRO an `unattributed` lock with no user slot) fires the HA event but does NOT update the activity sensor, to avoid overwriting "Kari låste opp med kode" with "Auto-lås".
 5. **CI/release workflows**: Both `.github/workflows/` files must reference `custom_components/onesti_lock/` (not `nimly_pro`).
 6. **NimlyCoordinator is NOT DataUpdateCoordinator**: Custom pattern — event-driven, no polling. Intentional for battery-powered devices.
 7. **No user-facing strings in Python**: sensor states and options flow labels come from the `runtime` section of `translations/*.json` via `localize.py`; entity names and service errors go through HA's own `entity`/`exceptions` sections. `tests/test_no_hardcoded_language.py` fails the build if a Norwegian literal reappears. `strings.json` is the English source and must stay identical to `translations/en.json`.

@@ -92,7 +92,8 @@ Tests mock ZHA entirely. No real hardware needed. Home Assistant is not
 installed here, and CI installs only `ruff` and `pytest`, so no test may import
 `homeassistant` or `voluptuous` without stubbing them. See
 `tests/test_coordinator_behavior.py` for the harness that runs real coordinator
-code under stubs.
+code under stubs. `python3 scripts/ci_sim.py` runs the suite with those modules
+blocked, which is the only way to catch a stray import before CI does.
 
 ### Testing on the real lock
 

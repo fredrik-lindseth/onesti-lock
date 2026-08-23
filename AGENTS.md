@@ -142,6 +142,23 @@ Leave the backup tarball in place, and restart once more after restoring. Slot
 names and PIN status live in `.storage`, not in the integration directory, so
 they survive a swap either way.
 
+## Release notes
+
+HACS renders them inside Home Assistant, so they are read by users, not by
+developers browsing the repo. Keep them short and lead with what matters to
+someone running the lock. Nobody in HA cares that the README was shortened or
+that a test helper was added, so leave documentation, tooling and refactors
+out entirely.
+
+Match the existing releases: `### Features`, `### Security`, `### Bug fixes`,
+`### Breaking changes`, one bullet per change with a bold lead-in, and the
+`**Full changelog**` compare link last. Say what the user would have noticed,
+then why, in that order.
+
+The release workflow builds a body from commit subjects when it creates a
+release on push. That output is a starting point, not the finished notes;
+replace it.
+
 ## Common Tasks
 
 - **Add new source type**: Update `_SOURCE_MAP` in `__init__.py` + `SOURCE_*` in `const.py` + `lock_<source>`/`unlock_<source>` in the `runtime` section of all four `translations/*.json` (and `strings.json`)

@@ -17,6 +17,7 @@ from .const import (
     SOURCE_FINGERPRINT,
     SOURCE_KEYPAD,
     SOURCE_RFID,
+    SOURCE_UNATTRIBUTED,
     SOURCE_UNKNOWN,
     SOURCE_ZIGBEE,
 )
@@ -37,6 +38,10 @@ _SOURCE_MAP = {
     0x02: SOURCE_KEYPAD,
     0x03: SOURCE_FINGERPRINT,
     0x04: SOURCE_RFID,
+    # NimlyCodePRO (fw 4.8) reports 0x05 for Zigbee, auto-relock and interior
+    # keypad alike; the payload cannot distinguish them. Other models use
+    # 0x00/0x0A instead.
+    0x05: SOURCE_UNATTRIBUTED,
     0x0A: SOURCE_AUTO,
 }
 

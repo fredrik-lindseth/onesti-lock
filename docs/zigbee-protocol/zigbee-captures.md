@@ -34,22 +34,29 @@ Sent on every lock/unlock. Little-endian byte order:
 Byte 0: user_slot  — 0 = system/auto, 3-199 = user slot
 Byte 1: reserved   — always 0x00
 Byte 2: action     — 0x01 = lock, 0x02 = unlock
-Byte 3: source     — 0x01 = RF, 0x02 = keypad, 0x03 = manual, 0x0A = auto
+Byte 3: source     — see table below
 ```
-
-Unknown source values (not yet observed): fingerprint, RFID/NFC.
 
 ### Verified source values (byte 3)
 
 Final mapping used in the integration (verified against Z2M converter and raw captures):
 
-| Byte | Source      | Status                        |
-| ---- | ----------- | ----------------------------- |
-| 0x00 | Zigbee (RF) | Inferred                      |
-| 0x02 | Keypad      | Verified (multiple captures)  |
-| 0x03 | Fingerprint | From Z2M converter            |
-| 0x04 | RFID        | From Z2M converter            |
-| 0x0A | Auto-lock   | Verified (multiple captures)  |
+| Byte | Source        | Status                                            |
+| ---- | ------------- | ------------------------------------------------- |
+| 0x00 | Zigbee (RF)   | Inferred                                          |
+| 0x02 | Keypad        | Verified (multiple captures)                      |
+| 0x03 | Fingerprint   | From Z2M converter                                |
+| 0x04 | RFID          | From Z2M converter                                |
+| 0x05 | Unattributed  | Reported for NimlyCodePRO fw 4.8 (see below)      |
+| 0x0A | Auto-lock     | Verified (multiple captures)                      |
+
+Source encoding varies per model/firmware. NimlyCodePRO (fw 4.8.02, reported by
+supersej in [zha-device-handlers#4881](https://github.com/zigpy/zha-device-handlers/pull/4881))
+sends 0x05 for Zigbee commands, auto-relock and the interior keypad button
+alike, always with user slot 0 (payload `0x05010000`), and never sends 0x00 or
+0x0A. The payload cannot distinguish the three, hence "unattributed". On the
+same model the physical emergency key produces no event at all and does not
+update lock_state.
 
 Note: Session notes (2026-03-28) contain an early hypothesis with different values (1=RF, 3=manual). The code in `__init__.py` `_SOURCE_MAP` is authoritative.
 

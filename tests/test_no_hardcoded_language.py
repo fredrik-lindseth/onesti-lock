@@ -122,12 +122,20 @@ class TestSensorNaming:
         attrs = self._assigned_attrs("NimlySlotSensor")
         assert "_attr_translation_key" in attrs
         assert "_attr_translation_placeholders" in attrs
-        assert "_attr_name" in attrs
 
     def test_activity_sensor_sets_translation_attrs(self):
         attrs = self._assigned_attrs("NimlyActivitySensor")
         assert "_attr_translation_key" in attrs
-        assert "_attr_name" in attrs
+
+    def test_sensors_never_set_attr_name(self):
+        """HA checks _attr_name before the translation key.
+
+        Setting it as a fallback disables translated entity names outright.
+        Confirmed on a running instance, where a Norwegian server showed
+        the English _attr_name instead of "Siste aktivitet".
+        """
+        for cls in ("NimlySlotSensor", "NimlyActivitySensor"):
+            assert "_attr_name" not in self._assigned_attrs(cls), cls
 
     def test_slot_translation_key_is_shared(self):
         """One key with a {slot} placeholder, not ten per-slot keys."""

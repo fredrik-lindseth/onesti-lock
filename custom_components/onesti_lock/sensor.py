@@ -48,10 +48,10 @@ class NimlySlotSensor(SensorEntity):
         self._attr_unique_id = f"{coordinator.ieee}-slot-{slot}"
         self._attr_translation_key = "slot"
         self._attr_translation_placeholders = {"slot": str(slot)}
-        # Safety net: HA prefers the translation key and only falls back
-        # here if the entity translations fail to load, which would
-        # otherwise leave the entity with no name at all.
-        self._attr_name = f"Slot {slot}"
+        # Never set _attr_name here. HA checks it before the translation
+        # key, so setting it as a fallback silently disables translated
+        # entity names. Verified on a running instance: the activity
+        # sensor showed the English _attr_name on a Norwegian server.
 
     @property
     def native_value(self) -> str:
@@ -96,10 +96,6 @@ class NimlyActivitySensor(SensorEntity):
         self._coordinator = coordinator
         self._attr_unique_id = f"{coordinator.ieee}-activity"
         self._attr_translation_key = "last_activity"
-        # Safety net: HA prefers the translation key and only falls back
-        # here if the entity translations fail to load, which would
-        # otherwise leave the entity with no name at all.
-        self._attr_name = "Last activity"
         self._activity: dict = {}
 
     @property

@@ -79,6 +79,7 @@ Session notes and stale plans contain earlier incorrect guesses. Code is authori
 | `docs/slot-numbering.md`                        | Slot-nummerering usikkerhet mellom Zigbee, BLE og cloud                                      |
 | `docs/debugging.md`                             | Feilsøkingsguide for vanlige problemer                                                       |
 | `docs/cloud-api-status.md`                      | Cloud API reversing status — hva vi har prøvd og veien videre                                |
+| `docs/plans/`                                   | Daterte gjennomganger og planer. 2026-08-23-review-prosjekt.md er den brede kodegjennomgangen |
 
 ## Testing
 

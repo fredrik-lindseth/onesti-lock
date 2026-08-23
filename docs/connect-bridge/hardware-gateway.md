@@ -49,7 +49,7 @@ says "EasyAccess Easy Living", the Connect Module in the lock says "E-Life
 ## Zigbee
 
 - **Zigbee 3.0** certified (Certificate ID: ZIG21356ZB331216-24, Dec 2021, spec 3.0.1)
-- Install Code: `8CFD D0A6 0BC1 68B3 A4E2` (from the label. The hub is not in use and nothing is paired to it, so this is a spec note, not a live credential)
+- Install Code: `8CFD D0A6 0BC1 68B3 A4E2`
 - Role: Zigbee coordinator, pairs and controls the locks
 - Gateway-to-lock protocol: CAS (Command and Status) with AES encryption
 

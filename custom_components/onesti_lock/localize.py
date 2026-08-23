@@ -11,7 +11,9 @@ documented for custom integrations.
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from pathlib import Path
+from types import MappingProxyType
 
 from homeassistant.core import HomeAssistant
 
@@ -65,17 +67,25 @@ def _read_section(language: str) -> dict[str, str]:
         return {}
 
 
-async def async_get_strings(hass: HomeAssistant, language: str | None) -> dict[str, str]:
-    """Load runtime strings off the event loop, cached per language."""
+async def async_get_strings(hass: HomeAssistant, language: str | None) -> Mapping[str, str]:
+    """Load runtime strings off the event loop, cached per language.
+
+    The cached mapping is shared by every config entry, the coordinator
+    and the options flow, so it is wrapped read-only: one in-place write
+    would poison every consumer in the HA instance at once. A writer gets
+    an immediate TypeError at the write site instead.
+    """
     cache = hass.data.setdefault(DATA_RUNTIME_STRINGS, {})
     lang = normalize_language(language)
     if lang not in cache:
-        cache[lang] = await hass.async_add_executor_job(load_strings, lang)
+        cache[lang] = MappingProxyType(
+            await hass.async_add_executor_job(load_strings, lang)
+        )
     return cache[lang]
 
 
 def format_activity(
-    strings: dict[str, str], action: str, source: str, user_name: str
+    strings: Mapping[str, str], action: str, source: str, user_name: str
 ) -> str:
     """Render the activity sensor state as a full sentence.
 

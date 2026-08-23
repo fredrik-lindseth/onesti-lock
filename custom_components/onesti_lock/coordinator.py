@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Mapping
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -32,7 +33,7 @@ class NimlyCoordinator:
         self.lock_capabilities: dict[str, Any] = {}
         # Populated from async_setup_entry: reading the translation files is
         # blocking IO and this constructor runs on the event loop.
-        self.strings: dict[str, str] = {}
+        self.strings: Mapping[str, str] = {}
         self._load_slots()
 
     def _load_slots(self) -> None:
@@ -63,8 +64,15 @@ class NimlyCoordinator:
     # -- Slot data access --
 
     def get_slot(self, slot: int) -> dict[str, Any]:
-        """Get slot data."""
-        return self._slots.get(str(slot), {**DEFAULT_SLOT})
+        """Get a copy of the slot data.
+
+        Always a copy, never the live inner dict: a caller mutating the
+        return value would change _slots without going through _save_slots
+        or notifying listeners, the same silent-aliasing class as the
+        _save_slots persistence bug. Vacant slots already returned a fresh
+        copy; this makes the contract symmetric.
+        """
+        return {**DEFAULT_SLOT, **self._slots.get(str(slot), {})}
 
     def get_slot_name(self, slot: int) -> str:
         """Get human-readable name for slot."""
@@ -72,10 +80,6 @@ class NimlyCoordinator:
         if name:
             return name
         return self.strings.get("slot_fallback_name", "Slot {slot}").format(slot=slot)
-
-    def get_all_slots(self) -> dict[str, dict[str, Any]]:
-        """Get all slot data."""
-        return dict(self._slots)
 
     async def set_slot_name(self, slot: int, name: str) -> None:
         """Set name for a slot (does not send ZCL command)."""
@@ -183,10 +187,16 @@ class NimlyCoordinator:
         return None
 
     async def _wake_lock(self) -> None:
-        """Wake the lock by sending a lock state read via ZHA.
+        """Wake the lock's radio by sending a real lock command via ZHA.
 
-        ZHA's lock entity uses extended timeout for sleepy devices,
-        so this reliably wakes the lock's Zigbee radio.
+        This is a physical actuation: an unlocked door gets locked, and an
+        open door drives the bolt into the air. We still use lock.lock
+        because ZHA's lock entity wraps it in extended timeouts and retries
+        for sleepy end devices, which is what reliably re-arms the parent
+        router's short message window; plain attribute reads through our
+        cluster path just time out (see read_lock_capabilities). Swapping
+        this for a non-actuating wake needs hardware verification first,
+        tracked as a separate issue.
         """
         try:
             # Find the lock entity for this device

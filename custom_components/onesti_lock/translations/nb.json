@@ -28,7 +28,7 @@
       },
       "set_pin": {
         "title": "Sett PIN-kode",
-        "description": "Velg slot, skriv navn og PIN-kode (4-8 siffer). Slot-numrene tilsvarer låsens interne brukerslots (ZCL DoorLock). Slot 0-2 er reservert for master-koder.",
+        "description": "Velg slot, skriv navn og PIN-kode (4-8 siffer). Slot-numrene tilsvarer låsens interne brukerslots (ZCL DoorLock). Slot 0-2 er reservert for master-koder. Merk: hvis låsen sover, tidsavbrytes første forsøk og integrasjonen vekker låsen ved å sende en låsekommando. En ulåst dør blir fysisk låst, så lukk døren før du starter.",
         "data": {
           "slot": "Brukerslot",
           "name": "Navn",
@@ -37,7 +37,7 @@
       },
       "clear_pin": {
         "title": "Fjern PIN-kode",
-        "description": "Velg bruker å fjerne.",
+        "description": "Velg bruker å fjerne. Hvis låsen sover, vekker integrasjonen den ved å sende en låsekommando; en ulåst dør blir fysisk låst.",
         "data": {
           "slot": "Bruker"
         }

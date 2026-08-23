@@ -162,10 +162,20 @@ def _register_event_listener(
             val,
         )
 
-        # Only update the activity sensor for user-initiated events,
-        # not auto-lock — otherwise auto-lock immediately overwrites
-        # "Vibecke låste opp med kode" with "Auto-lås"
-        if decoded["source"] != "auto":
+        # Only user-attributable events update the activity sensor.
+        # Otherwise auto-relock immediately overwrites the last meaningful
+        # entry, such as who unlocked with a code. Most models report
+        # auto-relock as SOURCE_AUTO. NimlyCodePRO reports it as an
+        # unattributed lock with no user slot, indistinguishable from a
+        # remote lock, so both are suppressed on that model. An
+        # unattributed unlock is a person acting on the lock and must
+        # stay visible.
+        is_system_lock = decoded["source"] == SOURCE_AUTO or (
+            decoded["source"] == SOURCE_UNATTRIBUTED
+            and decoded["action"] == ACTION_LOCK
+            and decoded["user_slot"] is None
+        )
+        if not is_system_lock:
             coordinator.update_activity(
                 decoded["user_slot"], decoded["action"], decoded["source"]
             )

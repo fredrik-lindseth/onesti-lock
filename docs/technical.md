@@ -12,6 +12,17 @@ Bits 16-23: action (1 = lock, 2 = unlock)
 Bits 24-31: source (see _SOURCE_MAP in __init__.py)
 ```
 
+| Source byte | Meaning |
+| ----------- | ------- |
+| `0x00` | zigbee (remote command) |
+| `0x02` | keypad (PIN code) |
+| `0x03` | fingerprint |
+| `0x04` | rfid |
+| `0x05` | unattributed (NimlyCodePRO fw 4.8 reports this for Zigbee, auto-relock and interior keypad alike) |
+| `0x0A` | auto (auto-relock) |
+
+`_SOURCE_MAP` in `__init__.py` is the canonical decoder; update this table when the map changes. Raw captures behind these values live in `docs/zigbee-protocol/zigbee-captures.md`.
+
 `attrid 0x0101` contains the PIN code in BCD plaintext. The integration deliberately
 does not decode or expose it: every state attribute ends up in the recorder, the
 logbook and diagnostics, which would put real access codes on disk (see
@@ -56,7 +67,7 @@ User→slot mapping stored in config entry options (`.storage`), survives restar
 
 **Listener pattern:** Sensors (e.g. the slot overview sensor) register callbacks via `add_listener(callback)`. When slot data changes (name set, PIN set/cleared), the coordinator calls `_notify_listeners()` which invokes all registered callbacks. This triggers `async_write_ha_state()` in each sensor.
 
-**Activity sensor:** Registered separately via `set_activity_sensor(sensor)`. The coordinator calls `update_activity(user_slot, action, source)` on it when an operation event is decoded — but only for non-auto events, so auto-lock doesn't overwrite the last meaningful activity.
+**Activity sensor:** Registered separately via `set_activity_sensor(sensor)`. The coordinator calls `update_activity(user_slot, action, source)` on it when an operation event is decoded, except for system-initiated locking: source `auto`, and on NimlyCodePRO an `unattributed` lock with no user slot. This keeps auto-relock from overwriting the last meaningful activity.
 
 ## Auto-wake mechanism
 
@@ -78,7 +89,7 @@ Every operation event decoded from attrid `0x0100` fires a Home Assistant event 
 - **Event name:** `onesti_lock_activity`
 - **Payload:** `ieee`, `user_slot`, `user_name`, `action`, `source`
 - **Scope:** Fired for ALL events including auto-lock
-- **Activity sensor:** Only updated for non-auto events (so auto-lock doesn't immediately overwrite "Kari låste opp med kode" with a system event)
+- **Activity sensor:** Not updated for system-initiated locking (source `auto`, or an `unattributed` lock with no user slot on NimlyCodePRO), so auto-relock does not immediately overwrite the last user event
 
 ### Automation example
 

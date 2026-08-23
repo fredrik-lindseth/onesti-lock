@@ -1,10 +1,10 @@
-# Onesti Lock — Zigbee Captures & Protocol Reference
+# Zigbee captures and protocol reference
 
 Raw Zigbee captures from NimlyPRO (f4:ce:36:25:5a:2c:72:87).
 
 ## DoorLock Cluster (0x0101, endpoint 11)
 
-### Attribute 0x0000 — Lock State (standard ZCL)
+### Attribute 0x0000: Lock State (standard ZCL)
 
 Type: enum8
 
@@ -24,7 +24,7 @@ Raw ZCL frame (lock):
 └─────── frame_control: 0x08 (server→client, global command)
 ```
 
-### Attribute 0x0100 — Operation Event (Onesti custom)
+### Attribute 0x0100: Operation Event (Onesti custom)
 
 Type: bitmap32
 
@@ -86,11 +86,13 @@ Raw ZCL frame (auto-lock):
                    └──────────── [00, 00, 01, 0A] = slot 0, lock, auto
 ```
 
-### Attribute 0x0101 — Last PIN Code (Onesti custom)
+### Attribute 0x0101: Last PIN Code (Onesti custom)
 
 Type: LVBytes (octet string)
 
-PIN code in raw bytes — two BCD digits per byte.
+PIN code in raw bytes, two BCD digits per byte. The integration deliberately
+ignores this attribute: decoding it would write real access codes into HA's
+recorder, logbook and diagnostics. See the comment in `__init__.py`.
 
 Raw ZCL frame (PIN "5478"):
 
@@ -104,7 +106,7 @@ Raw ZCL frame (PIN "5478"):
 └─────── frame_control: 0x08
 ```
 
-### Attribute 0x0023 — Auto Relock Time (standard ZCL)
+### Attribute 0x0023: Auto Relock Time (standard ZCL)
 
 Type: uint32
 

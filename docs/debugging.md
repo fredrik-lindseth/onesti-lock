@@ -8,38 +8,38 @@ Source: [Nimly Touch Pro Manual](https://nimly.se/wp-content/uploads/2024/09/EN-
 
 ### Keypad (outside unit)
 
-| Indicator | Meaning |
-|-----------|---------|
-| **Green flash + short beep** | Success (unlock, registration, programming) |
-| **Red flash** | Failure (wrong code, timeout, registration failed) |
-| **Long beep + green flash** | Successful factory reset |
-| **Repeated frequent beeps on locking** | Low battery — replace batteries soon |
-| **White backlit keypad** | Keypad woken (touch), ready for input |
+| Indicator                              | Meaning                                            |
+| -------------------------------------- | -------------------------------------------------- |
+| **Green flash + short beep**           | Success (unlock, registration, programming)        |
+| **Red flash**                          | Failure (wrong code, timeout, registration failed) |
+| **Long beep + green flash**            | Successful factory reset                           |
+| **Repeated frequent beeps on locking** | Low battery, replace batteries soon                |
+| **White backlit keypad**               | Keypad woken (touch), ready for input              |
 
-**Anti-tamper:** Three wrong codes in a row disables the keypad for 5 minutes.
+**Anti-tamper:** three wrong codes in a row disables the keypad for 5 minutes.
 
-**Camouflage function:** You can enter false digits before and after the real code. For example, `21345681#` where the real code is `3456`.
+**Camouflage function:** you can enter false digits before and after the real code. For example, `21345681#` where the real code is `3456`.
 
 ### Sound volume
 
 Configurable via master code (programming sequence `#0`):
 
-| Value | Level |
-|-------|-------|
-| 0 | Silent |
-| 1 | Low |
-| 2 | Normal (default) |
+| Value | Level            |
+| ----- | ---------------- |
+| 0     | Silent           |
+| 1     | Low              |
+| 2     | Normal (default) |
 
 ### Connect Module LED (E-Life 3.0 / ZMNC010)
 
-| LED | Pattern | Meaning |
-|-----|---------|---------|
-| **Blue** slow blink | BLE pairing mode (searching) |
-| **Orange** slow blink | Zigbee pairing mode (searching) |
-| **Orange** fast blink | Reset in progress (hold button ~15 sec) |
-| **Blue** solid | BLE connected |
-| **Orange** solid | Zigbee connected |
-| No LED | Normal state (paired and sleeping) |
+| LED        | Pattern    | Meaning                                 |
+| ---------- | ---------- | --------------------------------------- |
+| **Blue**   | slow blink | BLE pairing mode (searching)            |
+| **Orange** | slow blink | Zigbee pairing mode (searching)         |
+| **Orange** | fast blink | Reset in progress (hold button ~15 sec) |
+| **Blue**   | solid      | BLE connected                           |
+| **Orange** | solid      | Zigbee connected                        |
+| No LED     |            | Normal state (paired and sleeping)      |
 
 ### Connect Module reset
 
@@ -83,27 +83,25 @@ If the Connect Module never shows up in ZHA's "Add device", even after multiple 
 These locks are battery-powered Zigbee EndDevices. The radio sleeps most of the time to save battery. Messages queued at the parent router are discarded after **7.68 seconds**.
 
 **What wakes the Zigbee radio:**
+
 - Entering a complete PIN code + `#` on the keypad
 - Physical lock/unlock (turning the knob)
 - Lock/unlock command from HA (ZHA uses extended timeout)
 
 **What does NOT wake the radio:**
+
 - Touching the keypad alone (wakes the backlight, but not the Zigbee radio)
 
 ### How auto-wake works
 
-The integration has a built-in wake mechanism in `coordinator.py` (`_send_cluster_command`):
-
-1. **Attempt 1:** Sends ZCL command via `zha.issue_zigbee_cluster_command`
-2. **On timeout:** Calls `_wake_lock()` — sends `lock.lock` service call to the ZHA lock entity
-3. **Waits 1 second** for the radio to stabilize
-4. **Attempt 2:** Retries the original command
+On a command timeout, `_send_cluster_command` in `coordinator.py` wakes the lock by sending a `lock.lock` service call to the ZHA lock entity, waits 1 second for the radio to stabilize, then retries the original command once. The wake is a real lock command, so an unlocked door is physically locked. Details in [docs/technical.md](technical.md#auto-wake-mechanism).
 
 ### Signal issues
 
 Metal door and metal casing = Faraday cage. Zigbee signal is heavily attenuated.
 
 **Mitigations:**
+
 - Place a Zigbee router (e.g. a smart plug) within 2-3 meters of the lock
 - Avoid multiple walls between the lock and coordinator
 - Check LQI (link quality) in ZHA: **Settings → Devices → [lock] → Zigbee info**
@@ -118,6 +116,7 @@ When batteries are replaced, the lock re-joins the Zigbee network but bindings m
 - Reconfigure in ZHA often fails (binding setup times out)
 
 **Solutions:**
+
 1. Try **Reconfigure** in ZHA (see below)
 2. If that fails: wait hours/days for bindings to re-establish on their own
 3. Last resort: remove and re-pair the lock in ZHA
@@ -127,12 +126,17 @@ When batteries are replaced, the lock re-joins the Zigbee network but bindings m
 Reconfigure (Settings → Devices → [lock] → "Reconfigure device") re-establishes bindings and reporting configuration. For sleepy devices this often fails because the device falls asleep during the process.
 
 **Tips for success:**
+
 1. Enter a PIN + `#` on the keypad (wakes the radio)
 2. Click "Reconfigure" within 2-3 seconds
-3. Repeat if needed — the radio stays awake longer after an unlock than after just touching the keypad
+3. Repeat if needed, the radio stays awake longer after an unlock than after just touching the keypad
 4. If it never succeeds: remove the device from ZHA and re-pair
 
 ## 2. PIN code failures
+
+### "Slot must be between 3 and N"
+
+`set_pin` refuses slots above what the lock reports in NumberOfPINUsersSupported (highest slot = N-1; NimlyPRO and NimlyCodePRO report 50). If the lock never answered the capability read, the manual's 0-999 range applies. Slots 0-2 are reserved for master codes.
 
 ### "Could not reach the lock" in Options flow
 
@@ -143,13 +147,14 @@ This error means both attempts in `_send_cluster_command` failed:
 3. Attempt 2 also timed out
 
 **Troubleshooting:**
+
 - Press a PIN + `#` on the keypad to manually wake the lock
 - Retry within 5 seconds (while the radio is awake)
 - Check that the ZHA lock entity works (lock/unlock via Lovelace). If it also doesn't respond, the problem is Zigbee connectivity, not the integration.
 
 ### IndexError quirk (Nimly response parsing)
 
-PIN commands (`set_pin_code`, `clear_pin_code`) return a malformed ZCL response that crashes zigpy's parser with `IndexError: tuple index out of range`. The command reached the lock and executed — the error is only in response parsing.
+PIN commands (`set_pin_code`, `clear_pin_code`) return a malformed ZCL response that crashes zigpy's parser with `IndexError: tuple index out of range`. The command reached the lock and executed; the error is only in response parsing.
 
 The integration catches this and treats it as success:
 
@@ -161,7 +166,7 @@ except IndexError:
     return True
 ```
 
-**Important:** There is no programmatic confirmation that the PIN was actually set. You **must** test the code on the keypad to verify.
+**Important:** there is no programmatic confirmation that the PIN was actually set. You **must** test the code on the keypad to verify.
 
 ### Verifying a PIN
 
@@ -170,7 +175,7 @@ After setting a PIN:
 1. Go to the lock physically
 2. Enter the new code + `#`
 3. Check that the lock opens
-4. Check the activity sensor in HA — it should show the correct user and slot
+4. Check the activity sensor in HA, it should show the correct user and slot
 
 ## 3. Activity sensor not updating
 
@@ -198,14 +203,7 @@ If nothing is logged on unlock: the lock is not sending reports. See "After batt
 
 Older versions of the integration let auto-lock events overwrite meaningful events. For example: "Kari unlocked with code" was immediately replaced by "Auto-lock" 5 seconds later.
 
-This is fixed — `source != "auto"` filters auto-lock from the activity sensor:
-
-```python
-if decoded["source"] != "auto":
-    coordinator.update_activity(...)
-```
-
-The HA event `onesti_lock_activity` still fires for all events including auto-lock, so automations can use it.
+This is fixed. System-initiated locking is filtered from the activity sensor: source `auto`, and on NimlyCodePRO an `unattributed` lock with no user slot. The HA event `onesti_lock_activity` still fires for all events including auto-lock, so automations can use it.
 
 ## 4. Debug logging
 
@@ -297,31 +295,23 @@ ZHA gateway_proxy not found
 [0x...] DoorLock: Received report for attr 0x0100: <bitmap32 value>
 ```
 
-If you see reports for `0x0000` (lock state) but not `0x0100` (operation event), the lock has lost its reporting configuration — try Reconfigure.
+If you see reports for `0x0000` (lock state) but not `0x0100` (operation event), the lock has lost its reporting configuration. Try Reconfigure.
 
 ## 5. Common ZHA issues
 
 ### Device shows as "unavailable"
 
-- **Battery:** Check battery level. Low battery means less frequent reports and more command timeouts.
-- **Signal:** Lock is too far from the nearest Zigbee router. Place a router closer.
-- **After battery change:** The lock may have re-joined but lost bindings. See section 1.
+- **Battery:** check battery level. Low battery means less frequent reports and more command timeouts.
+- **Signal:** lock is too far from the nearest Zigbee router. Place a router closer.
+- **After battery change:** the lock may have re-joined but lost bindings. See section 1.
 
-### Reconfigure fails repeatedly
-
-The lock falls asleep too quickly for Reconfigure to complete the binding setup.
-
-**Approach:**
-1. Enter PIN + `#` to wake the lock
-2. Start Reconfigure immediately (within 2-3 seconds)
-3. Repeat if needed — the radio stays awake longer after an unlock
-4. If it never succeeds: remove the device from ZHA and re-pair
+If Reconfigure fails repeatedly, follow "Reconfigure in ZHA" in section 1.
 
 ### Tips for stable operation
 
 - **Zigbee router near the lock.** A smart plug with Zigbee router function 1-3 meters from the door makes an enormous difference for sleepy devices.
 - **Don't move the coordinator.** The Zigbee network takes time to re-route after topology changes.
-- **Keep firmware updated.** ZHA supports OTA for some devices, but Onesti/Nimly locks do not have OTA via Zigbee — firmware is only updated via the BLE app.
+- **Keep firmware updated.** ZHA supports OTA for some devices, but Onesti/Nimly locks do not have OTA via Zigbee. Firmware is only updated via the BLE app.
 - **Monitor battery level.** Create an automation that alerts on low battery to avoid the problems that occur during battery replacement.
 
 ## 6. Cleanup after versions 1.1.0 through 1.2.0

@@ -1,12 +1,12 @@
-# Onesti Lock — Agent Guidelines
+# Onesti Lock: Agent Guidelines
 
 Home Assistant custom integration for Onesti/Nimly smart locks via ZHA.
-Identifies **who** unlocked the door and **how** — something no other ZHA integration does.
+Identifies **who** unlocked the door and **how**, which no other ZHA integration does.
 
 ## Critical Rules
 
 1. Domain is `onesti_lock`, NOT `nimly_pro`. Classes still use `Nimly` prefix (brand name).
-2. Credentials, API keys og secrets skal IKKE i git — de hører i `secrets.md` (gitignored). Docs inneholder kun API-URLer og tekniske referanser, ikke hemmeligheter.
+2. Credentials, API-nøkler og secrets skal IKKE i git, de hører i `secrets.md` (gitignored). Docs inneholder kun API-URLer og tekniske referanser, ikke hemmeligheter.
 3. The lock is a battery-powered Zigbee EndDevice that sleeps. All ZCL commands must account for timeouts and use the auto-wake mechanism in `coordinator.py`.
 4. The Nimly response quirk (`IndexError` in zigpy) is expected. The command reaches the lock despite the error. Do not "fix" it.
 
@@ -16,14 +16,15 @@ Identifies **who** unlocked the door and **how** — something no other ZHA inte
 NimlyCoordinator (one per lock)
   ├── Slot data (config entry options, persisted in .storage)
   ├── ZHA cluster access (_get_cluster walks ZHADeviceProxy → Device → CustomDeviceV2)
-  ├── Auto-wake (_wake_lock sends lock command via ZHA entity on timeout, retries once)
+  ├── Auto-wake (_wake_lock physically locks the door via the ZHA lock entity;
+  │   why that works and a plain read does not is unverified; retries once)
   ├── PIN operations (set_pin, clear_pin, clear_slot via ZHA issue_zigbee_cluster_command)
   └── Activity sensor registration
 
 Event listener (in __init__.py)
-  ├── cluster.on_event("attribute_report") — catches custom attrid 0x0100
+  ├── cluster.on_event("attribute_report"), catches custom attrid 0x0100
   ├── Decodes bitmap32: bits 0-15 user_slot (uint16 LE), bits 16-23 action, bits 24-31 source
-  ├── Updates activity sensor (skips auto-lock to preserve "Kari låste opp med kode")
+  ├── Updates activity sensor (skips system-initiated locking, see gotcha 4)
   └── Fires onesti_lock_activity HA event (always, including auto-lock)
 ```
 
@@ -44,41 +45,42 @@ Session notes and stale plans contain earlier incorrect guesses. Code is authori
 
 ## Key Files
 
-| File                                           | Purpose                                                           |
-| ---------------------------------------------- | ----------------------------------------------------------------- |
-| `custom_components/onesti_lock/__init__.py`    | Setup, event listener, operation event decoding                   |
-| `custom_components/onesti_lock/coordinator.py` | Slot storage, ZHA cluster wrapper, auto-wake, PIN operations      |
-| `custom_components/onesti_lock/config_flow.py` | Config flow (device selection) + Options flow (PIN management UI) |
-| `custom_components/onesti_lock/sensor.py`      | Slot sensors (3-12) + Activity sensor                             |
-| `custom_components/onesti_lock/services.py`    | set_pin, clear_pin, set_name, clear_slot services                 |
-| `custom_components/onesti_lock/const.py`       | Constants, source/action enums, supported models, slot ranges     |
+| File                                           | Purpose                                                                    |
+| ---------------------------------------------- | -------------------------------------------------------------------------- |
+| `custom_components/onesti_lock/__init__.py`    | Setup, event listener, operation event decoding                            |
+| `custom_components/onesti_lock/coordinator.py` | Slot storage, ZHA cluster wrapper, auto-wake, PIN operations               |
+| `custom_components/onesti_lock/config_flow.py` | Config flow (device selection) + Options flow (PIN management UI)          |
+| `custom_components/onesti_lock/sensor.py`      | Slot sensors (3-12) + Activity sensor                                      |
+| `custom_components/onesti_lock/services.py`    | set_pin, clear_pin, set_name, clear_slot services                          |
+| `custom_components/onesti_lock/pin_rules.py`   | Slot/PIN validation from reported capabilities (pure logic, no HA imports) |
+| `custom_components/onesti_lock/const.py`       | Constants, source/action enums, supported models, slot ranges              |
 | `custom_components/onesti_lock/localize.py`    | Runtime string lookup (reads the `runtime` section of translations/*.json) |
 
 ## Gotchas
 
 1. **ZHA device chain depth**: Clusters live on depth-2 object (CustomDeviceV2), not the ZHADeviceProxy. `_get_cluster()` walks .device chain up to 4 levels.
-2. **Slot numbering**: Zigbee ZCL uses 0-199 (0-2 master, 3+ users). BLE uses 800-899. UI shows 10 sensors for slots 3-12.
-3. **Options flow progress**: HA's `async_show_progress` requires step `foo_progress` with action `foo_progress` — then auto-calls `foo_progress_done` → `async_step_foo_result`.
+2. **Slot numbering**: Zigbee ZCL uses 0-999 (0-2 master, 3+ users). BLE uses 800-899. UI shows 10 sensors for slots 3-12. `set_pin` rejects slots at or above the lock's reported `NumberOfPINUsersSupported` (50 on both tested models); see `pin_rules.py` and `docs/slot-numbering.md`.
+3. **Options flow progress**: HA's `async_show_progress` requires step `foo_progress` with action `foo_progress`, which then auto-calls `foo_progress_done` → `async_step_foo_result`.
 4. **Activity sensor suppression**: System-initiated locking (source `auto`, and on NimlyCodePRO an `unattributed` lock with no user slot) fires the HA event but does NOT update the activity sensor, to avoid overwriting "Kari låste opp med kode" with "Auto-lås".
 5. **CI/release workflows**: Both `.github/workflows/` files must reference `custom_components/onesti_lock/` (not `nimly_pro`).
-6. **NimlyCoordinator is NOT DataUpdateCoordinator**: Custom pattern — event-driven, no polling. Intentional for battery-powered devices.
+6. **NimlyCoordinator is NOT DataUpdateCoordinator**: Custom pattern, event-driven, no polling. Intentional for battery-powered devices.
 7. **No user-facing strings in Python**: sensor states and options flow labels come from the `runtime` section of `translations/*.json` via `localize.py`; entity names and service errors go through HA's own `entity`/`exceptions` sections. `tests/test_no_hardcoded_language.py` fails the build if a Norwegian literal reappears. `strings.json` is the English source and must stay identical to `translations/en.json`.
 
 ## Documentation Map
 
-| Doc                                             | Content                                                                                      |
-| ----------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `README.md`                                     | User-facing: features, comparison, install, setup, supported devices                         |
-| `docs/technical.md`                             | Integration internals: event decoding, coordinator, auto-wake, sleepy device, community refs |
-| `docs/zigbee-protocol/zigbee-captures.md`       | Raw ZCL frames and verified protocol values (canonical for attrid 0x0100)                    |
-| `docs/nimly-connect-app/app-architecture.md`    | iotiliti cloud ecosystem, white-label hierarchy, DoorlockTypes, cloud events                 |
-| `docs/nimly-connect-app/reversing-notes.md`     | Nimly Connect APK reverse engineering, REST API, CAS error codes                             |
-| `docs/nimly-connect-app/iotiliti-api-spec.yaml` | OpenAPI spec for iotiliti cloud (reverse-engineered)                                         |
-| `docs/nimly-ble-app/ble-protocol.md`            | BLE protocol from decompiled nimly BLE app (not used by integration)                         |
-| `docs/connect-bridge/hardware-gateway.md`       | Connect Bridge hardware, network stack, firmware                                             |
-| `docs/slot-numbering.md`                        | Slot-nummerering usikkerhet mellom Zigbee, BLE og cloud                                      |
-| `docs/debugging.md`                             | Feilsøkingsguide for vanlige problemer                                                       |
-| `docs/cloud-api-status.md`                      | Cloud API reversing status — hva vi har prøvd og veien videre                                |
+| Doc                                             | Content                                                                                       |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `README.md`                                     | User-facing: features, comparison, install, setup, supported devices                          |
+| `docs/technical.md`                             | Integration internals: event decoding, coordinator, auto-wake, sleepy device, community refs  |
+| `docs/zigbee-protocol/zigbee-captures.md`       | Raw ZCL frames and verified protocol values (canonical for attrid 0x0100)                     |
+| `docs/nimly-connect-app/app-architecture.md`    | iotiliti cloud ecosystem, white-label hierarchy, DoorlockTypes, cloud events                  |
+| `docs/nimly-connect-app/reversing-notes.md`     | Nimly Connect APK reverse engineering, REST API, CAS error codes                              |
+| `docs/nimly-connect-app/iotiliti-api-spec.yaml` | OpenAPI spec for iotiliti cloud (reverse-engineered)                                          |
+| `docs/nimly-ble-app/ble-protocol.md`            | BLE protocol from decompiled nimly BLE app (not used by integration)                          |
+| `docs/connect-bridge/hardware-gateway.md`       | Connect Bridge hardware, network stack, firmware                                              |
+| `docs/slot-numbering.md`                        | Slot-nummerering mellom Zigbee, BLE og cloud, verifisert og uverifisert                       |
+| `docs/debugging.md`                             | Feilsøkingsguide for vanlige problemer                                                        |
+| `docs/cloud-api-status.md`                      | Cloud API reversing-status, hva vi har prøvd og veien videre                                  |
 | `docs/upstream-status.md`                       | Åpne tråder i ZHA-quirken og Z2M-converteren, og hvorfor vi ikke bygger dobbel transport      |
 | `docs/plans/`                                   | Daterte gjennomganger og planer. 2026-08-23-review-prosjekt.md er den brede kodegjennomgangen |
 
@@ -100,29 +102,24 @@ blocked, which is the only way to catch a stray import before CI does.
 
 Fredrik's Home Assistant is reachable as `ssh ha-local` (the SSH add-on, so
 `/config` is the HA config directory). Use it when something cannot be settled
-without a running instance. That is not a formality: `_attr_name` was added as a
-harmless-looking fallback for entity names and silently disabled every
-translated name, and only a deployment showed it, because HA checks `_attr_name`
-before the translation key.
+without a running instance. That is not a formality: `_attr_name` was added as
+a harmless-looking fallback for entity names and silently disabled every
+translated name, and only a deployment showed it, because HA checks
+`_attr_name` before the translation key.
 
-Back up before touching anything:
+Back up first, then copy into a staging directory and swap, so a failed
+transfer never leaves a half-written integration behind:
 
 ```bash
 ssh ha-local 'cd /config/custom_components && tar czf /config/onesti_lock-backup-$(date +%Y%m%d-%H%M%S).tar.gz onesti_lock'
-```
-
-Copy into a staging directory and swap, so a failed transfer never leaves a
-half-written integration behind:
-
-```bash
 ssh ha-local 'rm -rf /config/custom_components/onesti_lock.new && mkdir -p /config/custom_components/onesti_lock.new'
 scp -r custom_components/onesti_lock/. ha-local:/config/custom_components/onesti_lock.new/
 ssh ha-local 'rm -rf /config/custom_components/onesti_lock && mv /config/custom_components/onesti_lock.new /config/custom_components/onesti_lock'
 ```
 
-Strip `__pycache__` from the copy first. Then `ha core check`, `ha core restart`,
-and read the result. States and entity names come back through the Supervisor
-proxy, which needs no token of its own:
+Strip `__pycache__` from the copy first. Then `ha core check`, `ha core
+restart`, and read the result. States and entity names come back through the
+Supervisor proxy, which needs no token of its own:
 
 ```bash
 ssh ha-local 'curl -s -H "Authorization: Bearer $SUPERVISOR_TOKEN" http://supervisor/core/api/states'
@@ -130,35 +127,32 @@ ssh ha-local 'ha core logs | grep -i onesti_lock'
 ```
 
 The integration's own entities are `sensor.dorlasen_*` on that instance. The
-`sensor.onesti_products_as_nimlypro_*` entities belong to the ZHA quirk, not to
-us.
+`sensor.onesti_products_as_nimlypro_*` entities belong to the ZHA quirk, not
+to us.
 
-Restore afterwards unless the new version is the one meant to ship:
+Restore afterwards unless the new version is the one meant to ship, and
+restart once more:
 
 ```bash
 ssh ha-local 'cd /config/custom_components && rm -rf onesti_lock && tar xzf /config/onesti_lock-backup-<timestamp>.tar.gz'
 ```
 
-Leave the backup tarball in place, and restart once more after restoring. Slot
-names and PIN status live in `.storage`, not in the integration directory, so
-they survive a swap either way.
+Leave the backup tarball in place. Slot names and PIN status live in
+`.storage`, not in the integration directory, so they survive a swap either
+way.
 
 ## Release notes
 
-HACS renders them inside Home Assistant, so they are read by users, not by
-developers browsing the repo. Keep them short and lead with what matters to
-someone running the lock. Nobody in HA cares that the README was shortened or
-that a test helper was added, so leave documentation, tooling and refactors
-out entirely.
+HACS renders them inside Home Assistant, so they are read by users running the
+lock, not by developers browsing the repo. Lead with what such a user would
+have noticed, then why. Leave documentation, tooling and refactors out
+entirely.
 
 Match the existing releases: `### Features`, `### Security`, `### Bug fixes`,
 `### Breaking changes`, one bullet per change with a bold lead-in, and the
-`**Full changelog**` compare link last. Say what the user would have noticed,
-then why, in that order.
-
-The release workflow builds a body from commit subjects when it creates a
-release on push. That output is a starting point, not the finished notes;
-replace it.
+`**Full changelog**` compare link last. The release workflow builds a body
+from commit subjects on push; that is a starting point, not the finished
+notes. Replace it.
 
 ## Common Tasks
 
@@ -169,7 +163,10 @@ replace it.
 
 ## White-label Context
 
-All locks are manufactured by **Onesti Products AS** with identical hardware/firmware.
-The Zigbee Connect Module (ZMNC010) is the same across all brands.
-The cloud platform (**iotiliti** by Safe4 Security Group, developed by Neurosys in Poland) powers: Nimly, EasyAccess, Keyfree, Salus, Homely, Forebygg, Copiax, Tekam, Folklarm, Tryg Smart, Safe4 Care, LF, Larmify, and others.
-See `docs/nimly-connect-app/app-architecture.md` for the full ecosystem.
+All locks are manufactured by **Onesti Products AS** with identical hardware
+and firmware, and the Zigbee Connect Module (ZMNC010) is the same across all
+brands. The cloud platform (**iotiliti** by Safe4 Security Group, developed by
+Neurosys in Poland) powers Nimly, EasyAccess, Keyfree, Salus, Homely,
+Forebygg, Copiax, Tekam, Folklarm, Tryg Smart, Safe4 Care, LF, Larmify and
+others. See `docs/nimly-connect-app/app-architecture.md` for the full
+ecosystem.

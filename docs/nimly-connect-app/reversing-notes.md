@@ -1,4 +1,4 @@
-# Nimly Connect App — Reverse Engineering
+# Nimly Connect App: Reverse Engineering
 
 APK: `com.easyaccess.connect` v1.27.84 (171 MB)
 Framework: React Native with Hermes bytecode
@@ -66,7 +66,7 @@ Client ID (prod): <extracted-from-apk, see secrets.md>
 Authorization: Bearer <access_token>
 ```
 
-## REST API — Door lock endpoints
+## REST API: door lock endpoints
 
 | Method | Path                                      | Function                 |
 | ------ | ----------------------------------------- | ------------------------ |
@@ -130,21 +130,7 @@ DeviceAccessMethodType = {
 
 ## Lock types in the platform
 
-```javascript
-DoorlockTypes = {
-  Yale: "yaledoorman",
-  Danalock: "danalock",
-  Easyaccess: "easyaccess",
-  Easycode: "easycode",
-  Idlock: "idlock",
-  Easyfinger: "easyfinger",
-  Iomodule: "iomodule",
-  Keybox: "keybox",
-  Dormakaba: "dormakaba",
-};
-```
-
-> See also: docs/nimly-connect-app/app-architecture.md for complete DoorlockTypes reference.
+The `DoorlockTypes` enum (Yale, Danalock, Easyaccess, Easycode, Idlock, Easyfinger, Iomodule, Keybox, Dormakaba) is defined with per-type annotations in [app-architecture.md](app-architecture.md#supported-device-types).
 
 ## Lock modes
 
@@ -171,18 +157,7 @@ DoorLockEventFeatureState = {
 };
 ```
 
-Doorlock events:
-
-```
-doorlock-settings-changed
-doorlock-access-created
-doorlock-access-scan-requested
-doorlock-access-deleted
-doorlock-failed-to-lock
-doorlock-access-updated
-```
-
-> See also: docs/nimly-connect-app/app-architecture.md for cloud event system.
+The `doorlock-*` cloud event types are listed with the full cloud event system in [app-architecture.md](app-architecture.md#event-system).
 
 ## CAS Protocol (Gateway ↔ Lock)
 
@@ -232,7 +207,7 @@ Authorization: Bearer <token>
 }
 ```
 
-This bypasses Zigbee entirely — the gateway handles timing.
+This bypasses Zigbee entirely, the gateway handles timing.
 
 ### Event history
 
@@ -240,19 +215,19 @@ This bypasses Zigbee entirely — the gateway handles timing.
 GET /devices/{deviceId}/event-history
 ```
 
-Can provide complete event log with user info — better than Zigbee attribute reports.
+Can provide complete event log with user info, better than Zigbee attribute reports.
 
 ### Prerequisites
 
-- Requires Connect Bridge (gateway) — not just Connect Module
+- Requires Connect Bridge (gateway), not just Connect Module
 - Requires a Nimly account with an associated lock
 - The API is not officially documented
 
 ## Tools
 
-- `apkeep` — APK from Play Store
-- `jadx` — Android APK → Java
-- `hermes-dec` — React Native Hermes bytecode → JavaScript
+- `apkeep`: APK from Play Store
+- `jadx`: Android APK → Java
+- `hermes-dec`: React Native Hermes bytecode → JavaScript
 - Source: `com.easyaccess.connect.xapk` v1.27.84
 
 ## Security observations
@@ -292,11 +267,11 @@ Client secrets, company IDs, and test credentials in `secrets.md` (gitignored).
 
 Nimly Connect v1.27.84 (our version) uses `api-neutralclone.iotiliti.cloud`.
 Newer versions (from the iotiliti app) have migrated to `api.customer.prod-neutralclone.onesti.aws.neurosys.pro`.
-Both URLs point to the same database — tested with a fresh token, identical responses.
+Both URLs point to the same database, tested with a fresh token, identical responses.
 
 ### Internal test API
 
-`https://test-api-neurosys.iotiliti.cloud` — Neurosys (Poland) internal test instance.
+`https://test-api-neurosys.iotiliti.cloud`: Neurosys (Poland) internal test instance.
 Client secret in `secrets.md`.
 
 ### Hidden Developer Options

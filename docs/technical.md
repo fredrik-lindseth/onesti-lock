@@ -172,3 +172,20 @@ The unregistered manufacturer code (`0x1234`) suggests an OEM module rather than
 | [Keymaster](https://github.com/FutureTense/keymaster)                     | Z-Wave only — no Zigbee support                                                                   |
 | [Lock Code Manager](https://github.com/raman325/lock_code_manager)        | Requires `supported_features` on lock entity. ZHA reports `supported_features: 0` for these locks |
 | [Zigbee Lock Manager](https://github.com/Fiercefish1/Zigbee-Lock-Manager) | Abandoned (last update Sep 2024). No config flow, doesn't handle Onesti response quirk            |
+
+## Comparison with Zigbee2MQTT
+
+Z2M has an `onesti.ts` converter for these locks. This integration decodes the same Onesti attributes. The key differences:
+
+| Feature | This integration (ZHA) | Z2M `onesti.ts` |
+|---------|------------------------|-----------------|
+| Decode attrid 0x0100 (user/source/action) | Yes | Yes |
+| Last used PIN code (attrid 0x0101) | No, removed on purpose (0x0101 is the PIN in plaintext) | Yes — `last_used_pin_code` state |
+| Lock capabilities (max users, min/max PIN length) | Yes — read at setup | Yes |
+| Set / clear PIN codes | Yes — via HA UI and services | Yes — via MQTT |
+| Name any slot (for RFID/fingerprint) | Yes — persisted in HA | No |
+| Activity sensor with human-readable messages | Yes | No — raw fields only |
+| HA events for automations | Yes — `onesti_lock_activity` | Via MQTT events |
+| Auto-wake for sleepy device | Yes — send lock command before retry | No |
+| Blueprints included | Yes (connectivity, goodnight, notifications) | No |
+| Protocol | ZHA only | Zigbee2MQTT only |

@@ -111,20 +111,24 @@ Per configured lock:
 
 The activity sensor also exposes these attributes when the lock reports them:
 
-- `last_pin_code` — actual PIN digits from the last keypad unlock (attribute 0x0101)
 - `num_pin_users` — number of PIN user slots supported
 - `min_pin_length` / `max_pin_length` — PIN length bounds
 
 The activity sensor fires `onesti_lock_activity` events for use in automations.
 
-**Privacy note:** `last_pin_code` contains the actual digits typed, including the master code if it was used. HA's recorder persists sensor attributes to its SQLite history, so recent PINs are retrievable by anyone with `history.read` access. If this is a concern, exclude the activity sensor from the recorder:
+**Privacy note:** the lock also reports the last used PIN on attribute 0x0101, and that value is the code itself in plaintext, not an opaque id. The integration used to publish it as a `last_pin_code` state attribute. It no longer does: any state attribute is written to the recorder history, the logbook and diagnostics, so real access codes ended up on disk. Use `user_slot` and the slot name instead, they already identify who opened the door.
+
+Versions 1.1.0 through 1.2.0 wrote the attribute to history. To delete those old values, call `recorder.purge_entities` on the activity sensor (this wipes all history for that entity, not just the PIN attribute):
 
 ```yaml
-recorder:
-  exclude:
-    entity_glob:
-      - sensor.*_siste_aktivitet
+service: recorder.purge_entities
+target:
+  entity_id: sensor.NAME_siste_aktivitet
+data:
+  keep_days: 0
 ```
+
+ZHA's own device diagnostics can still contain the last raw 0x0101 value, since zigpy caches reported attributes in `zigbee.db` and the diagnostics dump includes that cache. Treat any diagnostics dump or zigpy debug log you have shared publicly as leaked, and change the codes on the lock.
 
 ## Blueprints
 
@@ -190,7 +194,7 @@ Z2M has an `onesti.ts` converter that supports these locks. This integration dec
 | Feature | This integration (ZHA) | Z2M `onesti.ts` |
 |---------|------------------------|-----------------|
 | Decode attrid 0x0100 (user/source/action) | Yes | Yes |
-| Last used PIN code (attrid 0x0101) | Yes — attribute on activity sensor | Yes — `last_used_pin_code` state |
+| Last used PIN code (attrid 0x0101) | No, removed on purpose (0x0101 is the PIN in plaintext) | Yes — `last_used_pin_code` state |
 | Lock capabilities (max users, min/max PIN length) | Yes — read at setup | Yes |
 | Set / clear PIN codes | Yes — via HA UI and services | Yes — via MQTT |
 | Name any slot (for RFID/fingerprint) | Yes — persisted in HA | No |

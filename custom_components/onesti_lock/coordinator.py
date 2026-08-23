@@ -84,15 +84,6 @@ class NimlyCoordinator:
         if self._activity_sensor:
             self._activity_sensor.update_activity(user_slot, action, source)
 
-    def update_last_pin_code(self, pin_code: str | None) -> None:
-        """Store the last-used PIN code (attrid 0x0101).
-
-        Onesti reports the actual digits used on the keypad. Kept as an
-        attribute on the activity sensor for audit and automation use.
-        """
-        if self._activity_sensor:
-            self._activity_sensor.update_last_pin_code(pin_code)
-
     async def read_lock_capabilities(self) -> None:
         """Read static lock properties from the DoorLock cluster.
 

@@ -31,9 +31,9 @@ class MockCoordinator:
 def _load_decode_operation_event():
     """Load the real decoder from source (avoids HA imports).
 
-    Same ast-extraction pattern as test_pin_code_decoding.py. Tests used to
-    replicate the decode logic instead, which let an 8-bit slot bug pass a
-    fully green suite. Never replicate; always load from source.
+    These tests used to replicate the decode logic instead, which let an
+    8-bit slot bug pass a fully green suite. Never replicate; always load
+    from source.
     """
     spec = importlib.util.spec_from_file_location("onesti_const", _CONST_PATH)
     const = importlib.util.module_from_spec(spec)

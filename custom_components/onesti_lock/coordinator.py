@@ -119,10 +119,20 @@ class NimlyCoordinator:
         #   0x0017 MaxPINCodeLength
         #   0x0018 MinPINCodeLength
         attr_ids = [0x0012, 0x0017, 0x0018]
+        # Keyed by both the numeric id and zigpy's own attribute name for the
+        # same attribute, because zigpy keys the success dict by whatever the
+        # caller passed in and a quirk or a future zigpy may hand back names
+        # instead. Looking up only ids drops a name-keyed reading silently,
+        # which is how the Z2M converter missed numOfPinUsersSupported.
+        # Names are from zigpy.zcl.clusters.closures.DoorLock (unchanged
+        # between zigpy 1.2.1 and 2.1.0).
         attr_names = {
             0x0012: "num_pin_users",
+            "num_of_pin_users_supported": "num_pin_users",
             0x0017: "max_pin_length",
+            "max_pin_len": "max_pin_length",
             0x0018: "min_pin_length",
+            "min_pin_len": "min_pin_length",
         }
         try:
             result = await cluster.read_attributes(attr_ids)
@@ -145,8 +155,8 @@ class NimlyCoordinator:
         failure = result[1] if isinstance(result, tuple) and len(result) >= 2 else {}
         if failure:
             _LOGGER.debug("Lock did not expose capabilities: %s", failure)
-        for attr_id, value in success.items():
-            name = attr_names.get(attr_id)
+        for key, value in success.items():
+            name = attr_names.get(key)
             if name and value is not None:
                 self.lock_capabilities[name] = int(value)
 

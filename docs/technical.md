@@ -1,8 +1,8 @@
-# Technical Details
+# Technical details
 
 ## How user identification works
 
-Onesti locks send a custom attribute report (`attrid 0x0100`) on the Door Lock cluster for every lock/unlock event. This bitmap32 encodes user slot, action and source, but no existing integration decoded it. This integration listens for the reports via `cluster.on_event("attribute_report", ...)` and decodes the bitmap:
+Onesti locks send a custom attribute report (`attrid 0x0100`) on the Door Lock cluster for every lock and unlock. The value is a bitmap32 holding user slot, action and source, and no existing integration decoded it. This integration listens for the reports with `cluster.on_event("attribute_report", ...)` and decodes the bitmap:
 
 ```
 Bits 0-15:  user_slot (uint16 LE; 0 = master or no user, see below)
@@ -19,18 +19,19 @@ Bits 24-31: source (see _SOURCE_MAP in __init__.py)
 | `0x05`      | unattributed (NimlyCodePRO fw 4.8 reports this for Zigbee, auto-relock and interior keypad alike) |
 | `0x0A`      | auto (auto-relock)                                                                                |
 
-Slot 0 means two things. With source keypad, fingerprint or rfid a person presented the master credential (capture 29.03: `0x02020000`, slot 0, unlock, keypad), so the event carries `user_slot: 0` and the name set on slot 0, or "Master" without one. With source zigbee, auto, unattributed or unknown it means no user, and `user_slot` and `user_name` are `null`. Which slots besides 0 are master codes depends on the model, see [slot-numbering.md](slot-numbering.md).
+Slot 0 means two things. With source keypad, fingerprint or rfid, a person used the master credential (capture 29.03: `0x02020000`, slot 0, unlock, keypad). The event then carries `user_slot: 0` and the name set on slot 0, or "Master" without one. With source zigbee, auto, unattributed or unknown, slot 0 means no user, and `user_slot` and `user_name` are `null`. Which other slots hold master codes depends on the model, see [slot-numbering.md](slot-numbering.md).
 
-`_SOURCE_MAP` in `__init__.py` is the canonical decoder; update this table when the map changes. Raw captures behind these values live in `docs/zigbee-protocol/zigbee-captures.md`.
+`_SOURCE_MAP` in `__init__.py` is the canonical decoder, so update this table when the map changes. The raw captures behind these values are in `docs/zigbee-protocol/zigbee-captures.md`.
 
-`attrid 0x0101` contains the PIN code in BCD plaintext. The integration deliberately
-does not decode or expose it: every state attribute ends up in the recorder, the
-logbook and diagnostics, which would put real access codes on disk (see
-zha-device-handlers#4881). The slot number from 0x0100 already identifies the user.
+`attrid 0x0101` holds the PIN code in BCD plaintext. The integration leaves it
+alone on purpose. Every state attribute ends up in the recorder, the logbook and
+diagnostics, which would put real access codes on disk (see
+zha-device-handlers#4881), and the slot number from 0x0100 already identifies
+the user.
 
 ## Why standard ZHA approaches don't work
 
-We tested 6 different approaches before finding one that works. The lock sends event data, but ZHA/zigpy doesn't expose it through standard APIs:
+We tried 6 approaches before one worked. The lock sends the event data, but ZHA and zigpy don't expose it through the standard APIs:
 
 | Approach                                   | Result                                                                          |
 | ------------------------------------------ | ------------------------------------------------------------------------------- |
@@ -53,45 +54,55 @@ ZHADeviceProxy (depth 0, no endpoints)
 
 ## Nimly response quirk
 
-PIN commands return a malformed ZCL response causing `IndexError: tuple index out of range` in zigpy. The command reaches the lock; the error is in response parsing only. This integration catches the error silently.
+PIN commands get a malformed ZCL response back, and zigpy raises `IndexError: tuple index out of range` on it. The command reaches the lock, and only the response parsing fails. This integration catches the error silently.
 
 ## Coordinator pattern
 
-`NimlyCoordinator` is a custom class, intentionally NOT based on HA's `DataUpdateCoordinator`. A polling coordinator makes no sense for a battery-powered Zigbee EndDevice that sleeps between events and cannot be polled.
+`NimlyCoordinator` is a custom class, on purpose NOT based on HA's `DataUpdateCoordinator`. A polling coordinator makes no sense for a battery-powered Zigbee EndDevice that sleeps between events and cannot be polled.
 
-**Slot data storage:** user-to-slot mappings are stored in the config entry's options dict (`.storage`), which survives HA restarts. Dictionary keys are strings (`"0"`, `"1"`, ...) because `ConfigEntry.options` serializes to JSON.
+### Slot data storage
 
-**Listener pattern:** sensors (e.g. the slot overview sensor) register callbacks via `add_listener(callback)`. When slot data changes (name set, PIN set/cleared), the coordinator calls `_notify_listeners()`, which triggers `async_write_ha_state()` in each sensor.
+User-to-slot mappings are stored in the config entry's options dict (`.storage`), which survives HA restarts. Dictionary keys are strings (`"0"`, `"1"`, ...) because `ConfigEntry.options` serializes to JSON.
 
-**Activity sensor:** registered separately via `set_activity_sensor(sensor)`. The coordinator calls `update_activity(user_slot, action, source)` on it for every decoded operation event except system-initiated locking: source `auto`, and on NimlyCodePRO an `unattributed` lock with no user slot. A master code unlock on slot 0 is a user event and does update it. This keeps auto-relock from overwriting the last meaningful activity.
+### Listener pattern
 
-**Lock capabilities:** at setup the coordinator reads the standard ZCL DoorLock attributes 0x0012 (NumberOfPINUsersSupported), 0x0017 (MaxPINCodeLength) and 0x0018 (MinPINCodeLength) in the background, degrading silently if the lock never answers. `set_pin` rejects slots above what the lock reports (`pin_rules.max_user_slot`, highest slot = N-1); when the attribute is missing or nonsensical, the manual's 0-999 range applies. NimlyPRO and NimlyCodePRO both report 50 PIN users.
+Sensors (for example the slot overview sensor) register callbacks with `add_listener(callback)`. When slot data changes (a name set, a PIN set or cleared), the coordinator calls `_notify_listeners()`, which runs `async_write_ha_state()` in each sensor.
 
-**Runtime strings:** sensor states and options-flow labels are built in Python and never pass through HA's translation layer, so `localize.py` resolves them against the server language (`hass.config.language`) from the `runtime` section of `translations/<lang>.json`. English, Norwegian bokmål, Swedish and Danish ship; `no` and `nn` map to `nb`, and missing keys fall back to English.
+### Activity sensor
+
+The activity sensor registers separately, with `set_activity_sensor(sensor)`. The coordinator calls `update_activity(user_slot, action, source)` on it for every decoded operation event except system-initiated locking, which is source `auto`, and on NimlyCodePRO an `unattributed` lock with no user slot. That keeps auto-relock from overwriting the last activity that mattered. A master code unlock on slot 0 is a user event and does update the sensor.
+
+### Lock capabilities
+
+At setup the coordinator reads the standard ZCL DoorLock attributes 0x0012 (NumberOfPINUsersSupported), 0x0017 (MaxPINCodeLength) and 0x0018 (MinPINCodeLength) in the background, and carries on without them if the lock never answers. `set_pin` rejects slots above what the lock reports (`pin_rules.max_user_slot`, highest slot = N-1). When the attribute is missing or makes no sense, the manual's 0-999 range applies. NimlyPRO and NimlyCodePRO both report 50 PIN users.
+
+### Runtime strings
+
+Sensor states and options-flow labels are built in Python and never pass through HA's translation layer. `localize.py` looks them up in the `runtime` section of `translations/<lang>.json` for the server language (`hass.config.language`). English, Norwegian bokmål, Swedish and Danish ship with the integration. `no` and `nn` map to `nb`, and missing keys fall back to English.
 
 ## Auto-wake mechanism
 
-Battery-powered Zigbee EndDevices sleep most of the time. ZCL commands like `set_pin_code` time out if the radio is asleep. The coordinator implements a wake-and-retry strategy in `_send_cluster_command()`:
+Battery-powered Zigbee EndDevices sleep most of the time, and ZCL commands like `set_pin_code` time out while the radio is asleep. `_send_cluster_command()` in the coordinator wakes the lock and retries:
 
-1. First attempt: send the ZCL command via `zha.issue_zigbee_cluster_command`
-2. On `TimeoutError`: call `_wake_lock()`, then retry the original command once
-3. `_wake_lock()` sends a `lock.lock` service call to the ZHA lock entity. ZHA's lock entity uses extended timeout for sleepy devices, which reliably wakes the radio
-4. After a 1-second delay (for the radio to stabilize), the original command is retried
+1. The first attempt sends the ZCL command via `zha.issue_zigbee_cluster_command`.
+2. On `TimeoutError` it calls `_wake_lock()` and retries the original command once.
+3. `_wake_lock()` sends a `lock.lock` service call to the ZHA lock entity. ZHA's lock entity uses extended timeout for sleepy devices, which reliably wakes the radio.
+4. After a 1-second pause for the radio to settle, the original command is retried.
 
-**Side effect:** the wake is a real lock command, not a read. An unlocked door is physically locked, and an open door drives the bolt out into the air. This is documented in the README limitations and in the options flow texts. Replacing the mechanism with a non-actuating wake requires hardware testing and is tracked as a separate issue.
+The wake has a side effect, since it is a real lock command and not a read. An unlocked door gets physically locked, and an open door drives the bolt out into the air. The README limitations and the options flow texts both say so. Replacing it with a wake that does not move the bolt needs hardware testing first, and is tracked as a separate issue.
 
-**Lock entity discovery:** `_wake_lock()` finds the ZHA lock entity by scanning the entity registry for an entity where `platform == "zha"`, the `unique_id` contains the device's IEEE address, and the `unique_id` ends with `"257"` (the DoorLock cluster endpoint identifier).
+To find the ZHA lock entity, `_wake_lock()` scans the entity registry for an entity where `platform == "zha"`, the `unique_id` contains the device's IEEE address, and the `unique_id` ends with `"257"` (the DoorLock cluster endpoint identifier).
 
-Commands go through `zha.issue_zigbee_cluster_command`, not direct cluster access. ZHA's service layer handles ZCL framing and transport.
+Commands go through `zha.issue_zigbee_cluster_command` instead of touching the cluster directly, so ZHA's service layer handles ZCL framing and transport.
 
 ## `onesti_lock_activity` event
 
-Every operation event decoded from attrid `0x0100` fires a Home Assistant event for use in automations:
+Every operation event decoded from attrid `0x0100` fires a Home Assistant event that automations can use:
 
 - **Event name:** `onesti_lock_activity`
-- **Payload:** `ieee`, `user_slot`, `user_name`, `action`, `source`. `user_slot` is `0` for the master credential (keypad, fingerprint or rfid source) and `null` when no user was involved
-- **Scope:** fired for ALL events including auto-lock
-- **Activity sensor:** not updated for system-initiated locking (source `auto`, or an `unattributed` lock with no user slot on NimlyCodePRO), so auto-relock does not immediately overwrite the last user event
+- **Payload:** `ieee`, `user_slot`, `user_name`, `action`, `source`. `user_slot` is `0` for the master credential (keypad, fingerprint or rfid source) and `null` when no user was involved.
+- **Scope:** fired for ALL events, auto-lock included.
+- **Activity sensor:** not updated for system-initiated locking (source `auto`, or an `unattributed` lock with no user slot on NimlyCodePRO), so auto-relock does not immediately overwrite the last user event.
 
 ### Automation example
 
@@ -117,7 +128,7 @@ automation:
 
 ## Sleepy device behavior
 
-The Connect Module ZMNC010 is a battery-powered Zigbee EndDevice; the radio sleeps between events to conserve battery. What wakes the radio, the 7.68-second message TTL at the parent router, and recovery after a battery change are covered in [docs/debugging.md](debugging.md#1-zigbee-connectivity) section 1.
+The Connect Module ZMNC010 is a battery-powered Zigbee EndDevice, and the radio sleeps between events to save battery. What wakes the radio, the 7.68-second message TTL at the parent router, and recovery after a battery change are covered in [docs/debugging.md](debugging.md#1-zigbee-connectivity) section 1.
 
 ## Community references
 
@@ -130,7 +141,7 @@ The Connect Module ZMNC010 is a battery-powered Zigbee EndDevice; the radio slee
 
 ## ZMNC010 Connect Module
 
-The Zigbee radio module inside all Onesti/Nimly locks. Sold separately as an accessory.
+The Zigbee radio module inside all Onesti/Nimly locks, also sold separately as an accessory.
 
 | Property              | Value                                                                  |
 | --------------------- | ---------------------------------------------------------------------- |
@@ -142,7 +153,7 @@ The Zigbee radio module inside all Onesti/Nimly locks. Sold separately as an acc
 | Frequency             | 2.4 GHz (Zigbee 3.0)                                                   |
 | Certifications        | CE-marked, no FCC ID found (European product)                          |
 
-The unregistered manufacturer code (`0x1234`) suggests an OEM module rather than a custom Zigbee implementation. The small buffer/transfer sizes are consistent with a lower-end chip (likely TI CC2530 or similar).
+The unregistered manufacturer code (`0x1234`) points to an OEM module rather than a custom Zigbee implementation. The small buffer and transfer sizes fit a lower-end chip, likely a TI CC2530 or similar.
 
 ## Alternatives considered
 
@@ -154,7 +165,7 @@ The unregistered manufacturer code (`0x1234`) suggests an OEM module rather than
 
 ## Comparison with Zigbee2MQTT
 
-Z2M has an `onesti.ts` converter for these locks. This integration decodes the same Onesti attributes. The key differences:
+Z2M has an `onesti.ts` converter for these locks, and this integration decodes the same Onesti attributes. Where they differ:
 
 | Feature                                           | This integration (ZHA)                                  | Z2M `onesti.ts`                 |
 | ------------------------------------------------- | ------------------------------------------------------- | ------------------------------- |

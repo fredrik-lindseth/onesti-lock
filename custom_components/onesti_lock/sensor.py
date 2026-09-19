@@ -13,11 +13,16 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN, NUM_USER_SLOTS
+from .const import NUM_USER_SLOTS
 from .coordinator import NimlyConfigEntry, NimlyCoordinator
+from .entity import NimlyEntity
 from .localize import format_activity
 
 _LOGGER = logging.getLogger(__name__)
+
+# Zero means no limit. The sensors are push-based and have no actions, so
+# there is nothing for HA to throttle.
+PARALLEL_UPDATES = 0
 
 # The keys update_activity writes. Restored data is filtered to these, so
 # whatever an older or hand-edited restore cache holds never becomes an
@@ -69,16 +74,14 @@ def _remove_orphaned_slot_sensors(
         registry.async_remove(registry_entry.entity_id)
 
 
-class NimlySlotSensor(SensorEntity):
+class NimlySlotSensor(NimlyEntity, SensorEntity):
     """Sensor showing who occupies a lock slot."""
 
-    _attr_has_entity_name = True
     _attr_icon = "mdi:key-variant"
 
     def __init__(self, coordinator: NimlyCoordinator, entry: NimlyConfigEntry, slot: int) -> None:
-        self._coordinator = coordinator
+        super().__init__(coordinator, f"slot-{slot}")
         self._slot = slot
-        self._attr_unique_id = f"{coordinator.ieee}-slot-{slot}"
         self._attr_translation_key = "slot"
         self._attr_translation_placeholders = {"slot": str(slot)}
         # Never set _attr_name here. HA checks it before the translation
@@ -97,14 +100,6 @@ class NimlySlotSensor(SensorEntity):
         return {
             "slot_id": self._slot,
             "has_pin": slot_data.get("has_pin", False),
-        }
-
-    @property
-    def device_info(self):
-        return {
-            "identifiers": {(DOMAIN, self._coordinator.ieee)},
-            "name": "Onesti Lock",
-            "manufacturer": "Onesti Products AS",
         }
 
     async def async_added_to_hass(self) -> None:
@@ -141,15 +136,13 @@ class ActivityExtraStoredData(ExtraStoredData):
         return cls(activity)
 
 
-class NimlyActivitySensor(SensorEntity, RestoreEntity):
+class NimlyActivitySensor(NimlyEntity, SensorEntity, RestoreEntity):
     """Sensor showing last lock activity with user name."""
 
-    _attr_has_entity_name = True
     _attr_icon = "mdi:door-closed-lock"
 
     def __init__(self, coordinator: NimlyCoordinator, entry: NimlyConfigEntry) -> None:
-        self._coordinator = coordinator
-        self._attr_unique_id = f"{coordinator.ieee}-activity"
+        super().__init__(coordinator, "activity")
         self._attr_translation_key = "last_activity"
         self._activity: dict[str, Any] = {}
 
@@ -172,14 +165,6 @@ class NimlyActivitySensor(SensorEntity, RestoreEntity):
         if self._coordinator.lock_capabilities:
             attrs.update(self._coordinator.lock_capabilities)
         return attrs
-
-    @property
-    def device_info(self):
-        return {
-            "identifiers": {(DOMAIN, self._coordinator.ieee)},
-            "name": "Onesti Lock",
-            "manufacturer": "Onesti Products AS",
-        }
 
     @property
     def extra_restore_state_data(self) -> ActivityExtraStoredData | None:

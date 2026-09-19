@@ -17,6 +17,7 @@ from types import SimpleNamespace
 import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, State
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
@@ -98,6 +99,19 @@ async def test_platform_creates_eleven_entities(hass: HomeAssistant, mock_zha) -
     assert by_unique_id == expected
     for entity_id in expected.values():
         assert hass.states.get(entity_id) is not None
+
+
+async def test_every_sensor_sits_on_one_device(hass: HomeAssistant, mock_zha) -> None:
+    entry = await _setup_entry(hass)
+
+    entries = er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
+    device_ids = {e.device_id for e in entries}
+    assert len(device_ids) == 1
+
+    device = dr.async_get(hass).async_get(device_ids.pop())
+    assert device.identifiers == {(DOMAIN, LOCK_IEEE)}
+    assert device.name == "Onesti Lock"
+    assert device.manufacturer == "Onesti Products AS"
 
 
 # -- Slot sensors --

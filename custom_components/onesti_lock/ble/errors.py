@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import ClassVar, Final
 
-from .const import CommandId, FirmwareVersion, ResponseId, ResponseStatusId
+from .protocol.const import CommandId, FirmwareVersion, ResponseId, ResponseStatusId
 
 
 class BleError(Exception):

@@ -12,8 +12,8 @@ from datetime import UTC, datetime
 
 import pytest
 
-from ..conftest import load_component_module
-from .fake_lock import (
+from ...conftest import load_component_module
+from ..fake_lock import (
     LOCK_SERVER_PRIVATE_KEY,
     LOCK_UPDATE_PRIVATE_KEY,
     PHONE_LINK_PRIVATE_KEY,
@@ -25,15 +25,17 @@ from .fake_lock import (
     public_key,
 )
 
-const = load_component_module("ble.const")
-auth = load_component_module("ble.auth")
-commands = load_component_module("ble.commands")
+const = load_component_module("ble.protocol.const")
+client_const = load_component_module("ble.client.const")
+enrollment_mod = load_component_module("ble.client.enrollment")
+auth = load_component_module("ble.client.auth")
+commands = load_component_module("ble.protocol.commands")
 crypto = load_component_module("ble.crypto")
 errors = load_component_module("ble.errors")
-session_mod = load_component_module("ble.session")
+session_mod = load_component_module("ble.client.session")
 
 CommandId = const.CommandId
-Step = auth.EnrollmentStep
+Step = enrollment_mod.EnrollmentStep
 
 DEVICE_ID = bytes.fromhex("5A 17 C3 09 E4 21")
 # 2026-09-19 12:00 UTC is 1357 days and 12 hours after 2023-01-01 00:00 UTC.
@@ -58,13 +60,13 @@ async def enroll_fixed(lock, **kwargs):
     kwargs.setdefault("key_pair_factory", key_pairs(PHONE_UPDATE_PRIVATE_KEY))
     transport = lock.connect()
     async with new_session(transport) as session:
-        return await auth.enroll(session, **kwargs), transport
+        return await enrollment_mod.enroll(session, **kwargs), transport
 
 
 async def resume(lock, enrollment):
     transport = lock.connect()
     async with new_session(transport) as session:
-        return await auth.resume_enrollment(session, enrollment, now=NOW), transport
+        return await enrollment_mod.resume_enrollment(session, enrollment, now=NOW), transport
 
 
 async def log_in(lock, credential):
@@ -125,7 +127,7 @@ class TestFullEnrollment:
     def test_a_new_session_logs_in_with_the_stored_enrollment(self):
         lock = FakeLock()
         enrollment, _ = run(enroll_fixed(lock))
-        stored = auth.Enrollment.from_dict(enrollment.to_dict())
+        stored = enrollment_mod.Enrollment.from_dict(enrollment.to_dict())
         assert stored == enrollment
 
         transport = run(log_in(lock, stored.owner_credential))
@@ -136,14 +138,14 @@ class TestFullEnrollment:
         lock = FakeLock()
         run(enroll_fixed(lock))
         with pytest.raises(errors.BleSecurityError):
-            run(log_in(lock, crypto.DEFAULT_OWNER_CREDENTIAL))
+            run(log_in(lock, auth.DEFAULT_OWNER_CREDENTIAL))
 
     def test_an_enrolled_lock_refuses_a_second_enrollment_untouched(self):
         lock = FakeLock()
         run(enroll_fixed(lock))
         with pytest.raises(errors.BleSecurityError) as caught:
             run(enroll_fixed(lock, device_id=bytes.fromhex("010101010101")))
-        assert not isinstance(caught.value, auth.BleEnrollmentError)
+        assert not isinstance(caught.value, enrollment_mod.BleEnrollmentError)
         assert lock.device_id == DEVICE_ID
 
     def test_random_defaults(self):
@@ -153,12 +155,12 @@ class TestFullEnrollment:
         async def scenario():
             transport = lock.connect()
             async with session_mod.Session(transport, command_delay=0) as session:
-                return await auth.enroll(session, name="Hall")
+                return await enrollment_mod.enroll(session, name="Hall")
 
         enrollment = run(scenario())
         assert enrollment.complete
         assert len(enrollment.device_id) == 6
-        assert enrollment.device_id != const.DEFAULT_DEVICE_ID
+        assert enrollment.device_id != client_const.DEFAULT_DEVICE_ID
         assert lock.device_id == enrollment.device_id
         assert lock.owner_key == enrollment.owner_key
         assert lock.server_public_key == enrollment.server_public_key
@@ -194,7 +196,7 @@ class TestEnrollmentStopsPartway:
             transport = lock.connect()
             transport.status_overrides[failing] = const.ResponseStatusId.FAILED
             async with new_session(transport) as session:
-                return await auth.enroll(
+                return await enrollment_mod.enroll(
                     session,
                     name="Door",
                     device_id=DEVICE_ID,
@@ -203,7 +205,7 @@ class TestEnrollmentStopsPartway:
                     key_pair_factory=key_pairs(PHONE_UPDATE_PRIVATE_KEY),
                 )
 
-        with pytest.raises(auth.BleEnrollmentError) as caught:
+        with pytest.raises(enrollment_mod.BleEnrollmentError) as caught:
             run(first_attempt())
         partial = caught.value.enrollment
         assert caught.value.step is failed_step
@@ -215,10 +217,10 @@ class TestEnrollmentStopsPartway:
         assert partial.remaining[0] is failed_step
 
         # The stored partial enrollment finishes on a new connection.
-        stored = auth.Enrollment.from_dict(partial.to_dict())
+        stored = enrollment_mod.Enrollment.from_dict(partial.to_dict())
         finished, transport = run(resume(lock, stored))
         assert finished.complete
-        expected_login_id = DEVICE_ID if Step.DEVICE_ID in partial.completed else const.DEFAULT_DEVICE_ID
+        expected_login_id = DEVICE_ID if Step.DEVICE_ID in partial.completed else client_const.DEFAULT_DEVICE_ID
         assert transport.commands[2].payload == b"\x00" + expected_login_id
         assert [c.command_id for c in transport.commands[4:]] == [self.STEP_COMMANDS[s] for s in partial.remaining]
         assert lock.device_id == DEVICE_ID
@@ -233,23 +235,23 @@ class TestEnrollmentStopsPartway:
             transport = lock.connect()
             transport.status_overrides[CommandId.USER_AUTH_UPDATE] = const.ResponseStatusId.FAILED
             async with new_session(transport) as session:
-                await auth.enroll(session, name="Door", key_pair_factory=key_pairs(PHONE_SERVER_PRIVATE_KEY, PHONE_UPDATE_PRIVATE_KEY))
+                await enrollment_mod.enroll(session, name="Door", key_pair_factory=key_pairs(PHONE_SERVER_PRIVATE_KEY, PHONE_UPDATE_PRIVATE_KEY))
 
-        with pytest.raises(auth.BleEnrollmentError) as caught:
+        with pytest.raises(enrollment_mod.BleEnrollmentError) as caught:
             run(scenario())
         assert caught.value.step is Step.OWNER_KEY
         assert caught.value.enrollment is None
         assert "no owner key was saved" in str(caught.value)
-        assert lock.owner_key == const.DEFAULT_ENCRYPTION_KEY
+        assert lock.owner_key == client_const.DEFAULT_ENCRYPTION_KEY
 
     def test_owner_key_answer_off_the_curve(self):
         async def scenario():
             transport = FakeLock().connect()
             transport.payload_overrides[CommandId.USER_AUTH_UPDATE] = bytes(64)
             async with new_session(transport) as session:
-                await auth.enroll(session, name="Door", key_pair_factory=key_pairs(PHONE_SERVER_PRIVATE_KEY, PHONE_UPDATE_PRIVATE_KEY))
+                await enrollment_mod.enroll(session, name="Door", key_pair_factory=key_pairs(PHONE_SERVER_PRIVATE_KEY, PHONE_UPDATE_PRIVATE_KEY))
 
-        with pytest.raises(auth.BleEnrollmentError) as caught:
+        with pytest.raises(enrollment_mod.BleEnrollmentError) as caught:
             run(scenario())
         assert caught.value.enrollment is None
         assert isinstance(caught.value.__cause__, errors.BleProtocolError)
@@ -287,8 +289,8 @@ class TestInputChecks:
 
     def test_new_device_id_never_returns_the_factory_id(self, monkeypatch):
         draws = iter([bytes(6), bytes(6), b"\x00\x00\x00\x00\x00\x01"])
-        monkeypatch.setattr(auth.secrets, "token_bytes", lambda n: next(draws))
-        assert auth.new_device_id() == b"\x00\x00\x00\x00\x00\x01"
+        monkeypatch.setattr(enrollment_mod.secrets, "token_bytes", lambda n: next(draws))
+        assert enrollment_mod.new_device_id() == b"\x00\x00\x00\x00\x00\x01"
 
 
 # --- The stored value ---------------------------------------------------------------
@@ -304,7 +306,7 @@ def enrollment(**overrides):
         "completed": frozenset(Step),
     }
     values.update(overrides)
-    return auth.Enrollment(**values)
+    return enrollment_mod.Enrollment(**values)
 
 
 class TestEnrollmentValue:
@@ -320,17 +322,17 @@ class TestEnrollmentValue:
 
     def test_owner_credential_follows_the_device_id_step(self):
         full = enrollment()
-        assert full.owner_credential == crypto.OwnerCredential(0, DEVICE_ID, EXPECTED_OWNER_KEY)
+        assert full.owner_credential == auth.OwnerCredential(0, DEVICE_ID, EXPECTED_OWNER_KEY)
         early = enrollment(completed=frozenset({Step.OWNER_KEY}), lock_server_public_key=None)
-        assert early.owner_credential.device_id == const.DEFAULT_DEVICE_ID
+        assert early.owner_credential.device_id == client_const.DEFAULT_DEVICE_ID
         assert early.remaining == (Step.DEVICE_ID, Step.CLOCK, Step.SERVER_KEY, Step.NAME)
         assert not early.complete
 
     def test_round_trip(self):
         for value in (enrollment(), enrollment(completed=frozenset({Step.OWNER_KEY}), lock_server_public_key=None)):
             data = value.to_dict()
-            assert data["format"] == auth.ENROLLMENT_FORMAT
-            assert auth.Enrollment.from_dict(data) == value
+            assert data["format"] == enrollment_mod.ENROLLMENT_FORMAT
+            assert enrollment_mod.Enrollment.from_dict(data) == value
 
     @pytest.mark.parametrize(
         ("overrides", "message"),
@@ -366,7 +368,7 @@ class TestEnrollmentValue:
     def test_from_dict_names_the_field_not_the_value(self, change, message):
         data = enrollment().to_dict() | change
         with pytest.raises(errors.BleValidationError, match=message) as caught:
-            auth.Enrollment.from_dict(data)
+            enrollment_mod.Enrollment.from_dict(data)
         assert data["server_private_key"] not in str(caught.value)
         assert caught.value.__cause__ is None
         assert caught.value.__suppress_context__ or caught.value.__context__ is None

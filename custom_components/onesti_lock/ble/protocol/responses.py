@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Final
 
+from ..errors import BleProtocolError
 from .commands import from_lock_time
 from .const import (
     CHALLENGE_LENGTH,
@@ -30,7 +31,6 @@ from .const import (
     ResponseId,
     UserAddedStatusId,
 )
-from .errors import BleProtocolError
 from .response import Response
 from .streams import ByteReader
 

@@ -1,4 +1,4 @@
-"""The test vectors agree with const.py and with themselves.
+"""The test vectors agree with protocol/const.py and with themselves.
 
 The builders and parsers are tested against these vectors in their own files.
 This only makes sure a vector is not wrong before anything is compared with it:
@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import pytest
 
-from ..conftest import load_component_module
-from . import vectors
+from ...conftest import load_component_module
+from .. import vectors
 
-const = load_component_module("ble.const")
+const = load_component_module("ble.protocol.const")
+client_const = load_component_module("ble.client.const")
+crypto = load_component_module("ble.crypto")
 
 COMMANDS = {
     "PIN_CODE_SET_SLOT_803_PIN_8832_REF_16_COMMAND": (const.CommandId.PIN_CODE_SET, 16),
@@ -85,7 +87,7 @@ class TestCommandVectors:
 
     def test_default_user_auth_begin(self):
         payload = vectors.USER_AUTH_BEGIN_DEFAULT_PAYLOAD
-        assert payload == bytes([const.DEFAULT_ADMIN_USER_ID]) + const.DEFAULT_DEVICE_ID
+        assert payload == bytes([client_const.DEFAULT_ADMIN_USER_ID]) + client_const.DEFAULT_DEVICE_ID
 
     def test_user_auth_update_carries_a_whole_key(self):
         assert len(vectors.USER_AUTH_UPDATE_PAYLOAD) == 2 + const.PUBLIC_KEY_LENGTH
@@ -136,7 +138,7 @@ class TestPacketVectors:
         assert [p[0] for p in packets] == [const.PacketTypeId.BLOB_START, const.PacketTypeId.BLOB_COMPLETE]
         start = packets[0][const.PACKET_HEADER_SIZE :]
         assert start[0] & const.BLOB_FLAG_ENCRYPTED
-        assert int.from_bytes(start[1:3], "little") == const.AES_BLOCK_SIZE
+        assert int.from_bytes(start[1:3], "little") == crypto.AES_BLOCK_SIZE
         body = start[const.BLOB_HEADER_SIZE :] + packets[1][const.PACKET_HEADER_SIZE :]
         assert body == vectors.ENCRYPTED_16_BYTES
 

@@ -12,8 +12,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Final
 
+from ..errors import BleProtocolError, error_for_status
 from .const import RESPONSE_HEADER_SIZE, CommandId, ResponseId, ResponseStatusId
-from .errors import BleProtocolError, error_for_status
 from .streams import ByteReader, ByteWriter
 
 # NimlyEkeyDevice.responseHandler only reads LockStatus and UserAdded from a

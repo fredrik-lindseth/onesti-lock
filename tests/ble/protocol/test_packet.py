@@ -1,22 +1,21 @@
-"""Layers 1-3: byte streams, packets, blobs, commands and responses.
+"""protocol/packet.py: Layer 1 packets, packetizing, and the stream that reassembles them.
 
-Built frames are compared with the vectors in vectors.py, and parsed frames
-are built again, so each layer is checked in both directions.
+The last tests run a frame through every layer and back, since the packet
+stream is where the layers meet.
 """
 from __future__ import annotations
 
 import pytest
 
-from ..conftest import load_component_module
-from . import vectors
+from ...conftest import load_component_module
+from .. import vectors
 
-const = load_component_module("ble.const")
+const = load_component_module("ble.protocol.const")
 errors = load_component_module("ble.errors")
-streams = load_component_module("ble.streams")
-blob = load_component_module("ble.blob")
-packet = load_component_module("ble.packet")
-command = load_component_module("ble.command")
-response = load_component_module("ble.response")
+blob = load_component_module("ble.protocol.blob")
+packet = load_component_module("ble.protocol.packet")
+command = load_component_module("ble.protocol.command")
+response = load_component_module("ble.protocol.response")
 
 PacketTypeId = const.PacketTypeId
 
@@ -40,132 +39,6 @@ class XorCipher:
     def decrypt(self, data: bytes) -> bytes:
         self.decrypted += 1
         return bytes(b ^ self.key for b in data)
-
-
-# --- streams.py ---------------------------------------------------------------
-
-
-class TestByteReader:
-    def test_reads_little_endian(self):
-        reader = streams.ByteReader(bytes.fromhex("01 34 12 78 56 34 12 AA BB CC"))
-        assert reader.read_uint8() == 0x01
-        assert reader.read_uint16() == 0x1234
-        assert reader.read_uint32() == 0x12345678
-        assert reader.remaining == 3
-        assert reader.read_bytes(2) == b"\xaa\xbb"
-        assert reader.read_rest() == b"\xcc"
-        assert reader.remaining == 0
-        assert reader.read_bytes(0) == b""
-
-    def test_reading_past_the_end(self):
-        reader = streams.ByteReader(b"\x01")
-        with pytest.raises(errors.BleProtocolError, match="Tried to read 2 byte"):
-            reader.read_uint16()
-
-    def test_negative_count_is_a_bug(self):
-        with pytest.raises(ValueError):
-            streams.ByteReader(b"\x01").read_bytes(-1)
-
-    def test_string_field(self):
-        reader = streams.ByteReader(b"Door\x00\x00\x00\x00\x00rest")
-        assert reader.read_string(9) == "Door"
-        assert reader.read_rest() == b"rest"
-
-    def test_string_field_needs_a_terminator(self):
-        with pytest.raises(errors.BleProtocolError, match="NUL"):
-            streams.ByteReader(b"ABCD").read_string(4)
-
-    def test_string_field_replaces_non_ascii_like_java(self):
-        assert streams.ByteReader(b"A\xffB\x00").read_string(4) == "A�B"
-
-
-class TestByteWriter:
-    def test_writes_little_endian(self):
-        writer = streams.ByteWriter().write_uint8(1).write_uint16(0x1234).write_uint32(0x12345678)
-        writer.write_bytes(b"\xaa").write_raw_string("88")
-        assert writer.to_bytes() == bytes.fromhex("01 34 12 78 56 34 12 AA 38 38")
-        assert len(writer) == 10
-
-    @pytest.mark.parametrize(
-        ("method", "value"),
-        [("write_uint8", 256), ("write_uint8", -1), ("write_uint16", 0x10000), ("write_uint32", 1 << 32)],
-    )
-    def test_refuses_what_java_would_truncate(self, method, value):
-        with pytest.raises(errors.BleValidationError, match="does not fit"):
-            getattr(streams.ByteWriter(), method)(value)
-
-    def test_raw_string_must_be_ascii_and_is_not_quoted(self):
-        with pytest.raises(errors.BleValidationError) as info:
-            streams.ByteWriter().write_raw_string("88٣2")
-        assert "88" not in str(info.value)
-        # Checked up front, so no UnicodeEncodeError holding the text rides along.
-        assert info.value.__context__ is None
-
-    def test_fixed_string(self):
-        assert streams.ByteWriter().write_string("Door", 9).to_bytes() == vectors.DEVICE_NAME_SET_DOOR_PAYLOAD
-        assert streams.ByteWriter().write_string("", 2).to_bytes() == b"\x00\x00"
-
-    def test_fixed_string_keeps_room_for_the_terminator(self):
-        streams.ByteWriter().write_string("12345678", 9)
-        with pytest.raises(errors.BleValidationError, match="does not fit"):
-            streams.ByteWriter().write_string("123456789", 9)
-        with pytest.raises(errors.BleValidationError, match="ASCII"):
-            streams.ByteWriter().write_string("Dør", 9)
-
-
-# --- blob.py ------------------------------------------------------------------
-
-
-class TestBlobHeader:
-    def test_round_trip(self):
-        header = blob.BlobHeader.for_payload(0x44, encrypted=True)
-        assert header.to_bytes() == bytes.fromhex("01 44 00 00")
-        assert blob.BlobHeader.split(header.to_bytes() + b"xyz") == (header, b"xyz")
-        assert header.encrypted
-        assert not blob.BlobHeader.for_payload(1, encrypted=False).encrypted
-
-    def test_other_flag_bits_and_rfu_are_kept_but_not_read(self):
-        header, chunk = blob.BlobHeader.split(bytes.fromhex("FE 02 00 7F AB"))
-        assert (header.flags, header.length, header.rfu, chunk) == (0xFE, 2, 0x7F, b"\xab")
-        assert not header.encrypted
-
-    def test_short_header(self):
-        with pytest.raises(errors.BleProtocolError, match="shorter than the 4-byte header"):
-            blob.BlobHeader.split(b"\x00\x10\x00")
-
-
-class TestBlobAssembler:
-    def test_reassembles_the_vector(self):
-        packets = vectors.EXCHANGE_KEY_PUB_M_BLOB_PACKETS_MTU_23
-        assembler = blob.BlobAssembler(packets[0][4:])
-        assert not assembler.encrypted
-        for middle in packets[1:-1]:
-            assembler.add(middle[4:])
-        assert assembler.received == 60
-        assert assembler.complete(packets[-1][4:]) == vectors.EXCHANGE_KEY_PUB_M_REF_1_COMMAND
-
-    def test_short_blob_fails_at_complete(self):
-        assembler = blob.BlobAssembler(bytes.fromhex("00 05 00 00") + b"ab")
-        with pytest.raises(errors.BleProtocolError, match="declared 5 byte.*carried 4"):
-            assembler.complete(b"cd")
-
-    def test_overflow_fails_at_once(self):
-        assembler = blob.BlobAssembler(bytes.fromhex("00 03 00 00") + b"ab")
-        with pytest.raises(errors.BleProtocolError, match="overflows"):
-            assembler.add(b"cd")
-
-    def test_first_chunk_can_overflow(self):
-        with pytest.raises(errors.BleProtocolError, match="overflows"):
-            blob.BlobAssembler(bytes.fromhex("00 01 00 00") + b"ab")
-
-    def test_nothing_after_complete(self):
-        assembler = blob.BlobAssembler(bytes.fromhex("00 02 00 00") + b"a")
-        assert assembler.complete(b"b") == b"ab"
-        with pytest.raises(errors.BleProtocolError, match="already completed"):
-            assembler.add(b"")
-
-
-# --- packet.py: Packet and packetize -----------------------------------------
 
 
 class TestPacket:
@@ -253,9 +126,6 @@ class TestPacketize:
         with pytest.raises(ValueError, match="blob limit"):
             packet.packetize(bytes(0x10000), encrypted=False)
         assert packet.MTU_MIN == 12
-
-
-# --- packet.py: PacketStream --------------------------------------------------
 
 
 class TestPacketStream:
@@ -354,7 +224,7 @@ class TestPacketStream:
 
 
 class TestCipherHook:
-    """The seam Task B's AES encrypter plugs into, exercised with a stand-in."""
+    """The seam the AES cipher plugs into, exercised with a stand-in."""
 
     def test_outgoing_payload_is_encrypted_then_framed_as_an_encrypted_blob(self):
         cipher = XorCipher()
@@ -393,136 +263,10 @@ class TestCipherHook:
         assert stream.frame(vectors.BATT_INFO_GET_REF_1_COMMAND)[0][0] == PacketTypeId.BLOB_START
 
 
-# --- command.py ---------------------------------------------------------------
-
-
-class TestCommand:
-    def test_documented_pin_payload_in_a_whole_command(self):
-        payload = command.CommandPayload(const.CommandId.PIN_CODE_SET, vectors.PIN_CODE_SET_SLOT_803_PIN_8832_PAYLOAD)
-        built = payload.with_ref(16).to_bytes()
-        assert built == vectors.PIN_CODE_SET_SLOT_803_PIN_8832_REF_16_COMMAND
-        assert built.hex(" ") == "52 07 10 00 23 03 04 38 38 33 32"
-
-    @pytest.mark.parametrize(
-        "name",
-        ["USER_AUTH_BEGIN_DEFAULT_REF_1_COMMAND", "BATT_INFO_GET_REF_1_COMMAND", "EXCHANGE_KEY_PUB_M_REF_1_COMMAND"],
-    )
-    def test_round_trip(self, name):
-        frame = getattr(vectors, name)
-        parsed = command.Command.from_bytes(frame)
-        assert parsed.to_bytes() == frame
-
-    def test_parse_ignores_padding(self):
-        padded = vectors.PIN_CODE_SET_SLOT_803_PIN_8832_REF_16_COMMAND + bytes(5)
-        parsed = command.Command.from_bytes(padded)
-        assert (parsed.command_id, parsed.command_ref) == (const.CommandId.PIN_CODE_SET, 16)
-        assert parsed.payload == vectors.PIN_CODE_SET_SLOT_803_PIN_8832_PAYLOAD
-
-    @pytest.mark.parametrize("ref", [0, 255, -1])
-    def test_ref_range(self, ref):
-        with pytest.raises(ValueError, match="CommandRef"):
-            command.Command(const.CommandId.BATT_INFO_GET, ref).to_bytes()
-
-    def test_ref_bounds_are_accepted(self):
-        assert command.Command(const.CommandId.BATT_INFO_GET, 1).to_bytes()[2] == 1
-        assert command.Command(const.CommandId.BATT_INFO_GET, 254).to_bytes()[2] == 254
-
-    def test_payload_limit(self):
-        with pytest.raises(ValueError, match="exceeds 255"):
-            command.Command(const.CommandId.EXCHANGE_KEY_PUB_M, 1, bytes(256)).to_bytes()
-
-    @pytest.mark.parametrize(
-        ("data", "message"),
-        [(b"\x52\x00\x01", "shorter than its 4-byte header"), (b"\x99\x00\x01\x00", "Unknown command id 0x99")],
-    )
-    def test_malformed(self, data, message):
-        with pytest.raises(errors.BleProtocolError, match=message):
-            command.Command.from_bytes(data)
-
-    def test_reprs_leave_the_payload_out(self):
-        payload = command.CommandPayload(const.CommandId.PIN_CODE_SET, vectors.PIN_CODE_SET_SLOT_803_PIN_8832_PAYLOAD)
-        for obj in (payload, payload.with_ref(1)):
-            text = repr(obj)
-            assert "8832" not in text and "88" not in text
-            assert "PIN_CODE_SET" in text
-
-
-class TestCommandRefCounter:
-    def test_counter_runs_1_to_127_and_wraps(self):
-        counter = command.CommandRefCounter(static=False)
-        refs = [counter.next() for _ in range(130)]
-        assert refs[:3] == [1, 2, 3]
-        assert refs[126] == 127
-        assert refs[127:] == [1, 2, 3]
-        assert response.EVENT_COMMAND_REF not in refs
-
-    def test_static_ref(self):
-        counter = command.CommandRefCounter(static=True)
-        assert {counter.next() for _ in range(5)} == {16}
-
-    @pytest.mark.parametrize(
-        ("firmware", "static"),
-        [((4, 6, 0), True), ((4, 7, 89), True), ((4, 7, 90), False), ((5, 0, 0), False)],
-    )
-    def test_for_firmware(self, firmware, static):
-        assert command.CommandRefCounter.for_firmware(firmware).static is static
-
-
-# --- response.py --------------------------------------------------------------
-
-
-class TestResponse:
-    def test_parse(self):
-        parsed = response.Response.from_bytes(vectors.BATT_INFO_GET_REF_1_RESPONSE)
-        assert parsed.response_id is const.ResponseId.BATT_INFO_GET
-        assert parsed.command_ref == 1
-        assert parsed.status is const.ResponseStatusId.SUCCESS
-        assert parsed.payload == bytes.fromhex("A8 16 00 50")
-        assert parsed.ok and not parsed.is_event
-        parsed.raise_for_status()
-        assert parsed.to_bytes() == vectors.BATT_INFO_GET_REF_1_RESPONSE
-
-    def test_padding_after_the_payload_is_ignored(self):
-        padded = vectors.PIN_CODE_SET_SUCCESS_REF_1_RESPONSE + bytes(12)
-        assert response.Response.from_bytes(padded).to_bytes() == vectors.PIN_CODE_SET_SUCCESS_REF_1_RESPONSE
-
-    def test_failed_status_raises_the_mapped_error(self):
-        parsed = response.Response.from_bytes(vectors.PIN_CODE_CLEAR_NOT_FOUND_REF_1_RESPONSE)
-        assert not parsed.ok
-        with pytest.raises(errors.BleNotFoundError) as info:
-            parsed.raise_for_status()
-        assert info.value.command is const.ResponseId.PIN_CODE_CLEAR
-
-    def test_unknown_id_and_status_stay_raw(self):
-        parsed = response.Response.from_bytes(bytes.fromhex("99 00 05 42"))
-        assert (parsed.response_id, parsed.status) == (0x99, 0x42)
-        assert type(parsed.response_id) is int and type(parsed.status) is int
-        with pytest.raises(errors.BleOperationError, match="0x42"):
-            parsed.raise_for_status()
-        assert parsed.to_bytes() == bytes.fromhex("99 00 05 42")
-
-    def test_event_ref(self):
-        assert response.EVENT_COMMAND_REF == 128
-        assert response.Response.from_bytes(vectors.LOCK_STATUS_SLOT_803_UNLOCKED_PANEL_RESPONSE).is_event
-
-    @pytest.mark.parametrize(
-        ("data", "message"),
-        [(b"\x5d\x04\x01", "shorter than its 4-byte header"), (b"\x5d\x04\x01\x00\xa8", "Tried to read 4 byte")],
-    )
-    def test_malformed(self, data, message):
-        with pytest.raises(errors.BleProtocolError, match=message):
-            response.Response.from_bytes(data)
-
-    def test_expected_response_id(self):
-        assert response.expected_response_id(const.CommandId.EXCHANGE_KEY_PUB_M) is const.ResponseId.EXCHANGE_KEY_PUB_L
-        for command_id in const.CommandId:
-            assert response.expected_response_id(command_id).value == command_id.value
-
-
 class TestLayersTogether:
     def test_pin_command_through_every_layer_and_back(self):
         """Builder -> Layer 2 -> Layer 1 -> wire -> Layer 1 -> Layer 2, as the lock would read it."""
-        commands = load_component_module("ble.commands")
+        commands = load_component_module("ble.protocol.commands")
         payload = commands.pin_code_set(803, "8832")
         frame = payload.with_ref(16).to_bytes()
         assert frame == vectors.PIN_CODE_SET_SLOT_803_PIN_8832_REF_16_COMMAND

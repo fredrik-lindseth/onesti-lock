@@ -1,16 +1,17 @@
-"""ble/commands.py: every builder against its vector and the app's checks."""
+"""protocol/commands.py: every builder against its vector and the app's checks."""
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
-from ..conftest import load_component_module
-from . import vectors
+from ...conftest import load_component_module
+from .. import vectors
 
-const = load_component_module("ble.const")
+const = load_component_module("ble.protocol.const")
+client_const = load_component_module("ble.client.const")
 errors = load_component_module("ble.errors")
-commands = load_component_module("ble.commands")
+commands = load_component_module("ble.protocol.commands")
 redact = load_component_module("redact")
 
 CommandId = const.CommandId
@@ -29,7 +30,7 @@ class TestPayloads:
             (lambda: commands.scan_rfid_code(900), CommandId.SCAN_RFID_CODE, "SCAN_RFID_CODE_SLOT_900_PAYLOAD"),
             (lambda: commands.rfid_code_clear(999), CommandId.RFID_CODE_CLEAR, "RFID_CODE_CLEAR_SLOT_999_PAYLOAD"),
             (
-                lambda: commands.user_auth_begin(const.DEFAULT_ADMIN_USER_ID, const.DEFAULT_DEVICE_ID),
+                lambda: commands.user_auth_begin(client_const.DEFAULT_ADMIN_USER_ID, client_const.DEFAULT_DEVICE_ID),
                 CommandId.USER_AUTH_BEGIN,
                 "USER_AUTH_BEGIN_DEFAULT_PAYLOAD",
             ),
@@ -70,7 +71,7 @@ class TestPayloads:
         assert frame == vectors.PIN_CODE_SET_SLOT_803_PIN_8832_REF_16_COMMAND
 
     def test_whole_command_vectors(self):
-        begin = commands.user_auth_begin(0, const.DEFAULT_DEVICE_ID).with_ref(1).to_bytes()
+        begin = commands.user_auth_begin(0, client_const.DEFAULT_DEVICE_ID).with_ref(1).to_bytes()
         assert begin == vectors.USER_AUTH_BEGIN_DEFAULT_REF_1_COMMAND
         assert commands.batt_info_get().with_ref(1).to_bytes() == vectors.BATT_INFO_GET_REF_1_COMMAND
         assert commands.exchange_key_pub_m(KEY).with_ref(1).to_bytes() == vectors.EXCHANGE_KEY_PUB_M_REF_1_COMMAND
@@ -147,9 +148,9 @@ class TestSlotRanges:
         assert commands.scan_rfid_code(900).command_id == 0x56
         assert commands.fingerprint_scan(150).command_id == 0x57
         assert commands.fingerprint_clear(150).command_id == 0x58
-        with pytest.raises(errors.BleValidationError):
+        with pytest.raises(ValueError):
             commands.fingerprint_scan(900)
-        with pytest.raises(errors.BleValidationError):
+        with pytest.raises(ValueError):
             commands.scan_rfid_code(150)
 
     def test_ignore_slot_check(self):
@@ -222,13 +223,13 @@ class TestLengthChecks:
 
     def test_device_name(self):
         assert commands.device_name_set("12345678").data == b"12345678\x00"
-        with pytest.raises(errors.BleValidationError):
+        with pytest.raises(ValueError):
             commands.device_name_set("123456789")
 
     @pytest.mark.parametrize(
         "call",
         [
-            lambda: commands.user_auth_begin(256, const.DEFAULT_DEVICE_ID),
+            lambda: commands.user_auth_begin(256, client_const.DEFAULT_DEVICE_ID),
             lambda: commands.user_auth_update(0, 256, KEY),
             lambda: commands.user_auth_update(-1, 0, KEY),
             lambda: commands.current_time_set(1 << 32),
@@ -282,7 +283,7 @@ class TestEveryCommandIdIsCovered:
         built = {
             commands.exchange_key_pub_m(KEY),
             commands.ekey_operate(const.EkeyOperationId.LOCK),
-            commands.user_auth_begin(0, const.DEFAULT_DEVICE_ID),
+            commands.user_auth_begin(0, client_const.DEFAULT_DEVICE_ID),
             commands.user_auth_finalize(bytes(16)),
             commands.user_auth_update(0, 0, KEY),
             commands.device_id_set(bytes(6)),

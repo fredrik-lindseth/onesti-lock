@@ -1,7 +1,8 @@
 """What a lock says in its advertisement, and how to recognise an enrolled one.
 
 The lock advertises service data under the 16-bit UUID 0xFD00
-(const.ADVERTISING_UUID). BleScanner.getNimlyEkeyScanResult reads it as:
+(ADVERTISING_UUID in client/const.py). BleScanner.getNimlyEkeyScanResult
+reads it as:
 
     [seed:2][identifier:6]
 
@@ -19,8 +20,8 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 
+from ..errors import BleProtocolError, BleValidationError
 from .const import DEFAULT_DEVICE_ID_SEED, DEVICE_ID_LENGTH, DEVICE_ID_SEED_LENGTH
-from .errors import BleProtocolError, BleValidationError
 from .streams import ByteReader
 
 

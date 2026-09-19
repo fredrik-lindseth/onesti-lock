@@ -5,8 +5,8 @@ the radio. A Transport is connected to one lock when the session gets it and
 does four things, all on the GATT side of the link: read the firmware revision,
 subscribe to the communication characteristic, write to it, and let go.
 Scanning, connecting and MTU negotiation stay with whoever builds the
-Transport. A bleak or Home Assistant bluetooth implementation plugs in here
-later; tests use the fake lock in tests/ble/fake_lock.py.
+Transport. A bleak or Home Assistant bluetooth implementation plugs in here;
+tests use the fake lock in tests/ble/fake_lock.py.
 
 The app does the same steps in the same order (NimlyEkeyDeviceBase.connect):
 request MTU 23, discover services, read the Software Revision String, enable
@@ -19,8 +19,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Protocol
 
-# The characteristics are const.COMMUNICATION_CHARACTERISTIC_UUID and
-# const.SOFTWARE_REVISION_CHARACTERISTIC_UUID.
+# The characteristics are COMMUNICATION_CHARACTERISTIC_UUID and
+# SOFTWARE_REVISION_CHARACTERISTIC_UUID in client/const.py.
 
 # Called with the bytes of each notification from the communication
 # characteristic, one Layer 1 packet per call, in the order they arrived.

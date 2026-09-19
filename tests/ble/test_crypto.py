@@ -14,22 +14,20 @@ None of it has been checked against a lock.
 """
 from __future__ import annotations
 
-import ast
 import os
-from pathlib import Path
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
-from ..conftest import COMPONENT_DIR, load_component_module
+from ..conftest import load_component_module
 from . import crypto_vectors as v
+from .leaks import MARKER, assert_clean, assert_no_material
 
-const = load_component_module("ble.const")
+const = load_component_module("ble.protocol.const")
+client_const = load_component_module("ble.client.const")
 errors = load_component_module("ble.errors")
 crypto = load_component_module("ble.crypto")
-
-CRYPTO_SOURCE = Path(COMPONENT_DIR) / "ble" / "crypto.py"
 
 
 def _le(big_endian: bytes) -> bytes:
@@ -38,6 +36,13 @@ def _le(big_endian: bytes) -> bytes:
 
 def _wire(x: bytes, y: bytes) -> bytes:
     return _le(x) + _le(y)
+
+
+class TestSizes:
+    def test_cipher_and_curve_sizes(self):
+        # settings/Constants.java; the challenge is one AES block.
+        assert crypto.AES_BLOCK_SIZE == crypto.AES_KEY_LENGTH == const.CHALLENGE_LENGTH == 16
+        assert crypto.PRIVATE_KEY_LENGTH == crypto.SHARED_SECRET_LENGTH == 32
 
 
 # --- kat ---------------------------------------------------------------------
@@ -136,7 +141,7 @@ class TestExecutedAes:
 
 class TestExecutedOwnerAuth:
     def test_answer_with_the_default_key(self):
-        answer = crypto.answer_owner_challenge(v.OWNER_CHALLENGE, const.DEFAULT_ENCRYPTION_KEY, v.SP800_38A_IV)
+        answer = crypto.answer_owner_challenge(v.OWNER_CHALLENGE, client_const.DEFAULT_ENCRYPTION_KEY, v.SP800_38A_IV)
         assert answer == v.OWNER_ANSWER_DEFAULT_KEY
 
 
@@ -180,21 +185,6 @@ class TestDerivedOwnerAuth:
 
         expected = run(bytes(b ^ 0xFF for b in run(challenge, decrypt=True)), decrypt=False)
         assert crypto.answer_owner_challenge(challenge, key, iv) == expected
-
-    def test_default_credential(self):
-        credential = crypto.DEFAULT_OWNER_CREDENTIAL
-        assert credential.user_id == 0
-        assert credential.device_id == bytes(6)
-        assert credential.key == bytes([0x11] * 16)
-
-    def test_default_iv_is_not_used(self):
-        # Constants.DefaultEncryptionIv (0x22 x 16) is never read by the app:
-        # owner auth runs on the link IV. Importing it here would be the mistake
-        # the docs once suggested.
-        tree = ast.parse(CRYPTO_SOURCE.read_text())
-        names = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
-        imported = {alias.name for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) for alias in node.names}
-        assert "DEFAULT_ENCRYPTION_IV" not in names | imported
 
 
 class TestDerivedBitInvert:
@@ -292,32 +282,13 @@ class TestSelfConsistentOwnerAuth:
 
 # --- validation, and no secrets in errors or repr ----------------------------
 
-# Distinctive filler, so a leak is easy to spot in a message.
-MARKER = bytes([0xA5] * 40)
-
-
-def _assert_no_material(text: str, *secrets: bytes) -> None:
-    for secret in secrets:
-        assert secret.hex() not in text.lower()
-        assert repr(secret) not in text
-        assert secret.hex(" ") not in text.lower()
-
-
-def _assert_clean(excinfo: pytest.ExceptionInfo[BaseException], *secrets: bytes) -> None:
-    _assert_no_material(str(excinfo.value), *secrets)
-    _assert_no_material(repr(excinfo.value), *secrets)
-    # No chained error a traceback would print next to ours.
-    assert excinfo.value.__cause__ is None
-    assert excinfo.value.__suppress_context__ or excinfo.value.__context__ is None
-
-
 class TestValidation:
     @pytest.mark.parametrize("length", [0, 31, 33])
     def test_private_key_length(self, length):
         key = MARKER[:length]
         with pytest.raises(errors.BleValidationError, match=f"32 bytes, got {length}") as excinfo:
             crypto.key_pair_from_private_key(key)
-        _assert_clean(excinfo, key or b"\xa5")
+        assert_clean(excinfo, key or b"\xa5")
 
     @pytest.mark.parametrize(
         "scalar",
@@ -328,7 +299,7 @@ class TestValidation:
         key = scalar.to_bytes(32, "little")
         with pytest.raises(errors.BleValidationError, match="not a valid secp256r1 scalar") as excinfo:
             crypto.compute_shared_secret(key, v.CAVS_PEER_PUBLIC_KEY_WIRE)
-        _assert_clean(excinfo, key)
+        assert_clean(excinfo, key)
 
     @pytest.mark.parametrize("length", [0, 63, 65])
     def test_public_key_length(self, length):
@@ -339,7 +310,7 @@ class TestValidation:
         off_curve = (1).to_bytes(32, "little") + (1).to_bytes(32, "little")
         with pytest.raises(errors.BleProtocolError, match="not a point on secp256r1") as excinfo:
             crypto.compute_shared_secret(v.CAVS_PRIVATE_KEY_WIRE, off_curve)
-        _assert_clean(excinfo, v.CAVS_PRIVATE_KEY_WIRE)
+        assert_clean(excinfo, v.CAVS_PRIVATE_KEY_WIRE)
 
     def test_public_key_in_big_endian_is_refused(self):
         # The mistake the wire encoding invites. A big-endian key is almost
@@ -351,47 +322,32 @@ class TestValidation:
     def test_shared_secret_length(self, length):
         with pytest.raises(errors.BleValidationError, match=f"32 bytes, got {length}") as excinfo:
             crypto.LinkKeys.from_shared_secret(MARKER[:length])
-        _assert_clean(excinfo, MARKER[:length] or b"\xa5")
+        assert_clean(excinfo, MARKER[:length] or b"\xa5")
 
     @pytest.mark.parametrize(("key_length", "iv_length"), [(15, 16), (17, 16), (32, 16), (16, 15), (16, 17)])
     def test_aes_key_and_iv_length(self, key_length, iv_length):
         key, iv = MARKER[:key_length], bytes([0x5A] * iv_length)
         with pytest.raises(errors.BleValidationError, match="must be 16 bytes") as excinfo:
             crypto.Aes128Cbc(key, iv, iv_reset=False)
-        _assert_clean(excinfo, key, iv)
+        assert_clean(excinfo, key, iv)
 
     @pytest.mark.parametrize("length", [1, 15, 17])
     def test_decrypt_partial_block(self, length):
         cipher = crypto.Aes128Cbc(v.SP800_38A_KEY, v.SP800_38A_IV, iv_reset=False)
         with pytest.raises(errors.BleProtocolError, match=f"Cannot decrypt {length} bytes") as excinfo:
             cipher.decrypt(MARKER[:length])
-        _assert_clean(excinfo, MARKER[:length], v.SP800_38A_KEY)
+        assert_clean(excinfo, MARKER[:length], v.SP800_38A_KEY)
 
     @pytest.mark.parametrize("length", [0, 15, 32])
     def test_challenge_length(self, length):
         with pytest.raises(errors.BleProtocolError, match=f"16 bytes, got {length}"):
-            crypto.answer_owner_challenge(MARKER[:length], const.DEFAULT_ENCRYPTION_KEY, v.SP800_38A_IV)
+            crypto.answer_owner_challenge(MARKER[:length], client_const.DEFAULT_ENCRYPTION_KEY, v.SP800_38A_IV)
 
     def test_owner_key_length(self):
         key = MARKER[:15]
         with pytest.raises(errors.BleValidationError) as excinfo:
             crypto.answer_owner_challenge(v.OWNER_CHALLENGE, key, v.SP800_38A_IV)
-        _assert_clean(excinfo, key)
-
-    @pytest.mark.parametrize(
-        ("kwargs", "message"),
-        [
-            ({"user_id": -1}, "User id must be 0-255, got -1"),
-            ({"user_id": 256}, "User id must be 0-255, got 256"),
-            ({"device_id": bytes(5)}, "Device id must be 6 bytes, got 5"),
-            ({"key": MARKER[:15]}, "Owner key must be 16 bytes, got 15"),
-        ],
-    )
-    def test_owner_credential(self, kwargs, message):
-        fields = {"user_id": 0, "device_id": bytes(6), "key": bytes([0x11] * 16)} | kwargs
-        with pytest.raises(errors.BleValidationError, match=message) as excinfo:
-            crypto.OwnerCredential(**fields)
-        _assert_clean(excinfo, MARKER[:15])
+        assert_clean(excinfo, key)
 
     def test_errors_belong_to_the_library(self):
         with pytest.raises(errors.BleError):
@@ -401,19 +357,14 @@ class TestValidation:
 class TestRepr:
     def test_key_pair(self):
         pair = crypto.key_pair_from_private_key(v.CAVS_PRIVATE_KEY_WIRE)
-        _assert_no_material(repr(pair), pair.private_key, pair.public_key)
+        assert_no_material(repr(pair), pair.private_key, pair.public_key)
         assert repr(pair) == "KeyPair()"
 
     def test_link_keys(self):
         keys = crypto.LinkKeys.from_shared_secret(v.CAVS_SHARED_SECRET)
-        _assert_no_material(repr(keys), keys.key, keys.iv)
-
-    def test_owner_credential(self):
-        text = repr(crypto.DEFAULT_OWNER_CREDENTIAL)
-        _assert_no_material(text, const.DEFAULT_ENCRYPTION_KEY)
-        assert "user_id=0" in text
+        assert_no_material(repr(keys), keys.key, keys.iv)
 
     def test_cipher(self):
         cipher = crypto.Aes128Cbc(v.SP800_38A_KEY, v.SP800_38A_IV, iv_reset=True)
-        _assert_no_material(repr(cipher), v.SP800_38A_KEY, v.SP800_38A_IV)
+        assert_no_material(repr(cipher), v.SP800_38A_KEY, v.SP800_38A_IV)
         assert repr(cipher) == "Aes128Cbc(iv_reset=True)"

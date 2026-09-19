@@ -35,22 +35,18 @@ from typing import Final
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
-from .const import (
-    AES_BLOCK_SIZE,
-    AES_KEY_LENGTH,
-    CHALLENGE_LENGTH,
-    DEFAULT_ADMIN_USER_ID,
-    DEFAULT_DEVICE_ID,
-    DEFAULT_ENCRYPTION_KEY,
-    DEVICE_ID_LENGTH,
-    PRIVATE_KEY_LENGTH,
-    PUBLIC_KEY_LENGTH,
-)
 from .errors import BleProtocolError, BleValidationError
+from .protocol.const import CHALLENGE_LENGTH, PUBLIC_KEY_LENGTH
+
+# Sizes the cipher and the curve fix (settings/Constants.java). The lengths
+# that travel in frames, the public key and the challenge, are wire constants.
+AES_BLOCK_SIZE: Final = 16
+AES_KEY_LENGTH: Final = 16
+PRIVATE_KEY_LENGTH: Final = 32
+SHARED_SECRET_LENGTH: Final = 32
 
 _CURVE: Final = ec.SECP256R1()
 _COORDINATE_LENGTH: Final = PUBLIC_KEY_LENGTH // 2
-SHARED_SECRET_LENGTH: Final = 32
 
 
 # --- Byte helpers (extensions/ByteExtensions.java) ---------------------------
@@ -179,33 +175,6 @@ def derive_owner_key(private_key: bytes, lock_public_key: bytes) -> bytes:
     lock_public_key the key in the lock's answer (NimlyEkeyDevice class $28).
     """
     return compute_shared_secret(private_key, lock_public_key)[:AES_KEY_LENGTH]
-
-
-@dataclass(frozen=True)
-class OwnerCredential:
-    """Who UserAuthBegin claims to be, and the key that answers the challenge (ParamUserAuth)."""
-
-    user_id: int
-    device_id: bytes
-    key: bytes = field(repr=False)
-
-    def __post_init__(self) -> None:
-        # UserAuthBegin writes the user id as one unsigned byte.
-        if not 0 <= self.user_id <= 0xFF:
-            raise BleValidationError(f"User id must be 0-255, got {self.user_id}")
-        if len(self.device_id) != DEVICE_ID_LENGTH:
-            raise BleValidationError(f"Device id must be {DEVICE_ID_LENGTH} bytes, got {len(self.device_id)}")
-        if len(self.key) != AES_KEY_LENGTH:
-            raise BleValidationError(f"Owner key must be {AES_KEY_LENGTH} bytes, got {len(self.key)}")
-
-
-# What AddLockFragment authenticates a freshly scanned lock with:
-# ParamUserAuth(0, Constants.DefaultDeviceId, Constants.DefaultEncryptionKey).
-DEFAULT_OWNER_CREDENTIAL: Final = OwnerCredential(
-    user_id=DEFAULT_ADMIN_USER_ID,
-    device_id=DEFAULT_DEVICE_ID,
-    key=DEFAULT_ENCRYPTION_KEY,
-)
 
 
 def answer_owner_challenge(challenge: bytes, owner_key: bytes, link_iv: bytes) -> bytes:

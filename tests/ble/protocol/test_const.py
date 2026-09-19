@@ -1,4 +1,4 @@
-"""ble/const.py against the values in the decompiled app.
+"""ble/protocol/const.py against the values in the decompiled app.
 
 The expected tables below are a second, independent transcription of the Java
 enums (communication/**/*Id.java, settings/Constants.java). A typo in const.py
@@ -6,17 +6,13 @@ has to be repeated here to slip through.
 """
 from __future__ import annotations
 
-import ast
 from enum import IntEnum
-from pathlib import Path
 
 import pytest
 
-from ..conftest import COMPONENT_DIR, load_component_module
+from ...conftest import load_component_module
 
-const = load_component_module("ble.const")
-
-BLE_DIR = Path(COMPONENT_DIR) / "ble"
+const = load_component_module("ble.protocol.const")
 
 
 class TestEnumValues:
@@ -171,30 +167,15 @@ class TestLockModels:
 
 
 class TestConstants:
-    def test_uuids(self):
-        assert const.SERVICE_UUID == "ba4bfd00-c447-19bf-f38d-4890b3a824c8"
-        assert const.COMMUNICATION_CHARACTERISTIC_UUID == "ba4bfd03-c447-19bf-f38d-4890b3a824c8"
-        assert const.ADVERTISING_UUID == "0000fd00-0000-1000-8000-00805f9b34fb"
-        assert const.CLIENT_CHARACTERISTIC_CONFIGURATION_UUID == "00002902-0000-1000-8000-00805f9b34fb"
-        assert const.DEVICE_INFORMATION_SERVICE_UUID == "0000180a-0000-1000-8000-00805f9b34fb"
-        assert const.SOFTWARE_REVISION_CHARACTERISTIC_UUID == "00002a28-0000-1000-8000-00805f9b34fb"
-
-    def test_default_owner_credential(self):
-        assert const.DEFAULT_ADMIN_USER_ID == 0
-        assert const.DEFAULT_ENCRYPTION_KEY.hex() == "11" * 16
-        assert const.DEFAULT_ENCRYPTION_IV.hex() == "22" * 16
-        assert const.DEFAULT_DEVICE_ID.hex() == "00" * 6
-        assert const.DEFAULT_DEVICE_ID_SEED.hex() == "00" * 2
-        assert len(const.DEFAULT_ENCRYPTION_KEY) == const.AES_KEY_LENGTH
-        assert len(const.DEFAULT_ENCRYPTION_IV) == const.AES_BLOCK_SIZE
-        assert len(const.DEFAULT_DEVICE_ID) == const.DEVICE_ID_LENGTH
-        assert len(const.DEFAULT_DEVICE_ID_SEED) == const.DEVICE_ID_SEED_LENGTH
-
-    def test_crypto_lengths(self):
-        assert const.AES_BLOCK_SIZE == const.AES_KEY_LENGTH == const.CHALLENGE_LENGTH == 16
+    def test_field_lengths(self):
+        assert const.CHALLENGE_LENGTH == 16
         assert const.PUBLIC_KEY_LENGTH == 64
-        assert const.PRIVATE_KEY_LENGTH == 32
+        assert const.DEVICE_ID_LENGTH == 6
         assert const.EKEY_AUTH_TOKEN_LENGTH == 32
+
+    def test_unenrolled_advertisement_seed(self):
+        assert const.DEFAULT_DEVICE_ID_SEED.hex() == "00" * 2
+        assert len(const.DEFAULT_DEVICE_ID_SEED) == const.DEVICE_ID_SEED_LENGTH
 
     def test_slot_ranges(self):
         assert (const.PIN_SLOTS.start, const.PIN_SLOTS[-1]) == (800, 899)
@@ -214,10 +195,8 @@ class TestConstants:
         pin_rules = load_component_module("pin_rules")
         assert const.PIN_LENGTH_MIN >= pin_rules.PIN_LENGTH_SANE_MIN
 
-    def test_firmware_floors(self):
-        assert const.MIN_FIRMWARE_CONNECT == (4, 6, 0)
+    def test_admin_firmware_floor(self):
         assert const.MIN_FIRMWARE_ADMIN == (4, 7, 90)
-        assert const.MIN_FIRMWARE_CONNECT < const.MIN_FIRMWARE_ADMIN
 
     def test_framing(self):
         assert const.PACKET_HEADER_SIZE == const.COMMAND_HEADER_SIZE == const.RESPONSE_HEADER_SIZE == 4
@@ -232,27 +211,4 @@ class TestConstants:
     def test_link_layer(self):
         assert const.DEFAULT_MTU == 23
         assert const.ATT_OVERHEAD == 3
-        assert const.DEFAULT_RESPONSE_TIMEOUT_S == 20.0
-        assert round(const.COMMAND_RESPONSE_DELAY_S * 1000) == 320
 
-
-class TestPackageBoundary:
-    """The library stays usable without Home Assistant, and on its own."""
-
-    FORBIDDEN_ROOTS = {"homeassistant", "zigpy", "voluptuous"}
-
-    @pytest.mark.parametrize("path", sorted(BLE_DIR.glob("*.py")), ids=lambda p: p.name)
-    def test_no_home_assistant_and_no_reaching_out(self, path):
-        tree = ast.parse(path.read_text())
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                roots = {alias.name.split(".")[0] for alias in node.names}
-                assert not roots & self.FORBIDDEN_ROOTS, f"{path.name} imports {roots & self.FORBIDDEN_ROOTS}"
-            elif isinstance(node, ast.ImportFrom):
-                if node.level == 0:
-                    assert node.module.split(".")[0] not in self.FORBIDDEN_ROOTS, f"{path.name} imports {node.module}"
-                # from ..x would tie the library to the integration around it.
-                assert node.level <= 1, f"{path.name} imports from outside ble/"
-
-    def test_marked_as_typed(self):
-        assert (BLE_DIR / "py.typed").is_file()

@@ -5,22 +5,26 @@ with ble/crypto.py, and compared with what the session actually sent.
 """
 from __future__ import annotations
 
+import ast
 import asyncio
 import contextlib
+from pathlib import Path
 
 import pytest
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
-from ..conftest import load_component_module
-from .fake_lock import CHALLENGE, PHONE_LINK_PRIVATE_KEY, FakeLock, key_pairs
+from ...conftest import COMPONENT_DIR, load_component_module
+from ..fake_lock import CHALLENGE, PHONE_LINK_PRIVATE_KEY, FakeLock, key_pairs
+from ..leaks import MARKER, assert_clean, assert_no_material
 
-const = load_component_module("ble.const")
-auth = load_component_module("ble.auth")
-commands = load_component_module("ble.commands")
+const = load_component_module("ble.protocol.const")
+client_const = load_component_module("ble.client.const")
+auth = load_component_module("ble.client.auth")
+commands = load_component_module("ble.protocol.commands")
 crypto = load_component_module("ble.crypto")
 errors = load_component_module("ble.errors")
-responses = load_component_module("ble.responses")
-session_mod = load_component_module("ble.session")
+responses = load_component_module("ble.protocol.responses")
+session_mod = load_component_module("ble.client.session")
 
 CommandId = const.CommandId
 
@@ -45,14 +49,14 @@ def expected_answer(owner_key: bytes, link_iv: bytes) -> bytes:
 
 
 @contextlib.asynccontextmanager
-async def logged_in(lock, credential=crypto.DEFAULT_OWNER_CREDENTIAL):
+async def logged_in(lock, credential=auth.DEFAULT_OWNER_CREDENTIAL):
     transport = lock.connect()
     async with new_session(transport) as session:
         await auth.authenticate_owner(session, credential)
         yield transport, session
 
 
-async def log_in(lock, credential=crypto.DEFAULT_OWNER_CREDENTIAL):
+async def log_in(lock, credential=auth.DEFAULT_OWNER_CREDENTIAL):
     async with logged_in(lock, credential) as (transport, session):
         return transport, session.link_keys
 
@@ -67,7 +71,7 @@ class TestAuthenticateOwner:
         assert begin.command_id is CommandId.USER_AUTH_BEGIN
         assert begin.payload == bytes(7)
         assert finalize.command_id is CommandId.USER_AUTH_FINALIZE
-        assert finalize.payload == expected_answer(const.DEFAULT_ENCRYPTION_KEY, link.iv)
+        assert finalize.payload == expected_answer(client_const.DEFAULT_ENCRYPTION_KEY, link.iv)
 
     def test_wrong_key_is_refused(self):
         lock = FakeLock(owner_key=bytes(range(16)))
@@ -83,7 +87,7 @@ class TestAuthenticateOwner:
         device_id = bytes.fromhex("0A0B0C0D0E0F")
         owner_key = bytes(range(16, 32))
         lock = FakeLock(owner_key=owner_key, device_id=device_id)
-        credential = crypto.OwnerCredential(0, device_id, owner_key)
+        credential = auth.OwnerCredential(0, device_id, owner_key)
 
         transport, _ = run(log_in(lock, credential))
         assert transport.authenticated
@@ -170,3 +174,48 @@ class TestAdminCommandsThroughTheEncryptedSession:
 
         with pytest.raises(errors.BleNotSupportedError):
             run(scenario())
+
+
+class TestOwnerCredential:
+    def test_default_credential(self):
+        credential = auth.DEFAULT_OWNER_CREDENTIAL
+        assert credential.user_id == 0
+        assert credential.device_id == bytes(6)
+        assert credential.key == bytes([0x11] * 16)
+
+    def test_default_iv_is_never_read(self):
+        # Constants.DefaultEncryptionIv (0x22 x 16) is never read by the app:
+        # owner auth runs on the link IV. Using it anywhere would be the
+        # mistake the docs once suggested; client/const.py only defines it.
+        ble_dir = Path(COMPONENT_DIR) / "ble"
+        users = []
+        for path in sorted(ble_dir.rglob("*.py")):
+            if path == ble_dir / "client" / "const.py":
+                continue
+            tree = ast.parse(path.read_text())
+            names = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
+            names |= {node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)}
+            names |= {alias.name for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) for alias in node.names}
+            if "DEFAULT_ENCRYPTION_IV" in names:
+                users.append(path.name)
+        assert not users
+
+    @pytest.mark.parametrize(
+        ("kwargs", "message"),
+        [
+            ({"user_id": -1}, "User id must be 0-255, got -1"),
+            ({"user_id": 256}, "User id must be 0-255, got 256"),
+            ({"device_id": bytes(5)}, "Device id must be 6 bytes, got 5"),
+            ({"key": MARKER[:15]}, "Owner key must be 16 bytes, got 15"),
+        ],
+    )
+    def test_validation(self, kwargs, message):
+        fields = {"user_id": 0, "device_id": bytes(6), "key": bytes([0x11] * 16)} | kwargs
+        with pytest.raises(errors.BleValidationError, match=message) as excinfo:
+            auth.OwnerCredential(**fields)
+        assert_clean(excinfo, MARKER[:15])
+
+    def test_repr_leaves_the_key_out(self):
+        text = repr(auth.DEFAULT_OWNER_CREDENTIAL)
+        assert_no_material(text, client_const.DEFAULT_ENCRYPTION_KEY)
+        assert "user_id=0" in text

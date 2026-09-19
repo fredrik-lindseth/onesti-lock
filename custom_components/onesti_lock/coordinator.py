@@ -52,6 +52,13 @@ class NimlyCoordinator:
         # Populated from async_setup_entry: reading the translation files is
         # blocking IO and this constructor runs on the event loop.
         self.strings: Mapping[str, str] = {}
+        # The first user slot this setup was built for. The sensor rows
+        # follow it, so only a change to it is worth a reload (see the update
+        # listener in __init__.py); slot and capability writes are not.
+        self.setup_first_user_slot = self.first_user_slot()
+        # The zigpy cluster the event listener is registered on, or None.
+        # A ZHA reload replaces it, which __init__.py watches for.
+        self.listened_cluster: Any = None
         self._load_slots()
 
     def _load_slots(self) -> None:
@@ -61,7 +68,12 @@ class NimlyCoordinator:
         get_slot() returns DEFAULT_SLOT for unknown slots.
         """
         stored = self.entry.options.get("slots", {})
-        self._slots = {k: {**DEFAULT_SLOT, **v} for k, v in stored.items()}
+        # Only the keys DEFAULT_SLOT defines, so a field the schema dropped
+        # (has_rfid) cannot come back from a hand-edited or older save.
+        self._slots = {
+            k: {**DEFAULT_SLOT, **{f: v[f] for f in DEFAULT_SLOT if f in v}}
+            for k, v in stored.items()
+        }
 
     async def _save_slots(self) -> None:
         """Persist slot data to config entry options.
@@ -155,6 +167,10 @@ class NimlyCoordinator:
         """Update the activity sensor."""
         if self._activity_sensor:
             self._activity_sensor.update_activity(user_slot, action, source)
+
+    def wake_echo_pending(self) -> bool:
+        """Whether a Zigbee lock event now may be our own auto-wake's echo."""
+        return self.transport.wake_echo_pending()
 
     # -- Lock capabilities --
 

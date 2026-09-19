@@ -44,7 +44,7 @@ class TestSlotLogic:
         """setdefault must not overwrite existing slot data."""
         default = self._default_slot()
         slots = {
-            "5": {"name": "Kari", "has_pin": True, "has_rfid": False},
+            "5": {"name": "Kari", "has_pin": True},
         }
 
         # Simulate set_pin on existing slot
@@ -69,7 +69,7 @@ class TestSlotLogic:
         """clear_slot should reset slot to DEFAULT_SLOT."""
         default = self._default_slot()
         slots = {
-            "5": {"name": "Kari", "has_pin": True, "has_rfid": True},
+            "5": {"name": "Kari", "has_pin": True},
         }
 
         # Simulate: self._slots[str(slot)] = {**DEFAULT_SLOT}
@@ -77,4 +77,3 @@ class TestSlotLogic:
 
         assert slots["5"]["name"] == ""
         assert slots["5"]["has_pin"] is False
-        assert slots["5"]["has_rfid"] is False

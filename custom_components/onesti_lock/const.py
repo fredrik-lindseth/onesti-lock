@@ -63,11 +63,12 @@ USER_STATUS_DISABLED = 3
 # ZCL User type
 USER_TYPE_UNRESTRICTED = 0
 
-# Default empty slot
+# Default empty slot. Its keys are the whole stored slot schema: anything else
+# found in stored options is dropped on load. has_rfid used to be here, but no
+# Zigbee report tells whether a slot holds a card, so it was always False.
 DEFAULT_SLOT = {
     "name": "",
     "has_pin": False,
-    "has_rfid": False,
 }
 
 # Operation event sources (verified against Z2M converter)

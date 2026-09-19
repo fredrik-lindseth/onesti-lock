@@ -107,6 +107,12 @@
       "message": "Der er sat mere end én Onesti-lås op ({ieees}). Vælg låsen med device_id, eller angiv ieee."
     }
   },
+  "issues": {
+    "zha_internals": {
+      "title": "Låsehændelser modtages ikke",
+      "description": "Onesti Lock kunne ikke finde en del af ZHA, som integrationen afhænger af: {detail}. Det kan stadig virke at indstille PIN-koder, men aktivitetssensoren og hændelsen onesti_lock_activity forbliver tavse, indtil dette er løst. Hvis ZHA kører, og låsen er parret, har en opdatering af Home Assistant sandsynligvis ændret ZHA's interne dele. Opret et issue på integrationens GitHub-side med din Home Assistant-version og denne besked. Når ZHA starter igen med låsen, forbinder integrationen sig selv igen."
+    }
+  },
   "runtime": {
     "unknown_user": "Ukendt",
     "slot_vacant": "Ledig",

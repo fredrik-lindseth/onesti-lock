@@ -273,5 +273,5 @@ gh pr view 4881 --repo zigpy/zha-device-handlers --comments
 ```
 
 Our own decoding is canonical in `zigbee-protocol/zigbee-captures.md` and in
-`_SOURCE_MAP` in `custom_components/onesti_lock/__init__.py`. Where a converter
+`SOURCE_MAP` in `custom_components/onesti_lock/events.py`. Where a converter
 disagrees with a capture, the capture wins.

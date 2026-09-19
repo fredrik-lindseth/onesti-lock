@@ -39,9 +39,9 @@ def _looks_secret(identifier: str) -> bool:
 
 
 class TestPinChainRemoved:
-    def test_init_has_no_pin_decoder(self):
-        """__init__.py must not decode or listen for attrid 0x0101."""
-        source = _read("__init__.py")
+    def test_events_has_no_pin_decoder(self):
+        """events.py must not decode or listen for attrid 0x0101."""
+        source = _read("events.py")
         assert "_decode_pin_code" not in source
         assert "ATTR_LAST_PIN_CODE" not in source
 

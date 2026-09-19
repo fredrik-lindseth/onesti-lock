@@ -7,7 +7,7 @@ Onesti locks send a custom attribute report (`attrid 0x0100`) on the Door Lock c
 ```
 Bits 0-15:  user_slot (uint16 LE; 0 = master or no user, see below)
 Bits 16-23: action (1 = lock, 2 = unlock)
-Bits 24-31: source (see _SOURCE_MAP in __init__.py)
+Bits 24-31: source (see SOURCE_MAP in events.py)
 ```
 
 | Source byte | Meaning                                                                                           |
@@ -21,7 +21,7 @@ Bits 24-31: source (see _SOURCE_MAP in __init__.py)
 
 Slot 0 means two things. With source keypad, fingerprint or rfid, a person used the master credential (capture 29.03: `0x02020000`, slot 0, unlock, keypad). The event then carries `user_slot: 0` and the name set on slot 0, or "Master" without one. With source zigbee, auto, unattributed or unknown, slot 0 means no user, and `user_slot` and `user_name` are `null`. Which other slots hold master codes depends on the model, see [slot-numbering.md](slot-numbering.md).
 
-`_SOURCE_MAP` in `__init__.py` is the canonical decoder, so update this table when the map changes. The raw captures behind these values are in `docs/zigbee-protocol/zigbee-captures.md`.
+`SOURCE_MAP` in `events.py` is the canonical decoder, so update this table when the map changes. The raw captures behind these values are in `docs/zigbee-protocol/zigbee-captures.md`.
 
 `attrid 0x0101` holds the PIN code in BCD plaintext. The integration leaves it
 alone on purpose. Every state attribute ends up in the recorder, the logbook and

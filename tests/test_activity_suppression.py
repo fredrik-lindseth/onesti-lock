@@ -1,6 +1,6 @@
-"""Behavioral tests for the activity sensor suppression in __init__.py.
+"""Behavioral tests for the activity sensor suppression in events.py.
 
-These run the real _register_event_listener and its callback against a fake
+These run the real register_event_listener and its callback against a fake
 cluster, so they cover the code path the replicated decode tests miss: which
 events reach the activity sensor and which only fire the HA event.
 """
@@ -10,7 +10,7 @@ import pytest
 
 from .conftest import load_component_module
 
-init_mod = load_component_module("__init__")
+events_mod = load_component_module("events")
 
 
 class FakeCluster:
@@ -32,8 +32,7 @@ class FakeBus:
 
 
 class FakeHass:
-    def __init__(self, entry_id):
-        self.data = {init_mod.DOMAIN: {entry_id: {}}}
+    def __init__(self):
         self.bus = FakeBus()
 
 
@@ -59,10 +58,6 @@ class FakeCoordinator:
         self.activity_calls.append((user_slot, action, source))
 
 
-class FakeEntry:
-    entry_id = "test_entry"
-
-
 class FakeEvent:
     def __init__(self, attribute_id, raw_value):
         self.attribute_id = attribute_id
@@ -72,8 +67,8 @@ class FakeEvent:
 def _make_listener():
     cluster = FakeCluster()
     coordinator = FakeCoordinator(cluster)
-    hass = FakeHass(FakeEntry.entry_id)
-    init_mod._register_event_listener(hass, FakeEntry(), coordinator)
+    hass = FakeHass()
+    events_mod.register_event_listener(hass, coordinator)
     return hass, coordinator, cluster.callbacks["attribute_report"]
 
 

@@ -28,7 +28,9 @@ what the header declares.
 A malformed notification is logged and dropped, as the app drops it. The
 command waiting for an answer then runs into its timeout, and the timeout
 error names the dropped frame as its cause. Nothing logged here carries
-payload bytes, keys or PINs; errors describe sizes and ids only.
+payload bytes, keys or PINs: the library's errors describe sizes and ids
+only, a listener's exception is logged by type alone, and no log call
+carries a traceback.
 """
 from __future__ import annotations
 
@@ -326,9 +328,12 @@ class Session:
         for listener in list(self._listeners):
             try:
                 listener(event)
-            except Exception:
+            except Exception as err:
                 # A listener's bug must not take down the notification path.
-                _LOGGER.exception("A lock event listener failed")
+                # Its message is not ours and could quote anything, and
+                # redact_digits lives outside ble/, so only the type is logged,
+                # without a traceback.
+                _LOGGER.error("A lock event listener failed with %s", type(err).__name__)
 
     def _on_disconnect(self) -> None:
         if self._state is _State.CLOSED:
@@ -338,6 +343,7 @@ class Session:
         self._fail_pending("The lock disconnected before it answered")
 
     def _drop(self, err: BleProtocolError) -> None:
+        # Our own BleProtocolError, whose text holds sizes and ids only.
         _LOGGER.warning("Dropped a malformed notification from the lock: %s", err)
         self._dropped = err
 

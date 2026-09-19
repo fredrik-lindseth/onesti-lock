@@ -17,7 +17,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RUFF_PATHS = ["custom_components/onesti_lock/", "tests/", "tests_ha/", "scripts/"]
-BLOCKED = {"voluptuous", "homeassistant", "zigpy", "pytest_asyncio", "hypothesis"}
+BLOCKED = {"voluptuous", "homeassistant", "zigpy", "bleak_retry_connector", "habluetooth", "pytest_asyncio", "hypothesis"}
 
 
 class Blocker:

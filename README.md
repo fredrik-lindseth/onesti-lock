@@ -3,7 +3,7 @@
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![GitHub release](https://img.shields.io/github/release/fredrik-lindseth/onesti-lock.svg)](https://github.com/fredrik-lindseth/onesti-lock/releases)
 
-Home Assistant integration for Onesti/Nimly smart locks paired through ZHA.
+Home Assistant integration for Onesti/Nimly smart locks paired through ZHA. Onesti Products AS makes the locks and sells them as [Nimly](https://nimly.io) and under several other brands.
 
 The lock reports every event on a custom Zigbee attribute. ZHA's stock quirk exposes it as raw numbers at most, and an open upstream report says those entities do not update live. This integration decodes it into who locked or unlocked the door, by the name you gave the slot, and how (keypad, RFID, fingerprint). You can also manage PIN codes from Home Assistant and name every slot. You get an activity sensor, an event for automations and three automation blueprints.
 
@@ -32,6 +32,8 @@ All Onesti Products AS locks with the Zigbee Connect Module (ZMNC010):
 
 The table does not limit what you can set up. A Connect Module sometimes reports a sibling model name rather than the lock it sits on (a Code Pro has shown up as NimlyTwist), so setup offers any ZHA device from Onesti Products AS with a Door Lock cluster and logs a warning for a model string it does not know. Please report that string too.
 
+A lock without the Zigbee Connect Module cannot be used, since the integration only reaches the lock through ZHA. Neither can a lock paired with Zigbee2MQTT.
+
 ## Installation
 
 ### Via HACS (recommended)
@@ -57,7 +59,7 @@ Then add the integration:
 
 [![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=onesti_lock)
 
-Or go to **Settings → Devices & Services → Add Integration → Onesti Lock** and pick your lock. The sensors show up on their own. With more than one lock, see [Multiple locks](#multiple-locks).
+Or go to **Settings → Devices & Services → Add Integration → Onesti Lock**. The form asks for one thing, **Lock**: pick your lock from the list, where each entry shows the model and the IEEE address ZHA gave it. The list only holds locks that are already paired with ZHA, so there is nothing to look up beforehand. The sensors show up on their own. With more than one lock, see [Multiple locks](#multiple-locks). The master slot setting and the PIN codes are set afterwards, under [Managing access](#managing-access).
 
 ## Entities
 
@@ -85,6 +87,14 @@ Auto-lock does not change the sensor, so "Kari unlocked with code" stays visible
 Every decoded event also fires `onesti_lock_activity`, auto-lock included. The payload is `ieee`, `user_slot`, `user_name`, `action` and `source`, with the same values as above. Automation examples are in [docs/technical.md](docs/technical.md#onesti_lock_activity-event).
 
 Entity IDs come from the server language when the entity is created, so a lock set up on a Norwegian server gets `sensor.*_siste_aktivitet` and keeps it.
+
+## Data updates
+
+The integration never polls. When someone locks or unlocks the door, whether at the keypad, with a tag or finger, from a dashboard or by auto-lock, the lock sends a report on its own. ZHA receives it and the integration decodes it, so the activity sensor and the event change as soon as the report arrives. Nothing is sent to the lock on a timer, which would drain a battery lock that sleeps between uses.
+
+The lock wakes up when it is used, so sleep does not delay events. It does get in the way of commands, since Home Assistant can only reach the lock while its radio is awake. A PIN change may therefore need the wake-up described under [Limitations](#limitations).
+
+The PIN capacity and allowed code length are read from the lock once, the first time it is awake after setup, and kept after that. The slot sensors show what Home Assistant has written to the lock, and the lock is never asked what it holds, so a code changed on the keypad does not show up here. The lock state and the battery level come from ZHA's own entities, which ZHA keeps up to date on its own terms.
 
 ## Managing access
 
@@ -127,7 +137,7 @@ The lock usually sleeps when Home Assistant starts, so the integration also asks
 
 ### Where names are stored
 
-Names and PIN status live in Home Assistant, in the config entry under `.storage`, never on the lock. They survive updates and restarts and are part of Home Assistant backups. Removing the integration or the lock's entry deletes them, while the codes stay on the lock and keep opening the door. Clear the codes first if they should go too.
+Names and PIN status live in Home Assistant, in the config entry under `.storage`, never on the lock. They survive updates and restarts and are part of Home Assistant backups. Removing the integration deletes them, while the codes stay on the lock, see [Removing the integration](#removing-the-integration).
 
 ### RFID and fingerprint
 
@@ -162,6 +172,32 @@ HACS installs the integration but not the blueprints. Import each one you want f
   [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fraw.githubusercontent.com%2Ffredrik-lindseth%2Fonesti-lock%2Fmain%2Fblueprints%2Fautomation%2Fgoodnight_lock.yaml)
 
 Imported blueprints are copies that nothing updates. The unlock notification and connectivity alert from v1.3.0 and earlier did not pass their inputs on to their templates, so if you imported them then, import them again and overwrite.
+
+## Use cases
+
+- **Know who came in.** The [unlock notification](#blueprints) blueprint sends "Kari unlocked via keypad" to your phone, so while you are out you can see whether it was the cleaner, the neighbour feeding the cat or one of the family.
+- **The kids are home from school.** Give each child a slot with their own code or tag, and trigger on their name, so you get a message when one of them unlocks on a weekday afternoon:
+
+  ```yaml
+  triggers:
+    - trigger: event
+      event_type: onesti_lock_activity
+      event_data:
+        user_name: "Emma"
+        action: unlock
+  conditions:
+    - condition: time
+      after: "13:00"
+      before: "18:00"
+      weekday: [mon, tue, wed, thu, fri]
+  actions:
+    - action: notify.mobile_app_your_phone
+      data:
+        message: "Emma is home"
+  ```
+
+- **A code for the plumber.** An automation calls `onesti_lock.set_pin` on a spare slot the morning the job starts and `onesti_lock.clear_pin` when it ends, so the code only works on those days. The events then show when the plumber came and went. Setting a code can physically lock an unlocked door (see [Limitations](#limitations)), and the code ends up in the recorder and the automation trace (see [Security](#security)).
+- **Who opened the door, and when.** The activity sensor's history and the logbook list every lock and unlock with the name and the method, so you can look back at who came in last Tuesday.
 
 ## Security
 
@@ -217,6 +253,28 @@ English, Norwegian (bokmål), Swedish and Danish. Sensor states, entity names, o
 7. **ZHA internals**: ZHA has no public API for what this integration reads, so a Home Assistant update can break it. If that happens, a repair issue titled "Lock events are not being received" appears under Settings → System → Repairs. PIN codes may still work, but the activity sensor and the event go quiet. Open an issue with your Home Assistant version. When ZHA restarts with the lock, the integration reconnects by itself, and a ZHA that is still starting when Home Assistant boots is simply waited for.
 
 8. **Dashboard locks right after a wake**: a lock from a dashboard within 30 seconds of the integration waking the lock looks the same as the wake itself, so the activity sensor does not show it. The `onesti_lock_activity` event still fires.
+
+## Troubleshooting
+
+The [debugging guide](docs/debugging.md) describes each problem with its symptom, cause and fix. The ones people run into most:
+
+- Setup says no lock was found: [Lock not offered when adding the integration](docs/debugging.md#lock-not-offered-when-adding-the-integration).
+- The lock will not pair with ZHA: [Module not discovered during pairing](docs/debugging.md#module-not-discovered-during-pairing).
+- Setting a PIN fails with "Could not reach the lock": [the lock is asleep or out of range](docs/debugging.md#could-not-reach-the-lock-in-options-flow).
+- The activity sensor stopped changing, often after new batteries: [Activity sensor not updating](docs/debugging.md#3-activity-sensor-not-updating).
+- A repair issue says lock events are not being received: [Repair issue](docs/debugging.md#repair-issue-lock-events-are-not-being-received).
+
+If none of that helps, turn on [debug logging](docs/debugging.md#4-debug-logging) and open an [issue](https://github.com/fredrik-lindseth/onesti-lock/issues). The log can contain PIN codes, so read [Security](#security) before you paste it.
+
+## Removing the integration
+
+Remove each lock's entry, then the integration itself:
+
+1. Clear any PIN codes that should stop working, with **Clear PIN code** under Configure or the `onesti_lock.clear_slot` action. The codes live on the lock, and removing the integration leaves them there, still opening the door.
+2. Go to **Settings → Devices & Services → Onesti Lock**, open the ⋮ menu on each lock's entry and pick **Delete**. This removes the Onesti Lock device and its sensors, and deletes the slot names and PIN status stored in Home Assistant.
+3. In HACS, open Onesti Lock, pick **Remove** from the ⋮ menu, and restart Home Assistant. With a manual install, delete `config/custom_components/onesti_lock` and restart.
+
+ZHA's device and its lock entity are not touched, so you can still lock and unlock from Home Assistant. Imported blueprints and automations that use them stay behind until you delete them yourself.
 
 ## Documentation
 

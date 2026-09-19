@@ -128,7 +128,7 @@
       "description": "Onesti Lock could not find a part of ZHA it depends on: {detail}. Setting PIN codes may still work, but the activity sensor and the onesti_lock_activity event stay silent until this is fixed. If ZHA is running and the lock is paired, a Home Assistant update has most likely changed ZHA's internals. Please open an issue on the integration's GitHub page with your Home Assistant version and this message. When ZHA starts again with the lock, the integration reconnects by itself."
     }
   },
-  "runtime": {
+  "common": {
     "unknown_user": "Unknown",
     "slot_vacant": "Vacant",
     "slot_fallback_name": "Slot {slot}",

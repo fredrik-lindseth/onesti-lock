@@ -128,7 +128,7 @@
       "description": "Onesti Lock hittade inte en del av ZHA som integrationen är beroende av: {detail}. Att ställa in PIN-koder kan fortfarande fungera, men aktivitetssensorn och händelsen onesti_lock_activity förblir tysta tills detta är åtgärdat. Om ZHA körs och låset är parkopplat har troligen en uppdatering av Home Assistant ändrat ZHA:s interna delar. Skapa ett ärende på integrationens GitHub-sida med din Home Assistant-version och detta meddelande. När ZHA startar igen med låset ansluter integrationen på nytt av sig själv."
     }
   },
-  "runtime": {
+  "common": {
     "unknown_user": "Okänd",
     "slot_vacant": "Ledig",
     "slot_fallback_name": "Plats {slot}",

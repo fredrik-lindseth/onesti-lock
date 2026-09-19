@@ -118,6 +118,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 | `ble/crypto.py`                                | Key exchange, link and owner keys, owner challenge answer, AES in the app's two modes                            |
 | `ble/client/`                                  | `transport` (the seam), `session`, `auth` (owner login), `enrollment` (factory-reset takeover, `Enrollment` storage form) |
 | `tests/ble/fake_lock.py`                       | A lock played in software behind `Transport`; lists what it assumes about the real lock                           |
+| `scripts/ble_cli.py`                           | Runs the BLE library against a real lock over bleak (`just ble`): scan to enroll, `--yes` for writes, redacted frame trace; see "Running it against a lock" in `ble-library.md` |
 | `blueprints/automation/`                       | Blueprints users import by hand; HACS never updates imported copies                                              |
 | `scripts/release_publish.py`                   | The release state machine: deterministic ZIP, tag, draft, attestation check, publish (see Releasing)             |
 | `.github/workflows/release.yml`                | Runs CI for the candidate SHA, then builds, attests and publishes through `release_publish.py`                  |

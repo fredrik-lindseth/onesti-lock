@@ -302,7 +302,7 @@ Bugs and questions go to the [issue tracker](https://github.com/fredrik-lindseth
 
 ## Contributing
 
-Pull requests are welcome. [AGENTS.md](AGENTS.md) describes the architecture, the rules and the pitfalls, and applies to people as much as to agents. Before you open one, run `pytest tests/ -q` and `python3 scripts/ci_sim.py`, which also runs ruff and catches a test that imports Home Assistant. To add a language, copy `custom_components/onesti_lock/translations/en.json` and translate it, `common` section included.
+Pull requests are welcome. [AGENTS.md](AGENTS.md) describes the architecture, the rules and the pitfalls, and applies to people as much as to agents. Before you open one, run `python3 scripts/ci_sim.py`, which runs ruff and then `tests/` in the same uv environment as CI, and catches a test that imports Home Assistant. To add a language, copy `custom_components/onesti_lock/translations/en.json` and translate it, `common` section included.
 
 ## License
 

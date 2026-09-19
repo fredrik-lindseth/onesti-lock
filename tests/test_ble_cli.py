@@ -29,8 +29,12 @@ from pathlib import Path
 
 import pytest
 
-from .ble.fake_lock import CHALLENGE, FakeBleakClient, FakeLock
-from .conftest import COMPONENT_DIR, load_component_module
+# The CLI's radio is BleakTransport, which imports bleak. CI's unit group has
+# it; a bare Python without it skips this file, as it does the transport tests.
+pytest.importorskip("bleak")
+
+from .ble.fake_lock import CHALLENGE, FakeBleakClient, FakeLock  # noqa: E402
+from .conftest import COMPONENT_DIR, load_component_module  # noqa: E402
 
 CLI_PATH = Path(__file__).resolve().parent.parent / "scripts" / "ble_cli.py"
 

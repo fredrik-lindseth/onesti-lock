@@ -173,7 +173,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 
 | Suite                        | Runs against                                                                          | Command                                         | Covers                                                                                              |
 | ---------------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `tests/`                     | Stubbed `homeassistant`/`voluptuous`/`zigpy` from `tests/conftest.py`                 | `pytest tests/ -q`, `python3 scripts/ci_sim.py` | Decoding, pin_rules, redact, coordinator, services, release flow, guards against PIN leaks and hardcoded language |
+| `tests/`                     | Stubbed `homeassistant`/`voluptuous`/`zigpy` from `tests/conftest.py`                 | `just test-unit`, `python3 scripts/ci_sim.py`   | Decoding, pin_rules, redact, coordinator, services, release flow, guards against PIN leaks and hardcoded language |
 | `tests_ha/`                  | Real HA from `pytest-homeassistant-custom-component`, ZHA mocked at the gateway proxy, real zigpy | `just test-ha minimum`, `just test-ha current`  | Setup, migration, repair issue, ZHA reload, options flow, sensors, restore, services, transport, both zigpy listener hooks |
 | `tests/test_version_sync.py` | `hacs.json`, `uv.lock`, prose in README/AGENTS/justfile/pyproject                     | part of `pytest tests/`                         | The minimum HA version agrees everywhere it is written                                              |
 | `tests/ble/`                 | The `ble/` package alone, with `tests/ble/fake_lock.py` as the lock; no HA stubs needed | part of `pytest tests/`, or `pytest tests/ble`  | Every builder and parser, framing, crypto against NIST and app-executed vectors, session, owner login, full enrollment, package boundary |
@@ -181,7 +181,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 
 ```bash
 just test-unit              # tests/ in the unit group, as CI runs it
-pytest tests/ -q            # the same, if pytest and cryptography are installed
+pytest tests/ -q            # any Python with pytest and cryptography; skips the bleak tests without bleak
 pytest tests/ -q -k event   # Run event-related tests
 uv lock --check             # uv.lock matches pyproject.toml
 ```
@@ -193,8 +193,11 @@ no test there may import `homeassistant` or `voluptuous` without stubbing them.
 `tests/conftest.py` holds the one shared stub set and `load_component_module()`,
 and `tests/test_coordinator_behavior.py` has the fake hass harness that runs
 real coordinator code on top of it. `python3 scripts/ci_sim.py` runs the same
-ruff check as CI and then the suite with those modules blocked, which is the
-only way to catch a stray import before CI does.
+ruff check as CI and then the suite in the unit environment (`.venv-unit`
+through uv, as `just test-unit`) with those modules blocked, which is the only
+way to catch a stray import before CI does. It runs there and not in the
+Python that started it because a Python without bleak skips the bleak tests,
+and a run with skips is not CI's answer.
 
 ### Tests against real Home Assistant
 
@@ -294,7 +297,7 @@ are byte-identical and anyone can rebuild and compare. `hide_default_branch` is
 required alongside `zip_release`; without it, installing the default branch
 404s because there is no ZIP there.
 
-1. Run the gates: `pytest tests/ -q`, `python3 scripts/ci_sim.py`, `just test-ha minimum`, `just test-ha current`, `uv lock --check`.
+1. Run the gates: `just test-unit`, `python3 scripts/ci_sim.py`, `just test-ha minimum`, `just test-ha current`, `uv lock --check`.
 2. Write the release note in `CHANGELOG.md` under `## [X.Y.Z]`, and mark the bullets a user would notice with `<!--short-->`. The marked ones become the release body; CI fails without them.
 3. Bump `version` in `custom_components/onesti_lock/manifest.json`. It is the only version that counts: `pyproject.toml` holds a `0.0.0` placeholder that nothing reads, so leave it.
 4. Commit as `chore: release X.Y.Z`, without `[skip ci]`. GitHub skips every workflow for a push whose head commit carries it, the release included. That happened with 1.3.0: the bump commit had `[skip ci]`, so the tag landed on the next push, a docs commit.

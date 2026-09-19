@@ -8,7 +8,6 @@ from __future__ import annotations
 import ast
 import os
 
-
 _coordinator_path = os.path.join(
     os.path.dirname(__file__), "..", "custom_components", "onesti_lock", "coordinator.py"
 )

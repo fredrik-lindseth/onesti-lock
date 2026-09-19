@@ -52,7 +52,7 @@ jobs:
 
       - name: Lint with Ruff
         run: |
-          ruff check custom_components/onesti_lock/ --ignore E501,F401
+          ruff check custom_components/onesti_lock/ tests/ scripts/
           echo "Ruff linting passed"
 
       - name: Run tests

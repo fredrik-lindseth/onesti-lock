@@ -9,7 +9,6 @@ from __future__ import annotations
 import ast
 import json
 import os
-import textwrap
 
 import pytest
 
@@ -168,7 +167,6 @@ class TestOptionsFlowStructure:
 
     def test_exceptions_never_propagate(self):
         """Both done handlers must have try/except wrapping task.result()."""
-        source = _load_source()
         tree = _load_source_ast()
 
         # Find the NimlyProOptionsFlow class

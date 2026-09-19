@@ -21,6 +21,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from tests.test_event_decoding import MockCoordinator, _load_decode_operation_event
 
+# A fixed seed keeps the sample, and so the test IDs, identical between runs,
+# which --last-failed and reproducing a failure depend on.
+_rng = random.Random(0)
+RANDOM_UINT32S = [_rng.randint(0, 0xFFFFFFFF) for _ in range(100)]
+
 SOURCE_MAP = {
     0x00: "zigbee",
     0x02: "keypad",
@@ -121,9 +126,7 @@ class TestEdgeCases:
     def test_overflow_returns_none(self):
         assert decode(0x1FFFFFFFF) is None
 
-    @pytest.mark.parametrize("val", [
-        random.randint(0, 0xFFFFFFFF) for _ in range(100)
-    ])
+    @pytest.mark.parametrize("val", RANDOM_UINT32S)
     def test_never_crashes(self, val):
         """Decode should never crash on any uint32 value."""
         result = decode(val)

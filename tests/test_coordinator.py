@@ -4,8 +4,6 @@ from __future__ import annotations
 import json
 import os
 
-import pytest
-
 
 def _load_const():
     """Load const.py values without importing the full package (avoids homeassistant dep)."""

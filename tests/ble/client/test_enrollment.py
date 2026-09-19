@@ -228,6 +228,92 @@ class TestEnrollmentStopsPartway:
         assert lock.server_public_key == public_key(PHONE_SERVER_PRIVATE_KEY)
         assert finished.lock_server_public_key == public_key(LOCK_SERVER_PRIVATE_KEY)
 
+    def _enroll_losing_the_device_id_answer(self, lock):
+        """DeviceIdSet reaches the lock, which takes it; its answer never arrives."""
+
+        async def scenario():
+            transport = lock.connect()
+            transport.lost_answers.add(CommandId.DEVICE_ID_SET)
+            session = session_mod.Session(
+                transport, command_delay=0, response_timeout=0.05, key_pair_factory=key_pairs(PHONE_LINK_PRIVATE_KEY)
+            )
+            async with session:
+                await enrollment_mod.enroll(
+                    session,
+                    name="Door",
+                    device_id=DEVICE_ID,
+                    server_private_key=PHONE_SERVER_PRIVATE_KEY,
+                    now=NOW,
+                    key_pair_factory=key_pairs(PHONE_UPDATE_PRIVATE_KEY),
+                )
+
+        with pytest.raises(enrollment_mod.BleEnrollmentError) as caught:
+            run(scenario())
+        assert caught.value.step is Step.DEVICE_ID
+        assert isinstance(caught.value.__cause__, errors.BleTimeoutError)
+        assert lock.device_id == DEVICE_ID
+        return caught.value.enrollment
+
+    def test_resume_after_a_lost_device_id_answer_logs_in_with_the_enrolled_id(self):
+        """The fake refuses the factory id once the lock holds ours (an assumption, see fake_lock.py)."""
+        lock = FakeLock()
+        partial = self._enroll_losing_the_device_id_answer(lock)
+        assert Step.DEVICE_ID not in partial.completed
+
+        finished, transport = run(resume(lock, partial))
+        assert finished.complete
+        sent = [(c.command_id, c.payload) for c in transport.commands]
+        assert [command_id for command_id, _ in sent] == [
+            CommandId.EXCHANGE_KEY_PUB_M,
+            CommandId.DEVICE_MODEL_GET,
+            CommandId.USER_AUTH_BEGIN,
+            CommandId.USER_AUTH_FINALIZE,
+            CommandId.USER_AUTH_BEGIN,
+            CommandId.USER_AUTH_FINALIZE,
+            CommandId.CURRENT_TIME_SET,
+            CommandId.SERVER_KEY_UPDATE,
+            CommandId.DEVICE_NAME_SET,
+        ]
+        assert sent[2][1] == b"\x00" + client_const.DEFAULT_DEVICE_ID
+        assert sent[4][1] == b"\x00" + DEVICE_ID
+        assert lock.name == "Door"
+
+    def test_resume_raises_the_second_refusal_when_both_ids_fail(self):
+        lock = FakeLock()
+        partial = self._enroll_losing_the_device_id_answer(lock)
+        lock.owner_key = bytes(range(16))
+
+        with pytest.raises(errors.BleSecurityError) as caught:
+            run(resume(lock, partial))
+        assert isinstance(caught.value.__context__, errors.BleSecurityError)
+        begins = [c.payload for c in lock.commands if c.command_id is CommandId.USER_AUTH_BEGIN]
+        assert begins[-2:] == [b"\x00" + client_const.DEFAULT_DEVICE_ID, b"\x00" + DEVICE_ID]
+
+    def test_resume_does_not_retry_once_the_device_id_step_is_confirmed(self):
+        lock = FakeLock()
+        partial = enrollment(completed=frozenset({Step.OWNER_KEY, Step.DEVICE_ID}), lock_server_public_key=None)
+        lock.owner_key = bytes(range(16))
+
+        with pytest.raises(errors.BleSecurityError):
+            run(resume(lock, partial))
+        begins = [c for c in lock.commands if c.command_id is CommandId.USER_AUTH_BEGIN]
+        assert len(begins) == 1
+
+    def test_resume_does_not_retry_on_other_login_failures(self):
+        lock = FakeLock(owner_key=EXPECTED_OWNER_KEY)
+        partial = enrollment(completed=frozenset({Step.OWNER_KEY}), lock_server_public_key=None)
+
+        async def scenario():
+            transport = lock.connect()
+            transport.status_overrides[CommandId.USER_AUTH_FINALIZE] = const.ResponseStatusId.FAILED
+            async with new_session(transport) as session:
+                await enrollment_mod.resume_enrollment(session, partial, now=NOW)
+
+        with pytest.raises(errors.BleFailedError):
+            run(scenario())
+        begins = [c for c in lock.commands if c.command_id is CommandId.USER_AUTH_BEGIN]
+        assert len(begins) == 1
+
     def test_owner_key_step_failing_leaves_nothing_to_keep(self):
         lock = FakeLock()
 

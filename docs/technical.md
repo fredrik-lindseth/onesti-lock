@@ -168,7 +168,7 @@ Commands go through `zha.issue_zigbee_cluster_command` instead of touching the c
 
 ### Wake echo
 
-The lock reports the wake's `lock.lock` as an ordinary Zigbee lock (source `zigbee`, no user slot), which would replace the last activity every time a PIN is set on a sleeping lock. `wake()` stamps the time just before the service call, because the report can arrive while the call is still waiting, and `wake_echo_pending()` is true for `WAKE_ECHO_WINDOW_S` (30 seconds, `const.py`) after that. Asking does not reset it, since the lock may report the wake more than once. Inside the window, a Zigbee lock without a user slot counts as a system lock: the event still fires, and the activity sensor stays as it was.
+The lock reports the wake's `lock.lock` as an ordinary Zigbee lock (source `zigbee`, no user slot), which would replace the last activity every time a PIN is set on a sleeping lock. `wake()` stamps the time just before the service call, because the report can arrive while the call is still waiting, and `wake_echo_pending()` is true for `WAKE_ECHO_WINDOW_S` (30 seconds, `const.py`) after that. If the service call fails, the stamp goes back to what it was before, so a failed wake opens no window. Asking does not reset it, since the lock may report the wake more than once. Inside the window, a Zigbee lock without a user slot counts as a system lock: the event still fires, and the activity sensor stays as it was.
 
 The 30 seconds are a generous guess. How long the report can trail the command on a real lock has not been measured.
 

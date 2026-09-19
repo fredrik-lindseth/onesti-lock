@@ -436,6 +436,28 @@ class TestWakeEcho:
         _run(transport.wake())
         assert transport.wake_echo_pending() is False
 
+    def test_failed_wake_leaves_no_echo(self):
+        # The stamp is set before lock.lock returns. If the call fails, no
+        # lock is known to have gone out, and a real lock from the
+        # dashboard in the next window must not be taken for an echo.
+        _hass, transport = _transport(wake_error=RuntimeError("lock.lock failed"))
+        with self._at(1000.0):
+            _run(transport.wake())
+        with self._at(1001.0):
+            assert transport.wake_echo_pending() is False
+
+    def test_failed_wake_keeps_an_earlier_wakes_window(self):
+        hass, transport = _transport()
+        with self._at(1000.0):
+            _run(transport.wake())
+        hass.services.wake_error = RuntimeError("lock.lock failed")
+        with self._at(1010.0):
+            _run(transport.wake())
+        with self._at(1011.0):
+            assert transport.wake_echo_pending() is True
+        with self._at(1000.0 + const_mod.WAKE_ECHO_WINDOW_S):
+            assert transport.wake_echo_pending() is False
+
     def test_window_is_thirty_seconds(self):
         assert const_mod.WAKE_ECHO_WINDOW_S == 30
 

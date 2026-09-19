@@ -84,7 +84,12 @@ class HomeAssistantError(Exception):
         self.translation_placeholders = translation_placeholders or {}
 
 
+class ServiceValidationError(HomeAssistantError):
+    """An error in the service call itself, as HA's own subclass is."""
+
+
 exceptions.HomeAssistantError = HomeAssistantError
+exceptions.ServiceValidationError = ServiceValidationError
 
 
 config_entries = _module("homeassistant.config_entries")

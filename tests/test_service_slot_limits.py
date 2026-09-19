@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 
 from .conftest import load_component_module
 
@@ -108,7 +108,7 @@ class TestSetPinCapacityCeiling:
     def test_slot_60_is_rejected_when_the_lock_reports_fifty(self):
         coordinator = FakeCoordinator({"num_pin_users": 50})
         handlers = _handlers(coordinator)
-        with pytest.raises(HomeAssistantError) as excinfo:
+        with pytest.raises(ServiceValidationError) as excinfo:
             asyncio.run(
                 handlers["set_pin"](FakeCall(slot=60, name="Kari", code="1234"))
             )
@@ -127,7 +127,7 @@ class TestSetPinCapacityCeiling:
     def test_master_slots_are_still_rejected(self):
         coordinator = FakeCoordinator({"num_pin_users": 50})
         handlers = _handlers(coordinator)
-        with pytest.raises(HomeAssistantError) as excinfo:
+        with pytest.raises(ServiceValidationError) as excinfo:
             asyncio.run(
                 handlers["set_pin"](FakeCall(slot=2, name="Kari", code="1234"))
             )
@@ -150,7 +150,7 @@ class TestSetPinLength:
     def test_the_fallback_range_applies_while_capabilities_are_unread(self):
         coordinator = FakeCoordinator()
         handlers = _handlers(coordinator)
-        with pytest.raises(HomeAssistantError) as excinfo:
+        with pytest.raises(ServiceValidationError) as excinfo:
             asyncio.run(
                 handlers["set_pin"](FakeCall(slot=5, name="Kari", code="123456789"))
             )
@@ -161,7 +161,7 @@ class TestSetPinLength:
     def test_the_reported_range_is_enforced_and_named(self):
         coordinator = FakeCoordinator({"min_pin_length": 6, "max_pin_length": 10})
         handlers = _handlers(coordinator)
-        with pytest.raises(HomeAssistantError) as excinfo:
+        with pytest.raises(ServiceValidationError) as excinfo:
             asyncio.run(
                 handlers["set_pin"](FakeCall(slot=5, name="Kari", code="1234"))
             )
@@ -181,7 +181,7 @@ class TestSetPinLength:
         """Exceptions end up in the log and in automation traces."""
         coordinator = FakeCoordinator()
         handlers = _handlers(coordinator)
-        with pytest.raises(HomeAssistantError) as excinfo:
+        with pytest.raises(ServiceValidationError) as excinfo:
             asyncio.run(
                 handlers["set_pin"](FakeCall(slot=5, name="Kari", code="837291645"))
             )
@@ -214,5 +214,7 @@ class TestWriteOutcomeReachesTheCaller:
         coordinator.set_pin = set_pin
         with pytest.raises(HomeAssistantError) as excinfo:
             asyncio.run(_handlers(coordinator)["set_pin"](FakeCall(slot=5, name="Kari", code="1234")))
+        # The call was fine; the lock is what failed.
+        assert not isinstance(excinfo.value, ServiceValidationError)
         assert excinfo.value.translation_key == key
         assert excinfo.value.translation_placeholders == placeholders

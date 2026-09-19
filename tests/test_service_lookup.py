@@ -12,7 +12,7 @@ import asyncio
 from types import SimpleNamespace
 
 import pytest
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import ServiceValidationError
 
 from .conftest import load_component_module
 
@@ -121,7 +121,7 @@ def _call(handlers, service, **target):
 
 
 def _refused(handlers, service, **target):
-    with pytest.raises(HomeAssistantError) as excinfo:
+    with pytest.raises(ServiceValidationError) as excinfo:
         _call(handlers, service, **target)
     return excinfo.value
 

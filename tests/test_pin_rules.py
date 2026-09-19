@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import ServiceValidationError
 
 from .conftest import load_component_module
 from .test_service_slot_limits import DELIVERED, FakeCall, FakeCoordinator, _handlers
@@ -109,7 +109,7 @@ class TestOnlySetPinIsCapped:
     def test_set_pin_stops_at_the_reported_capacity(self):
         coordinator = _EveryHandlerCoordinator()
         handlers = _handlers(coordinator)
-        with pytest.raises(HomeAssistantError) as excinfo:
+        with pytest.raises(ServiceValidationError) as excinfo:
             _call(handlers, "set_pin", 50)
         assert excinfo.value.translation_placeholders["max"] == "49"
         assert coordinator.calls == []
@@ -123,7 +123,7 @@ class TestOnlySetPinIsCapped:
     @pytest.mark.parametrize("service", ["clear_pin", "clear_slot", "set_name"])
     def test_the_other_three_stop_at_the_manual_ceiling(self, service):
         coordinator = _EveryHandlerCoordinator()
-        with pytest.raises(HomeAssistantError) as excinfo:
+        with pytest.raises(ServiceValidationError) as excinfo:
             _call(_handlers(coordinator), service, 1000)
         assert excinfo.value.translation_key == "invalid_slot"
         assert excinfo.value.translation_placeholders["max"] == "999"

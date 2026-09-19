@@ -16,7 +16,7 @@ import pytest
 
 from .conftest import load_component_module
 from .test_coordinator_behavior import _make_coordinator
-from .test_service_slot_limits import FakeCall, HomeAssistantError, _handlers
+from .test_service_slot_limits import FakeCall, ServiceValidationError, _handlers
 
 
 class _DeliveringTransport:
@@ -42,7 +42,7 @@ def _call(coord, service, **data):
 
 
 def _refused(coord, service, **data):
-    with pytest.raises(HomeAssistantError) as excinfo:
+    with pytest.raises(ServiceValidationError) as excinfo:
         _call(coord, service, **data)
     assert excinfo.value.translation_key == "invalid_slot"
     return excinfo.value

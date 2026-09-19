@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import device_registry as dr
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -35,14 +35,16 @@ class RecordingTransport:
         return SEND_DELIVERED
 
 
-async def _setup_lock(hass: HomeAssistant, ieee: str) -> tuple[MockConfigEntry, RecordingTransport]:
+async def _setup_lock(
+    hass: HomeAssistant, ieee: str, options: dict | None = None
+) -> tuple[MockConfigEntry, RecordingTransport]:
     entry = MockConfigEntry(
         domain=DOMAIN,
         version=2,
         unique_id=ieee,
         title=f"Onesti Lock ({ieee[-11:]})",
         data={CONF_IEEE: ieee},
-        options={"slots": {}},
+        options={"slots": {}, **(options or {})},
     )
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -84,7 +86,7 @@ def _named(entry: MockConfigEntry) -> bool:
 async def test_two_locks_without_a_target_are_refused(hass: HomeAssistant, two_locks) -> None:
     (front, front_transport), (back, back_transport) = two_locks
 
-    with pytest.raises(HomeAssistantError) as excinfo:
+    with pytest.raises(ServiceValidationError) as excinfo:
         await hass.services.async_call(
             DOMAIN, "set_pin", {"slot": 5, "name": "Kari", "code": "1234"}, blocking=True
         )
@@ -97,7 +99,7 @@ async def test_two_locks_without_a_target_are_refused(hass: HomeAssistant, two_l
 
 async def test_the_refusal_names_both_locks(hass: HomeAssistant, two_locks) -> None:
     """The ieees placeholder is filled in the message a user sees."""
-    with pytest.raises(HomeAssistantError) as excinfo:
+    with pytest.raises(ServiceValidationError) as excinfo:
         await _set_name(hass)
 
     assert LOCK_IEEE in str(excinfo.value)
@@ -146,7 +148,7 @@ async def test_a_device_from_another_integration_is_refused(hass: HomeAssistant,
         connections={(dr.CONNECTION_ZIGBEE, LOCK_IEEE)},
     )
 
-    with pytest.raises(HomeAssistantError) as excinfo:
+    with pytest.raises(ServiceValidationError) as excinfo:
         await _set_name(hass, device_id=zha_device.id)
 
     assert excinfo.value.translation_key == "lock_not_found"
@@ -154,7 +156,7 @@ async def test_a_device_from_another_integration_is_refused(hass: HomeAssistant,
 
 
 async def test_unknown_ieee_is_refused(hass: HomeAssistant, two_locks) -> None:
-    with pytest.raises(HomeAssistantError) as excinfo:
+    with pytest.raises(ServiceValidationError) as excinfo:
         await _set_name(hass, ieee="00:00:00:00:00:00:00:01")
 
     assert excinfo.value.translation_key == "lock_not_found_ieee"
@@ -176,7 +178,7 @@ async def test_invalid_pin_names_the_lock_s_range(hass: HomeAssistant, mock_zha)
     """
     entry, transport = await _setup_lock(hass, LOCK_IEEE)
 
-    with pytest.raises(HomeAssistantError) as excinfo:
+    with pytest.raises(ServiceValidationError) as excinfo:
         await hass.services.async_call(
             DOMAIN, "set_pin", {"slot": 5, "name": "Kari", "code": "123"}, blocking=True
         )

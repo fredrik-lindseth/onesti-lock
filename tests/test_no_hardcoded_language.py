@@ -156,27 +156,29 @@ class TestSensorNaming:
                     assert stmt.value.value == "slot"
 
 
+SERVICE_ERROR_CLASSES = {"HomeAssistantError", "ServiceValidationError"}
+
+
 class TestServiceErrorTranslation:
-    """Every HomeAssistantError must carry a translation key."""
+    """Every service error must carry a translation key.
+
+    Every construction counts, not only a bare raise: several errors are
+    built in helpers and raised elsewhere.
+    """
 
     def _raise_calls(self):
         tree = _parse("services.py")
-        calls = []
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Raise) or node.exc is None:
-                continue
-            exc = node.exc
-            if (
-                isinstance(exc, ast.Call)
-                and isinstance(exc.func, ast.Name)
-                and exc.func.id == "HomeAssistantError"
-            ):
-                calls.append(exc)
-        return calls
+        return [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id in SERVICE_ERROR_CLASSES
+        ]
 
     def test_all_errors_are_translatable(self):
         calls = self._raise_calls()
-        assert calls, "no HomeAssistantError raises found in services.py"
+        assert calls, "no service errors found in services.py"
         for call in calls:
             keywords = {kw.arg for kw in call.keywords}
             assert "translation_domain" in keywords, (
@@ -200,6 +202,14 @@ class TestServiceErrorTranslation:
         for call in self._raise_calls():
             for keyword in call.keywords:
                 if keyword.arg != "translation_key":
+                    continue
+                if isinstance(keyword.value, ast.Attribute):
+                    # A rejection takes its key from SendOutcome.error_key;
+                    # tests/test_coordinator_commands.py pins every value it
+                    # returns, and tests_ha checks they translate.
+                    assert keyword.value.attr == "error_key", (
+                        f"services.py line {call.lineno}: unexpected dynamic key"
+                    )
                     continue
                 assert isinstance(keyword.value, ast.Constant)
                 key = keyword.value.value
@@ -236,6 +246,11 @@ class TestServiceErrorTranslation:
                         assert (
                             isinstance(value.func, ast.Name) and value.func.id == "str"
                         ), f"{where}: placeholder call must be str(...)"
+                    elif isinstance(value, ast.Attribute):
+                        # SendOutcome.status_text is typed str.
+                        assert value.attr == "status_text", (
+                            f"{where}: placeholder attribute must be a str property"
+                        )
                     elif not isinstance(value, ast.JoinedStr):
                         raise AssertionError(
                             f"{where}: placeholder value must be a string, "

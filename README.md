@@ -133,6 +133,8 @@ data:
 
 The first user slot is the Settings value, 3 by default. N is the number of PIN users the lock reports. NimlyPRO and NimlyCodePRO report 50, so the highest slot `set_pin` takes is 49, and until the lock has reported, the ceiling is 999. `clear_pin` and `clear_slot` go to 999 so a slot filled before the limit was known can still be emptied.
 
+A mistake in the call itself, a slot out of range, a PIN of the wrong length or a lock that is not set up, fails as a validation error: the message appears where the call was made and nothing is logged as an error. When the call was fine but the lock was unreachable or refused the write, the service fails with the lock's answer instead, and that one does reach the log.
+
 The lock usually sleeps when Home Assistant starts, so the integration also asks for the PIN capacity and length after each command that reached the lock and whenever the lock reports something, until it has answered once. The answer is kept, also across restarts.
 
 ### Where names are stored

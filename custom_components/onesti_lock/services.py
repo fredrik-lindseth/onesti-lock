@@ -7,7 +7,7 @@ from collections.abc import Awaitable
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import device_registry as dr
 
 from . import pin_rules
@@ -22,20 +22,36 @@ ATTR_DEVICE_ID = "device_id"
 ATTR_IEEE = "ieee"
 
 
-def _lock_not_found() -> HomeAssistantError:
-    return HomeAssistantError(
+# Errors in the call itself (a slot out of range, a bad PIN, a lock that is
+# not there) are ServiceValidationError, which Home Assistant shows to the
+# user without logging a traceback. Errors from reaching the lock stay
+# HomeAssistantError: the call was fine, the lock or the radio was not.
+
+
+def _lock_not_found() -> ServiceValidationError:
+    return ServiceValidationError(
         "No Onesti lock found",
         translation_domain=DOMAIN,
         translation_key="lock_not_found",
     )
 
 
-def _lock_not_found_ieee(ieee: str) -> HomeAssistantError:
-    return HomeAssistantError(
+def _lock_not_found_ieee(ieee: str) -> ServiceValidationError:
+    return ServiceValidationError(
         f"No Onesti lock found with IEEE {ieee}",
         translation_domain=DOMAIN,
         translation_key="lock_not_found_ieee",
         translation_placeholders={"ieee": ieee},
+    )
+
+
+def _invalid_slot(low: int, high: int) -> ServiceValidationError:
+    return ServiceValidationError(
+        f"Slot must be between {low} and {high}",
+        translation_domain=DOMAIN,
+        translation_key="invalid_slot",
+        # HA rejects non-string placeholder values.
+        translation_placeholders={"min": str(low), "max": str(high)},
     )
 
 
@@ -136,7 +152,7 @@ def _get_coordinator(hass: HomeAssistant, call: ServiceCall) -> NimlyCoordinator
         raise _lock_not_found()
     if len(coordinators) > 1:
         ieees = ", ".join(sorted(c.ieee for c in coordinators))
-        raise HomeAssistantError(
+        raise ServiceValidationError(
             f"More than one Onesti lock is set up ({ieees}). Pick the lock "
             "with device_id or ieee.",
             translation_domain=DOMAIN,
@@ -168,21 +184,12 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         first = coordinator.first_user_slot()
         max_slot = coordinator.max_user_slot()
         if not first <= slot <= max_slot:
-            raise HomeAssistantError(
-                f"Slot must be between {first} and {max_slot}",
-                translation_domain=DOMAIN,
-                translation_key="invalid_slot",
-                # HA rejects non-string placeholder values.
-                translation_placeholders={
-                    "min": str(first),
-                    "max": str(max_slot),
-                },
-            )
+            raise _invalid_slot(first, max_slot)
         if not pin_rules.is_valid_pin(code, coordinator.lock_capabilities):
             low, high = pin_rules.pin_length_range(coordinator.lock_capabilities)
             # The message leaves the code out: exceptions reach the log and
             # automation traces.
-            raise HomeAssistantError(
+            raise ServiceValidationError(
                 f"PIN code must be {low}-{high} digits",
                 translation_domain=DOMAIN,
                 translation_key="invalid_pin",
@@ -198,16 +205,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         coordinator = _get_coordinator(hass, call)
         first = coordinator.first_user_slot()
         if not first <= slot < MAX_SLOTS:
-            raise HomeAssistantError(
-                f"Slot must be between {first} and {MAX_SLOTS - 1}",
-                translation_domain=DOMAIN,
-                translation_key="invalid_slot",
-                # HA rejects non-string placeholder values.
-                translation_placeholders={
-                    "min": str(first),
-                    "max": str(MAX_SLOTS - 1),
-                },
-            )
+            raise _invalid_slot(first, MAX_SLOTS - 1)
 
         await _write("clearing PIN", slot, coordinator.clear_pin(slot))
 
@@ -218,16 +216,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         # Names are the integration's own data and never reach the lock, so
         # every slot can be named, master slots included (issue #6).
         if not 0 <= slot < MAX_SLOTS:
-            raise HomeAssistantError(
-                f"Slot must be between 0 and {MAX_SLOTS - 1}",
-                translation_domain=DOMAIN,
-                translation_key="invalid_slot",
-                # HA rejects non-string placeholder values.
-                translation_placeholders={
-                    "min": "0",
-                    "max": str(MAX_SLOTS - 1),
-                },
-            )
+            raise _invalid_slot(0, MAX_SLOTS - 1)
 
         coordinator = _get_coordinator(hass, call)
         await coordinator.set_slot_name(slot, name)
@@ -239,16 +228,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         coordinator = _get_coordinator(hass, call)
         first = coordinator.first_user_slot()
         if not first <= slot < MAX_SLOTS:
-            raise HomeAssistantError(
-                f"Slot must be between {first} and {MAX_SLOTS - 1}",
-                translation_domain=DOMAIN,
-                translation_key="invalid_slot",
-                # HA rejects non-string placeholder values.
-                translation_placeholders={
-                    "min": str(first),
-                    "max": str(MAX_SLOTS - 1),
-                },
-            )
+            raise _invalid_slot(first, MAX_SLOTS - 1)
 
         await _write("clearing slot", slot, coordinator.clear_slot(slot))
 

@@ -3,6 +3,11 @@
 Raw Zigbee captures from a NimlyPRO (f4:ce:36:25:5a:2c:72:87), and the protocol
 values decoded from them.
 
+The hex frames below were written down from the ZHA debug log in March 2026
+and the log was not kept, so the header bytes (frame control, TSN) cannot be
+re-checked. The value bytes can: they match the table of observed values at
+the end of this file and the captures in `tests/test_event_properties.py`.
+
 ## DoorLock cluster (0x0101, endpoint 11)
 
 ### Attribute 0x0000: Lock State (standard ZCL)
@@ -57,7 +62,7 @@ Final mapping used in the integration (verified against Z2M converter and raw ca
 | 0x02 | Keypad       | Verified (multiple captures)                 |
 | 0x03 | Fingerprint  | From Z2M converter                           |
 | 0x04 | RFID         | From Z2M converter                           |
-| 0x05 | Unattributed | Reported for NimlyCodePRO fw 4.8 (see below) |
+| 0x05 | Unattributed | Reported for NimlyCodePRO and NimlyPRO24     |
 | 0x0A | Auto-lock    | Verified (multiple captures)                 |
 
 Source encoding varies per model/firmware. NimlyCodePRO (fw 4.8.02, reported by
@@ -68,7 +73,15 @@ alike, always with user slot 0 (payload `0x05010000`), and never sends 0x00 or
 same model the physical emergency key produces no event at all and does not
 update lock_state.
 
-Note: Session notes (2026-03-28) contain an early hypothesis with different values (1=RF, 3=manual). The code in `__init__.py` `_SOURCE_MAP` is authoritative.
+NimlyPRO24 does the same. matthiasnielsen1 reported in the same PR thread
+(2026-08-18, firmware string reported as `0x00000000`) a fingerprint unlock as
+`0x03020000` (fingerprint, unlock, slot 0) followed by the auto-relock as
+`0x05010000`. So 0x05 is not a NimlyCodePRO oddity; the NimlyPRO captured in
+this file (0x00 and 0x0A, never 0x05) is the odd one out so far, and which
+firmware draws the line is unknown.
+
+An early hypothesis from the first session (1=RF, 3=manual) was wrong. The code
+in `__init__.py` `_SOURCE_MAP` is authoritative.
 
 Raw ZCL frame (Ola slot 3 unlock via keypad):
 
@@ -96,11 +109,12 @@ PIN code in raw bytes, two BCD digits per byte. The integration deliberately
 ignores this attribute: decoding it would write real access codes into HA's
 recorder, logbook and diagnostics. See the comment in `__init__.py`.
 
-Raw ZCL frame (PIN "5478"):
+Raw ZCL frame (PIN "5478", the same report as row 21:59:19 in the table at the
+end):
 
 ```
-08 c2 0a 01 01 41 02 09 27
-│  │  │  └──┘  │  │  └──┘── PIN bytes: 0x54=54, 0x78=78 → "5478"
+08 c2 0a 01 01 41 02 54 78
+│  │  │  └──┘  │  │  └──┘── PIN bytes: 0x54, 0x78, two BCD digits each → "5478"
 │  │  │  attrid  │  └─────── length: 2 bytes
 │  │  │  (0x0101) └────────── type: 0x41 (LVBytes/OctetString)
 │  │  └─ command: 0x0A

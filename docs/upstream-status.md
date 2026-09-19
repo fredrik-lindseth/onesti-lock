@@ -9,6 +9,9 @@ Last updated 2026-09-19.
 ## zigpy/zha-device-handlers (the ZHA quirk)
 
 **PR 4881, "Improve Nimly lock operation event decoding", open, ours.**
+Checked 2026-09-19: still open, and no maintainer has written in it since
+TheJulianJES's review comment of 2026-04-29 (about `.enum()` versus
+`.sensor()` for the source entity).
 
 It replaces hex string parsing with bitmask operations, renames source `0x0A`
 from `self` to `auto`, returns `unknown` instead of `None` for unexpected
@@ -27,7 +30,10 @@ there, which is better than what we had, but it is enabled on at least one
 real instance (Fredrik's), so the default is not protection.
 
 **matthiasnielsen1 reported that live reports never reach the quirk's
-entities.** Decoding works, `lock.*` updates, but `sensor.*_last_action_source`
+entities.** Tested on a NimlyPRO24 (2026-08-18), which also confirmed that
+`0x05` is needed on that model: a fingerprint unlock came as `0x03020000` and
+the auto-relock as `0x05010000`, so the NimlyCodePRO encoding is not unique to
+NimlyCodePRO. Decoding works, `lock.*` updates, but `sensor.*_last_action_source`
 and its siblings keep the value from startup. Their lead: the attribute is
 stored twice in appdb, once with `mfg_code=4660` and once with `mfg_code=None`,
 while incoming `Report_Attributes` frames carry no manufacturer code, and the
@@ -43,12 +49,17 @@ in the PR thread once someone sets a PIN in slot 300 and captures the event.
 ## Koenkk/zigbee-herdsman-converters (the Zigbee2MQTT converter)
 
 `src/devices/onesti.ts`, converter `nimly_pro_lock_actions`. Read on
-2026-08-23 against `master` (266 lines then; line numbers are not repeated
-here because the file is small and moves). Searched the same day with `gh` in
-both `Koenkk/zigbee-herdsman-converters` and `Koenkk/zigbee2mqtt` for onesti,
-nimly, easyCodeTouch and `last_used_pin_code`: no open PR touches the file and
-no open issue describes any of the findings below. Nothing has been reported
-upstream yet, and none of it has been tested against hardware on our side.
+2026-08-23 against `master` and re-read 2026-09-19: unchanged since commit
+`013ebd4` of 2026-05-21, still 266 lines (line numbers are not repeated here
+because the file is small and moves). No open PR touches the file. One open
+issue now describes the first finding below:
+[zigbee-herdsman-converters#13080](https://github.com/Koenkk/zigbee-herdsman-converters/issues/13080)
+(supergregg, 2026-09-02) reports a six-digit PIN coming out as `"*\^R4"` and
+proposes an ASCII-digit check with a hex fallback. Its background is worth
+having: the reporter's older Connect Module sent ASCII, and the replacement
+module Nimly issued for battery drain sends packed BCD, so the format split is
+a module revision, not a lock model. Nobody from this project has written in
+it yet, and none of the findings has been tested against hardware on our side.
 
 ### Findings
 
@@ -64,9 +75,10 @@ becomes `Buffer.from([0x54, 0x78]).toString("ascii")`, which is `"Tx"`. "1234"
 becomes `"\x124"`, "9999" two control characters (Node's `ascii` masks the high
 bit, so `0x99` turns into `0x19`), "0000" two NUL bytes. The value is not the
 PIN, is not stable, and lands escaped in the MQTT payload and in an HA text
-entity. PR 11332, which added the block, saw ASCII on its author's locks
-("313131313131" before, "141141" after, which is hex of ASCII "111111"), so
-both formats exist in the field. Our removed `_decode_pin_code` (commit
+entity. PR 11332, which added the block, saw ASCII on its author's locks (its
+"before" value "313131313131" is the hex of ASCII "111111"), and issue 13080
+pins the split to the Connect Module revision, so both formats exist in the
+field. Our removed `_decode_pin_code` (commit
 `57ed320`) handled both. A fix has to recognise the format instead of assuming
 it: a buffer shorter than `minPinLen` (4 on NimlyPRO) cannot be ASCII; else if
 every byte is `0x30`-`0x39` it is ASCII digits; else unpack nibbles and require
@@ -139,15 +151,19 @@ The model list is complete: `easyCodeTouch_v1`, `EasyCodeTouch`,
 `NimlyPRO24`, `NimlyShared`, `NimlyCodePRO`, the same ten as our
 `SUPPORTED_MODELS`.
 
-Issue 32469 in `Koenkk/zigbee2mqtt` (Nimly showing 200 % battery) is about
-`meta: {battery: {dontDividePercentage: true}}` on both definitions. It is a
-firmware split we cannot settle without more units. Leave it alone.
+Issue 32469 in `Koenkk/zigbee2mqtt` (Nimly showing 200 % battery) was about
+`meta: {battery: {dontDividePercentage: true}}` on both definitions. It was
+closed as stale on 2026-09-09 with no fix. Issue 32772 (2026-08-07, a Nimly
+lock shown as DC-powered) is open and unanswered. Both are a firmware split we
+cannot settle without more units. Leave them alone.
 
 ### What the PR needs
 
 Two PRs, so a no on the breaking change does not take the fixes down with it:
 
-1. Bug fixes, nothing breaking: PIN format detection, `0x05` as `unattributed`
+1. Bug fixes, nothing breaking: PIN format detection (closes issue 13080,
+   whose hex fallback would print BCD correctly but keeps the "3939 or 99"
+   ambiguity), `0x05` as `unattributed`
    (fills a hole where `unknown` stood), capability keys by name with the
    min/max swap corrected and `max_pin_users` renamed to `num_pin_users`,
    capability reading in Nimly's `configure`, and removal of the dead `voltage`

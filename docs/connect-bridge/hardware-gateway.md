@@ -48,12 +48,19 @@ in the lock says "E-Life 3.0", and the app is called "Nimly Connect".
 
 ## Zigbee
 
-- **Zigbee 3.0** certified (Certificate ID: ZIG21356ZB331216-24, Dec 2021, spec 3.0.1)
+- **Zigbee 3.0** certified (Certificate ID: ZIG21356ZB331216-24, Dec 2021, spec 3.0.1;
+  the certificate is listed on csa-iot.org as "Squid.link Gateway", Onics A/S / Frient A/S)
 - Install Code: `8CFD D0A6 0BC1 68B3 A4E2`
 - Role: Zigbee coordinator, pairs and controls the locks
-- Gateway-to-lock protocol: CAS (Command and Status) with AES encryption
+- Gateway-to-lock protocol: Zigbee 3.0, the ZCL Door Lock cluster, the same
+  thing ZHA speaks to the lock. Earlier versions of this file called it "CAS
+  with AES encryption"; that came from the Ezviz camera SDK's error table in
+  the app bundle and had nothing to do with the lock (see
+  `docs/nimly-connect-app/reversing-notes.md`).
 
-The hub is Zigbee 3.0 certified, but the Nimly lock (easyCodeTouch) is not.
+The certificate covers the hub. Whether the lock's Connect Module holds a
+certificate of its own has not been checked against the CSA database; its
+manual says "Zigbee 3.0" and nothing about certification.
 
 ## Power supply (PSU)
 
@@ -100,6 +107,10 @@ is practically inaccessible unless you can add your own key.
 
 ## Network communication
 
+Everything in this section was observed once, in a Wireshark capture of the
+hub's boot at the end of March 2026. The IPs rotate and the certificates will
+be renewed, so treat the addresses and dates as a snapshot.
+
 ### Boot sequence (observed via Wireshark)
 
 1. **DHCP:** obtains IP, hostname `gw-4433`, Vendor Class `HomeGate AIO`
@@ -144,24 +155,19 @@ the hub is replaced.
 
 #### REST API (used by the app, not the hub directly)
 
-| Brand            | API URL                           |
-| ---------------- | --------------------------------- |
-| Nimly/EasyAccess | `api-neutralclone.iotiliti.cloud` |
-| Keyfree          | `api-keyfree.iotiliti.cloud`      |
-| Salus            | `api-salus.iotiliti.cloud`        |
-| Forebygg         | `api-forebygg.iotiliti.cloud`     |
-| Homely           | `api.homely.no`                   |
-
-See `docs/nimly-connect-app/reversing-notes.md` for the API documentation and
-`docs/nimly-connect-app/app-architecture.md` for the white-label overview.
+The hub was never seen talking to the REST API. The app does, at
+`api-neutralclone.iotiliti.cloud` for Nimly (Connect v1.27.84) or
+`api.customer.prod-neutralclone.onesti.aws.neurosys.pro` (newer builds). The
+per-brand URL table is in `docs/nimly-connect-app/reversing-notes.md`, and
+`docs/nimly-connect-app/app-architecture.md` has the white-label overview.
 
 ### Complete communication chain
 
 ```
-┌─────────┐    REST API     ┌──────────────────────┐     MQTT      ┌───────────┐   Zigbee/CAS   ┌──────┐
+┌─────────┐    REST API     ┌──────────────────────┐     MQTT      ┌───────────┐   Zigbee 3.0   ┌──────┐
 │  Nimly   │ ◄────────────► │  iotiliti.cloud       │ ◄──────────► │  Connect  │ ◄────────────► │ Lock │
-│  Connect │    OAuth2/      │  (AWS eu-central-1)   │   TLS 1.3    │  Bridge   │   AES-encr.    │      │
-│  App     │    Cognito      │                       │   port 8883  │  (hub)    │                │      │
+│  Connect │    OAuth2/      │  (AWS eu-central-1)   │   TLS 1.3    │  Bridge   │   ZCL Door     │      │
+│  App     │    Cognito      │                       │   port 8883  │  (hub)    │   Lock cluster │      │
 └─────────┘                 └──────────────────────┘               └───────────┘               └──────┘
                               │
                               │ Boot: boot-v2.onesti.io (HTTPS)

@@ -1,0 +1,41 @@
+# Codecov configuration
+# https://docs.codecov.com/docs/codecovyml-reference
+#
+# CI uploads two reports per commit: tests/ under the flag unit and tests_ha
+# on current under ha. Only their merge is meaningful, so Codecov waits for
+# both before it posts a status or a comment. The hard 95 % floor is not
+# here: the coverage job in ci.yml enforces it without Codecov.
+
+codecov:
+  notify:
+    after_n_builds: 2
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+        if_ci_failed: error
+    patch:
+      default:
+        target: auto
+        threshold: 1%
+        if_ci_failed: error
+
+flags:
+  unit:
+    paths:
+      - custom_components/onesti_lock/
+  ha:
+    paths:
+      - custom_components/onesti_lock/
+
+comment:
+  layout: "header, diff, flags"
+  behavior: default
+  require_changes: false
+  after_n_builds: 2
+
+github_checks:
+  annotations: true

@@ -35,6 +35,8 @@ def _ha_version_per_group() -> dict[str, str]:
     (project,) = [p for p in packages if p["name"] == "onesti-lock"]
     result = {}
     for group, deps in project["dev-dependencies"].items():
+        if not group.startswith("ha-"):
+            continue  # unit runs tests/ against stubs and has no Home Assistant
         (plugin_version,) = [d["version"] for d in deps if d["name"] == PLUGIN]
         (plugin,) = [p for p in packages if p["name"] == PLUGIN and p["version"] == plugin_version]
         (ha,) = [d["version"] for d in plugin["dependencies"] if d["name"] == "homeassistant"]

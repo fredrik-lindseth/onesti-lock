@@ -20,3 +20,8 @@ secrets.md
 docs/manuals/*
 !docs/manuals/README.md
 .venv-*/
+
+# Coverage data and reports from `just coverage`
+.coverage
+.coverage.*
+coverage*.xml

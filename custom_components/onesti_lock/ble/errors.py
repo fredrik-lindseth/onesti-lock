@@ -25,8 +25,9 @@ library as a whole. Below it, the class says whose fault the failure is:
 - BleFeatureUnavailableError: a command the app would not send to this lock,
   for its firmware or its model (protocol/features.py). Nothing was sent.
 
-client/enrollment.py adds BleEnrollmentError, which carries the partial
-enrollment and so lives next to it. An exception from the caller's own
+client/enrollment.py adds BleEnrollmentError and its subclass
+BleEnrollmentNotSavedError, which carry the partial enrollment and so live
+next to it. An exception from the caller's own
 Transport passes through unchanged; client/transport.py asks implementations
 to raise BleError subclasses too.
 

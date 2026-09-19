@@ -35,7 +35,7 @@ ble/client/          one connection to one lock
   session.py           Session: key exchange, one command at a time, events
   tracing.py           Tracer, the hook that sees every frame a Session handles
   auth.py              OwnerCredential, authenticate_owner (challenge-response)
-  enrollment.py        enroll, resume_enrollment, Enrollment, BleEnrollmentError
+  enrollment.py        enroll, resume_enrollment, Enrollment, the save hook, BleEnrollmentError
   const.py             GATT UUIDs, timing, connect firmware floor, factory credential
 ble/crypto.py        secp256r1 ECDH and AES-128-CBC, in the app's byte order
 ble/protocol/        the wire format, no crypto and no I/O
@@ -114,27 +114,36 @@ replace the owner key through `UserAuthUpdate`, then set a device id, the
 clock, a server key and the name.
 
 ```python
+def store(enrollment: Enrollment) -> None:
+    write_atomically(enrollment.to_dict())   # durable when it returns
+
 async with Session(transport) as session:
-    try:
-        enrollment = await enroll(session, name="Door")
-    except BleEnrollmentError as err:
-        if err.enrollment is not None:
-            save(err.enrollment.to_dict())   # the lock already has the new key
-        raise
-save(enrollment.to_dict())
+    enrollment = await enroll(session, name="Door", save=store)
 ```
 
 The name is at most 8 ASCII characters. The device id defaults to a random 6
 bytes from `new_device_id()`, never all zero, which is the factory id.
 
-Once `UserAuthUpdate` has gone through, the factory key presumably no longer
-opens the lock, so a failure after that point raises `BleEnrollmentError`
-carrying everything the lock has accepted. Store it, and finish on a new
-connection:
+`save` is required. Once `UserAuthUpdate` has gone through, the factory key
+presumably no longer opens the lock, and the new owner key exists only in the
+running process. So `enroll` calls `save` with the `Enrollment` as soon as the
+owner key is derived, and again after every step the lock confirms, each
+time before it sends the next command. Ctrl-C (which under `asyncio.run`
+cancels the task), a cancelled task or a crashed process then leaves the last
+confirmed state stored. `save` is a plain function, not a coroutine: there is
+no `await` between the lock's answer and the save, so no cancellation can
+land in between. The one window it cannot cover is `UserAuthUpdate` itself,
+since the owner key needs the lock's answer (see below).
+
+If `save` raises, nothing more is sent and `BleEnrollmentNotSavedError` (a
+`BleEnrollmentError`) carries the `Enrollment` that could not be stored, with
+the save's exception as its cause. It is the only copy of the key. A step
+that fails raises `BleEnrollmentError` with `err.enrollment` equal to what
+`save` last got. Either way, finish on a new connection from what was saved:
 
 ```python
 async with Session(new_transport) as session:
-    enrollment = await resume_enrollment(session, partial)
+    enrollment = await resume_enrollment(session, partial, save=store)
 ```
 
 `resume_enrollment` logs in with the factory device id until the device id
@@ -429,6 +438,7 @@ of anything else. Below `BleError` the class says whose fault it is:
 | `BleFirmwareTooOldError` | Firmware below 4.6.0 on connect; carries `firmware` and `required`                                                  |
 | `BleFeatureUnavailableError` | A command the app would not send to this lock, refused before sending; carries `command`, `feature`, `firmware` and `model` |
 | `BleEnrollmentError`     | Enrollment stopped partway; carries `step` and the partial `enrollment` (in `client/enrollment.py`)                 |
+| `BleEnrollmentNotSavedError` | A `BleEnrollmentError`: the enrollment's `save` raised after `step` went through, so nothing more was sent; `enrollment` is the only copy |
 
 A malformed notification is logged and dropped, as the app drops it. The
 command waiting for an answer then times out, and the `BleTimeoutError` has the
@@ -596,11 +606,15 @@ State lives in `--state-dir`, by default `~/.config/onesti-lock-ble/`,
 outside the repository. The directory is 0700 and every file in it 0600. Each
 enrolled lock is one JSON file named by a hash of its device id, holding
 `Enrollment.to_dict()` and the address it was last seen at. It holds the
-owner key: back it up, never commit it. A partial enrollment is written
-before the error is printed, since it is the only copy of the key the lock now
-has. One gap remains: Ctrl-C between UserAuthUpdate and the end of `enroll()`
-loses the key, because the library hands the enrollment over only when it
-returns or raises `BleEnrollmentError`. The CLI says so before it starts.
+owner key: back it up, never commit it. `enroll` and `enroll --resume` pass
+the library a `save` that rewrites that file (temporary file, fsync, rename,
+0600) after every step the lock confirms, before the next command goes out,
+so Ctrl-C or a crash anywhere after `UserAuthUpdate`'s answer leaves a file
+that `enroll ADDR --resume --yes` finishes. On Ctrl-C the CLI says which
+steps the file holds. If a save fails, the library stops, the CLI tries once
+more and says plainly when the key could not be stored at all; the state
+directory is checked for writing before the session starts, so that takes
+something like a full disk in the middle.
 
 ### The trace
 

@@ -26,9 +26,11 @@ nothing without --yes. A PIN is never taken on the command line, where the
 shell history and the process list would keep it: it is typed at a prompt,
 or read from stdin with --pin-stdin.
 
-State. An enrollment is the only copy of the lock's new owner key, so it is
-written before anything else happens with it, also when enrollment stops
-partway. Each lock is one JSON file in --state-dir (default
+State. An enrollment is the only copy of the lock's new owner key, so enroll()
+hands it to the state file as soon as the key exists and again after every
+step the lock confirms, each time before the next command goes out. Ctrl-C or
+a crash at any point after UserAuthUpdate's answer leaves a file that
+enroll --resume finishes. Each lock is one JSON file in --state-dir (default
 ~/.config/onesti-lock-ble/, mode 0700, files 0600), named by a hash of its
 device id and holding Enrollment.to_dict() plus the address it was last seen at. On
 macOS that address is a CoreBluetooth UUID that differs from Mac to Mac, so
@@ -85,12 +87,14 @@ from ble import (  # noqa: E402
     SOFTWARE_REVISION_CHARACTERISTIC_UUID,
     Advertisement,
     BleEnrollmentError,
+    BleEnrollmentNotSavedError,
     BleError,
     BleFeatureUnavailableError,
     BleOperationError,
     BleTimeoutError,
     EkeyOperationId,
     Enrollment,
+    EnrollmentStep,
     LockEvent,
     LockStatus,
     OwnerCredential,
@@ -1215,20 +1219,22 @@ async def cmd_enroll(ctx: Context) -> int:
         )
     ctx.say("  seed 0000: factory state")
     check_login_budget(ctx, address)
-    ctx.say("Do not interrupt from here on: the new owner key exists only in this process until it is saved.")
+    saver = EnrollmentSaver(ctx, address)
     async with open_session(ctx, address) as session:
         _describe_session(ctx, session)
         ctx.trace.note("enroll", step="start")
         try:
-            enrollment = await enroll(session, name=name)
+            enrollment = await enroll(session, name=name, save=saver)
         except BleEnrollmentError as err:
             return _enrollment_stopped(ctx, address, err)
         except BleOperationError as err:
             ctx.failed_logins.record(address, "factory", _status_name(err.status))
             raise CliError(f"The lock refused the factory credential ({err}). Nothing changed on it.") from None
-        path = ctx.store.save(enrollment, address)
+        except asyncio.CancelledError:
+            _enrollment_interrupted(ctx, address, saver)
+            raise
     ctx.trace.note("enroll", step="done")
-    _enrolled(ctx, path, address)
+    _enrolled(ctx, ctx.store.path_for(enrollment), address)
     return EXIT_OK
 
 
@@ -1259,28 +1265,56 @@ async def _resume(ctx: Context) -> int:
         return EXIT_REFUSED
     ctx.store.check_writable()
     check_login_budget(ctx, address)
+    saver = EnrollmentSaver(ctx, address, stored.enrollment)
     async with open_session(ctx, address) as session:
         _describe_session(ctx, session)
         ctx.trace.note("enroll", step="resume", remaining=remaining)
         try:
-            enrollment = await resume_enrollment(session, stored.enrollment)
+            enrollment = await resume_enrollment(session, stored.enrollment, save=saver)
         except BleEnrollmentError as err:
             return _enrollment_stopped(ctx, address, err)
         except BleOperationError as err:
             ctx.failed_logins.record(address, "stored", _status_name(err.status))
             raise CliError(f"The lock refused the stored owner key ({err}).") from None
-        path = ctx.store.save(enrollment, address)
-    _enrolled(ctx, path, address)
+        except asyncio.CancelledError:
+            _enrollment_interrupted(ctx, address, saver)
+            raise
+    ctx.trace.note("enroll", step="done")
+    _enrolled(ctx, ctx.store.path_for(enrollment), address)
     return EXIT_OK
 
 
+class EnrollmentSaver:
+    """The save enroll() and resume_enrollment() call after every confirmed step.
+
+    Writes the state file atomically (write_private_json) before the library
+    sends the next command, and remembers what it last wrote, so an
+    interrupted run can say where it stopped.
+    """
+
+    def __init__(self, ctx: Context, address: str, stored: Enrollment | None = None) -> None:
+        self.ctx = ctx
+        self.address = address
+        self.last = stored
+
+    def __call__(self, enrollment: Enrollment) -> None:
+        path = self.ctx.store.save(enrollment, self.address)
+        self.last = enrollment
+        done = [step.value for step in EnrollmentStep if step in enrollment.completed]
+        self.ctx.trace.note("enroll", step="saved", completed=done)
+        self.ctx.say(f"  {done[-1]}: confirmed by the lock, saved to {path}")
+
+
 def _enrollment_stopped(ctx: Context, address: str, err: BleEnrollmentError) -> int:
-    # Save first, print second: the partial enrollment holds the only copy of
-    # the owner key the lock now has.
+    if isinstance(err, BleEnrollmentNotSavedError):
+        return _enrollment_not_saved(ctx, address, err)
     if err.enrollment is not None:
+        # The library saved err.enrollment before it sent the step that failed,
+        # except for a resume that failed at its first step: that one saved
+        # nothing, and --state may have read it from outside the state dir.
         path = ctx.store.save(err.enrollment, address)
         ctx.trace.note("enroll", step="stopped", at=err.step.value, saved=True)
-        ctx.say(f"Saved the partial enrollment to {path}.")
+        ctx.say(f"The partial enrollment is saved in {path}.")
         ctx.say(f"Enrollment stopped: {err}")
         if err.__cause__ is not None:
             ctx.say(f"  cause: {type(err.__cause__).__name__}: {err.__cause__}")
@@ -1296,6 +1330,43 @@ def _enrollment_stopped(ctx: Context, address: str, err: BleEnrollmentError) -> 
             "only a module reset gets it back."
         )
     return EXIT_FAILED
+
+
+def _enrollment_not_saved(ctx: Context, address: str, err: BleEnrollmentNotSavedError) -> int:
+    # The lock holds a key only this process has. One more try, since the
+    # library already stopped sending and the cause may have been passing.
+    cause = err.__cause__
+    ctx.say(f"Enrollment stopped: {err}")
+    ctx.say(f"  cause: {type(cause).__name__}: {cause}")
+    try:
+        path = ctx.store.save(err.enrollment, address)
+    except OSError as retry:
+        ctx.trace.note("enroll", step="stopped", at=err.step.value, saved=False)
+        ctx.say(
+            f"Saving to {ctx.store.path_for(err.enrollment)} failed again ({retry.strerror}). The lock now has an "
+            "owner key that exists nowhere else, and it is lost when this process ends; the lock then needs a module "
+            "reset. Nothing else was sent."
+        )
+        return EXIT_FAILED
+    ctx.trace.note("enroll", step="stopped", at=err.step.value, saved=True)
+    ctx.say(f"Saved it on the second try, to {path}.")
+    ctx.say(f"Finish it with: enroll {address} --resume --yes")
+    return EXIT_FAILED
+
+
+def _enrollment_interrupted(ctx: Context, address: str, saver: EnrollmentSaver) -> None:
+    """Ctrl-C (asyncio.run cancels the task) or a cancelled task, mid-enrollment."""
+    if saver.last is None:
+        ctx.trace.note("enroll", step="interrupted", saved=False)
+        ctx.say(
+            "Interrupted before the owner key existed, so nothing was saved. If UserAuthUpdate had gone out, the lock "
+            f"may hold a key nobody has: login {address} --factory tells whether it still takes the factory key."
+        )
+        return
+    done = [step.value for step in EnrollmentStep if step in saver.last.completed]
+    ctx.trace.note("enroll", step="interrupted", saved=True, completed=done)
+    ctx.say(f"Interrupted. {ctx.store.path_for(saver.last)} holds every step the lock confirmed ({', '.join(done)}).")
+    ctx.say(f"Finish it with: enroll {address} --resume --yes")
 
 
 def _enrolled(ctx: Context, path: Path, address: str) -> None:

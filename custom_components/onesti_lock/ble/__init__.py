@@ -10,8 +10,10 @@ The protocol is described in docs/nimly-ble-app/, and every constant was read
 out of the decompiled Nimly BLE app, not guessed.
 
     async with Session(transport) as session:
-        enrollment = await enroll(session, name="Door")   # a factory-reset lock
-    # store enrollment.to_dict(); on a new connection:
+        # A factory-reset lock. store(enrollment) must persist
+        # enrollment.to_dict(); it runs after every step the lock confirms.
+        enrollment = await enroll(session, name="Door", save=store)
+    # on a new connection:
     async with Session(transport) as session:
         await authenticate_owner(session, enrollment.owner_credential)
         await session.send(commands.pin_code_set(803, pin))
@@ -46,8 +48,10 @@ from .client.const import (
 )
 from .client.enrollment import (
     BleEnrollmentError,
+    BleEnrollmentNotSavedError,
     Enrollment,
     EnrollmentStep,
+    SaveEnrollment,
     enroll,
     new_device_id,
     resume_enrollment,
@@ -108,6 +112,7 @@ __all__ = [
     "Advertisement",
     "BleDisconnectedError",
     "BleEnrollmentError",
+    "BleEnrollmentNotSavedError",
     "BleError",
     "BleFailedError",
     "BleFeatureUnavailableError",
@@ -144,6 +149,7 @@ __all__ = [
     "NotificationCallback",
     "OwnerCredential",
     "ResponseStatusId",
+    "SaveEnrollment",
     "Session",
     "Tracer",
     "Transport",

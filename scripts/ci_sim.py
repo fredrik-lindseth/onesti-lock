@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-RUFF_PATHS = ["custom_components/onesti_lock/", "tests/", "scripts/"]
+RUFF_PATHS = ["custom_components/onesti_lock/", "tests/", "tests_ha/", "scripts/"]
 BLOCKED = {"voluptuous", "homeassistant", "pytest_asyncio", "hypothesis"}
 
 

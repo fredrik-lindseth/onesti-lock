@@ -11,15 +11,26 @@ Run with `just test-ha minimum` and `just test-ha current`.
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
 from homeassistant.config_entries import ConfigEntryState
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import entity_registry as er
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_mock_restore_state_shutdown_restart,
+    mock_restore_cache_with_extra_data,
+)
 
-from custom_components.onesti_lock.const import CONF_IEEE, DOMAIN, NUM_USER_SLOTS, SLOT_FIRST_USER
+from custom_components.onesti_lock.const import (
+    CONF_IEEE,
+    CONF_RESERVED_SLOTS,
+    DOMAIN,
+    NUM_USER_SLOTS,
+    SLOT_FIRST_USER,
+)
 from custom_components.onesti_lock.events import ATTR_OPERATION_EVENT
 from tests_ha.conftest import DOORLOCK_CLUSTER_ID, LOCK_IEEE
 
@@ -30,16 +41,21 @@ KARI_UNLOCKS_WITH_CODE = 0x02020005  # keypad, unlock, slot 5
 AUTO_LOCK = 0x0A010000  # auto, lock, no user
 
 
-async def _setup_entry(hass: HomeAssistant, slots: dict | None = None) -> MockConfigEntry:
+def _add_entry(hass: HomeAssistant, slots: dict | None = None, **options) -> MockConfigEntry:
     entry = MockConfigEntry(
         domain=DOMAIN,
         version=2,
         unique_id=LOCK_IEEE,
         title="Onesti Lock (11:22:33:44)",
         data={CONF_IEEE: LOCK_IEEE},
-        options={"slots": slots or {}},
+        options={"slots": slots or {}, **options},
     )
     entry.add_to_hass(hass)
+    return entry
+
+
+async def _setup_entry(hass: HomeAssistant, slots: dict | None = None, **options) -> MockConfigEntry:
+    entry = _add_entry(hass, slots, **options)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     return entry
@@ -245,3 +261,194 @@ async def test_pin_report_never_reaches_activity_state(hass: HomeAssistant, mock
     assert dict(after.attributes) == dict(before.attributes)
     assert not any("pin_code" in key for key in after.attributes)
     assert not any("123456" in str(value) for value in after.attributes.values())
+
+
+async def test_activity_timestamp_is_utc(hass: HomeAssistant, mock_zha) -> None:
+    """Aware and in UTC, whatever zone the server runs in."""
+    await hass.config.async_set_time_zone("Europe/Oslo")
+    await _setup_entry(hass, slots={"5": {"name": "Kari", "has_pin": True}})
+
+    before = datetime.now().astimezone()
+    await _report(hass, mock_zha, ATTR_OPERATION_EVENT, KARI_UNLOCKS_WITH_CODE)
+    after = datetime.now().astimezone()
+
+    timestamp = datetime.fromisoformat(hass.states.get(_entity_id(hass, "activity")).attributes["timestamp"])
+    assert timestamp.utcoffset() == timedelta(0)
+    assert before <= timestamp <= after
+
+
+# -- Activity across restarts --
+
+ACTIVITY_ENTITY_ID = "sensor.onesti_lock_last_activity"
+STORED_ACTIVITY = {
+    "user_name": "Kari",
+    "user_slot": 5,
+    "action": "unlock",
+    "source": "keypad",
+    "timestamp": "2026-09-19T15:04:05.123456+00:00",
+}
+
+
+@pytest.mark.parametrize(
+    ("language", "expected"),
+    [("en", "Kari unlocked with code"), ("nb", "Kari låste opp med kode")],
+)
+async def test_activity_is_restored_from_the_raw_fields(
+    hass: HomeAssistant, mock_zha, language: str, expected: str
+) -> None:
+    """The state is rebuilt in the current language, not copied from the cache."""
+    # The entity was created while the server ran in English; the language
+    # may have changed since.
+    entry = _add_entry(hass)
+    er.async_get(hass).async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{LOCK_IEEE}-activity",
+        config_entry=entry,
+        suggested_object_id="onesti_lock_last_activity",
+    )
+    hass.config.language = language
+    mock_restore_cache_with_extra_data(
+        hass, [(State(ACTIVITY_ENTITY_ID, "Kari unlocked with code"), STORED_ACTIVITY)]
+    )
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    state = hass.states.get(ACTIVITY_ENTITY_ID)
+    assert state.state == expected
+    for key, value in STORED_ACTIVITY.items():
+        assert state.attributes[key] == value
+
+
+async def test_activity_survives_a_restart(hass: HomeAssistant, mock_zha) -> None:
+    entry = await _setup_entry(hass, slots={"5": {"name": "Kari", "has_pin": True}})
+    await _report(hass, mock_zha, ATTR_OPERATION_EVENT, KARI_UNLOCKS_WITH_CODE)
+    before = hass.states.get(ACTIVITY_ENTITY_ID)
+
+    # Dump the restore cache to storage and read it back, as a shutdown and
+    # start would, then set the entry up again from scratch.
+    await async_mock_restore_state_shutdown_restart(hass)
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    after = hass.states.get(ACTIVITY_ENTITY_ID)
+    assert after.state == "Kari unlocked with code"
+    assert after.attributes["timestamp"] == before.attributes["timestamp"]
+    assert after.attributes["user_slot"] == 5
+
+
+async def test_unusable_restore_data_leaves_the_sensor_unknown(hass: HomeAssistant, mock_zha) -> None:
+    mock_restore_cache_with_extra_data(
+        hass, [(State(ACTIVITY_ENTITY_ID, "whatever"), {"user_name": "Kari", "pin_code": "1234"})]
+    )
+
+    await _setup_entry(hass)
+
+    state = hass.states.get(ACTIVITY_ENTITY_ID)
+    assert state.state == "unknown"
+    assert "pin_code" not in state.attributes
+
+
+async def test_restored_data_is_filtered_to_known_fields(hass: HomeAssistant, mock_zha) -> None:
+    mock_restore_cache_with_extra_data(
+        hass, [(State(ACTIVITY_ENTITY_ID, "whatever"), {**STORED_ACTIVITY, "pin_code": "1234"})]
+    )
+
+    await _setup_entry(hass)
+
+    assert "pin_code" not in hass.states.get(ACTIVITY_ENTITY_ID).attributes
+
+
+# -- Activity sensor lifecycle --
+
+
+async def test_activity_sensor_deregisters_on_unload(hass: HomeAssistant, mock_zha) -> None:
+    entry = await _setup_entry(hass)
+    coordinator = _coordinator(hass, entry)
+    assert coordinator._activity_sensor is not None
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert coordinator._activity_sensor is None
+    # An event arriving after the entities are gone reaches nothing.
+    coordinator.update_activity(5, "unlock", "keypad")
+
+
+async def test_activity_sensor_deregisters_when_its_entity_is_removed(hass: HomeAssistant, mock_zha) -> None:
+    entry = await _setup_entry(hass)
+    coordinator = _coordinator(hass, entry)
+    entity_id = _entity_id(hass, "activity")
+
+    er.async_get(hass).async_remove(entity_id)
+    await hass.async_block_till_done()
+
+    assert coordinator._activity_sensor is None
+    await _report(hass, mock_zha, ATTR_OPERATION_EVENT, KARI_UNLOCKS_WITH_CODE)
+    assert hass.states.get(entity_id) is None
+
+
+# -- Slot row follows reserved_slots --
+
+
+def _slot_unique_ids(hass: HomeAssistant, entry: MockConfigEntry) -> set[int]:
+    prefix = f"{LOCK_IEEE}-slot-"
+    return {
+        int(e.unique_id.removeprefix(prefix))
+        for e in er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
+        if e.unique_id.startswith(prefix)
+    }
+
+
+async def test_slot_row_starts_at_the_first_user_slot(hass: HomeAssistant, mock_zha) -> None:
+    entry = await _setup_entry(hass, **{CONF_RESERVED_SLOTS: 1})
+
+    assert _slot_unique_ids(hass, entry) == set(range(1, 1 + NUM_USER_SLOTS))
+    assert hass.states.get(_entity_id(hass, "slot-1")).attributes["slot_id"] == 1
+
+
+async def test_slot_sensors_outside_the_row_leave_the_registry(hass: HomeAssistant, mock_zha) -> None:
+    """Moving from 3 reserved slots to 1 drops slots 11-12 and adds 1-2."""
+    entry = await _setup_entry(hass)
+    registry = er.async_get(hass)
+    slot_3_entity_id = _entity_id(hass, "slot-3")
+    slot_12_entity_id = _entity_id(hass, "slot-12")
+    activity_entity_id = _entity_id(hass, "activity")
+
+    hass.config_entries.async_update_entry(entry, options={**entry.options, CONF_RESERVED_SLOTS: 1})
+    await hass.async_block_till_done()
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert _slot_unique_ids(hass, entry) == set(range(1, 1 + NUM_USER_SLOTS))
+    assert registry.async_get(slot_12_entity_id) is None
+    assert hass.states.get(slot_12_entity_id) is None
+    # A slot in both rows keeps its entity, and the activity sensor is untouched.
+    assert _entity_id(hass, "slot-3") == slot_3_entity_id
+    assert _entity_id(hass, "activity") == activity_entity_id
+
+
+async def test_cleanup_only_touches_this_entrys_slot_sensors(hass: HomeAssistant, mock_zha) -> None:
+    entry = _add_entry(hass, **{CONF_RESERVED_SLOTS: 1})
+    registry = er.async_get(hass)
+    stale = registry.async_get_or_create("sensor", DOMAIN, f"{LOCK_IEEE}-slot-12", config_entry=entry)
+    other = registry.async_get_or_create("sensor", DOMAIN, "some-other-lock-slot-12")
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert registry.async_get(stale.entity_id) is None
+    assert registry.async_get(other.entity_id) is not None
+
+
+async def test_slot_attributes_have_no_has_rfid(hass: HomeAssistant, mock_zha) -> None:
+    """RFID and fingerprint cannot be detected over Zigbee, so it is not shown."""
+    await _setup_entry(hass, slots={"5": {"name": "Kari", "has_pin": True, "has_rfid": True}})
+
+    attributes = hass.states.get(_entity_id(hass, "slot-5")).attributes
+
+    assert "has_rfid" not in attributes
+    assert attributes["has_pin"] is True

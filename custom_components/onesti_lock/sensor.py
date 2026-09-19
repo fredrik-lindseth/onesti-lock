@@ -2,38 +2,71 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from collections.abc import Mapping
+from dataclasses import dataclass
+from typing import Any
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
+from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN, NUM_USER_SLOTS, SLOT_FIRST_USER
-from .coordinator import NimlyConfigEntry
+from .const import DOMAIN, NUM_USER_SLOTS
+from .coordinator import NimlyConfigEntry, NimlyCoordinator
 from .localize import format_activity
 
 _LOGGER = logging.getLogger(__name__)
+
+# The keys update_activity writes. Restored data is filtered to these, so
+# whatever an older or hand-edited restore cache holds never becomes an
+# attribute.
+_ACTIVITY_KEYS = ("user_name", "user_slot", "action", "source", "timestamp")
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: NimlyConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up Onesti Lock sensors."""
     coordinator = entry.runtime_data
 
-    entities: list[SensorEntity] = []
+    # The row starts at the first user slot, which follows the per-lock
+    # reserved_slots option. Changing the option reloads the entry, and
+    # this runs again with the new range.
+    first = coordinator.first_user_slot()
+    slots = range(first, first + NUM_USER_SLOTS)
 
-    # Slot sensors (user slots start at 3)
-    for i in range(NUM_USER_SLOTS):
-        slot = SLOT_FIRST_USER + i
-        entities.append(NimlySlotSensor(coordinator, entry, slot))
-
-    # Activity sensor
+    entities: list[SensorEntity] = [NimlySlotSensor(coordinator, entry, slot) for slot in slots]
     entities.append(NimlyActivitySensor(coordinator, entry))
-
     async_add_entities(entities)
+
+    _remove_orphaned_slot_sensors(hass, entry, coordinator.ieee, slots)
+
+
+def _remove_orphaned_slot_sensors(
+    hass: HomeAssistant, entry: NimlyConfigEntry, ieee: str, slots: range
+) -> None:
+    """Drop registry entries for slot sensors that fell out of the row.
+
+    When reserved_slots moves, the row shifts: with 3 reserved it is 3-12,
+    with 1 it is 1-10. The entities for slots no longer in the row would
+    otherwise stay in the registry as unavailable forever. Each slot keeps
+    its own unique_id, so a slot that is in both rows keeps its entity id
+    and whatever the user customised on it.
+    """
+    registry = er.async_get(hass)
+    prefix = f"{ieee}-slot-"
+    for registry_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
+        unique_id = registry_entry.unique_id
+        if registry_entry.domain != "sensor" or not unique_id.startswith(prefix):
+            continue
+        suffix = unique_id.removeprefix(prefix)
+        if suffix.isdigit() and int(suffix) in slots:
+            continue
+        registry.async_remove(registry_entry.entity_id)
 
 
 class NimlySlotSensor(SensorEntity):
@@ -42,7 +75,7 @@ class NimlySlotSensor(SensorEntity):
     _attr_has_entity_name = True
     _attr_icon = "mdi:key-variant"
 
-    def __init__(self, coordinator, entry: NimlyConfigEntry, slot: int) -> None:
+    def __init__(self, coordinator: NimlyCoordinator, entry: NimlyConfigEntry, slot: int) -> None:
         self._coordinator = coordinator
         self._slot = slot
         self._attr_unique_id = f"{coordinator.ieee}-slot-{slot}"
@@ -64,7 +97,6 @@ class NimlySlotSensor(SensorEntity):
         return {
             "slot_id": self._slot,
             "has_pin": slot_data.get("has_pin", False),
-            "has_rfid": slot_data.get("has_rfid", False),
         }
 
     @property
@@ -86,17 +118,40 @@ class NimlySlotSensor(SensorEntity):
         self.async_write_ha_state()
 
 
-class NimlyActivitySensor(SensorEntity):
+@dataclass
+class ActivityExtraStoredData(ExtraStoredData):
+    """The last activity, kept across restarts by the restore cache.
+
+    Only the raw fields are stored, never the rendered state. native_value
+    is built from them and the current strings on every write, so the
+    sensor also comes back right after the server language changes.
+    """
+
+    activity: dict[str, Any]
+
+    def as_dict(self) -> dict[str, Any]:
+        return dict(self.activity)
+
+    @classmethod
+    def from_dict(cls, restored: Mapping[str, Any]) -> ActivityExtraStoredData | None:
+        """The stored activity, or None when it cannot be one."""
+        activity = {key: restored.get(key) for key in _ACTIVITY_KEYS}
+        if not isinstance(activity["action"], str) or not isinstance(activity["source"], str):
+            return None
+        return cls(activity)
+
+
+class NimlyActivitySensor(SensorEntity, RestoreEntity):
     """Sensor showing last lock activity with user name."""
 
     _attr_has_entity_name = True
     _attr_icon = "mdi:door-closed-lock"
 
-    def __init__(self, coordinator, entry: NimlyConfigEntry) -> None:
+    def __init__(self, coordinator: NimlyCoordinator, entry: NimlyConfigEntry) -> None:
         self._coordinator = coordinator
         self._attr_unique_id = f"{coordinator.ieee}-activity"
         self._attr_translation_key = "last_activity"
-        self._activity: dict = {}
+        self._activity: dict[str, Any] = {}
 
     @property
     def native_value(self) -> str | None:
@@ -126,8 +181,26 @@ class NimlyActivitySensor(SensorEntity):
             "manufacturer": "Onesti Products AS",
         }
 
+    @property
+    def extra_restore_state_data(self) -> ActivityExtraStoredData | None:
+        if not self._activity:
+            return None
+        return ActivityExtraStoredData(self._activity)
+
     async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        if (extra := await self.async_get_last_extra_data()) is not None:
+            restored = ActivityExtraStoredData.from_dict(extra.as_dict())
+            if restored is not None:
+                self._activity = restored.activity
         self._coordinator.set_activity_sensor(self)
+
+    async def async_will_remove_from_hass(self) -> None:
+        # The event listener lives until the entry unloads, which is after
+        # the platform removed its entities. Without this, a lock event in
+        # between would write state for an entity that is gone.
+        self._coordinator.set_activity_sensor(None)
+        await super().async_will_remove_from_hass()
 
     def update_activity(
         self,
@@ -145,6 +218,6 @@ class NimlyActivitySensor(SensorEntity):
             "user_slot": user_slot,
             "action": action,
             "source": source,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": dt_util.utcnow().isoformat(),
         }
         self.async_write_ha_state()

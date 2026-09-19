@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from types import SimpleNamespace
 
 import pytest
 
@@ -21,10 +22,12 @@ from .conftest import load_component_module
 
 coordinator_mod = load_component_module("coordinator")
 
+IEEE = "00:11:22:33:44:55:66:77"
+
 
 class FakeConfigEntry:
     def __init__(self, options=None):
-        self.data = {"ieee": "00:11:22:33:44:55:66:77"}
+        self.data = {"ieee": IEEE}
         self.options = dict(options or {})
         self.background_tasks = []
 
@@ -59,30 +62,46 @@ class FakeConfigEntries:
 
 
 class FakeServices:
-    def __init__(self, fail=False):
-        self.fail = fail
+    """lock.lock for the auto-wake; nothing here provides it."""
+
+    def __init__(self):
         self.calls = []
 
     async def async_call(self, domain, service, data, blocking=False):
         self.calls.append((domain, service, data))
-        if self.fail:
-            raise TimeoutError
 
 
 class NoDevices:
     """A device registry without the lock, so the auto-wake finds nothing."""
 
-    def async_get_device(self, identifiers=None, connections=None):
+    devices = ()
+
+
+class LockCluster:
+    """The lock's Door Lock cluster: answers every command, or times out
+    every time like a lock that stays asleep."""
+
+    def __init__(self, asleep=False):
+        self.asleep = asleep
+        self.commands = []
+
+    async def command(self, command_id, **params):
+        self.commands.append((command_id, params))
+        if self.asleep:
+            raise TimeoutError
         return None
 
 
 class FakeHass:
     def __init__(self, fail_services=False):
         self.config_entries = FakeConfigEntries()
-        self.services = FakeServices(fail=fail_services)
-        # No ZHA gateway and no ZHA device: the real transport sends with
-        # the fallback endpoint and its wake is a logged no-op.
-        self.data = {}
+        self.services = FakeServices()
+        # A ZHA gateway with the lock's cluster, but no ZHA device in the
+        # registry, so the auto-wake is a logged no-op.
+        self.cluster = LockCluster(asleep=fail_services)
+        zigpy_device = SimpleNamespace(endpoints={11: SimpleNamespace(in_clusters={0x0101: self.cluster})})
+        proxy = SimpleNamespace(device=SimpleNamespace(device=zigpy_device))
+        self.data = {"zha": SimpleNamespace(gateway_proxy=SimpleNamespace(device_proxies={IEEE: proxy}))}
         self.device_registry = NoDevices()
 
 

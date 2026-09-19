@@ -1,8 +1,8 @@
 """Behavioral tests for the ZHA transport and the coordinator's PIN operations.
 
 The ZHA seams are tested on ZhaLockTransport directly: the retry loop in
-send, the auto-wake and its registry lookup, the cluster chain walk and the
-capabilities read. The stubs replicate the object shapes zha.py assumes,
+send and how it reads the lock's answer, the auto-wake and its registry
+lookup, the cluster chain walk and the capabilities read. The stubs replicate the object shapes zha.py assumes,
 so these tests lock our retry and traversal logic, not ZHA compatibility:
 a ZHA rename of device_proxies would pass here and only show up on a real
 Home Assistant instance. The coordinator's PIN operations run against a
@@ -21,6 +21,7 @@ from unittest import mock
 
 import pytest
 from zigpy.exceptions import DeliveryError, ZigbeeException
+from zigpy.zcl.foundation import Status
 
 from .conftest import load_component_module
 
@@ -105,43 +106,58 @@ def _lock_entity(entity_id="lock.front_door", device_id="dev-front", **kwargs):
     return FakeRegistryEntry(entity_id, "zha", device_id, **kwargs)
 
 
-class ScriptedServices:
-    """Service bus where each zha command call consumes one scripted effect.
+class ScriptedCluster:
+    """The lock's zigpy Door Lock cluster; each command consumes one effect.
 
-    None means success, an exception instance is raised. lock.lock calls
-    (the auto-wake) are recorded separately and succeed unless wake_error
-    is set.
+    None answers with a success status, an exception instance is raised,
+    and any other object is returned as the lock's answer.
     """
 
-    def __init__(self, zha_effects=(), wake_error=None):
-        self.zha_effects = list(zha_effects)
+    def __init__(self, effects=(), endpoint_id=11):
+        self.effects = list(effects)
+        self.commands = []
+        self.endpoint = SimpleNamespace(endpoint_id=endpoint_id)
+
+    async def command(self, command_id, *args, **params):
+        assert not args, "the transport passes command fields by name"
+        self.commands.append((command_id, params))
+        effect = self.effects.pop(0) if self.effects else None
+        if isinstance(effect, BaseException):
+            raise effect
+        if effect is None:
+            return SimpleNamespace(status=Status.SUCCESS)
+        return effect
+
+
+class FakeServices:
+    """Records lock.lock calls (the auto-wake); they succeed unless wake_error is set."""
+
+    def __init__(self, wake_error=None):
         self.wake_error = wake_error
-        self.zha_calls = []
         self.lock_calls = []
+        self.other_calls = []
 
     async def async_call(self, domain, service, data, blocking=False):
-        if domain == "zha":
-            self.zha_calls.append(data)
-            effect = self.zha_effects.pop(0) if self.zha_effects else None
-            if effect is not None:
-                raise effect
-        elif domain == "lock":
+        if domain == "lock":
             self.lock_calls.append(data)
             if self.wake_error is not None:
                 raise self.wake_error
+        else:
+            self.other_calls.append((domain, service, data))
 
 
 class FakeHass:
     def __init__(self, zha_effects=(), wake_error=None, entities=None, devices=None):
         self.config_entries = FakeConfigEntries()
-        self.services = ScriptedServices(zha_effects, wake_error)
+        self.services = FakeServices(wake_error)
         self.device_registry = FakeDeviceRegistry(
             devices if devices is not None else [_zha_device()]
         )
         self.entity_registry = FakeEntityRegistry(
             entities if entities is not None else [_lock_entity()]
         )
-        self.data = {}
+        self.cluster = ScriptedCluster(zha_effects)
+        self.data = {"zha": _zha_topology(self.cluster)}
 
 
 async def _no_sleep(_seconds):
@@ -230,42 +246,78 @@ class TestSendClusterCommand:
     """Retry semantics, success semantics and the Nimly IndexError quirk."""
 
     def test_wire_contract(self):
-        # What the lock actually receives through ZHA's service. No ZHA in
-        # hass.data, so no cluster to read the endpoint from: 11 is the
-        # fallback every Onesti lock seen so far uses.
+        # What goes to the lock's zigpy cluster: the command id and its
+        # fields by zigpy's own names, and nothing through a HA service.
         hass, transport = _transport()
-        params = {"user_id": 5, "pin_code": "123456"}
+        params = {"user_id": 5, "user_status": 1, "user_type": 0, "pin_code": "123456"}
         result = _run(transport.send(0x0005, params))
         assert result is True
-        assert len(hass.services.zha_calls) == 1
-        call = hass.services.zha_calls[0]
-        assert call["ieee"] == IEEE
-        assert call["endpoint_id"] == 11
-        assert call["cluster_id"] == DOORLOCK_CLUSTER_ID
-        assert call["command"] == 0x0005
-        assert call["params"]["user_id"] == 5
-        assert call["params"]["pin_code"] == "123456"
+        assert hass.cluster.commands == [(0x0005, params)]
+        assert hass.services.other_calls == []
 
-    def test_endpoint_comes_from_the_cluster(self):
-        # Hardcoding 11 broke any lock whose Door Lock cluster sits on
-        # another endpoint, while the cluster lookup searched them all.
+    def test_command_goes_to_the_cluster_found_on_any_endpoint(self):
+        # The cluster knows its endpoint; a lock whose Door Lock cluster
+        # sits somewhere other than 11 is reached the same way.
         hass, transport = _transport()
-        hass.data["zha"] = _zha_topology(FakeCluster(endpoint_id=1))
-        _run(transport.send(0x0005, {"user_id": 5}))
-        assert hass.services.zha_calls[0]["endpoint_id"] == 1
+        cluster = ScriptedCluster(endpoint_id=1)
+        hass.data["zha"] = _zha_topology(cluster)
+        assert _run(transport.send(0x0007, {"user_id": 5})) is True
+        assert cluster.commands == [(0x0007, {"user_id": 5})]
+
+    def test_no_cluster_fails_without_wake(self):
+        hass, transport = _transport()
+        hass.data["zha"] = _zha_topology(None)
+        assert _run(transport.send(0x0007, {"user_id": 5})) is False
+        assert hass.services.lock_calls == []
 
     def test_index_error_counts_as_success(self):
-        # AGENTS.md rule 4: zigpy raises IndexError parsing the Nimly
-        # response, but the command did reach the lock. Treating it as
-        # failure would report every successful PIN write as failed and
-        # desync local state from the lock.
+        # AGENTS.md rule 4: reading the Nimly answer raises IndexError, but
+        # the command did reach the lock. Treating it as failure would
+        # report every successful PIN write as failed and desync local
+        # state from the lock.
         hass, transport = _transport(
             zha_effects=[IndexError("tuple index out of range")]
         )
         result = _run(transport.send(0x0005, {"user_id": 5}))
         assert result is True
-        assert len(hass.services.zha_calls) == 1
+        assert len(hass.cluster.commands) == 1
         assert hass.services.lock_calls == []
+
+    @pytest.mark.parametrize(
+        "answer",
+        [None, SimpleNamespace(status=Status.SUCCESS), SimpleNamespace(command_id=5)],
+        ids=["no_answer", "success_status", "no_status_field"],
+    )
+    def test_answers_without_a_failure_count_as_success(self, answer):
+        # Like ZHA's issue_cluster_command: nothing to read, a success
+        # status, or an answer with no status field at all.
+        hass, transport = _transport()
+        hass.cluster.command = _answering(answer)
+        assert _run(transport.send(0x0007, {"user_id": 5})) is True
+
+    @pytest.mark.parametrize(
+        "status", [Status.FAILURE, Status.NOT_AUTHORIZED, 3], ids=["failure", "not_authorized", "duplicate_code"]
+    )
+    def test_failure_status_fails_without_wake(self, caplog, status):
+        # The lock answered, so it is awake: waking would move the bolt for
+        # nothing. Set PIN Code Response uses 3 for a duplicate code.
+        hass, transport = _transport(zha_effects=[SimpleNamespace(status=status)])
+        with caplog.at_level(logging.DEBUG):
+            result = _run(transport.send(0x0005, {"user_id": 5, "pin_code": PIN}))
+        assert result is False
+        assert len(hass.cluster.commands) == 1
+        assert hass.services.lock_calls == []
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warnings) == 1
+        assert "refused" in warnings[0].getMessage()
+        assert PIN not in caplog.text
+
+    def test_exception_handed_back_as_the_answer_fails(self, caplog):
+        hass, transport = _transport()
+        hass.cluster.command = _answering(ValueError(f"pin_code={PIN}"))
+        with caplog.at_level(logging.DEBUG):
+            assert _run(transport.send(0x0005, {"user_id": 5})) is False
+        assert PIN not in caplog.text
 
     @pytest.mark.parametrize(
         "first_error",
@@ -278,10 +330,18 @@ class TestSendClusterCommand:
         hass, transport = _transport(zha_effects=[first_error, None])
         result = _run(transport.send(0x0005, {"user_id": 5}))
         assert result is True
-        assert len(hass.services.zha_calls) == 2
+        assert len(hass.cluster.commands) == 2
         assert [c["entity_id"] for c in hass.services.lock_calls] == [
             "lock.front_door"
         ]
+
+    def test_failure_status_after_wake_fails(self):
+        hass, transport = _transport(
+            zha_effects=[TimeoutError(), SimpleNamespace(status=Status.FAILURE)]
+        )
+        assert _run(transport.send(0x0005, {"user_id": 5})) is False
+        assert len(hass.cluster.commands) == 2
+        assert len(hass.services.lock_calls) == 1
 
     @pytest.mark.parametrize(
         "errors",
@@ -298,7 +358,7 @@ class TestSendClusterCommand:
         hass, transport = _transport(zha_effects=errors)
         result = _run(transport.send(0x0005, {"user_id": 5}))
         assert result is False
-        assert len(hass.services.zha_calls) == 2
+        assert len(hass.cluster.commands) == 2
         assert len(hass.services.lock_calls) == 1
 
     def test_other_zigbee_error_fails_without_wake(self, caplog):
@@ -307,7 +367,7 @@ class TestSendClusterCommand:
         with caplog.at_level(logging.DEBUG):
             result = _run(transport.send(0x0005, {"user_id": 5}))
         assert result is False
-        assert len(hass.services.zha_calls) == 1
+        assert len(hass.cluster.commands) == 1
         assert hass.services.lock_calls == []
         records = [r for r in caplog.records if "ZigbeeException" in r.getMessage()]
         assert [r.levelno for r in records] == [logging.WARNING]
@@ -318,17 +378,26 @@ class TestSendClusterCommand:
         )
         result = _run(transport.send(0x0005, {"user_id": 5}))
         assert result is False
-        assert len(hass.services.zha_calls) == 1
+        assert len(hass.cluster.commands) == 1
         assert hass.services.lock_calls == []
 
 
+def _answering(answer):
+    """A cluster command that hands back exactly this answer, None included."""
+
+    async def command(command_id, *args, **params):
+        return answer
+
+    return command
+
+
 class TestSendNeverLogsThePin:
-    """Errors from ZHA may quote the params, and the params hold the PIN."""
+    """Errors from zigpy may quote the params, and the params hold the PIN."""
 
     @pytest.mark.parametrize(
         "errors",
         [
-            # What vol.Invalid from ZHA's service schema looks like.
+            # An error that quotes the params, as a schema error would.
             [ValueError(f"params {{'pin_code': '{PIN}'}}")],
             [ZigbeeException(f"frame user_id=5 pin_code={PIN}")],
             [DeliveryError(f"pin {PIN}"), DeliveryError(f"pin {PIN}")],
@@ -409,7 +478,7 @@ class TestWakeLock:
         )
         result = _run(transport.send(0x0005, {"user_id": 5}))
         assert result is True
-        assert len(hass.services.zha_calls) == 2
+        assert len(hass.cluster.commands) == 2
 
 
 class TestWakeEcho:
@@ -511,7 +580,8 @@ class TestReadCapabilities:
         assert _run(transport.read_capabilities()) is None
 
     def test_no_cluster_means_not_reached(self):
-        _hass, transport = _transport()
+        hass, transport = _transport()
+        hass.data["zha"] = _zha_topology(None)
         assert _run(transport.read_capabilities()) is None
 
     def test_an_answer_without_the_attributes_is_final(self):

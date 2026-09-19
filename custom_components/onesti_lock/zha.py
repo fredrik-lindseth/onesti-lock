@@ -22,6 +22,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from zigpy.exceptions import DeliveryError, ZigbeeException
+from zigpy.zcl.foundation import Status
 
 from .const import DOORLOCK_CLUSTER_ID, WAKE_ECHO_WINDOW_S, ZHA_DOMAIN
 from .redact import redact_digits
@@ -31,10 +32,6 @@ _LOGGER = logging.getLogger(__name__)
 # How far down the .device chain to look: ZHADeviceProxy -> Device ->
 # CustomDeviceV2 is three objects, one spare level covers a future wrapper.
 _CHAIN_DEPTH = 4
-
-# Where the Door Lock cluster sits on every Onesti lock seen so far. Only a
-# fallback: the endpoint is read from the cluster ZHA actually holds.
-_FALLBACK_ENDPOINT_ID = 11
 
 # Standard ZCL DoorLock attributes (per zigpy.zcl.clusters.closures):
 #   0x0012 NumberOfPINUsersSupported
@@ -135,12 +132,6 @@ def find_door_lock_cluster(hass: HomeAssistant, ieee: str):
     return None
 
 
-def endpoint_id_of(cluster) -> int:
-    """The endpoint a zigpy cluster belongs to, or the Onesti default."""
-    endpoint_id = getattr(getattr(cluster, "endpoint", None), "endpoint_id", None)
-    return endpoint_id if isinstance(endpoint_id, int) else _FALLBACK_ENDPOINT_ID
-
-
 def find_lock_entity_id(hass: HomeAssistant, ieee: str) -> str | None:
     """Entity id of ZHA's own lock entity for this device, or None.
 
@@ -164,6 +155,12 @@ def find_lock_entity_id(hass: HomeAssistant, ieee: str) -> str | None:
                 if entity.domain == "lock" and entity.platform == ZHA_DOMAIN:
                     return entity.entity_id
     return None
+
+
+def _status_name(status: Any) -> str:
+    """A ZCL status as text, by name when zigpy knows it."""
+    name = getattr(status, "name", None)
+    return name if isinstance(name, str) else str(status)
 
 
 class ZhaLockTransport:
@@ -234,43 +231,38 @@ class ZhaLockTransport:
             )
 
     async def send(self, command: int, params: dict) -> bool:
-        """Send a ZCL command, handling Nimly response quirk.
+        """Send a ZCL command to the lock's Door Lock cluster.
 
-        Tries ZHA issue_zigbee_cluster_command first. If it times out or
-        zigpy reports a failed delivery, both of which a sleeping lock
-        causes, wakes the lock and retries once. Any other Zigbee error is
-        not about sleep, so it fails at once without actuating the door.
+        Calls the command on the zigpy cluster directly, the same call ZHA's
+        issue_zigbee_cluster_command service ends in, with zigpy's default
+        reply timeout and no manufacturer code, as the service does for a
+        standard cluster. The service is not used because Home Assistant
+        fires a call_service event with the full service data for every
+        call, and the recorder stores it: a PIN would land in the database.
 
-        Returns True if command was sent (even if response parsing failed).
-        Returns False if command could not be sent at all.
+        If the command times out or zigpy reports a failed delivery, both
+        of which a sleeping lock causes, the lock is woken and the command
+        retried once. Any other Zigbee error is not about sleep, so it fails
+        at once without actuating the door.
+
+        Returns True when the lock received the command and did not answer
+        with a failure status, and False otherwise. Never raises.
 
         Nothing here logs a traceback or a raw exception message: params
-        may hold a PIN code, and a voluptuous error from ZHA's service
-        schema quotes them. Messages go through redact_digits.
+        may hold a PIN code, and an error may quote them. Messages go
+        through redact_digits.
         """
         cluster = self.cluster()
-        endpoint_id = endpoint_id_of(cluster)
+        if cluster is None:
+            # find_door_lock_cluster has logged why.
+            return False
         for attempt in (1, 2):
             try:
-                await self.hass.services.async_call(
-                    "zha",
-                    "issue_zigbee_cluster_command",
-                    {
-                        "ieee": self.ieee,
-                        "endpoint_id": endpoint_id,
-                        "cluster_id": DOORLOCK_CLUSTER_ID,
-                        "cluster_type": "in",
-                        "command": command,
-                        "command_type": "server",
-                        "params": params,
-                    },
-                    blocking=True,
-                )
-                return True
+                response = await cluster.command(command, **params)
             except IndexError:
-                # Nimly quirk: command was sent and received, but response
-                # format is unexpected causing "tuple index out of range"
-                # in zigpy response parsing. Command still reached the lock.
+                # Nimly quirk: the command reached the lock, but its answer
+                # could not be read ("tuple index out of range"). See
+                # _response_status for where the known case came from.
                 _LOGGER.debug(
                     "Nimly response quirk (IndexError) for command 0x%04x, "
                     "command was sent successfully",
@@ -314,6 +306,42 @@ class ZhaLockTransport:
                     redact_digits(err),
                 )
                 return False
+            return self._accepted(command, response)
+        return False
+
+    def _accepted(self, command: int, response: Any) -> bool:
+        """Whether the lock's answer to a delivered command reports success.
+
+        Mirrors how ZHA's issue_cluster_command reads the answer (zha 2.x):
+        nothing to read counts as success, an exception handed back as the
+        result is a failure, and otherwise the answer's status field decides
+        if it has one. The answer is a Default Response or the command's own
+        response, such as Set PIN Code Response, and both name the field
+        status. zha 0.0.x, which HA 2025.6 ships, read response[1] instead,
+        which raises IndexError on the one-field Set PIN Code Response. That
+        is the most likely source of the Nimly IndexError quirk, and it
+        means the status was never checked there.
+        """
+        if response is None:
+            return True
+        if isinstance(response, Exception):
+            _LOGGER.warning(
+                "Command 0x%04x to %s failed: %s: %s",
+                command,
+                self.ieee,
+                type(response).__name__,
+                redact_digits(response),
+            )
+            return False
+        status = getattr(response, "status", None)
+        if status is None or status == Status.SUCCESS:
+            return True
+        _LOGGER.warning(
+            "Lock %s refused command 0x%04x with status %s",
+            self.ieee,
+            command,
+            redact_digits(_status_name(status)),
+        )
         return False
 
     async def read_capabilities(self) -> dict[str, int] | None:

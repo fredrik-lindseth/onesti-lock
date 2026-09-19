@@ -171,8 +171,8 @@ This integration does not. It never reads the attribute where the lock reports t
 
 - ZHA's quirk has its own last PIN code sensor. It is disabled by default, but if it is enabled, the recorder stores every code used.
 - ZHA's **Download diagnostics** on the lock's device dumps zigpy's attribute cache, last used PIN included.
-- Debug logging for `zigpy.zcl` prints raw frames with the last used PIN. Debug logging for `homeassistant.components.zha` logs the parameters of every command ZHA sends, so a PIN you set shows up in clear text.
-- Calling `onesti_lock.set_pin` from an automation or script puts the code in that run's trace.
+- Debug logging for `zigpy.zcl` prints raw frames with the last used PIN, and every command sent to the lock, so a PIN you set shows up in clear text.
+- Calling the `onesti_lock.set_pin` action puts the code in the recorder database, since Home Assistant records every action call with its data, and from an automation or script also in that run's trace. The options flow does not.
 
 Scrub codes from logs, diagnostics and traces before you paste them into an issue or a forum post. If you already shared one, change the code on the lock.
 

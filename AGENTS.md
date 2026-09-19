@@ -9,7 +9,7 @@ only into raw numbers.
 1. The domain is `onesti_lock`, NOT `nimly_pro`. Classes still use the `Nimly` prefix (the brand name).
 2. Credentials, API keys and secrets do NOT go in git. They belong in `secrets.md` (gitignored). Docs hold API URLs and technical references only, never secrets.
 3. The lock is a battery-powered Zigbee EndDevice that sleeps. Every ZCL command must handle timeouts and go through `ZhaLockTransport.send()` in `zha.py`, which handles the timeout and the auto-wake.
-4. The Nimly response quirk (`IndexError` in zigpy) is expected. The command reaches the lock despite the error. Do not "fix" it.
+4. The Nimly response quirk (`IndexError` when the lock's answer is read) is expected. The command reaches the lock despite the error, so `send()` counts it as delivered. Do not "fix" it. The likely source was ZHA reading `response[1]` (see `docs/technical.md`).
 5. The repo is public and written in English: code, comments, docs and commit messages. Work is tracked outside the repo, so no tracker ids or tracker names in files or commits. GitHub issue numbers (#6) are fine.
 6. Vendor manuals are the source for slot rules and lock behaviour. Run `python3 scripts/fetch_manuals.py` once, then read the `.txt` extracts in `docs/manuals/`. The files are gitignored, and `docs/manuals/README.md` lists what exists and where it came from.
 
@@ -38,13 +38,16 @@ NimlyCoordinator (coordinator.py, one per lock; NimlyConfigEntry = ConfigEntry[N
 
 ZhaLockTransport (zha.py, injected into the coordinator; tests pass a fake)
   ├── cluster(): find_door_lock_cluster via get_zha_gateway_proxy, then walks
-  │   ZHADeviceProxy → Device → CustomDeviceV2; endpoint from the cluster, 11 as fallback
-  ├── send(): ZHA issue_zigbee_cluster_command; on TimeoutError or zigpy
-  │   DeliveryError wake() and retry once, any other Zigbee error fails without
-  │   waking; no tracebacks, messages pass through redact.py
-  ├── wake(): physically locks the door through ZHA's lock entity (found via the
-  │   device registry's zigbee connection); why that works and a plain read
-  │   does not is unverified
+  │   ZHADeviceProxy → Device → CustomDeviceV2
+  ├── send(): cluster.command(id, **params) on that zigpy cluster, never ZHA's
+  │   issue_zigbee_cluster_command service (HA records every call_service event
+  │   with its data, PIN included); a failure status in the answer is False;
+  │   on TimeoutError or zigpy DeliveryError wake() and retry once, any other
+  │   Zigbee error fails without waking; no tracebacks, messages pass through
+  │   redact.py
+  ├── wake(): physically locks the door through ZHA's lock entity (found by
+  │   zigbee connection among the devices of ZHA's config entries); why that
+  │   works and a plain read does not is unverified
   ├── wake_echo_pending(): True for WAKE_ECHO_WINDOW_S (30 s) after a wake
   │   whose lock.lock call did not fail
   └── read_capabilities(): ZCL 0x0012/0x0017/0x0018 as a dict, None when the lock
@@ -115,7 +118,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 5. **CI/release workflows**: both `.github/workflows/` files must reference `custom_components/onesti_lock/` (not `nimly_pro`).
 6. **NimlyCoordinator is NOT a DataUpdateCoordinator**: it is a custom, event-driven pattern with no polling, on purpose for a battery-powered device.
 7. **No user-facing strings in Python**: sensor states and options flow labels come from the `runtime` section of `translations/*.json` via `localize.py`. Entity names and service errors go through HA's own `entity`/`exceptions` sections. `tests/test_no_hardcoded_language.py` fails the build if a Norwegian literal reappears. `strings.json` is the English source and must stay identical to `translations/en.json`.
-8. **PIN length floor**: `pin_rules.PIN_LENGTH_SANE_MIN` (4) is the shortest PIN accepted, whatever the lock reports, because `redact.py` masks digit runs of that length and up. Lowering either one alone lets a PIN reach the log in clear text. Anything that logs an exception on the send path uses `redact_digits` and no `exc_info`: a voluptuous error from ZHA quotes `pin_code`.
+8. **PIN length floor**: `pin_rules.PIN_LENGTH_SANE_MIN` (4) is the shortest PIN accepted, whatever the lock reports, because `redact.py` masks digit runs of that length and up. Lowering either one alone lets a PIN reach the log in clear text. Anything that logs an exception on the send path uses `redact_digits` and no `exc_info`: an error from zigpy or from building the frame can quote `pin_code`.
 9. **Services live for the whole HA run**: they are registered in `async_setup` (hence `CONFIG_SCHEMA = cv.config_entry_only_config_schema`) and never removed on unload. Each call looks the lock up among loaded entries, by `device_id` (our own device, not the ZHA one), then `ieee`, and only falls back to the single lock when there is exactly one.
 10. **Entry version**: config flow `VERSION = 2`, `MINOR_VERSION = 2`. A change to the stored shape bumps the minor version and gets a step in `async_migrate_entry`; an entry from a newer major version refuses to load.
 11. **Repair issue `zha_internals`**: raised when the listener cannot find the Door Lock cluster or `on_event`. PIN writes still work then, but no activity arrives. The issue is per entry and removed when the listener registers or the entry unloads.

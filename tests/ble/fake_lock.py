@@ -21,7 +21,9 @@ What the fake assumes about the real lock and nobody has checked:
   before their answer.
 
 Tests change its behaviour through status_overrides, payload_overrides,
-silent and events_before_answer, and read what it saw in commands and writes.
+silent, lost_answers and events_before_answer, and read what it saw in
+commands and writes. silent ignores a command; lost_answers carries it out
+and drops only the answer, as a radio that loses the lock's reply would.
 """
 from __future__ import annotations
 
@@ -147,6 +149,7 @@ class FakeTransport:
         # Replaces the payload of a successful answer, after the lock acted.
         self.payload_overrides: dict[int, bytes] = {}
         self.silent: set[int] = set()
+        self.lost_answers: set[int] = set()
         self.events_before_answer: dict[int, list[object]] = {}
         self.write_error: BaseException | None = None
 
@@ -219,6 +222,8 @@ class FakeTransport:
         handler(received, streams.ByteReader(received.payload))
 
     def _answer(self, received: object, status: int = Status.SUCCESS, payload: bytes = b"") -> None:
+        if received.command_id in self.lost_answers:
+            return
         if status == Status.SUCCESS:
             payload = self.payload_overrides.get(received.command_id, payload)
         self.send_response(

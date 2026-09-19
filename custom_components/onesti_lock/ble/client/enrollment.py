@@ -34,6 +34,7 @@ The guest ekey path (EkeyUserAuth 0x17 with a cloud token) is out of scope.
 """
 from __future__ import annotations
 
+import logging
 import secrets
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
@@ -48,7 +49,7 @@ from ..crypto import (
     generate_key_pair,
     key_pair_from_private_key,
 )
-from ..errors import BleError, BleValidationError
+from ..errors import BleError, BleSecurityError, BleValidationError
 from ..protocol.commands import (
     current_time_set,
     device_id_set,
@@ -62,6 +63,8 @@ from ..protocol.responses import parse_server_key_update, parse_user_auth_update
 from .auth import DEFAULT_OWNER_CREDENTIAL, OwnerCredential, authenticate_owner
 from .const import DEFAULT_ADMIN_USER_ID, DEFAULT_DEVICE_ID
 from .session import Session
+
+_LOGGER = logging.getLogger(__name__)
 
 # AddLockFragment.finishSetup sends ParamUserAuthUpdate(0, 0). What another
 # credentials value would grant is not traced.
@@ -267,11 +270,43 @@ async def resume_enrollment(session: Session, enrollment: Enrollment, *, now: da
 
     Logs in with enrollment.owner_credential first. Returns the enrollment
     unchanged, without touching the lock, when it is already complete.
+
+    Until the device id step is confirmed, that login names the factory
+    device id. If DeviceIdSet reached the lock and only its answer was lost,
+    the lock holds our id by now and, if it checks the id at all, refuses
+    the factory one. So when that login fails with BleSecurityError, it is
+    tried once more with the enrolled device id, and if the lock takes that,
+    the device id step counts as done and is not sent again. Both refused
+    raises the second BleSecurityError, with the first as its context.
+
+    Whether the lock takes a second UserAuthBegin on a connection where it
+    refused the first is not known. If it drops the link instead, the
+    BleDisconnectedError comes out of the retry, and the same resume on a new
+    session would run into it again. The way out then is to mark the step
+    done by hand, replace(enrollment, completed=enrollment.completed |
+    {EnrollmentStep.DEVICE_ID}), and resume that.
     """
     if enrollment.complete:
         return enrollment
-    await authenticate_owner(session, enrollment.owner_credential)
+    enrollment = await _log_in_to_resume(session, enrollment)
     return await _run_remaining(session, enrollment, now)
+
+
+async def _log_in_to_resume(session: Session, enrollment: Enrollment) -> Enrollment:
+    try:
+        await authenticate_owner(session, enrollment.owner_credential)
+    except BleSecurityError:
+        if EnrollmentStep.DEVICE_ID in enrollment.completed:
+            raise
+        _LOGGER.warning(
+            "The lock refused the factory device id; trying the enrolled one, "
+            "in case DeviceIdSet went through and only its answer was lost"
+        )
+        # Inside the handler, so a second refusal carries the first as context.
+        await authenticate_owner(session, OwnerCredential(enrollment.user_id, enrollment.device_id, enrollment.owner_key))
+        _LOGGER.info("The lock took the enrolled device id, so DeviceIdSet had gone through")
+        return replace(enrollment, completed=enrollment.completed | {EnrollmentStep.DEVICE_ID})
+    return enrollment
 
 
 async def _run_remaining(session: Session, enrollment: Enrollment, now: datetime | None) -> Enrollment:

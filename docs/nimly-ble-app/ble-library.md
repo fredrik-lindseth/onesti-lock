@@ -122,6 +122,15 @@ async with Session(new_transport) as session:
     enrollment = await resume_enrollment(session, partial)
 ```
 
+`resume_enrollment` logs in with the factory device id until the device id
+step is confirmed. If `DeviceIdSet` reached the lock and only its answer was
+lost, the lock refuses that id, so on `BleSecurityError` the login is tried
+once more with the enrolled id, and if that works the step counts as done. The
+retry runs on the same connection, and whether the lock allows a second
+`UserAuthBegin` after refusing one is not known. If it drops the link instead,
+mark the step done by hand (`replace(partial, completed=partial.completed |
+{EnrollmentStep.DEVICE_ID})`) and resume that.
+
 `err.enrollment` is `None` only when `UserAuthUpdate` itself failed. The lock
 then usually still has its factory key; if it took the new key and only its
 answer was lost, only a factory reset recovers it. A failed factory login

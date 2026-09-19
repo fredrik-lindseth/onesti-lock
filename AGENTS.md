@@ -29,17 +29,17 @@ ZhaLockTransport (zha.py, injected into the coordinator; tests pass a fake)
   │   why that works and a plain read does not is unverified
   └── read_capabilities(): ZCL 0x0012/0x0017/0x0018 as a dict, {} on any failure
 
-Event listener (in __init__.py)
+Event listener (events.py, registered from __init__.py; no HA imports at module level)
   ├── cluster.on_event("attribute_report") on coordinator.transport.cluster(),
   │   catches custom attrid 0x0100
   ├── Decodes bitmap32: bits 0-15 user_slot (uint16 LE), bits 16-23 action, bits 24-31 source
-  ├── Updates activity sensor (skips system-initiated locking, see gotcha 4)
+  ├── Updates activity sensor unless is_system_lock(decoded) (see gotcha 4)
   └── Fires onesti_lock_activity HA event (always, including auto-lock)
 ```
 
 ## Source map (byte 3 of attrid 0x0100)
 
-The values the code uses (`_SOURCE_MAP` in `__init__.py`):
+The values the code uses (`SOURCE_MAP` in `events.py`):
 
 | Byte | Source                      |
 | ---- | --------------------------- |
@@ -56,7 +56,8 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 
 | File                                           | Purpose                                                                    |
 | ---------------------------------------------- | -------------------------------------------------------------------------- |
-| `custom_components/onesti_lock/__init__.py`    | Setup, event listener, operation event decoding                            |
+| `custom_components/onesti_lock/__init__.py`    | Setup and unload only                                                      |
+| `custom_components/onesti_lock/events.py`      | Operation event decoding, system-lock rule, event listener (no HA imports) |
 | `custom_components/onesti_lock/coordinator.py` | Slot storage, PIN operations, lock capabilities                            |
 | `custom_components/onesti_lock/zha.py`         | All ZHA/zigpy internals: device lookup, chain walk, `ZhaLockTransport`     |
 | `custom_components/onesti_lock/config_flow.py` | Config flow (device selection) + Options flow (PIN management UI)          |
@@ -170,7 +171,7 @@ body from commit subjects. Treat it as a draft and replace it.
 
 ## Common tasks
 
-- **Add a source type**: update `_SOURCE_MAP` in `__init__.py`, `SOURCE_*` in `const.py`, and `lock_<source>`/`unlock_<source>` in the `runtime` section of all four `translations/*.json` and `strings.json`.
+- **Add a source type**: update `SOURCE_MAP` in `events.py`, `SOURCE_*` in `const.py`, and `lock_<source>`/`unlock_<source>` in the `runtime` section of all four `translations/*.json` and `strings.json`.
 - **Change the slot range**: the master/user split is the `reserved_slots` option, which a user changes in Settings, not in code. In `const.py`, `SLOT_FIRST_USER` is only its default, and `RESERVED_SLOTS_MIN`/`RESERVED_SLOTS_MAX` are its bounds (keep MIN at 1 so slot 0 stays protected). `NUM_USER_SLOTS` sets the list length and `MAX_SLOTS` the absolute ceiling. Update the model table in README and `docs/slot-numbering.md` in the same change.
 - **Add a lock model**: add it to `SUPPORTED_MODELS` in `const.py`.
 - **Add a service**: follow the pattern in `services.py`, add a schema and a handler, and register it in `async_setup_services`.

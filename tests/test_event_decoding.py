@@ -5,17 +5,9 @@ Format (little-endian): bits 0-15 user_slot, bits 16-23 action, bits 24-31 sourc
 """
 from __future__ import annotations
 
-import ast
-import importlib.util
-import os
-
 import pytest
 
-_PKG = os.path.join(
-    os.path.dirname(__file__), "..", "custom_components", "onesti_lock"
-)
-_INIT_PATH = os.path.join(_PKG, "__init__.py")
-_CONST_PATH = os.path.join(_PKG, "const.py")
+from .conftest import load_component_module
 
 
 class MockCoordinator:
@@ -32,33 +24,13 @@ class MockCoordinator:
 
 
 def _load_decode_operation_event():
-    """Load the real decoder from source (avoids HA imports).
+    """Return the real decoder from events.py.
 
     These tests used to replicate the decode logic instead, which let an
     8-bit slot bug pass a fully green suite. Never replicate; always load
     from source.
     """
-    spec = importlib.util.spec_from_file_location("onesti_const", _CONST_PATH)
-    const = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(const)
-    ns = dict(vars(const))
-
-    with open(_INIT_PATH) as f:
-        tree = ast.parse(f.read())
-    wanted: list[ast.stmt] = []
-    for node in tree.body:
-        is_map = isinstance(node, ast.Assign) and any(
-            getattr(t, "id", None) in ("_SOURCE_MAP", "_ACTION_MAP", "_CREDENTIAL_SOURCES")
-            for t in node.targets
-        )
-        is_decoder = (
-            isinstance(node, ast.FunctionDef) and node.name == "_decode_operation_event"
-        )
-        if is_map or is_decoder:
-            wanted.append(node)
-    module = ast.Module(body=wanted, type_ignores=[])
-    exec(compile(module, _INIT_PATH, "exec"), ns)
-    return ns["_decode_operation_event"]
+    return load_component_module("events").decode_operation_event
 
 
 _real_decode = _load_decode_operation_event()

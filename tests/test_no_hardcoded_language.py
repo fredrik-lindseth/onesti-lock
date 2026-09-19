@@ -20,6 +20,7 @@ MODULES = [
     "coordinator.py",
     "localize.py",
     "zha.py",
+    "events.py",
 ]
 SCANDINAVIAN = set("æøåäöÆØÅÄÖ")
 # The strings issue #5 removed mostly contain no æøåäö ("Ledig", "Ukjent",

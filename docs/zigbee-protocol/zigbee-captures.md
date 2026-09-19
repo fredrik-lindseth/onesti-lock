@@ -81,7 +81,7 @@ this file (0x00 and 0x0A, never 0x05) is the odd one out so far, and which
 firmware draws the line is unknown.
 
 An early hypothesis from the first session (1=RF, 3=manual) was wrong. The code
-in `__init__.py` `_SOURCE_MAP` is authoritative.
+in `events.py` `SOURCE_MAP` is authoritative.
 
 Raw ZCL frame (Ola slot 3 unlock via keypad):
 
@@ -107,7 +107,7 @@ Type: LVBytes (octet string)
 
 PIN code in raw bytes, two BCD digits per byte. The integration deliberately
 ignores this attribute: decoding it would write real access codes into HA's
-recorder, logbook and diagnostics. See the comment in `__init__.py`.
+recorder, logbook and diagnostics. See the comment in `events.py`.
 
 Raw ZCL frame (PIN "5478", the same report as row 21:59:19 in the table at the
 end):

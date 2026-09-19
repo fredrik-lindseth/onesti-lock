@@ -1,0 +1,163 @@
+rules:
+  # Bronze
+  action-setup: done
+  appropriate-polling:
+    status: exempt
+    comment: |
+      local_push with no polling. The lock's capabilities are read until it
+      has answered once and are never read again on a schedule.
+  brands:
+    status: done
+    comment: |
+      The home-assistant/brands repository no longer takes custom
+      integrations, so the icon ships in custom_components/onesti_lock/brand/.
+  common-modules:
+    status: todo
+    comment: |
+      coordinator.py exists, but there is no entity.py and device_info is
+      duplicated in both sensor classes.
+  config-flow: done
+  config-flow-test-coverage:
+    status: todo
+    comment: |
+      tests_ha does not reach every line of config_flow.py (the cancelled
+      task and an unknown model string) and has no already_configured test.
+  dependency-transparency: done
+  docs-actions: done
+  docs-conditions:
+    status: exempt
+    comment: |
+      The integration has no condition platform.
+  docs-high-level-description: done
+  docs-installation-instructions: done
+  docs-removal-instructions:
+    status: todo
+    comment: |
+      README has no section on removing the integration.
+  docs-triggers:
+    status: exempt
+    comment: |
+      The integration has no trigger platform. The onesti_lock_activity event
+      is documented as an event.
+  entity-event-setup: done
+  entity-unique-id: done
+  has-entity-name: done
+  runtime-data: done
+  test-before-configure:
+    status: done
+    comment: |
+      The flow only offers devices that ZHA knows with a Door Lock cluster.
+      The lock sleeps, so a command cannot be used as a connection test.
+  test-before-setup:
+    status: todo
+    comment: |
+      async_setup_entry never raises ConfigEntryNotReady when the lock is
+      missing from ZHA.
+  unique-config-entry: done
+
+  # Silver
+  action-exceptions:
+    status: todo
+    comment: |
+      Input errors in the services raise HomeAssistantError instead of
+      ServiceValidationError.
+  config-entry-unloading: done
+  docs-configuration-parameters: done
+  docs-installation-parameters: done
+  entity-unavailable:
+    status: todo
+    comment: |
+      The sensors never become unavailable, not even when the event listener
+      could not be registered.
+  integration-owner: done
+  log-when-unavailable:
+    status: todo
+    comment: |
+      Losing and regaining ZHA is logged on every reload, not once each way.
+  parallel-updates:
+    status: todo
+    comment: |
+      sensor.py does not set PARALLEL_UPDATES.
+  reauthentication-flow:
+    status: exempt
+    comment: |
+      The integration has no login and stores no credentials.
+  test-coverage:
+    status: done
+    comment: |
+      The coverage job in CI combines tests/ and tests_ha and fails below 95 %.
+
+  # Gold
+  devices:
+    status: todo
+    comment: |
+      device_info has only identifiers, name and manufacturer. No model and no
+      link to the ZHA device.
+  diagnostics:
+    status: todo
+    comment: |
+      There is no diagnostics.py.
+  discovery:
+    status: todo
+    comment: |
+      A loaded integration could offer new Onesti locks paired in ZHA through
+      integration_discovery. It does not yet.
+  discovery-update-info:
+    status: exempt
+    comment: |
+      The lock has no network address to update. Its IEEE address is its
+      identity and never changes.
+  docs-data-update:
+    status: todo
+    comment: |
+      README has no section on how data reaches the integration.
+  docs-examples: done
+  docs-known-limitations: done
+  docs-supported-devices: done
+  docs-supported-functions: done
+  docs-troubleshooting: done
+  docs-use-cases:
+    status: todo
+    comment: |
+      README describes no use cases.
+  dynamic-devices:
+    status: exempt
+    comment: |
+      Each config entry has exactly one device. A new lock is a new entry.
+  entity-category:
+    status: todo
+    comment: |
+      The lock's capabilities are attributes on the activity sensor instead of
+      diagnostic sensors.
+  entity-device-class: done
+  entity-disabled-by-default:
+    status: todo
+    comment: |
+      Nothing is disabled by default. The capability sensors should be.
+  entity-translations: done
+  exception-translations: done
+  icon-translations:
+    status: todo
+    comment: |
+      sensor.py sets _attr_icon and there is no icons.json.
+  reconfiguration-flow:
+    status: todo
+    comment: |
+      Replacing the Connect Module cannot be done without a new entry.
+  repair-issues: done
+  stale-devices:
+    status: exempt
+    comment: |
+      Each config entry has exactly one device, removed together with the
+      entry.
+
+  # Platinum
+  async-dependency: done
+  inject-websession:
+    status: exempt
+    comment: |
+      The integration makes no HTTP requests.
+  strict-typing:
+    status: todo
+    comment: |
+      mypy --strict reports errors and does not run in CI.

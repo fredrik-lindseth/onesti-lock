@@ -307,7 +307,10 @@ def load_component_module(name: str) -> types.ModuleType:
     """Load custom_components/onesti_lock/<name>.py under the shared stub package.
 
     The stub package is never executed, which keeps the real __init__.py out
-    of the way unless a test asks for it by name ("__init__").
+    of the way unless a test asks for it by name ("__init__"). A dotted name
+    ("ble.const") is a module in a subpackage: the normal import machinery
+    finds it through the stub package's __path__ and runs the subpackage's own
+    __init__.py first, but still never the component's.
     """
     if PACKAGE not in sys.modules:
         package = types.ModuleType(PACKAGE)
@@ -316,6 +319,8 @@ def load_component_module(name: str) -> types.ModuleType:
     full_name = f"{PACKAGE}.{name}"
     if full_name in sys.modules:
         return sys.modules[full_name]
+    if "." in name:
+        return importlib.import_module(full_name)
     spec = importlib.util.spec_from_file_location(full_name, os.path.join(COMPONENT_DIR, f"{name}.py"))
     module = importlib.util.module_from_spec(spec)
     sys.modules[full_name] = module

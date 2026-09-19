@@ -211,3 +211,8 @@ class NimlyCoordinator:
         """Notify all listeners of data change."""
         for callback in self._listeners:
             callback()
+
+
+# The entry's runtime_data is its coordinator. HA drops runtime_data on
+# unload, so nothing outlives the entry that owns it.
+type NimlyConfigEntry = ConfigEntry[NimlyCoordinator]

@@ -22,9 +22,9 @@ from .const import DOMAIN
 DEFAULT_LANGUAGE = "en"
 RUNTIME_SECTION = "runtime"
 
-# Cache lives under its own hass.data key, not inside hass.data[DOMAIN]:
-# async_unload_entry treats an empty hass.data[DOMAIN] as "last entry gone"
-# and a cache entry there would keep the services registered forever.
+# The cache is per language and shared by every entry and options flow, so
+# it belongs to the HA instance, not to one entry's runtime_data. It is the
+# integration's only hass.data key.
 DATA_RUNTIME_STRINGS = f"{DOMAIN}_runtime_strings"
 
 # HA uses "nb" for bokmål; map the other Norwegian codes onto it so

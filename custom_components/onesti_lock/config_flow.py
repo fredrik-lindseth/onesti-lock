@@ -30,7 +30,7 @@ from .localize import async_get_strings, format_reserved_slot_row, format_slot_l
 from .zha import device_metadata, has_door_lock_cluster, is_zha_loaded, iter_device_proxies
 
 if TYPE_CHECKING:
-    from .coordinator import NimlyCoordinator
+    from .coordinator import NimlyConfigEntry, NimlyCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -107,7 +107,8 @@ class NimlyProOptionsFlow(OptionsFlow):
     # -- Helpers --
 
     def _coordinator(self) -> NimlyCoordinator:
-        return self.hass.data[DOMAIN][self.config_entry.entry_id]["coordinator"]
+        entry: NimlyConfigEntry = self.config_entry
+        return entry.runtime_data
 
     def _build_set_pin_schema(
         self,

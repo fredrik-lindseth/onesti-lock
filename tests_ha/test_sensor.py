@@ -46,7 +46,7 @@ async def _setup_entry(hass: HomeAssistant, slots: dict | None = None) -> MockCo
 
 
 def _coordinator(hass: HomeAssistant, entry: MockConfigEntry):
-    return hass.data[DOMAIN][entry.entry_id]["coordinator"]
+    return entry.runtime_data
 
 
 def _cluster(mock_zha):

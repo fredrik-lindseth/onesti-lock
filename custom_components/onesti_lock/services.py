@@ -9,17 +9,16 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 
 from .const import DOMAIN, MAX_SLOTS
+from .coordinator import NimlyConfigEntry, NimlyCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def _get_coordinator(hass: HomeAssistant, ieee: str | None = None):
+def _get_coordinator(hass: HomeAssistant, ieee: str | None = None) -> NimlyCoordinator:
     """Get coordinator, optionally filtered by IEEE."""
-    entries = hass.data.get(DOMAIN, {})
-    for entry_data in entries.values():
-        coordinator = entry_data.get("coordinator")
-        if coordinator is None:
-            continue
+    entry: NimlyConfigEntry
+    for entry in hass.config_entries.async_loaded_entries(DOMAIN):
+        coordinator = entry.runtime_data
         if ieee is None or coordinator.ieee.lower() == ieee.lower():
             return coordinator
     if ieee:

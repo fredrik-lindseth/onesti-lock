@@ -25,6 +25,7 @@ import pytest
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "scripts"))
 
+import release_notes  # noqa: E402
 import release_publish  # noqa: E402
 
 REPO_NAME = "owner/onesti-lock"
@@ -33,7 +34,7 @@ TAG = f"v{VERSION}"
 
 CHANGELOG = f"""# Changelog
 
-## [{VERSION}]
+## [{VERSION}] - 2026-01-01
 
 ### Bug fixes
 
@@ -646,6 +647,66 @@ def test_a_trial_release_with_the_trial_version_goes_through(
 
 
 # --------------------------------------------------------------------------
+# The release date in CHANGELOG.md
+# --------------------------------------------------------------------------
+
+
+def _say_unreleased(repo: Path, version: str = VERSION) -> None:
+    """Put the section for `version` back in the state it has while it is written."""
+    (repo / "CHANGELOG.md").write_text(
+        CHANGELOG.replace(VERSION, version).replace("- 2026-01-01", "- Unreleased")
+    )
+
+
+def test_a_section_that_still_says_unreleased_is_not_published(
+    repo: Path, sha: str, github: FakeGitHub, attested: str
+) -> None:
+    """Dating the heading is the last manual step, so it is guarded, not remembered."""
+    _say_unreleased(repo)
+
+    assert publish(repo, sha) == release_publish.EXIT_FAILURE
+    assert github.releases == [], "nothing may be written before the date is in place"
+    assert github.tag() is None
+
+
+def test_the_failure_says_which_heading_and_what_to_write(
+    repo: Path, sha: str, github: FakeGitHub, attested: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _say_unreleased(repo)
+    publish(repo, sha)
+
+    err = capsys.readouterr().err
+    assert VERSION in err
+    assert "Unreleased" in err
+    assert f"## [{VERSION}] - YYYY-MM-DD" in err, "the message has to show the fix"
+
+
+def test_plan_also_refuses_an_undated_section(repo: Path, sha: str, github: FakeGitHub) -> None:
+    """The same answer before the ZIP is built, so the tag is never decided first."""
+    _say_unreleased(repo)
+    assert run(repo, "plan", "--sha", sha, "--repo", REPO_NAME) == release_publish.EXIT_FAILURE
+
+
+def test_the_trial_version_ships_with_an_unreleased_section(
+    repo: Path, sha: str, github: FakeGitHub
+) -> None:
+    """0.0.0 is a wall-to-wall test release and never gets a real date."""
+    side = _side_branch(repo, version=release_publish.TRIAL_VERSION)
+    _say_unreleased(repo, version=release_publish.TRIAL_VERSION)
+    github.attest(build(repo, side, repo / "dist" / "branch.zip"), side)
+
+    assert publish(repo, side, "--trial-release") == release_publish.EXIT_OK
+    assert github.release(f"v{release_publish.TRIAL_VERSION}") is not None
+
+
+def test_the_date_rule_is_the_one_in_release_notes(repo: Path) -> None:
+    """One rule, two callers: CI runs the script, the flow imports the function."""
+    assert release_publish.TRIAL_VERSION == release_notes.TRIAL_VERSION
+    with pytest.raises(release_notes.UndatedError):
+        release_notes.require_release_date(f"## [{VERSION}] - Unreleased\n\n- A fix\n", VERSION)
+
+
+# --------------------------------------------------------------------------
 # A draft from another commit
 # --------------------------------------------------------------------------
 
@@ -800,6 +861,9 @@ def test_the_ci_graph_checks_the_release_note_before_the_release_runs() -> None:
     ]
     assert any("release_notes.py" in run for run in runs), (
         "no job the release gate waits for checks that the version has a release note"
+    )
+    assert any("--require-date" in run for run in runs), (
+        "CI has to fail the push when the section for the manifest version says Unreleased"
     )
 
 

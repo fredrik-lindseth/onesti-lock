@@ -179,7 +179,18 @@ def _entity_registry_async_get(hass):
     return hass.entity_registry
 
 
+def _async_entries_for_device(registry, device_id, include_disabled_entities=False):
+    """Like HA's: the device's entities, disabled ones only on request."""
+    return [
+        entry
+        for entry in registry.entities.values()
+        if entry.device_id == device_id
+        and (include_disabled_entities or getattr(entry, "disabled_by", None) is None)
+    ]
+
+
 entity_registry.async_get = _entity_registry_async_get
+entity_registry.async_entries_for_device = _async_entries_for_device
 
 # services.py resolves a device_id through it.
 device_registry = _module("homeassistant.helpers.device_registry")
@@ -191,6 +202,8 @@ def _device_registry_async_get(hass):
 
 
 device_registry.async_get = _device_registry_async_get
+# zha.py finds the ZHA device behind a lock by this connection type.
+device_registry.CONNECTION_ZIGBEE = "zigbee"
 
 entity_platform = _module("homeassistant.helpers.entity_platform")
 entity_platform.AddEntitiesCallback = object
@@ -214,6 +227,44 @@ class SensorEntity:
 
 
 sensor.SensorEntity = SensorEntity
+
+
+# zha.py reaches ZHA's gateway proxy through ZHA's own helper. The stub reads
+# it the way the real one does, from hass.data["zha"].gateway_proxy, and
+# raises the same ValueError when there is none.
+_module("homeassistant.components.zha", package=True)
+zha_helpers = _module("homeassistant.components.zha.helpers")
+
+
+def _get_zha_gateway_proxy(hass):
+    gateway_proxy = getattr(hass.data.get("zha"), "gateway_proxy", None)
+    if gateway_proxy is None:
+        raise ValueError("No gateway object exists")
+    return gateway_proxy
+
+
+zha_helpers.get_zha_gateway_proxy = _get_zha_gateway_proxy
+
+
+# --- zigpy -------------------------------------------------------------------
+
+# ZHA ships zigpy, and zha.py tells a sleeping lock's errors apart by these
+# two classes. Same hierarchy as zigpy.exceptions: DeliveryError is a
+# ZigbeeException, so the order of except clauses matters in the tests too.
+_module("zigpy", package=True)
+zigpy_exceptions = _module("zigpy.exceptions")
+
+
+class ZigbeeException(Exception):
+    """Base class for zigpy's Zigbee errors."""
+
+
+class DeliveryError(ZigbeeException):
+    """A frame the radio could not deliver, typically to a sleeping device."""
+
+
+zigpy_exceptions.ZigbeeException = ZigbeeException
+zigpy_exceptions.DeliveryError = DeliveryError
 
 
 # --- voluptuous --------------------------------------------------------------

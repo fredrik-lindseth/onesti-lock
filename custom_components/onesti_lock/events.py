@@ -131,6 +131,9 @@ def register_event_listener(
         return None
 
     def _on_attribute_report(event) -> None:
+        # Any report means the radio is awake right now, the moment a
+        # capability read that went unanswered at startup can succeed.
+        coordinator.schedule_capability_refresh()
         if event.attribute_id != ATTR_OPERATION_EVENT:
             return
 

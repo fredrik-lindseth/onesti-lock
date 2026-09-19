@@ -1,6 +1,8 @@
 """Coordinator for Onesti Lock: slot data and PIN operations."""
 from __future__ import annotations
 
+import asyncio
+import logging
 from collections.abc import Mapping
 from typing import Any
 
@@ -10,6 +12,12 @@ from homeassistant.core import HomeAssistant
 from . import pin_rules
 from .const import CONF_IEEE, DEFAULT_SLOT
 from .zha import ZhaLockTransport
+
+_LOGGER = logging.getLogger(__name__)
+
+# Options key for what the lock reported about itself. Present only once the
+# lock has answered, so its presence is what marks the read as done.
+OPTION_CAPABILITIES = "capabilities"
 
 
 class NimlyCoordinator:
@@ -24,12 +32,19 @@ class NimlyCoordinator:
         self.hass = hass
         self.entry = entry
         self.ieee: str = entry.data[CONF_IEEE]
-        # Tests inject a fake with the same four methods.
+        # Tests inject a fake with the same methods.
         self.transport = transport or ZhaLockTransport(hass, self.ieee)
         self._slots: dict[str, dict[str, Any]] = {}
         self._listeners: list = []
         self._activity_sensor = None
-        self.lock_capabilities: dict[str, Any] = {}
+        # Serialises capability reads, so a refresh asked for while one is in
+        # flight waits for it and then finds the answer already stored.
+        self._capabilities_lock = asyncio.Lock()
+        stored_capabilities = self.entry.options.get(OPTION_CAPABILITIES)
+        self.capabilities_final = isinstance(stored_capabilities, Mapping)
+        self.lock_capabilities: dict[str, Any] = (
+            dict(stored_capabilities) if self.capabilities_final else {}
+        )
         # Populated from async_setup_entry: reading the translation files is
         # blocking IO and this constructor runs on the event loop.
         self.strings: Mapping[str, str] = {}
@@ -137,21 +152,66 @@ class NimlyCoordinator:
         if self._activity_sensor:
             self._activity_sensor.update_activity(user_slot, action, source)
 
-    async def read_lock_capabilities(self) -> None:
-        """Read static lock properties into lock_capabilities.
+    # -- Lock capabilities --
 
-        Keeps whatever the lock reported (num_pin_users, max_pin_length,
-        min_pin_length) and leaves the rest unset. The transport degrades
-        silently when the lock is asleep or skips these attributes.
+    async def async_refresh_capabilities(self) -> None:
+        """Read what the lock reports about itself, until it has answered once.
+
+        The lock sleeps, so a read at startup usually goes unanswered. This
+        runs again after every command that reached the lock and on every
+        attribute report, when the radio is known to be awake. Once the lock
+        has answered, even with nothing, the answer is stored in the entry
+        options and every later call returns at once.
         """
-        self.lock_capabilities.update(await self.transport.read_capabilities())
+        if self.capabilities_final:
+            return
+        async with self._capabilities_lock:
+            if self.capabilities_final:
+                return
+            capabilities = await self.transport.read_capabilities()
+            if capabilities is None:
+                return
+            self.lock_capabilities = dict(capabilities)
+            self.capabilities_final = True
+            self.hass.config_entries.async_update_entry(
+                self.entry,
+                options={
+                    **self.entry.options,
+                    OPTION_CAPABILITIES: dict(capabilities),
+                },
+            )
+            _LOGGER.debug("Lock %s reported capabilities %s", self.ieee, capabilities)
+
+    def schedule_capability_refresh(self) -> None:
+        """Run async_refresh_capabilities in the background, if still needed.
+
+        Tied to the config entry, so an unload cancels a read in flight.
+        """
+        if self.capabilities_final:
+            return
+        self.entry.async_create_background_task(
+            self.hass,
+            self.async_refresh_capabilities(),
+            f"onesti_lock capability refresh {self.ieee}",
+        )
 
     # -- PIN operations --
+
+    async def _send(self, command: int, params: dict) -> bool:
+        """Send through the transport, then use the awake radio.
+
+        A command that reached the lock means its radio is awake right now,
+        the one moment a capability read is likely to be answered.
+        """
+        success = await self.transport.send(command, params)
+        if success:
+            self.schedule_capability_refresh()
+        return success
 
     async def set_pin(self, slot: int, name: str, code: str) -> bool:
         """Set PIN code for a slot."""
         self._check_writable(slot)
-        success = await self.transport.send(
+        success = await self._send(
             0x0005,
             {
                 "user_id": slot,
@@ -171,7 +231,7 @@ class NimlyCoordinator:
     async def clear_pin(self, slot: int) -> bool:
         """Clear PIN code for a slot."""
         self._check_writable(slot)
-        success = await self.transport.send(
+        success = await self._send(
             0x0007,
             {"user_id": slot},
         )
@@ -184,7 +244,7 @@ class NimlyCoordinator:
     async def clear_slot(self, slot: int) -> bool:
         """Clear all credentials and name for a slot."""
         self._check_writable(slot)
-        success = await self.transport.send(
+        success = await self._send(
             0x0007,
             {"user_id": slot},
         )

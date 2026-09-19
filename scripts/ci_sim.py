@@ -1,9 +1,9 @@
 """Run the test suite the way CI sees it.
 
-CI installs only ruff and pytest, so a test that imports homeassistant or
-voluptuous passes locally and fails there. This runs the same ruff check as
-CI, then blocks those modules through an import hook and runs the suite,
-which is the only way to catch a stray import before pushing.
+CI installs only ruff and pytest, so a test that imports homeassistant,
+voluptuous or zigpy passes locally and fails there. This runs the same ruff
+check as CI, then blocks those modules through an import hook and runs the
+suite, which is the only way to catch a stray import before pushing.
 
     python3 scripts/ci_sim.py
 """
@@ -15,7 +15,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RUFF_PATHS = ["custom_components/onesti_lock/", "tests/", "tests_ha/", "scripts/"]
-BLOCKED = {"voluptuous", "homeassistant", "pytest_asyncio", "hypothesis"}
+BLOCKED = {"voluptuous", "homeassistant", "zigpy", "pytest_asyncio", "hypothesis"}
 
 
 class Blocker:

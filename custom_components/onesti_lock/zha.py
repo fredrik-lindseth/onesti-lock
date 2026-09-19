@@ -1,29 +1,40 @@
 """Everything that knows ZHA and zigpy internals.
 
 ZHA offers no public API for reaching a device's zigpy clusters, so this
-module leans on the object layout of a running ZHA: hass.data["zha"],
-its gateway_proxy, the device_proxies mapping and the .device chain down
-to the zigpy device. Keeping that knowledge here means a ZHA rename is a
-change to one file, and the rest of the integration talks to a lock
-through ZhaLockTransport.
+module leans on the object layout of a running ZHA: the gateway proxy from
+ZHA's own get_zha_gateway_proxy helper, its device_proxies mapping and the
+.device chain down to the zigpy device. Keeping that knowledge here means a
+ZHA rename is a change to one file, and the rest of the integration talks to
+a lock through ZhaLockTransport.
 """
 from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Iterator
 from typing import Any
 
+# ZHA is a manifest dependency, so its helpers and the zigpy it ships are
+# importable whenever this integration is.
+from homeassistant.components.zha.helpers import get_zha_gateway_proxy
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from zigpy.exceptions import DeliveryError, ZigbeeException
 
-from .const import DOORLOCK_CLUSTER_ID, ZHA_DOMAIN
+from .const import DOORLOCK_CLUSTER_ID, WAKE_ECHO_WINDOW_S, ZHA_DOMAIN
+from .redact import redact_digits
 
 _LOGGER = logging.getLogger(__name__)
 
 # How far down the .device chain to look: ZHADeviceProxy -> Device ->
 # CustomDeviceV2 is three objects, one spare level covers a future wrapper.
 _CHAIN_DEPTH = 4
+
+# Where the Door Lock cluster sits on every Onesti lock seen so far. Only a
+# fallback: the endpoint is read from the cluster ZHA actually holds.
+_FALLBACK_ENDPOINT_ID = 11
 
 # Standard ZCL DoorLock attributes (per zigpy.zcl.clusters.closures):
 #   0x0012 NumberOfPINUsersSupported
@@ -48,10 +59,13 @@ _CAPABILITY_NAMES = {
 
 
 def _gateway_proxy(hass: HomeAssistant):
-    """ZHA's gateway proxy, or None when ZHA is not loaded."""
-    if ZHA_DOMAIN not in hass.data:
+    """ZHA's gateway proxy, or None when ZHA has no running gateway."""
+    try:
+        return get_zha_gateway_proxy(hass)
+    except ValueError:
+        # ZHA's own signal for "no gateway object exists": not set up yet,
+        # failed to start, or being reloaded.
         return None
-    return getattr(hass.data[ZHA_DOMAIN], "gateway_proxy", None)
 
 
 def is_zha_loaded(hass: HomeAssistant) -> bool:
@@ -106,12 +120,8 @@ def has_door_lock_cluster(obj) -> bool:
 
 def find_door_lock_cluster(hass: HomeAssistant, ieee: str):
     """Get the Door Lock cluster for one device from ZHA, or None."""
-    if ZHA_DOMAIN not in hass.data:
-        _LOGGER.error("ZHA not found")
-        return None
-
     if _gateway_proxy(hass) is None:
-        _LOGGER.error("ZHA gateway_proxy not found")
+        _LOGGER.error("ZHA has no running gateway, so the lock cannot be reached")
         return None
 
     for dev_ieee, proxy in iter_device_proxies(hass):
@@ -125,18 +135,28 @@ def find_door_lock_cluster(hass: HomeAssistant, ieee: str):
     return None
 
 
+def endpoint_id_of(cluster) -> int:
+    """The endpoint a zigpy cluster belongs to, or the Onesti default."""
+    endpoint_id = getattr(getattr(cluster, "endpoint", None), "endpoint_id", None)
+    return endpoint_id if isinstance(endpoint_id, int) else _FALLBACK_ENDPOINT_ID
+
+
 def find_lock_entity_id(hass: HomeAssistant, ieee: str) -> str | None:
     """Entity id of ZHA's own lock entity for this device, or None.
 
-    ZHA unique ids end in the cluster id in decimal, and 257 is DoorLock
-    0x0101, so the suffix tells the lock entity from the device's sensors.
+    ZHA registers its devices with a zigbee connection holding str(EUI64),
+    which zigpy renders in lowercase. The lock entity is then the one entity
+    on that device in the lock domain from the zha platform, so no unique_id
+    format has to be parsed. Disabled entities are skipped: HA would refuse
+    the service call anyway.
     """
-    registry = er.async_get(hass)
-    for entity in registry.entities.values():
-        if entity.platform != "zha":
-            continue
-        uid = entity.unique_id or ""
-        if ieee.lower() in uid.lower() and uid.endswith("257"):
+    device = dr.async_get(hass).async_get_device(
+        connections={(dr.CONNECTION_ZIGBEE, ieee.lower())}
+    )
+    if device is None:
+        return None
+    for entity in er.async_entries_for_device(er.async_get(hass), device.id):
+        if entity.domain == "lock" and entity.platform == ZHA_DOMAIN:
             return entity.entity_id
     return None
 
@@ -147,10 +167,23 @@ class ZhaLockTransport:
     def __init__(self, hass: HomeAssistant, ieee: str) -> None:
         self.hass = hass
         self.ieee = ieee
+        # time.monotonic() of the last wake actuation, for wake_echo_pending.
+        self._last_wake: float | None = None
 
     def cluster(self):
         """The lock's zigpy Door Lock cluster, or None."""
         return find_door_lock_cluster(self.hass, self.ieee)
+
+    def wake_echo_pending(self) -> bool:
+        """Whether a Zigbee lock event now may be the echo of our own wake.
+
+        True within WAKE_ECHO_WINDOW_S of the last wake actuation. Not
+        consumed by asking: the lock may report the wake more than once.
+        """
+        return (
+            self._last_wake is not None
+            and time.monotonic() - self._last_wake < WAKE_ECHO_WINDOW_S
+        )
 
     async def wake(self) -> None:
         """Wake the lock's radio by sending a real lock command via ZHA.
@@ -168,34 +201,52 @@ class ZhaLockTransport:
         try:
             entity_id = find_lock_entity_id(self.hass, self.ieee)
             if entity_id is None:
+                _LOGGER.warning(
+                    "No ZHA lock entity found for %s, so the lock cannot be woken",
+                    self.ieee,
+                )
                 return
             _LOGGER.debug("Waking lock via %s", entity_id)
+            # Stamped before the call: the lock may report the lock event
+            # while the blocking service call is still waiting.
+            self._last_wake = time.monotonic()
             await self.hass.services.async_call(
                 "lock", "lock",
                 {"entity_id": entity_id},
                 blocking=True,
             )
             await asyncio.sleep(1)
-        except Exception:
-            _LOGGER.debug("Wake attempt failed, proceeding anyway")
+        except Exception as err:
+            # A failed wake must not abort the send: the retry runs anyway.
+            _LOGGER.debug(
+                "Wake attempt failed (%s), proceeding anyway", type(err).__name__
+            )
 
     async def send(self, command: int, params: dict) -> bool:
         """Send a ZCL command, handling Nimly response quirk.
 
-        Tries ZHA issue_zigbee_cluster_command first. If it times out,
-        wakes the lock and retries once.
+        Tries ZHA issue_zigbee_cluster_command first. If it times out or
+        zigpy reports a failed delivery, both of which a sleeping lock
+        causes, wakes the lock and retries once. Any other Zigbee error is
+        not about sleep, so it fails at once without actuating the door.
 
         Returns True if command was sent (even if response parsing failed).
         Returns False if command could not be sent at all.
+
+        Nothing here logs a traceback or a raw exception message: params
+        may hold a PIN code, and a voluptuous error from ZHA's service
+        schema quotes them. Messages go through redact_digits.
         """
-        for attempt in range(2):
+        cluster = self.cluster()
+        endpoint_id = endpoint_id_of(cluster)
+        for attempt in (1, 2):
             try:
                 await self.hass.services.async_call(
                     "zha",
                     "issue_zigbee_cluster_command",
                     {
                         "ieee": self.ieee,
-                        "endpoint_id": 11,
+                        "endpoint_id": endpoint_id,
                         "cluster_id": DOORLOCK_CLUSTER_ID,
                         "cluster_type": "in",
                         "command": command,
@@ -215,51 +266,73 @@ class ZhaLockTransport:
                     command,
                 )
                 return True
-            except TimeoutError:
-                if attempt == 0:
+            except (TimeoutError, DeliveryError) as err:
+                if attempt == 1:
                     _LOGGER.info(
-                        "Timeout on attempt 1 for command 0x%04x, waking lock and retrying",
+                        "%s on attempt 1 for command 0x%04x, waking lock and retrying",
+                        type(err).__name__,
                         command,
                     )
                     await self.wake()
                     continue
                 _LOGGER.warning(
-                    "Timeout sending command 0x%04x to %s after wake+retry; "
-                    "lock may be unreachable",
+                    "%s sending command 0x%04x to %s after wake and retry, "
+                    "lock may be unreachable: %s",
+                    type(err).__name__,
                     command,
                     self.ieee,
+                    redact_digits(err),
                 )
                 return False
-            except Exception:
-                _LOGGER.exception("Failed to send command 0x%04x to %s", command, self.ieee)
+            except ZigbeeException as err:
+                _LOGGER.warning(
+                    "Zigbee error sending command 0x%04x to %s: %s: %s",
+                    command,
+                    self.ieee,
+                    type(err).__name__,
+                    redact_digits(err),
+                )
+                return False
+            except Exception as err:
+                # The caller gets False, never a raise.
+                _LOGGER.error(
+                    "Failed to send command 0x%04x to %s: %s: %s",
+                    command,
+                    self.ieee,
+                    type(err).__name__,
+                    redact_digits(err),
+                )
                 return False
         return False
 
-    async def read_capabilities(self) -> dict[str, int]:
+    async def read_capabilities(self) -> dict[str, int] | None:
         """Read static lock properties from the DoorLock cluster.
 
-        Returns whichever of num_pin_users, max_pin_length and
-        min_pin_length the lock reported, possibly none. Degrades silently
-        if the lock does not expose them: some Onesti variants skip these
-        standard ZCL attributes, and a sleepy device may never respond.
+        Returns None when the lock was not reached, so the read is worth
+        repeating once the radio is awake. Otherwise returns whichever of
+        num_pin_users, max_pin_length and min_pin_length the lock reported,
+        possibly none: an answer without them is final, since some Onesti
+        variants skip these standard ZCL attributes.
         """
         cluster = self.cluster()
         if cluster is None:
-            return {}
+            return None
         try:
             result = await cluster.read_attributes(_CAPABILITY_ATTR_IDS)
-        except TimeoutError:
-            _LOGGER.debug("Lock capabilities read timed out (lock asleep or out of range)")
-            return {}
+        except (TimeoutError, DeliveryError) as err:
+            _LOGGER.debug(
+                "Lock capabilities read failed with %s (lock asleep or out of range)",
+                type(err).__name__,
+            )
+            return None
         except (AttributeError, TypeError):
             _LOGGER.debug("Lock capabilities read failed (cluster API shape changed?)", exc_info=True)
-            return {}
+            return None
         except Exception:
-            # zigpy/ZHA-side errors: DeliveryError, ZigbeeException, etc.
-            # We deliberately keep this wide so an exotic firmware quirk on one
-            # lock does not block integration setup for everyone else.
+            # Other zigpy/ZHA-side errors. Deliberately wide so an exotic
+            # firmware quirk on one lock does not block setup for everyone.
             _LOGGER.debug("Lock capabilities read failed", exc_info=True)
-            return {}
+            return None
 
         # zigpy returns (success_dict, failure_dict). Keys may be attribute
         # IDs or attribute names depending on cluster metadata.

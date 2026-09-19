@@ -1,4 +1,4 @@
-"""Tests for the capability-derived slot ceiling in pin_rules.py.
+"""Tests for the capability-derived slot and PIN rules in pin_rules.py.
 
 pin_rules imports nothing but .const, so a stub package whose __path__
 points at the component directory is enough to execute the real module.
@@ -131,3 +131,82 @@ class TestFirstUserSlot:
     def test_integral_float_from_hand_edited_options(self):
         """Hand-edited or older stored options may hold 1.0 instead of 1."""
         assert pin_rules.first_user_slot({"reserved_slots": 1.0}) == 1
+
+
+class TestPinLengthRange:
+    """The reported MinPINCodeLength/MaxPINCodeLength, or 4-8 without them."""
+
+    def test_unread_capabilities_fall_back_to_four_to_eight(self):
+        assert pin_rules.pin_length_range(None) == (4, 8)
+        assert pin_rules.pin_length_range({}) == (4, 8)
+
+    def test_reported_values_are_used(self):
+        caps = {"min_pin_length": 6, "max_pin_length": 10}
+        assert pin_rules.pin_length_range(caps) == (6, 10)
+
+    def test_nimlypro_reports_the_fallback_itself(self):
+        caps = {"min_pin_length": 4, "max_pin_length": 8, "num_pin_users": 50}
+        assert pin_rules.pin_length_range(caps) == (4, 8)
+
+    def test_each_bound_falls_back_on_its_own(self):
+        assert pin_rules.pin_length_range({"max_pin_length": 6}) == (4, 6)
+        assert pin_rules.pin_length_range({"min_pin_length": 5}) == (5, 8)
+
+    def test_equal_bounds_are_kept(self):
+        caps = {"min_pin_length": 6, "max_pin_length": 6}
+        assert pin_rules.pin_length_range(caps) == (6, 6)
+
+    def test_min_below_one_falls_back(self):
+        caps = {"min_pin_length": 0, "max_pin_length": 6}
+        assert pin_rules.pin_length_range(caps) == (4, 6)
+
+    def test_max_above_the_sane_ceiling_falls_back(self):
+        caps = {"min_pin_length": 4, "max_pin_length": 255}
+        assert pin_rules.pin_length_range(caps) == (4, 8)
+
+    def test_the_sane_ceiling_itself_is_kept(self):
+        caps = {"min_pin_length": 4, "max_pin_length": pin_rules.PIN_LENGTH_SANE_MAX}
+        assert pin_rules.pin_length_range(caps) == (4, 20)
+
+    def test_min_above_max_drops_both(self):
+        """A contradiction means neither value can be trusted."""
+        caps = {"min_pin_length": 9, "max_pin_length": 6}
+        assert pin_rules.pin_length_range(caps) == (4, 8)
+
+    def test_min_above_the_fallback_max_drops_both(self):
+        assert pin_rules.pin_length_range({"min_pin_length": 10}) == (4, 8)
+
+    def test_non_int_values_fall_back(self):
+        for value in ("6", None, 6.0, True, [6]):
+            caps = {"min_pin_length": value, "max_pin_length": value}
+            assert pin_rules.pin_length_range(caps) == (4, 8), value
+
+
+class TestIsValidPin:
+    """Digits only, and a length inside the lock's range."""
+
+    def test_fallback_bounds_are_inclusive(self):
+        assert pin_rules.is_valid_pin("1234", None)
+        assert pin_rules.is_valid_pin("12345678", None)
+
+    def test_outside_the_fallback_range(self):
+        assert not pin_rules.is_valid_pin("123", None)
+        assert not pin_rules.is_valid_pin("123456789", None)
+        assert not pin_rules.is_valid_pin("", None)
+
+    def test_reported_range_is_followed(self):
+        caps = {"min_pin_length": 6, "max_pin_length": 10}
+        assert not pin_rules.is_valid_pin("12345", caps)
+        assert pin_rules.is_valid_pin("123456", caps)
+        assert pin_rules.is_valid_pin("1234567890", caps)
+        assert not pin_rules.is_valid_pin("12345678901", caps)
+
+    def test_non_digits_are_rejected(self):
+        for code in ("12a4", "12 34", "-1234", "1234\n", "12.34"):
+            assert not pin_rules.is_valid_pin(code, None), repr(code)
+
+    def test_digits_no_keypad_can_type_are_rejected(self):
+        """str.isdigit accepts these, the lock's keypad cannot enter them."""
+        for code in ("\u00b2\u00b3\u00b9\u2074", "\u0661\u0662\u0663\u0664", "\uff11\uff12\uff13\uff14"):
+            assert code.isdigit()
+            assert not pin_rules.is_valid_pin(code, None), repr(code)

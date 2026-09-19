@@ -86,6 +86,10 @@ class NimlyCoordinator:
         """Highest slot set_pin should accept for this lock."""
         return pin_rules.max_user_slot(self.lock_capabilities)
 
+    def first_user_slot(self) -> int:
+        """Lowest slot PIN writes and clears may touch on this lock."""
+        return pin_rules.first_user_slot(self.entry.options)
+
     async def set_slot_name(self, slot: int, name: str) -> None:
         """Set name for a slot (does not send ZCL command)."""
         self._slots.setdefault(str(slot), {**DEFAULT_SLOT})["name"] = name

@@ -8,7 +8,7 @@ import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 
-from .const import DOMAIN, MAX_SLOTS, SLOT_FIRST_USER
+from .const import DOMAIN, MAX_SLOTS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,18 +45,20 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         code = call.data["code"]
         ieee = call.data.get("ieee")
 
-        # The coordinator is looked up before validation because the slot
-        # ceiling depends on the PIN capacity this particular lock reported.
+        # The coordinator is looked up before validation because both bounds
+        # are per lock: the floor is its reserved-slots setting, the ceiling
+        # the PIN capacity it reported.
         coordinator = _get_coordinator(hass, ieee)
+        first = coordinator.first_user_slot()
         max_slot = coordinator.max_user_slot()
-        if not SLOT_FIRST_USER <= slot <= max_slot:
+        if not first <= slot <= max_slot:
             raise HomeAssistantError(
-                f"Slot must be between {SLOT_FIRST_USER} and {max_slot}",
+                f"Slot must be between {first} and {max_slot}",
                 translation_domain=DOMAIN,
                 translation_key="invalid_slot",
                 # HA rejects non-string placeholder values.
                 translation_placeholders={
-                    "min": str(SLOT_FIRST_USER),
+                    "min": str(first),
                     "max": str(max_slot),
                 },
             )
@@ -80,19 +82,21 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         slot = call.data["slot"]
         ieee = call.data.get("ieee")
 
-        if not SLOT_FIRST_USER <= slot < MAX_SLOTS:
+        # Looked up first: the reserved master slots are a per-lock setting.
+        coordinator = _get_coordinator(hass, ieee)
+        first = coordinator.first_user_slot()
+        if not first <= slot < MAX_SLOTS:
             raise HomeAssistantError(
-                f"Slot must be between {SLOT_FIRST_USER} and {MAX_SLOTS - 1}",
+                f"Slot must be between {first} and {MAX_SLOTS - 1}",
                 translation_domain=DOMAIN,
                 translation_key="invalid_slot",
                 # HA rejects non-string placeholder values.
                 translation_placeholders={
-                    "min": str(SLOT_FIRST_USER),
+                    "min": str(first),
                     "max": str(MAX_SLOTS - 1),
                 },
             )
 
-        coordinator = _get_coordinator(hass, ieee)
         success = await coordinator.clear_pin(slot)
         if not success:
             raise HomeAssistantError(
@@ -107,14 +111,16 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         name = call.data["name"]
         ieee = call.data.get("ieee")
 
-        if not SLOT_FIRST_USER <= slot < MAX_SLOTS:
+        # Names are the integration's own data and never reach the lock, so
+        # every slot can be named, master slots included (issue #6).
+        if not 0 <= slot < MAX_SLOTS:
             raise HomeAssistantError(
-                f"Slot must be between {SLOT_FIRST_USER} and {MAX_SLOTS - 1}",
+                f"Slot must be between 0 and {MAX_SLOTS - 1}",
                 translation_domain=DOMAIN,
                 translation_key="invalid_slot",
                 # HA rejects non-string placeholder values.
                 translation_placeholders={
-                    "min": str(SLOT_FIRST_USER),
+                    "min": "0",
                     "max": str(MAX_SLOTS - 1),
                 },
             )
@@ -126,19 +132,21 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         slot = call.data["slot"]
         ieee = call.data.get("ieee")
 
-        if not SLOT_FIRST_USER <= slot < MAX_SLOTS:
+        # Looked up first: the reserved master slots are a per-lock setting.
+        coordinator = _get_coordinator(hass, ieee)
+        first = coordinator.first_user_slot()
+        if not first <= slot < MAX_SLOTS:
             raise HomeAssistantError(
-                f"Slot must be between {SLOT_FIRST_USER} and {MAX_SLOTS - 1}",
+                f"Slot must be between {first} and {MAX_SLOTS - 1}",
                 translation_domain=DOMAIN,
                 translation_key="invalid_slot",
                 # HA rejects non-string placeholder values.
                 translation_placeholders={
-                    "min": str(SLOT_FIRST_USER),
+                    "min": str(first),
                     "max": str(MAX_SLOTS - 1),
                 },
             )
 
-        coordinator = _get_coordinator(hass, ieee)
         success = await coordinator.clear_slot(slot)
         if not success:
             raise HomeAssistantError(

@@ -120,11 +120,15 @@ pin_rules = _load("pin_rules")
 class FakeCoordinator:
     """A lock whose reported capabilities the test controls."""
 
-    def __init__(self, capabilities=None):
+    def __init__(self, capabilities=None, options=None):
         self.ieee = "00:11:22:33:44:55:66:77"
         self.lock_capabilities = dict(capabilities or {})
+        self.options = dict(options or {})
         self.set_pin_calls = []
         self.clear_pin_calls = []
+
+    def first_user_slot(self):
+        return pin_rules.first_user_slot(self.options)
 
     def max_user_slot(self):
         # The real coordinator method is one line over the same rule, so the

@@ -3,6 +3,11 @@
 DOMAIN = "onesti_lock"
 
 CONF_IEEE = "ieee"
+# Per-lock option: how many slots from 0 up are master codes that set_pin,
+# clear_pin and clear_slot must never touch. Naming is not affected.
+CONF_RESERVED_SLOTS = "reserved_slots"
+RESERVED_SLOTS_MIN = 1  # slot 0 is the master code on every model
+RESERVED_SLOTS_MAX = 3
 
 # Zigbee
 DOORLOCK_CLUSTER_ID = 0x0101
@@ -10,8 +15,11 @@ ZHA_DOMAIN = "zha"
 
 # Onesti hardware — all known whitelabel models
 MAX_SLOTS = 1000  # ZCL slots 0-999 (per Nimly manual)
-# Slots 0-2: reserved for master codes (per Nimly/EasyAccess manual)
-# Slots 3-199: user codes
+# Default first user slot, i.e. the default for CONF_RESERVED_SLOTS. The
+# manuals differ per model: Touch Pro, PRO and Code reserve 000-002 as master
+# codes, Code Pro only 000 (001-999 are user codes). The reported model string
+# cannot pick between them (issue #5), so 3 is the safe default and the user
+# lowers it per lock.
 SLOT_FIRST_USER = 3
 # Number of user slots to show as sensors in UI
 NUM_USER_SLOTS = 10  # Shows slots 3-12

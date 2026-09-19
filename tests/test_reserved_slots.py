@@ -1,0 +1,136 @@
+"""The reserved-slots setting, run through the real coordinator and handlers.
+
+Naming is the integration's own data, so set_name accepts every slot.
+PIN writes and clears reach the lock, so set_pin, clear_pin and clear_slot
+refuse the master slots: 0-2 by default (Touch Pro, PRO, Code), or only
+slot 0 once the user sets reserved_slots to 1 (Code Pro). Slot 0 is never
+opened. The coordinator comes from the test_coordinator_behavior.py
+harness and the handlers from the stubs in test_service_slot_limits.py,
+so both sides are the shipped code.
+"""
+from __future__ import annotations
+
+import asyncio
+
+import pytest
+
+from .test_coordinator_behavior import _make_coordinator
+from .test_service_slot_limits import FakeCall, HomeAssistantError, _handlers
+
+
+def _lock(options=None):
+    """A real coordinator whose ZCL send always reaches the lock."""
+    hass, entry, coord = _make_coordinator(options)
+    sent = []
+
+    async def _send(command, params):
+        sent.append((command, params["user_id"]))
+        return True
+
+    coord._send_cluster_command = _send
+    return hass, entry, coord, sent
+
+
+def _call(coord, service, **data):
+    asyncio.run(_handlers(coord)[service](FakeCall(**data)))
+
+
+def _refused(coord, service, **data):
+    with pytest.raises(HomeAssistantError) as excinfo:
+        _call(coord, service, **data)
+    assert excinfo.value.translation_key == "invalid_slot"
+    return excinfo.value
+
+
+class TestCoordinatorFirstUserSlot:
+    def test_default_is_three(self):
+        _hass, _entry, coord, _sent = _lock({"slots": {}})
+        assert coord.first_user_slot() == 3
+
+    def test_reads_the_entry_option(self):
+        _hass, _entry, coord, _sent = _lock({"slots": {}, "reserved_slots": 1})
+        assert coord.first_user_slot() == 1
+
+    def test_saving_slots_keeps_the_setting(self):
+        hass, entry, coord, _sent = _lock({"slots": {}, "reserved_slots": 1})
+        asyncio.run(coord.set_slot_name(3, "Kari"))
+        assert hass.config_entries.written[-1]["reserved_slots"] == 1
+        assert entry.options["reserved_slots"] == 1
+        assert coord.first_user_slot() == 1
+
+
+class TestSetPinFloor:
+    def test_slot_2_refused_by_default(self):
+        _hass, _entry, coord, sent = _lock({"slots": {}})
+        error = _refused(coord, "set_pin", slot=2, name="Kari", code="1234")
+        assert error.translation_placeholders["min"] == "3"
+        assert sent == []
+
+    def test_slot_1_refused_by_default(self):
+        _hass, _entry, coord, sent = _lock({"slots": {}})
+        _refused(coord, "set_pin", slot=1, name="Kari", code="1234")
+        assert sent == []
+
+    def test_slot_2_accepted_with_one_reserved(self):
+        _hass, _entry, coord, sent = _lock({"slots": {}, "reserved_slots": 1})
+        _call(coord, "set_pin", slot=2, name="Kari", code="1234")
+        assert sent == [(0x0005, 2)]
+        assert coord.get_slot(2)["has_pin"] is True
+
+    def test_slot_1_accepted_with_one_reserved(self):
+        _hass, _entry, coord, sent = _lock({"slots": {}, "reserved_slots": 1})
+        _call(coord, "set_pin", slot=1, name="Kari", code="1234")
+        assert sent == [(0x0005, 1)]
+
+    @pytest.mark.parametrize("reserved", [None, 0, 1, 2, 3])
+    def test_slot_0_always_refused(self, reserved):
+        options = {"slots": {}}
+        if reserved is not None:
+            options["reserved_slots"] = reserved
+        _hass, _entry, coord, sent = _lock(options)
+        _refused(coord, "set_pin", slot=0, name="Kari", code="1234")
+        assert sent == []
+
+
+class TestClearFloor:
+    def test_clear_pin_slot_1_refused_by_default(self):
+        _hass, _entry, coord, sent = _lock({"slots": {}})
+        error = _refused(coord, "clear_pin", slot=1)
+        assert error.translation_placeholders == {"min": "3", "max": "999"}
+        assert sent == []
+
+    def test_clear_pin_slot_1_accepted_with_one_reserved(self):
+        _hass, _entry, coord, sent = _lock({"slots": {}, "reserved_slots": 1})
+        _call(coord, "clear_pin", slot=1)
+        assert sent == [(0x0007, 1)]
+
+    def test_clear_slot_slot_2_refused_by_default(self):
+        _hass, _entry, coord, sent = _lock({"slots": {}})
+        _refused(coord, "clear_slot", slot=2)
+        assert sent == []
+
+    def test_clear_slot_slot_0_refused_even_with_one_reserved(self):
+        _hass, _entry, coord, sent = _lock({"slots": {}, "reserved_slots": 1})
+        _refused(coord, "clear_slot", slot=0)
+        assert sent == []
+
+
+class TestSetNameIsOpen:
+    @pytest.mark.parametrize("slot", [0, 1])
+    def test_master_slots_can_be_named(self, slot):
+        hass, _entry, coord, sent = _lock({"slots": {}})
+        _call(coord, "set_name", slot=slot, name="Master")
+        assert coord.get_slot(slot)["name"] == "Master"
+        assert hass.config_entries.written[-1]["slots"][str(slot)]["name"] == "Master"
+        assert sent == []
+
+    def test_slot_999_can_be_named(self):
+        _hass, _entry, coord, _sent = _lock({"slots": {}})
+        _call(coord, "set_name", slot=999, name="Last")
+        assert coord.get_slot(999)["name"] == "Last"
+
+    @pytest.mark.parametrize("slot", [-1, 1000])
+    def test_out_of_range_refused(self, slot):
+        _hass, _entry, coord, _sent = _lock({"slots": {}})
+        error = _refused(coord, "set_name", slot=slot, name="X")
+        assert error.translation_placeholders == {"min": "0", "max": "999"}

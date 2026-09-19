@@ -130,4 +130,4 @@ class TestNoPinInStorage:
             keys = {k.value for k in node.value.keys if isinstance(k, ast.Constant)}
             found = True
         assert found, "DEFAULT_SLOT not found in const.py"
-        assert keys == {"name", "has_pin", "has_rfid"}
+        assert keys == {"name", "has_pin"}

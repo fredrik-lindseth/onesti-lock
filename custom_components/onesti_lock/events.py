@@ -91,7 +91,7 @@ def decode_operation_event(coordinator, val: int) -> dict | None:
     }
 
 
-def is_system_lock(decoded: dict) -> bool:
+def is_system_lock(decoded: dict, wake_echo_pending: bool = False) -> bool:
     """Whether a decoded event is a lock no person can be credited with.
 
     Only user-attributable events update the activity sensor. Otherwise
@@ -101,24 +101,50 @@ def is_system_lock(decoded: dict) -> bool:
     user slot, indistinguishable from a remote lock, so both are
     suppressed on that model. An unattributed unlock is a person acting
     on the lock and must stay visible.
+
+    A Zigbee lock with no user slot is someone locking from Home Assistant
+    and stays visible, except while wake_echo_pending: the auto-wake locks
+    the door through ZHA before a PIN write, and the lock reports that as
+    an ordinary Zigbee lock, which would otherwise replace the last
+    activity every time a PIN is set on a sleeping lock.
     """
-    return decoded["source"] == SOURCE_AUTO or (
-        decoded["source"] == SOURCE_UNATTRIBUTED
-        and decoded["action"] == ACTION_LOCK
-        and decoded["user_slot"] is None
-    )
+    source = decoded["source"]
+    anonymous_lock = decoded["action"] == ACTION_LOCK and decoded["user_slot"] is None
+    if source == SOURCE_AUTO:
+        return True
+    if source == SOURCE_UNATTRIBUTED:
+        return anonymous_lock
+    if source == SOURCE_ZIGBEE:
+        return anonymous_lock and wake_echo_pending
+    return False
+
+
+class ZhaInternalsMissing(Exception):
+    """The ZHA or zigpy structure the listener relies on is not there.
+
+    detail names the missing piece in code terms, for the log and the
+    repair issue.
+    """
+
+    def __init__(self, detail: str) -> None:
+        super().__init__(detail)
+        self.detail = detail
 
 
 def register_event_listener(
     hass: HomeAssistant, coordinator: NimlyCoordinator
-) -> Callable[[], Any] | None:
+) -> Callable[[], Any]:
     """Listen for attribute_report events on the DoorLock cluster.
 
-    Returns the unsubscribe callable, or None when the cluster is missing.
+    Returns the unsubscribe callable and records the cluster on
+    coordinator.listened_cluster. Raises ZhaInternalsMissing when the
+    cluster cannot be found or has no on_event.
 
     zigpy emits "attribute_report" via cluster.emit() for every Report_Attributes
     ZCL frame, even for unknown attributes and even when value is unchanged.
     This is the only reliable way to catch Onesti's custom attrid 0x0100.
+    on_event is not documented zigpy API, which is why its absence is
+    reported rather than assumed away.
 
     The alternatives don't work:
     - add_listener + attribute_updated: suppressed for unknown attributes
@@ -126,9 +152,11 @@ def register_event_listener(
     - add_listener + handle_cluster_request: only for cluster commands, not general
     """
     cluster = coordinator.transport.cluster()
-    if not cluster:
-        _LOGGER.error("Could not find DoorLock cluster for event listener")
-        return None
+    if cluster is None:
+        raise ZhaInternalsMissing(f"Door Lock cluster for {coordinator.ieee}")
+    on_event = getattr(cluster, "on_event", None)
+    if not callable(on_event):
+        raise ZhaInternalsMissing(f"{type(cluster).__name__}.on_event")
 
     def _on_attribute_report(event) -> None:
         # Any report means the radio is awake right now, the moment a
@@ -159,9 +187,15 @@ def register_event_listener(
             val,
         )
 
-        if not is_system_lock(decoded):
+        if not is_system_lock(decoded, coordinator.wake_echo_pending()):
             coordinator.update_activity(
                 decoded["user_slot"], decoded["action"], decoded["source"]
+            )
+        elif decoded["source"] == SOURCE_ZIGBEE:
+            _LOGGER.debug(
+                "Zigbee lock on %s taken as the echo of our own wake, "
+                "activity sensor left as it was",
+                coordinator.ieee,
             )
 
         hass.bus.async_fire(
@@ -169,11 +203,8 @@ def register_event_listener(
             {"ieee": coordinator.ieee, **decoded},
         )
 
-    unsub = cluster.on_event("attribute_report", _on_attribute_report)
+    unsub = on_event("attribute_report", _on_attribute_report)
+    coordinator.listened_cluster = cluster
 
-    _LOGGER.debug(
-        "Event listener registered on %s (events: %s)",
-        type(cluster).__name__,
-        list(cluster._event_listeners.keys()),
-    )
+    _LOGGER.debug("Event listener registered on %s", type(cluster).__name__)
     return unsub

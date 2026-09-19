@@ -126,7 +126,7 @@ class TestSaveSlotsPersistence:
 class TestClearSlotFailure:
     """A clear that never reached the lock must not pretend it did."""
 
-    _OCCUPIED = {"slots": {"5": {"name": "Kari", "has_pin": True, "has_rfid": False}}}
+    _OCCUPIED = {"slots": {"5": {"name": "Kari", "has_pin": True}}}
 
     def test_failed_clear_keeps_slot_state(self):
         hass, _entry, coord = _make_coordinator(self._OCCUPIED, fail_services=True)
@@ -266,3 +266,47 @@ class TestPinOperationsAreSerialised:
         with pytest.raises(ValueError):
             asyncio.run(coord.set_pin(0, "Master", "1234"))
         assert asyncio.run(coord.set_pin(5, "Kari", "1234")) is True
+
+
+class TestLoadSlots:
+    """Stored slots are read back in DEFAULT_SLOT's shape and nothing else."""
+
+    def test_unknown_keys_are_dropped(self):
+        stored = {"slots": {"5": {"name": "Kari", "has_pin": True, "has_rfid": True, "junk": 1}}}
+        _hass, _entry, coord = _make_coordinator(stored)
+        assert coord.get_slot(5) == {"name": "Kari", "has_pin": True}
+
+    def test_missing_keys_come_from_the_default(self):
+        _hass, _entry, coord = _make_coordinator({"slots": {"5": {"name": "Kari"}}})
+        assert coord.get_slot(5) == {"name": "Kari", "has_pin": False}
+
+
+class TestSetupState:
+    """What the coordinator remembers from setup for the update listener."""
+
+    def test_first_user_slot_at_setup_follows_the_option(self):
+        _hass, _entry, coord = _make_coordinator({"slots": {}, "reserved_slots": 1})
+        assert coord.setup_first_user_slot == 1
+
+    def test_first_user_slot_at_setup_defaults_to_three(self):
+        _hass, _entry, coord = _make_coordinator({"slots": {}})
+        assert coord.setup_first_user_slot == 3
+
+    def test_setup_value_does_not_follow_later_option_changes(self):
+        _hass, entry, coord = _make_coordinator({"slots": {}})
+        entry.options = {**entry.options, "reserved_slots": 2}
+        assert coord.setup_first_user_slot == 3
+        assert coord.first_user_slot() == 2
+
+    def test_wake_echo_is_the_transports(self):
+        class EchoTransport:
+            pending = False
+
+            def wake_echo_pending(self):
+                return self.pending
+
+        transport = EchoTransport()
+        _hass, _entry, coord = _make_coordinator({"slots": {}}, transport=transport)
+        assert coord.wake_echo_pending() is False
+        transport.pending = True
+        assert coord.wake_echo_pending() is True

@@ -634,7 +634,6 @@ class TestPinOperations:
         assert coord.get_slot(5) == {
             "name": "Kari",
             "has_pin": True,
-            "has_rfid": False,
         }
         assert hass.config_entries.written[-1]["slots"]["5"]["has_pin"] is True
         assert events == [True]
@@ -651,7 +650,7 @@ class TestPinOperations:
         # clear_pin removes the code but the person still owns the slot,
         # only clear_slot wipes the name.
         occupied = {
-            "slots": {"5": {"name": "Kari", "has_pin": True, "has_rfid": False}}
+            "slots": {"5": {"name": "Kari", "has_pin": True}}
         }
         transport = FakeTransport()
         hass, entry, coord = _make(options=occupied, transport=transport)

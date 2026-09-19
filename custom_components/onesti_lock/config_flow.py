@@ -39,6 +39,7 @@ class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
     """Config flow for Onesti Lock."""
 
     VERSION = 2
+    MINOR_VERSION = 2
 
     @staticmethod
     @callback

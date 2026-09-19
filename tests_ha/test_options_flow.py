@@ -201,7 +201,7 @@ async def test_set_pin_valid_code_runs_progress_and_saves(
     assert transport.sent == [
         (SET_PIN_COMMAND, {"user_id": 4, "user_status": 1, "user_type": 0, "pin_code": "1234"})
     ]
-    assert entry.options["slots"]["4"] == {"name": "Kari", "has_pin": True, "has_rfid": False}
+    assert entry.options["slots"]["4"] == {"name": "Kari", "has_pin": True}
 
 
 @pytest.mark.parametrize(
@@ -250,7 +250,7 @@ async def test_set_pin_can_retry_after_failure(
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert len(transport.sent) == 2
-    assert entry.options["slots"]["5"] == {"name": "Ola", "has_pin": True, "has_rfid": False}
+    assert entry.options["slots"]["5"] == {"name": "Ola", "has_pin": True}
 
 
 async def test_set_pin_labels_slots_from_storage(hass: HomeAssistant, entry: MockConfigEntry) -> None:
@@ -338,7 +338,7 @@ async def test_clear_pin_clears_the_slot(
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert transport.sent == [(CLEAR_PIN_COMMAND, {"user_id": 4})]
-    assert entry.options["slots"]["4"] == {"name": "", "has_pin": False, "has_rfid": False}
+    assert entry.options["slots"]["4"] == {"name": "", "has_pin": False}
 
 
 @pytest.mark.parametrize("entry_options", [{"slots": {"4": {"name": "Kari", "has_pin": True}}}])
@@ -448,7 +448,7 @@ async def test_name_slot_accepts_every_slot(hass: HomeAssistant, entry: MockConf
     result = await hass.config_entries.options.async_configure(result["flow_id"], {"slot": slot, "name": " Kari "})
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert entry.options["slots"][str(slot)] == {"name": "Kari", "has_pin": False, "has_rfid": False}
+    assert entry.options["slots"][str(slot)] == {"name": "Kari", "has_pin": False}
 
 
 @pytest.mark.parametrize("slot", [1000, -1])
@@ -476,7 +476,7 @@ async def test_name_slot_empty_name_removes_it(hass: HomeAssistant, entry: MockC
         assert result["type"] is FlowResultType.CREATE_ENTRY
 
     # A slot left with neither name nor PIN is dropped, one with a PIN stays.
-    assert entry.options["slots"] == {"4": {"name": "", "has_pin": True, "has_rfid": False}}
+    assert entry.options["slots"] == {"4": {"name": "", "has_pin": True}}
 
 
 async def test_name_slot_name_defaults_to_empty(hass: HomeAssistant, entry: MockConfigEntry) -> None:

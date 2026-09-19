@@ -58,7 +58,8 @@ class TestConstants:
         slot = c["DEFAULT_SLOT"]
         assert slot["name"] == ""
         assert slot["has_pin"] is False
-        assert slot["has_rfid"] is False
+        # No Zigbee report says whether a slot holds a card or a finger.
+        assert "has_rfid" not in slot
 
     def test_doorlock_cluster_id(self):
         c = _load_const()

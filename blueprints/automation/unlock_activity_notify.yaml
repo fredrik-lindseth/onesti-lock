@@ -1,27 +1,27 @@
 blueprint:
-  name: Onesti Lock — varsle ved opplåsing
+  name: "Onesti Lock: notify on unlock"
   description: >
-    Sender en varsling når noen låser opp døren. Viser hvem som låste opp
-    og hvordan (PIN, fingeravtrykk, RFID, Zigbee). Krever Onesti Lock-integrasjonen
-    for brukeridentifisering.
+    Sends a notification when someone unlocks the door, showing who did it
+    and how (PIN, fingerprint, RFID, Zigbee). Needs the Onesti Lock
+    integration to identify the user.
   domain: automation
   input:
     activity_sensor:
-      name: Aktivitetssensor
-      description: Velg "Siste aktivitet"-sensoren fra Onesti Lock-integrasjonen
+      name: Activity sensor
+      description: Pick the "Last activity" sensor from the Onesti Lock integration
       selector:
         entity:
           filter:
             - integration: onesti_lock
     notify_service:
-      name: Varslingstjeneste
-      description: Velg varslingstjeneste (f.eks. notify.mobile_app)
+      name: Notification service
+      description: Pick a notification service (e.g. notify.mobile_app)
       default: persistent_notification.create
       selector:
         text:
     only_unlock:
-      name: Kun opplåsing
-      description: Varsle kun ved opplåsing, ikke låsing
+      name: Unlock only
+      description: Notify on unlocking only, not on locking
       default: true
       selector:
         boolean:
@@ -46,10 +46,10 @@ conditions:
 
 actions:
   - variables:
-      user_name: "{{ state_attr(trigger.entity_id, 'user_name') or 'Ukjent' }}"
-      source: "{{ state_attr(trigger.entity_id, 'source') or 'ukjent' }}"
-      action: "{{ state_attr(trigger.entity_id, 'action') or 'ukjent' }}"
+      user_name: "{{ state_attr(trigger.entity_id, 'user_name') or 'Unknown' }}"
+      source: "{{ state_attr(trigger.entity_id, 'source') or 'unknown' }}"
+      action: "{{ state_attr(trigger.entity_id, 'action') or 'unknown' }}"
   - action: "{{ notify_service }}"
     data:
-      title: "Dørlås: {{ action }}"
-      message: "{{ user_name }} {{ 'låste opp' if action == 'unlock' else 'låste' }} via {{ source }}"
+      title: "Door lock: {{ action }}"
+      message: "{{ user_name }} {{ 'unlocked' if action == 'unlock' else 'locked' }} via {{ source }}"

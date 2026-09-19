@@ -16,14 +16,6 @@ venv/
 reversing/
 secrets.md
 
-# Beads / Dolt files (added by bd init)
-.dolt/
-*.db
-.beads-credential-key
-
-# Beads-katalogen fra et eldre oppsett
-.beads/
-
-# Produsentmanualer er Nimlys opphavsrett og lagres bare lokalt; README.md lenker til kildene
+# Manufacturer manuals are Nimly's copyright, so they stay local; README.md links to the sources
 docs/manuals/*
 !docs/manuals/README.md

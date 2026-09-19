@@ -134,18 +134,32 @@ class TestFullEnrollment:
         assert transport.authenticated
         assert transport.commands[2].payload == b"\x00" + DEVICE_ID
 
-    def test_the_factory_credential_no_longer_works(self):
+    def test_the_fake_refuses_the_factory_credential_after_enrollment(self):
+        """The fake lock replaces its owner key on UserAuthUpdate, as the app implies.
+
+        That the real lock stops taking the factory key is presumed, not
+        tested (fake_lock.py). This checks that enrollment ends with the fake
+        holding our key and the factory credential refused.
+        """
         lock = FakeLock()
         run(enroll_fixed(lock))
         with pytest.raises(errors.BleSecurityError):
             run(log_in(lock, auth.DEFAULT_OWNER_CREDENTIAL))
 
-    def test_an_enrolled_lock_refuses_a_second_enrollment_untouched(self):
+    def test_a_refused_factory_login_is_not_an_enrollment_error_and_changes_nothing(self):
+        """enroll() lets the login's own error out and sends nothing after it.
+
+        The refusal comes from the fake's assumption that an enrolled lock
+        refuses the factory credential (fake_lock.py). The library's part is
+        what follows: no BleEnrollmentError, since nothing was changed, and
+        no command after the failed login.
+        """
         lock = FakeLock()
         run(enroll_fixed(lock))
         with pytest.raises(errors.BleSecurityError) as caught:
             run(enroll_fixed(lock, device_id=bytes.fromhex("010101010101")))
         assert not isinstance(caught.value, enrollment_mod.BleEnrollmentError)
+        assert lock.commands[-1].command_id is CommandId.USER_AUTH_FINALIZE
         assert lock.device_id == DEVICE_ID
 
     def test_random_defaults(self):

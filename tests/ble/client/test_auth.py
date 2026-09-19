@@ -78,7 +78,15 @@ class TestAuthenticateOwner:
         with pytest.raises(errors.BleSecurityError):
             run(log_in(lock))
 
-    def test_wrong_device_id_is_refused(self):
+    def test_a_refused_device_id_surfaces_as_a_security_error(self):
+        """The refusal is the fake lock's assumption, not verified lock behaviour.
+
+        The app sends the lock's device id in every UserAuthBegin
+        (ConnectLockFragment), which suggests the lock checks it; whether it
+        does, and with which status, is unknown (fake_lock.py). What this
+        checks is the library's side: the refusal reaches the caller as
+        BleSecurityError.
+        """
         lock = FakeLock(device_id=bytes.fromhex("010203040506"))
         with pytest.raises(errors.BleSecurityError):
             run(log_in(lock))

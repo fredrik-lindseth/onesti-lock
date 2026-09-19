@@ -93,6 +93,8 @@ Battery-powered Zigbee EndDevices sleep most of the time, and ZCL commands like 
 
 The wake has a side effect, since it is a real lock command and not a read. An unlocked door gets physically locked, and an open door drives the bolt out into the air. The README limitations and the options flow texts both say so. A wake that does not move the bolt is not solved yet, and replacing the mechanism needs testing on real hardware first.
 
+Nothing sent over the air wakes a sleeping EndDevice, since its radio is off. All the coordinator can do is queue a unicast at the parent router and hope the lock polls within the 7.68-second window; once one frame gets through, the lock fast-polls and drains the rest, which is what looks like waking. At that level a `read_attributes` is queued exactly like a lock command, so if `lock.lock` works better than a plain read (`read_lock_capabilities` just times out against a sleeping lock), the difference is the retry and extended-timeout envelope ZHA gives its lock entity, not the fact that it writes. That is why `homeassistant.update_entity` on the ZHA lock entity, which goes through the same entity path, is the candidate for a bolt-free wake, with "only wake when the cached state is already locked" as the fallback.
+
 To find the ZHA lock entity, `_wake_lock()` scans the entity registry for an entity where `platform == "zha"`, the `unique_id` contains the device's IEEE address, and the `unique_id` ends with `"257"` (the DoorLock cluster endpoint identifier).
 
 Commands go through `zha.issue_zigbee_cluster_command` instead of touching the cluster directly, so ZHA's service layer handles ZCL framing and transport.

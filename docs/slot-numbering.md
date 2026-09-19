@@ -90,15 +90,15 @@ SLOT_FIRST_USER = 3       # Default for the reserved_slots option
 CONF_RESERVED_SLOTS = "reserved_slots"
 RESERVED_SLOTS_MIN = 1    # Slot 0 stays protected whatever is stored
 RESERVED_SLOTS_MAX = 3
-NUM_USER_SLOTS = 10       # Slots shown in the options flow lists
+NUM_USER_SLOTS = 10       # Slot sensors, and the Set PIN and View lists
 ```
 
 - **Reserved slots setting**: per lock, under Configure > Settings, 1-3 with default 3. `pin_rules.first_user_slot()` reads it and clamps it to 1-3, so slot 0 is never written even if the stored value is wrong. Touch Pro, PRO and Code users keep 3, Code Pro users can set 1.
-- **Write and clear floor**: `set_pin`, `clear_pin` and `clear_slot` refuse slots below the setting, from both the services and the options flow. The coordinator refuses them too, as the last guard for any other caller. The Set PIN list starts at the first user slot, and the Clear PIN list leaves the reserved slots out.
+- **Write and clear floor**: `set_pin`, `clear_pin` and `clear_slot` refuse slots below the setting, from both the services and the options flow. The coordinator refuses them too, as the last guard for any other caller. The Set PIN list in the options flow holds the first ten user slots, while the `set_pin` service takes any slot up to the capacity ceiling. The Clear PIN list holds only user slots with a PIN, and clearing a PIN there keeps the slot's name. The `clear_slot` service clears the PIN and removes the name as well.
 - **Naming**: every slot 0-999 can be named, through `set_name` and the options flow. Names are stored in Home Assistant only. An empty name in the options flow removes it, which is the only way to unname a reserved slot.
 - **View slots**: the reserved slots, marked as master, then the first ten user slots.
-- **set_pin capacity check**: when the lock has reported `NumberOfPINUsersSupported` (50 on both NimlyPRO and NimlyCodePRO), `set_pin` rejects slots at or above it (`pin_rules.py`). Until the attribute has been read (a sleepy lock at setup, or a variant without the attribute), 999 is the ceiling. Whether slots >= 50 actually work on real hardware is still unverified, see the capacity test below.
-- **Sensors**: 10 slot sensors (3-12), showing name and PIN status. They do not follow the setting.
+- **set_pin capacity check**: when the lock has reported `NumberOfPINUsersSupported` (50 on both NimlyPRO and NimlyCodePRO), `set_pin` rejects slots at or above it (`pin_rules.py`). Until the lock has answered the capability read, and on a variant without the attribute, 999 is the ceiling. When the read happens is in [technical.md](technical.md#lock-capabilities). Whether slots >= 50 actually work on real hardware is still unverified, see the capacity test below.
+- **Sensors**: 10 slot sensors, showing name and PIN status. The row follows the setting and starts at the first user slot, so it is 3-12 with the default and 1-10 with the setting at 1. Changing the setting reloads the lock's entry, and sensors for slots that fell out of the row are removed.
 - **Event decoding**: bytes 0-1 of `attrid 0x0100` give the slot number, always in ZCL numbering no matter how the credential was enrolled. Slot 0 counts as the master user when the source is keypad, fingerprint or rfid, and gets the name set on slot 0, or "Master" without one. With source zigbee, auto, unattributed or unknown, slot 0 means no user.
 
 ## Verification plan

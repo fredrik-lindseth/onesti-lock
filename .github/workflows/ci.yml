@@ -6,6 +6,16 @@ on:
   pull_request:
     branches: [ main ]
 
+# Coverage: tests/ and tests_ha on current each upload their own report to
+# Codecov under a flag (unit, ha), and Codecov merges them per commit. The
+# quality scale's 95 % is enforced here, in the coverage job, which combines
+# the raw data from both and fails below it. Codecov is for reading the
+# numbers; it never decides whether CI is green.
+#
+# Actions are pinned to a major tag where one exists, as in the other
+# integrations. setup-uv is the exception: Astral stopped publishing major
+# tags from v8.0.0, so it carries an exact version that is bumped by hand.
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -23,9 +33,18 @@ jobs:
             3.13
             3.14
 
-      - name: Install dependencies
+      # tests/ runs through uv in the unit group, so pytest here is ruff's only.
+      - name: Install ruff
         run: |
-          pip install ruff pytest
+          pip install ruff
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          enable-cache: true
+
+      - name: Set up just
+        uses: extractions/setup-just@v4
 
       - name: Validate manifest
         run: |
@@ -60,9 +79,30 @@ jobs:
           ruff check custom_components/onesti_lock/ tests/ tests_ha/ scripts/
           echo "Ruff linting passed"
 
-      - name: Run tests
-        run: |
-          pytest tests/ -v
+      - name: Run tests with coverage
+        run: just coverage-unit -v
+
+      # The number is useful, but it is not a test. `fail_ci_if_error: false`
+      # covers errors Codecov reports; continue-on-error covers the rest, such
+      # as the action not answering at all.
+      - name: Upload coverage to Codecov
+        continue-on-error: true
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage-unit.xml
+          disable_search: true
+          flags: unit
+          fail_ci_if_error: false
+
+      - name: Keep coverage data for the combined gate
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-data-unit
+          path: .coverage.unit
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Check version consistency
         run: |
@@ -83,6 +123,12 @@ jobs:
         # minimum is the version hacs.json promises. If it fails, fix the
         # compatibility or raise the minimum on purpose, never silently.
         target: [minimum, current]
+        # Coverage is measured on current only; see coverage-ha in the justfile.
+        include:
+          - target: minimum
+            recipe: test-ha minimum
+          - target: current
+            recipe: coverage-ha
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -96,4 +142,51 @@ jobs:
         uses: extractions/setup-just@v4
 
       - name: Run real-HA tests
-        run: just test-ha ${{ matrix.target }}
+        run: just ${{ matrix.recipe }}
+
+      - name: Upload coverage to Codecov
+        if: matrix.target == 'current'
+        continue-on-error: true
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage-ha.xml
+          disable_search: true
+          flags: ha
+          fail_ci_if_error: false
+
+      - name: Keep coverage data for the combined gate
+        if: matrix.target == 'current'
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-data-ha
+          path: .coverage.ha
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
+  coverage:
+    name: Coverage (combined, at least 95 %)
+    needs: [test, test-ha]
+    runs-on: ubuntu-latest
+    steps:
+      # The sources are needed for the missing-lines report.
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          enable-cache: true
+
+      - name: Set up just
+        uses: extractions/setup-just@v4
+
+      - name: Fetch coverage data from both suites
+        uses: actions/download-artifact@v8
+        with:
+          pattern: coverage-data-*
+          merge-multiple: true
+
+      - name: Combine and enforce 95 %
+        run: just coverage-gate

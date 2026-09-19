@@ -15,6 +15,15 @@ description = "Home Assistant integration for Onesti/Nimly smart locks"
 requires-python = ">=3.13.2"
 
 [dependency-groups]
+# tests/ with its homeassistant stubs, the environment `just test-unit` builds.
+# Only pytest and pytest-cov, so it matches what scripts/ci_sim.py simulates.
+# pytest-cov is the release ha-current already pulls in through
+# pytest-homeassistant-custom-component, so both suites write coverage data
+# with the same coverage version and the files combine cleanly.
+unit = [
+    "pytest==9.0.3",
+    "pytest-cov==7.1.0",
+]
 # Real Home Assistant for tests_ha/. tests/ stubs homeassistant in
 # sys.modules and must never share an environment with these groups, so no
 # group is installed by default and each target gets its own venv (see the
@@ -39,13 +48,15 @@ ha-current = [
 # No group is a default: a bare `uv run` must not pull Home Assistant into an
 # environment where tests/ expects its stubs.
 default-groups = []
-# The two groups pin different homeassistant versions and can never share an
-# environment. uv resolves them as separate branches of uv.lock.
+# The two HA groups pin different homeassistant versions and can never share
+# an environment, and unit must never see Home Assistant at all. uv resolves
+# each as a separate branch of uv.lock.
 conflicts = [
-    [{ group = "ha-minimum" }, { group = "ha-current" }],
+    [{ group = "unit" }, { group = "ha-minimum" }, { group = "ha-current" }],
 ]
 
 [tool.uv.dependency-groups]
+unit = { requires-python = ">=3.14.2" }
 ha-minimum = { requires-python = ">=3.13.2,<3.14" }
 ha-current = { requires-python = ">=3.14.2" }
 
@@ -53,6 +64,11 @@ ha-current = { requires-python = ">=3.14.2" }
 testpaths = ["tests"]
 addopts = "-v --tb=short"
 asyncio_mode = "auto"
+
+[tool.coverage.run]
+# Relative paths let the unit and HA data files, written in different
+# environments and CI jobs, combine into one report.
+relative_files = true
 
 [tool.ruff]
 # Lowest runtime Python, so ruff never suggests syntax newer than HA 2025.6 runs.

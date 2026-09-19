@@ -536,8 +536,9 @@ same contract, but only a lock can settle it.
 `scripts/ble_cli.py` runs the library against a real lock from a computer,
 over bleak, one step per command. It is the tool that settles the "Lock only"
 rows in the table below. Run it through `just`, which uses the `unit`
-environment (bleak and `cryptography`); options go before or after the
-command:
+environment, or with `uv run --group ble scripts/ble_cli.py`: the `ble` group
+holds exactly what the library needs at runtime, bleak and `cryptography`,
+and `unit` includes it. Options go before or after the command:
 
 ```bash
 just ble scan

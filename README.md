@@ -11,7 +11,7 @@ On top of that you can manage PIN codes from the HA interface and give every slo
 
 The vendor's own route to the same data is the Nimly Connect app. It needs a Connect Bridge gateway, and every lock event goes through the iotiliti cloud before you can act on it. This integration talks to the lock over the Zigbee network you already run, so events stay on your own hardware and reach automations as they happen. The cloud side is described in [docs/nimly-connect-app/app-architecture.md](docs/nimly-connect-app/app-architecture.md).
 
-Requires ZHA and Home Assistant 2024.12 or newer. Zigbee2MQTT is not supported. It has its own converter for these locks (see [docs/technical.md](docs/technical.md)).
+Requires ZHA and Home Assistant 2025.6 or newer. Zigbee2MQTT is not supported. It has its own converter for these locks (see [docs/technical.md](docs/technical.md)).
 
 ## Supported devices
 

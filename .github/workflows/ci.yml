@@ -13,10 +13,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      # 3.14 is the dev and test Python (the last entry becomes the default).
+      # 3.13 is the lowest Python the integration runs on (HA 2025.6), kept
+      # only to prove the code still compiles there.
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: '3.12'
+          python-version: |
+            3.13
+            3.14
 
       - name: Install dependencies
         run: |
@@ -45,10 +50,10 @@ jobs:
           done
           echo "All required files present"
 
-      - name: Check Python syntax
+      - name: Check Python syntax on the lowest runtime Python
         run: |
-          python -m py_compile custom_components/onesti_lock/*.py
-          echo "Python syntax is valid"
+          python3.13 -m py_compile custom_components/onesti_lock/*.py
+          echo "Python syntax is valid on 3.13"
 
       - name: Lint with Ruff
         run: |

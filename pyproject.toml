@@ -2,7 +2,12 @@
 name = "onesti-lock"
 version = "1.0.0"
 description = "Home Assistant integration for Onesti/Nimly smart locks"
-requires-python = ">=3.12"
+# The floor is the runtime, not the dev toolchain: the integration runs in the
+# user's Home Assistant Python, and HA 2025.6 (the hacs.json minimum) needs
+# 3.13.2. It also bounds the whole of uv.lock, so raising it to the dev Python
+# would drop the ha-minimum branch. Development and CI use the version in
+# .python-version.
+requires-python = ">=3.13.2"
 
 [dependency-groups]
 # Real Home Assistant for tests_ha/. tests/ stubs homeassistant in
@@ -11,10 +16,13 @@ requires-python = ">=3.12"
 # justfile). Each pin is a pytest-homeassistant-custom-component release that
 # itself pins homeassistant exactly.
 #
-# Minimum is the version hacs.json promises: 0.13.190 pins
-# homeassistant==2024.12.0.
+# Minimum is the version hacs.json promises: 0.13.251 pins
+# homeassistant==2025.6.0. tests/test_version_sync.py fails if they drift.
 ha-minimum = [
-    "pytest-homeassistant-custom-component==0.13.190",
+    "pytest-homeassistant-custom-component==0.13.251",
+    # HA 2025.6 pins aiodns==3.4.0 but not pycares, and pycares 5 removed the
+    # API aiodns 3.x calls, so setup dies on an AttributeError without this.
+    "pycares<5",
 ]
 # Current is the newest stable release at the time of pinning. Pinned, never
 # floating: 0.13.366 pins homeassistant==2026.9.3, which needs Python 3.14.
@@ -33,7 +41,7 @@ conflicts = [
 ]
 
 [tool.uv.dependency-groups]
-ha-minimum = { requires-python = ">=3.12,<3.14" }
+ha-minimum = { requires-python = ">=3.13.2,<3.14" }
 ha-current = { requires-python = ">=3.14.2" }
 
 [tool.pytest.ini_options]
@@ -42,7 +50,8 @@ addopts = "-v --tb=short"
 asyncio_mode = "auto"
 
 [tool.ruff]
-target-version = "py312"
+# Lowest runtime Python, so ruff never suggests syntax newer than HA 2025.6 runs.
+target-version = "py313"
 line-length = 120
 
 [tool.ruff.lint]
@@ -50,7 +59,8 @@ select = ["E", "W", "F", "I", "B", "C4", "UP", "SIM"]
 ignore = ["E501"]
 
 [tool.mypy]
-python_version = "3.12"
+# Same reason as ruff's target-version: check against the lowest runtime.
+python_version = "3.13"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false

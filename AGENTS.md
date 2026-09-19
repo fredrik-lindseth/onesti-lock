@@ -123,7 +123,7 @@ only way to catch a stray import before CI does.
 (`conftest.py` explains how). It needs `just` and `uv`:
 
 ```bash
-just test-ha minimum   # HA 2024.12.0, the version hacs.json promises (Python 3.13)
+just test-ha minimum   # HA 2025.6.0, the version hacs.json promises (Python 3.13)
 just test-ha current   # newest pinned HA (Python 3.14)
 ```
 
@@ -133,6 +133,15 @@ trees never share an environment: the stubs in `tests/conftest.py` would
 collide with the real package. To move a target, change the plugin pin in
 `pyproject.toml` (each plugin release pins one exact HA version), run `uv
 lock`, and update `hacs.json` when the minimum moves. CI runs both targets.
+`tests/test_version_sync.py` fails when `hacs.json`, the HA version the
+`ha-minimum` group resolves to in `uv.lock`, and every HA version written out
+in `README.md`, `AGENTS.md`, `justfile` or `pyproject.toml` disagree.
+
+Development and CI run on the newest stable Python (`.python-version`). The
+floor for the integration itself is the lowest Python its minimum HA runs on,
+and `requires-python`, ruff's `target-version` and mypy's `python_version`
+follow that floor, not the dev Python. CI compiles the integration on the
+floor as well.
 
 ### Testing on the real lock
 

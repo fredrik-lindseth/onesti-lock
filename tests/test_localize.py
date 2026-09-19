@@ -6,47 +6,11 @@ stub is enough to import the module without HA installed.
 from __future__ import annotations
 
 import asyncio
-import importlib.util
 import os
-import sys
-import types
 
 import pytest
 
-if "homeassistant" not in sys.modules:
-    _ha = types.ModuleType("homeassistant")
-    _core = types.ModuleType("homeassistant.core")
-    _core.HomeAssistant = object
-    _ha.core = _core
-    sys.modules["homeassistant"] = _ha
-    sys.modules["homeassistant.core"] = _core
-
-
-_COMPONENT_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "custom_components", "onesti_lock"
-)
-_PACKAGE = "onesti_lock_under_test"
-
-
-def _load_localize():
-    """Import localize.py under a stub package.
-
-    The module uses a relative import for DOMAIN, so it needs a parent
-    package. The stub package is never executed, which keeps the real
-    __init__.py (and its homeassistant imports) out of the way.
-    """
-    if _PACKAGE not in sys.modules:
-        package = types.ModuleType(_PACKAGE)
-        package.__path__ = [_COMPONENT_DIR]
-        sys.modules[_PACKAGE] = package
-    name = f"{_PACKAGE}.localize"
-    spec = importlib.util.spec_from_file_location(
-        name, os.path.join(_COMPONENT_DIR, "localize.py")
-    )
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
+from .conftest import load_component_module
 
 
 def _load_const():
@@ -60,7 +24,7 @@ def _load_const():
     return namespace
 
 
-localize = _load_localize()
+localize = load_component_module("localize")
 
 LANGUAGES = ["en", "nb", "sv", "da"]
 
@@ -176,7 +140,7 @@ class TestFormatReservedSlotRow:
     @pytest.mark.parametrize("lang", ["en", "nb", "sv", "da"])
     @pytest.mark.parametrize("slot", [0, 1, 2])
     def test_unnamed_reads_master_once(self, lang, slot):
-        localize = _load_localize()
+        localize = load_component_module("localize")
         strings = localize.load_strings(lang)
         row = localize.format_reserved_slot_row(strings, slot, "")
         label = strings["slot_label"].format(
@@ -189,19 +153,19 @@ class TestFormatReservedSlotRow:
 
     @pytest.mark.parametrize("slot", [0, 1, 2])
     def test_named_gets_master_suffix(self, slot):
-        localize = _load_localize()
+        localize = load_component_module("localize")
         strings = localize.load_strings("en")
         row = localize.format_reserved_slot_row(strings, slot, "Christian")
         assert row == f"Slot {slot}: Christian (master)"
 
     def test_english_rows(self):
-        localize = _load_localize()
+        localize = load_component_module("localize")
         strings = localize.load_strings("en")
         assert localize.format_reserved_slot_row(strings, 0, "") == "Slot 0: Master"
         assert localize.format_reserved_slot_row(strings, 1, "") == "Slot 1: Master"
 
     def test_falls_back_without_strings(self):
-        localize = _load_localize()
+        localize = load_component_module("localize")
         assert localize.format_reserved_slot_row({}, 2, "") == "Slot 2: Master"
         assert (
             localize.format_reserved_slot_row({}, 2, "Kari") == "Slot 2: Kari (master)"

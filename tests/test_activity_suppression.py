@@ -6,50 +6,11 @@ events reach the activity sensor and which only fire the HA event.
 """
 from __future__ import annotations
 
-import importlib.util
-import os
-import sys
-import types
-
 import pytest
 
-if "homeassistant" not in sys.modules:
-    sys.modules["homeassistant"] = types.ModuleType("homeassistant")
-if "homeassistant.core" not in sys.modules:
-    _core = types.ModuleType("homeassistant.core")
-    _core.HomeAssistant = object
-    sys.modules["homeassistant"].core = _core
-    sys.modules["homeassistant.core"] = _core
-if "homeassistant.config_entries" not in sys.modules:
-    _ce = types.ModuleType("homeassistant.config_entries")
-    _ce.ConfigEntry = object
-    sys.modules["homeassistant"].config_entries = _ce
-    sys.modules["homeassistant.config_entries"] = _ce
+from .conftest import load_component_module
 
-_COMPONENT_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "custom_components", "onesti_lock"
-)
-_PACKAGE = "onesti_lock_init_under_test"
-
-
-def _load_init():
-    if _PACKAGE not in sys.modules:
-        package = types.ModuleType(_PACKAGE)
-        package.__path__ = [_COMPONENT_DIR]
-        sys.modules[_PACKAGE] = package
-    name = f"{_PACKAGE}.__init__"
-    if name in sys.modules:
-        return sys.modules[name]
-    spec = importlib.util.spec_from_file_location(
-        name, os.path.join(_COMPONENT_DIR, "__init__.py")
-    )
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-init_mod = _load_init()
+init_mod = load_component_module("__init__")
 
 
 class FakeCluster:

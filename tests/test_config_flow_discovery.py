@@ -12,106 +12,11 @@ the coroutines run under asyncio.run().
 from __future__ import annotations
 
 import asyncio
-import importlib.util
-import os
-import sys
 import types
 
-if "homeassistant" not in sys.modules:
-    sys.modules["homeassistant"] = types.ModuleType("homeassistant")
-if "homeassistant.core" not in sys.modules:
-    _core = types.ModuleType("homeassistant.core")
-    _core.HomeAssistant = object
-    _core.callback = lambda f: f
-    sys.modules["homeassistant"].core = _core
-    sys.modules["homeassistant.core"] = _core
-else:
-    _core = sys.modules["homeassistant.core"]
-    if not hasattr(_core, "callback"):
-        _core.callback = lambda f: f
-if "homeassistant.config_entries" not in sys.modules:
-    _ce = types.ModuleType("homeassistant.config_entries")
-    sys.modules["homeassistant"].config_entries = _ce
-    sys.modules["homeassistant.config_entries"] = _ce
-else:
-    _ce = sys.modules["homeassistant.config_entries"]
+from .conftest import load_component_module
 
-
-class _StubConfigFlow:
-    """Accepts the domain= class kwarg and records form/abort calls."""
-
-    def __init_subclass__(cls, **kwargs):
-        pass
-
-    def async_abort(self, *, reason):
-        return {"type": "abort", "reason": reason}
-
-    def async_show_form(self, *, step_id, data_schema):
-        return {"type": "form", "step_id": step_id, "data_schema": data_schema}
-
-    def async_create_entry(self, *, title, data, options):
-        return {"type": "create_entry", "title": title, "data": data, "options": options}
-
-
-_ce.ConfigEntry = getattr(_ce, "ConfigEntry", object)
-_ce.ConfigFlow = _StubConfigFlow
-_ce.ConfigFlowResult = dict
-_ce.OptionsFlow = object
-
-if "voluptuous" not in sys.modules:
-    _vol = types.ModuleType("voluptuous")
-
-    class _Schema:
-        def __init__(self, schema):
-            self.schema = schema
-
-    class _Marker:
-        def __init__(self, key, **kwargs):
-            self.key = key
-
-        def __hash__(self):
-            return hash(self.key)
-
-        def __eq__(self, other):
-            return isinstance(other, _Marker) and other.key == self.key
-
-    class _In:
-        def __init__(self, container):
-            self.container = container
-
-    _vol.Schema = _Schema
-    _vol.Required = _Marker
-    _vol.Optional = _Marker
-    _vol.In = _In
-    _vol.All = lambda *a: a
-    _vol.Range = lambda **kw: kw
-    _vol.Coerce = lambda t: t
-    sys.modules["voluptuous"] = _vol
-
-_COMPONENT_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "custom_components", "onesti_lock"
-)
-_PACKAGE = "onesti_lock_config_flow_under_test"
-
-
-def _load_config_flow():
-    if _PACKAGE not in sys.modules:
-        package = types.ModuleType(_PACKAGE)
-        package.__path__ = [_COMPONENT_DIR]
-        sys.modules[_PACKAGE] = package
-    name = f"{_PACKAGE}.config_flow"
-    if name in sys.modules:
-        return sys.modules[name]
-    spec = importlib.util.spec_from_file_location(
-        name, os.path.join(_COMPONENT_DIR, "config_flow.py")
-    )
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-config_flow = _load_config_flow()
+config_flow = load_component_module("config_flow")
 
 DOORLOCK_CLUSTER_ID = 0x0101
 

@@ -12,109 +12,14 @@ with asyncio.run().
 from __future__ import annotations
 
 import asyncio
-import importlib.util
-import os
-import sys
-import types
 
 import pytest
+from homeassistant.exceptions import HomeAssistantError
 
+from .conftest import load_component_module
 
-class _StubHomeAssistantError(Exception):
-    """Keeps the translation metadata the handlers attach."""
-
-    def __init__(
-        self,
-        message="",
-        *,
-        translation_domain=None,
-        translation_key=None,
-        translation_placeholders=None,
-    ):
-        super().__init__(message)
-        self.message = message
-        self.translation_domain = translation_domain
-        self.translation_key = translation_key
-        self.translation_placeholders = translation_placeholders or {}
-
-
-def _install_stubs():
-    """Add the homeassistant and voluptuous names services.py imports."""
-    if "homeassistant" not in sys.modules:
-        sys.modules["homeassistant"] = types.ModuleType("homeassistant")
-    ha = sys.modules["homeassistant"]
-
-    if "homeassistant.core" not in sys.modules:
-        core = types.ModuleType("homeassistant.core")
-        sys.modules["homeassistant.core"] = core
-        ha.core = core
-    core = sys.modules["homeassistant.core"]
-    # Other test modules install this stub too, with only the names they
-    # need, so missing attributes are filled in rather than overwritten.
-    if not hasattr(core, "HomeAssistant"):
-        core.HomeAssistant = object
-    if not hasattr(core, "ServiceCall"):
-        core.ServiceCall = object
-
-    if "homeassistant.exceptions" not in sys.modules:
-        exceptions = types.ModuleType("homeassistant.exceptions")
-        sys.modules["homeassistant.exceptions"] = exceptions
-        ha.exceptions = exceptions
-    exceptions = sys.modules["homeassistant.exceptions"]
-    if not hasattr(exceptions, "HomeAssistantError"):
-        exceptions.HomeAssistantError = _StubHomeAssistantError
-
-    if "homeassistant.helpers" not in sys.modules:
-        helpers = types.ModuleType("homeassistant.helpers")
-        helpers.__path__ = []
-        sys.modules["homeassistant.helpers"] = helpers
-        ha.helpers = helpers
-    helpers = sys.modules["homeassistant.helpers"]
-    if "homeassistant.helpers.config_validation" not in sys.modules:
-        cv = types.ModuleType("homeassistant.helpers.config_validation")
-        cv.string = str
-        sys.modules["homeassistant.helpers.config_validation"] = cv
-        helpers.config_validation = cv
-
-    if "voluptuous" not in sys.modules:
-        vol = types.ModuleType("voluptuous")
-        vol.Schema = lambda schema: schema
-        vol.Required = lambda key: key
-        vol.Optional = lambda key: key
-        vol.Coerce = lambda type_: type_
-        sys.modules["voluptuous"] = vol
-
-    return sys.modules["homeassistant.exceptions"].HomeAssistantError
-
-
-HomeAssistantError = _install_stubs()
-
-_COMPONENT_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "custom_components", "onesti_lock"
-)
-_PACKAGE = "onesti_lock_services_under_test"
-
-
-def _load(module_name: str):
-    """Load one component module under a stub package, like test_coordinator_behavior.py does."""
-    if _PACKAGE not in sys.modules:
-        package = types.ModuleType(_PACKAGE)
-        package.__path__ = [_COMPONENT_DIR]
-        sys.modules[_PACKAGE] = package
-    name = f"{_PACKAGE}.{module_name}"
-    if name in sys.modules:
-        return sys.modules[name]
-    spec = importlib.util.spec_from_file_location(
-        name, os.path.join(_COMPONENT_DIR, f"{module_name}.py")
-    )
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-services_mod = _load("services")
-pin_rules = _load("pin_rules")
+services_mod = load_component_module("services")
+pin_rules = load_component_module("pin_rules")
 
 
 class FakeCoordinator:

@@ -8,41 +8,16 @@ executes the handlers themselves under stubs.
 """
 from __future__ import annotations
 
-import importlib.util
 import os
 import re
-import sys
-import types
 
-_COMPONENT_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "custom_components", "onesti_lock"
-)
-_PACKAGE = "onesti_lock_pin_rules_under_test"
+from .conftest import COMPONENT_DIR, load_component_module
 
-
-def _load_pin_rules():
-    """Load pin_rules.py under a stub package so .const resolves."""
-    if _PACKAGE not in sys.modules:
-        package = types.ModuleType(_PACKAGE)
-        package.__path__ = [_COMPONENT_DIR]
-        sys.modules[_PACKAGE] = package
-    name = f"{_PACKAGE}.pin_rules"
-    if name in sys.modules:
-        return sys.modules[name]
-    spec = importlib.util.spec_from_file_location(
-        name, os.path.join(_COMPONENT_DIR, "pin_rules.py")
-    )
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-pin_rules = _load_pin_rules()
+pin_rules = load_component_module("pin_rules")
 
 
 def _services_source() -> str:
-    with open(os.path.join(_COMPONENT_DIR, "services.py")) as f:
+    with open(os.path.join(COMPONENT_DIR, "services.py")) as f:
         return f.read()
 
 

@@ -26,6 +26,7 @@ All notable changes to Onesti Lock. The format is based on [Keep a Changelog](ht
 
 ### Bug fixes
 
+- **Lock activity now works on Home Assistant 2025.6 through 2026.1.** On those releases the Zigbee library has no `on_event` hook, so the integration raised a repair issue at startup and no lock or unlock ever reached the activity sensor or the `onesti_lock_activity` event. It now listens through the older hook those releases do have, and the repair issue is left for a library with neither. Setting and clearing PIN codes was never affected. <!--short-->
 - **Set PIN and Clear PIN in the UI no longer spin forever.** The dialog stayed on the progress spinner after the command finished, in every version since 1.0.1. It now moves on to a result, or back to the form with the error. <!--short-->
 - **Closing the Set PIN dialog early no longer loses the change.** A code that had already reached the lock is now saved even if the dialog was closed while it waited.
 - **Clear PIN code keeps the slot's name** and only lists slots that have a PIN. Use the `clear_slot` service to remove the name as well.

@@ -417,6 +417,37 @@ wheels = [
 ]
 
 [[package]]
+name = "aiousbwatcher"
+version = "1.1.1"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
+]
+dependencies = [
+    { name = "asyncinotify", marker = "python_full_version < '3.14'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/12/f9/e33c468d2f04555552bff81ead9657c3f6067628a9a34b126f2e23e0c81a/aiousbwatcher-1.1.1.tar.gz", hash = "sha256:3a22a47b8dd1ca078bf8fbc3139cd16b7dabb11b901a1a96620246794baf679f", size = 6608, upload-time = "2025-01-28T00:11:18.541Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4f/57/ecaac367aa57683c4ec4d491e52d3d8148145d17cc983335d84fd0947dc6/aiousbwatcher-1.1.1-py3-none-any.whl", hash = "sha256:2eae01c12dd77f5c8873ef597b48f7872257894ec18b19e6dc3960c33e914aec", size = 4944, upload-time = "2025-01-28T00:11:16.201Z" },
+]
+
+[[package]]
+name = "aiousbwatcher"
+version = "1.1.2"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14.2'",
+]
+dependencies = [
+    { name = "asyncinotify", marker = "python_full_version >= '3.14.2'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3a/fc/b358b2ed4115d0c93f44e737191517bc0973f9d101ad20f03f5b6cf77e17/aiousbwatcher-1.1.2.tar.gz", hash = "sha256:908919fed3b5d6b5b0a26f7aea82a5f45c6a6205789dcb39348abc34a4f06ebe", size = 6726, upload-time = "2026-04-21T06:59:13.222Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ee/b3/cff0d63850c759a12924cadaa99ce93df53f997d6a19acf8162139bce071/aiousbwatcher-1.1.2-py3-none-any.whl", hash = "sha256:66399f3e5e65271722a20df19add1a0731875560a1108be1fd632096a20a84cf", size = 5052, upload-time = "2026-04-21T06:59:11.71Z" },
+]
+
+[[package]]
 name = "aiozoneinfo"
 version = "0.2.3"
 source = { registry = "https://pypi.org/simple" }
@@ -548,6 +579,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/a5/ae/136395dfbfe00dfc94da3f3e136d0b13f394cba8f4841120e34226265780/async_timeout-5.0.1.tar.gz", hash = "sha256:d9321a7a3d5a6a5e187e824d2fa0793ce379a202935782d555d6e9d2735677d3", size = 9274, upload-time = "2024-11-06T16:41:39.6Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/fe/ba/e2081de779ca30d473f21f5b30e0e737c438205440784c7dfc81efc2b029/async_timeout-5.0.1-py3-none-any.whl", hash = "sha256:39e3809566ff85354557ec2398b55e096c8364bacac9405a7a1fa429e77fe76c", size = 6233, upload-time = "2024-11-06T16:41:37.9Z" },
+]
+
+[[package]]
+name = "asyncinotify"
+version = "4.4.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/23/90/f04f0a0c2001e43b3b5199ef6c63c117e43e80cdbaab3037b24c57feeef5/asyncinotify-4.4.4.tar.gz", hash = "sha256:a8afc92bec6666807ca50524156fca22655325cba6e2b51d842b8ec0d399c708", size = 20868, upload-time = "2026-04-13T20:32:27.416Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/41/31/0ac34c340f517a06cf944c2b4a518c53addf5663df7c704ee711b5e5c662/asyncinotify-4.4.4-py3-none-any.whl", hash = "sha256:9f4236249d78af4451eb689d0c1ed1f52ab5d44a22c7dd699f3dd34f2c3e01f4", size = 20225, upload-time = "2026-04-13T20:32:26.184Z" },
 ]
 
 [[package]]
@@ -2865,6 +2905,7 @@ ble = [
     { name = "bleak", version = "3.0.2", source = { registry = "https://pypi.org/simple" } },
 ]
 ha-current = [
+    { name = "aiousbwatcher", version = "1.1.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14.2'" },
     { name = "bleak", version = "3.0.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14.2'" },
     { name = "bleak-retry-connector", version = "4.7.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14.2'" },
     { name = "bluetooth-adapters", version = "2.4.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14.2'" },
@@ -2873,9 +2914,11 @@ ha-current = [
     { name = "dbus-fast", version = "5.0.22", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14.2'" },
     { name = "habluetooth", version = "6.26.11", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14.2'" },
     { name = "pytest-homeassistant-custom-component", version = "0.13.366", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14.2'" },
+    { name = "serialx", marker = "python_full_version >= '3.14.2'" },
     { name = "zigpy", version = "2.2.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14.2'" },
 ]
 ha-minimum = [
+    { name = "aiousbwatcher", version = "1.1.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
     { name = "bleak", version = "0.22.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
     { name = "bleak-retry-connector", version = "3.9.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
     { name = "bluetooth-adapters", version = "0.21.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
@@ -2884,6 +2927,7 @@ ha-minimum = [
     { name = "dbus-fast", version = "2.43.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
     { name = "habluetooth", version = "3.49.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
     { name = "pycares", version = "4.11.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
+    { name = "pyserial", marker = "python_full_version < '3.14'" },
     { name = "pytest-homeassistant-custom-component", version = "0.13.251", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
     { name = "zigpy", version = "0.80.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
 ]
@@ -2900,6 +2944,7 @@ unit = [
 [package.metadata.requires-dev]
 ble = [{ name = "bleak", specifier = "==3.0.2" }]
 ha-current = [
+    { name = "aiousbwatcher", marker = "python_full_version >= '3.14.2'", specifier = "==1.1.2" },
     { name = "bleak", marker = "python_full_version >= '3.14.2'", specifier = "==3.0.2" },
     { name = "bleak-retry-connector", marker = "python_full_version >= '3.14.2'", specifier = "==4.7.0" },
     { name = "bluetooth-adapters", marker = "python_full_version >= '3.14.2'", specifier = "==2.4.0" },
@@ -2908,9 +2953,11 @@ ha-current = [
     { name = "dbus-fast", marker = "python_full_version >= '3.14.2'", specifier = "==5.0.22" },
     { name = "habluetooth", marker = "python_full_version >= '3.14.2'", specifier = "==6.26.11" },
     { name = "pytest-homeassistant-custom-component", marker = "python_full_version >= '3.14.2'", specifier = "==0.13.366" },
+    { name = "serialx", marker = "python_full_version >= '3.14.2'", specifier = "==1.10.0" },
     { name = "zigpy", marker = "python_full_version >= '3.14.2'", specifier = "==2.2.0" },
 ]
 ha-minimum = [
+    { name = "aiousbwatcher", marker = "python_full_version >= '3.13.2' and python_full_version < '3.14'", specifier = "==1.1.1" },
     { name = "bleak", marker = "python_full_version >= '3.13.2' and python_full_version < '3.14'", specifier = "==0.22.3" },
     { name = "bleak-retry-connector", marker = "python_full_version >= '3.13.2' and python_full_version < '3.14'", specifier = "==3.9.0" },
     { name = "bluetooth-adapters", marker = "python_full_version >= '3.13.2' and python_full_version < '3.14'", specifier = "==0.21.4" },
@@ -2919,6 +2966,7 @@ ha-minimum = [
     { name = "dbus-fast", marker = "python_full_version >= '3.13.2' and python_full_version < '3.14'", specifier = "==2.43.0" },
     { name = "habluetooth", marker = "python_full_version >= '3.13.2' and python_full_version < '3.14'", specifier = "==3.49.0" },
     { name = "pycares", marker = "python_full_version >= '3.13.2' and python_full_version < '3.14'", specifier = "<5" },
+    { name = "pyserial", marker = "python_full_version >= '3.13.2' and python_full_version < '3.14'", specifier = "==3.5" },
     { name = "pytest-homeassistant-custom-component", marker = "python_full_version >= '3.13.2' and python_full_version < '3.14'", specifier = "==0.13.251" },
     { name = "zigpy", marker = "python_full_version >= '3.13.2' and python_full_version < '3.14'", specifier = "==0.80.1" },
 ]

@@ -19,7 +19,7 @@ two differ in more than case.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import IntEnum
+from enum import Enum, IntEnum
 from typing import Final
 
 # --- Link layer (connections/BleConnection.java, communication/streams/) -----
@@ -221,6 +221,31 @@ class ModelFeatures:
     fingerprint: bool
     keypad_enable: bool
     master_pin: bool
+
+
+class DeviceFeature(Enum):
+    """Whether the app offers an operation on a lock (operations/DeviceFeature.java).
+
+    Every operation in admin/devices/NimlyEkeyDevice.java answers with one of
+    these, and the app runs it only when the answer is available
+    (NimlyEkeyBleExtensionsKt.toSuspend). protocol/features.py holds the
+    rules. The app's sixth value, UnavailableConnection, is never returned by
+    an operation and is left out.
+    """
+
+    AVAILABLE_ALWAYS = "available_always"
+    AVAILABLE = "available"
+    # The model lacks it.
+    UNAVAILABLE = "unavailable"
+    # The firmware is below 4.7.90.
+    UNAVAILABLE_VERSION = "unavailable_version"
+    # The firmware is below 4.7.90, so the model was never asked; used for
+    # the model-dependent operations.
+    UNAVAILABLE_UNKNOWN = "unavailable_unknown"
+
+    @property
+    def available(self) -> bool:
+        return self in (DeviceFeature.AVAILABLE_ALWAYS, DeviceFeature.AVAILABLE)
 
 
 class LockModelId(IntEnum):

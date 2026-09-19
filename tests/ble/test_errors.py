@@ -21,6 +21,7 @@ class TestHierarchy:
             "BleTimeoutError",
             "BleDisconnectedError",
             "BleFirmwareTooOldError",
+            "BleFeatureUnavailableError",
             "BleOperationError",
         ],
     )
@@ -89,6 +90,35 @@ class TestMessages:
         assert str(error) == "Lock firmware 4.6.3 is below the required 4.7.90"
         assert error.firmware == (4, 6, 3)
         assert error.required == (4, 7, 90)
+
+    def test_feature_unavailable_below_the_firmware(self):
+        error = errors.BleFeatureUnavailableError(
+            const.CommandId.PIN_CODE_SET, const.DeviceFeature.UNAVAILABLE_VERSION, (4, 7, 89), None
+        )
+        assert str(error) == (
+            "PIN_CODE_SET (0x52) is not available on this lock (UNAVAILABLE_VERSION): "
+            "the app offers it from firmware 4.7.90, and this lock has 4.7.89"
+        )
+        assert (error.command, error.feature, error.firmware, error.model) == (
+            const.CommandId.PIN_CODE_SET,
+            const.DeviceFeature.UNAVAILABLE_VERSION,
+            (4, 7, 89),
+            None,
+        )
+        assert not isinstance(error, errors.BleOperationError)
+
+    def test_feature_unavailable_on_the_model(self):
+        error = errors.BleFeatureUnavailableError(
+            const.CommandId.FINGERPRINT_SCAN, const.DeviceFeature.UNAVAILABLE, (4, 8, 0), const.LockModelId.NIMLY_CODE
+        )
+        assert str(error) == (
+            "FINGERPRINT_SCAN (0x57) is not available on this lock (UNAVAILABLE): "
+            "the app does not offer it on model NIMLY_CODE (21)"
+        )
+        unread = errors.BleFeatureUnavailableError(
+            const.CommandId.FINGERPRINT_SCAN, const.DeviceFeature.UNAVAILABLE, (4, 8, 0), None
+        )
+        assert str(unread).endswith("on model not read")
 
     @pytest.mark.parametrize("status", FAILURES, ids=lambda s: s.name)
     def test_no_digit_run_a_pin_could_hide_in(self, status):

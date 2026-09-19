@@ -162,10 +162,10 @@ class TestConnect:
             async with new_session(lock.connect(require_login=False)) as session:
                 assert session.model is None
                 assert session.firmware == (4, 7, 89)
-                await session.send(commands.batt_info_get())
+                await session.send(commands.current_time_set(1000))
 
         run(scenario())
-        assert [c.command_id for c in lock.commands] == [CommandId.EXCHANGE_KEY_PUB_M, CommandId.BATT_INFO_GET]
+        assert [c.command_id for c in lock.commands] == [CommandId.EXCHANGE_KEY_PUB_M, CommandId.CURRENT_TIME_SET]
         assert {c.command_ref for c in lock.commands} == {const.COMMAND_REF_STATIC}
 
     def test_firmware_below_the_floor_is_refused(self):
@@ -426,6 +426,67 @@ class TestCommands:
 
         assert run(scenario()).percent == 80
         assert "Ignoring a packet of type ACK" in caplog.text
+
+
+# --- The app's firmware and model gates ---------------------------------------------
+
+
+class TestAppGates:
+    def test_an_admin_command_below_4_7_90_is_refused_before_anything_is_sent(self):
+        lock = FakeLock(firmware=b"4.7.89")
+
+        async def scenario():
+            async with new_session(lock.connect(require_login=False)) as session:
+                assert session.availability(commands.pin_code_set(803, "8832")) is const.DeviceFeature.UNAVAILABLE_VERSION
+                await session.send(commands.pin_code_set(803, "8832"))
+
+        with pytest.raises(errors.BleFeatureUnavailableError) as caught:
+            run(scenario())
+        assert caught.value.feature is const.DeviceFeature.UNAVAILABLE_VERSION
+        assert caught.value.firmware == (4, 7, 89)
+        assert caught.value.model is None
+        assert "8832" not in str(caught.value)
+        assert [c.command_id for c in lock.commands] == [CommandId.EXCHANGE_KEY_PUB_M]
+
+    def test_a_feature_the_model_lacks_is_refused(self):
+        lock = FakeLock(model=const.LockModelId.NIMLY_CODE)
+
+        async def scenario():
+            async with new_session(lock.connect(require_login=False)) as session:
+                await session.request(commands.fingerprint_scan(150), responses.parse_fingerprint_scan)
+
+        with pytest.raises(errors.BleFeatureUnavailableError) as caught:
+            run(scenario())
+        assert caught.value.feature is const.DeviceFeature.UNAVAILABLE
+        assert caught.value.model is const.LockModelId.NIMLY_CODE
+        assert CommandId.FINGERPRINT_SCAN not in [c.command_id for c in lock.commands]
+
+    def test_skip_app_gates_sends_it_anyway_and_says_so(self, caplog):
+        lock = FakeLock(firmware=b"4.7.89")
+
+        async def scenario():
+            async with new_session(lock.connect(require_login=False)) as session:
+                await session.send(commands.pin_code_set(803, "8832"), skip_app_gates=True)
+                return await session.request(commands.batt_info_get(), responses.parse_batt_info, skip_app_gates=True)
+
+        assert run(scenario()).percent == 80
+        assert lock.pins == {803: "8832"}
+        assert "Sending PIN_CODE_SET past the app's gate (UNAVAILABLE_VERSION)" in caplog.text
+        assert "8832" not in caplog.text
+
+    def test_available_commands_log_nothing(self, caplog):
+        async def scenario():
+            async with new_session(open_transport()) as session:
+                assert session.availability(commands.batt_info_get()) is const.DeviceFeature.AVAILABLE
+                await session.send(commands.batt_info_get(), skip_app_gates=True)
+
+        run(scenario())
+        assert "past the app's gate" not in caplog.text
+
+    def test_availability_needs_a_connected_session(self):
+        session = new_session(open_transport())
+        with pytest.raises(errors.BleSessionStateError, match="connect"):
+            session.availability(commands.batt_info_get())
 
 
 # --- Events on CommandRef 128 --------------------------------------------------------

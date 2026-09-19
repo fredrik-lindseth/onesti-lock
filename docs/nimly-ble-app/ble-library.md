@@ -39,6 +39,7 @@ ble/protocol/        the wire format, no crypto and no I/O
   packet.py            Layer 1 packets, packetizing, PacketStream (reassembly)
   blob.py              blob header and reassembly of multi-packet payloads
   command.py           Layer 2 commands, CommandRef counter
+  features.py          the app's firmware and model gates per command
   commands.py          one builder per command, with the app's argument checks
   response.py          Layer 3 responses, status, event ref
   responses.py         one parser per answer, typed dataclasses
@@ -184,11 +185,24 @@ A scan puts the lock in enrollment mode and answers with a `ScanResult`
 (`slot`, and a `LockStatusId` or the raw byte). The timeout is the same 20 s
 the app uses for every command, which has to cover the tag or finger too.
 
-The library does not apply the app's feature gates. The app offers admin
-commands (PIN, RFID, fingerprint, keypad, auto-lock, volume, battery) only
-from firmware 4.7.90, and fingerprint, keypad enable and master PIN only on
-models whose `LockModelId.features` say so. A caller that wants the same
-behaviour checks `session.firmware` and `session.model.features` first.
+`send` applies the app's firmware and model gates before anything goes out.
+The app offers the admin commands (PIN, RFID, fingerprint, keypad, auto-lock,
+volume, battery) only from firmware 4.7.90, and fingerprint, keypad enable and
+master PIN only on models whose `LockModelId.features` say so. A command the
+app would not send raises `BleFeatureUnavailableError`, whose `feature` is the
+app's own answer (`DeviceFeature.UNAVAILABLE_VERSION`, `UNAVAILABLE_UNKNOWN`
+or `UNAVAILABLE`). `session.availability(command)` asks the same question
+without sending, for a caller that wants to offer only what works, as the app
+does. The rules are in `protocol/features.py`, one per operation's `feature()`
+in the app.
+
+To find out what a lock does with a command the app never sends it, pass
+`skip_app_gates=True` to `send` or `request`. The command goes out and the
+log says it went past the gate:
+
+```python
+await session.send(commands.pin_code_set(803, "8832"), skip_app_gates=True)
+```
 
 Lock and unlock, settings and readouts follow the same pattern:
 
@@ -355,6 +369,7 @@ of anything else. Below `BleError` the class says whose fault it is:
 | `BleTimeoutError`        | No answer within the response timeout. Also a `TimeoutError`.                                                       |
 | `BleDisconnectedError`   | The link dropped, or the session is closed                                                                          |
 | `BleFirmwareTooOldError` | Firmware below 4.6.0 on connect; carries `firmware` and `required`                                                  |
+| `BleFeatureUnavailableError` | A command the app would not send to this lock, refused before sending; carries `command`, `feature`, `firmware` and `model` |
 | `BleEnrollmentError`     | Enrollment stopped partway; carries `step` and the partial `enrollment` (in `client/enrollment.py`)                 |
 
 A malformed notification is logged and dropped, as the app drops it. The
@@ -461,6 +476,7 @@ failed. "JDK run" means the app's own classes produced the same bytes.
 | Slot ranges, PIN 4-8 digits, master PIN in slot 0 with the range check off                      | App code                                |
 | CommandRef 16 below firmware 4.7.90, 1-127 counter from it; events under ref 128                 | App code                                |
 | Timing: 20 s timeout, 320 ms between commands                                                   | App code                                |
+| Firmware and model gates per command (`protocol/features.py`)                                   | App code                                |
 | Public key X then Y little endian, private key little endian, ECDH secret reversed              | App code, JDK run                       |
 | Link key and IV are [0:16] and [16:32] of the reversed secret; owner key [0:16] of its own exchange | App code, JDK run                   |
 | One CBC run per message from the link IV, zero padding to whole blocks                          | App code, JDK run                       |

@@ -421,8 +421,9 @@ Minimum firmware, as the app enforces it (app code, `Constants` and the
   server key, device log, ekey users, factory reset) is offered on any
   firmware from 4.6.0.
 
-These are the app's gates. What older firmware does with the commands is
-untested on a lock.
+These are the app's gates, and the library's Session applies the same ones
+(`protocol/features.py`, see [ble-library.md](ble-library.md)). What older
+firmware does with the commands is untested on a lock.
 
 ## BLE API (nimly ekey cloud)
 

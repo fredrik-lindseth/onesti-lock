@@ -13,7 +13,7 @@ import pytest
 from homeassistant.exceptions import HomeAssistantError
 
 from .conftest import load_component_module
-from .test_service_slot_limits import FakeCall, FakeCoordinator, _handlers
+from .test_service_slot_limits import DELIVERED, FakeCall, FakeCoordinator, _handlers
 
 pin_rules = load_component_module("pin_rules")
 
@@ -73,15 +73,15 @@ class _EveryHandlerCoordinator(FakeCoordinator):
 
     async def set_pin(self, slot, name, code):
         self.calls.append(("set_pin", slot))
-        return True
+        return DELIVERED
 
     async def clear_pin(self, slot):
         self.calls.append(("clear_pin", slot))
-        return True
+        return DELIVERED
 
     async def clear_slot(self, slot):
         self.calls.append(("clear_slot", slot))
-        return True
+        return DELIVERED
 
     async def set_slot_name(self, slot, name):
         self.calls.append(("set_name", slot))

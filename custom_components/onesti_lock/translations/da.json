@@ -29,7 +29,7 @@
       },
       "set_pin": {
         "title": "Indstil PIN-kode",
-        "description": "Vælg plads, og indtast navn og PIN-kode. Pladsnumrene er låsens egne brugerpladser (ZCL DoorLock), og listen starter efter masterpladserne, der er angivet under Indstillinger. Låsen bekræfter, at den har modtaget koden, ikke at den har godkendt den, så prøv den nye kode på tastaturet. Sover låsen, får første forsøg timeout, og integrationen vækker den med en låsekommando. Det låser en ulåst dør fysisk, så luk døren, før du starter.",
+        "description": "Vælg plads, og indtast navn og PIN-kode. Pladsnumrene er låsens egne brugerpladser (ZCL DoorLock), og listen starter efter masterpladserne, der er angivet under Indstillinger. Svarer låsen, at den afviste koden, får du en fejlmeddelelse, der siger hvorfor. Hvilke svar Nimly-låsene faktisk sender, er ikke tjekket på en rigtig lås, så en afvist kode kan stadig se ud som sat. Prøv den nye kode på tastaturet. Sover låsen, får første forsøg timeout, og integrationen vækker den med en låsekommando. Det låser en ulåst dør fysisk, så luk døren, før du starter.",
         "data": {
           "slot": "Brugerplads",
           "name": "Navn",
@@ -71,6 +71,9 @@
       "invalid_pin": "PIN-koden skal være {min}-{max} cifre",
       "invalid_slot": "Pladsnummeret skal være mellem 0 og 999",
       "lock_unreachable": "Kunne ikke nå låsen. Tryk på tastaturet og prøv igen.",
+      "lock_rejected": "Låsen afviste kommandoen (status {status}). Tjek plads og kode, og prøv igen.",
+      "lock_rejected_duplicate": "Låsen afviste koden, fordi en anden plads allerede bruger den. Vælg en anden kode.",
+      "lock_rejected_memory_full": "Låsen afviste koden, fordi kodehukommelsen er fuld. Ryd en plads, du ikke længere bruger, og prøv igen.",
       "unknown": "Der opstod en uventet fejl. Tjek logfilerne."
     },
     "abort": {
@@ -90,6 +93,15 @@
   "exceptions": {
     "lock_unreachable": {
       "message": "Kunne ikke nå låsen. Tryk på en knap på låsen for at vække den og prøv igen."
+    },
+    "lock_rejected": {
+      "message": "Låsen afviste kommandoen (status {status}). Tjek plads og kode, og prøv igen."
+    },
+    "lock_rejected_duplicate": {
+      "message": "Låsen afviste koden, fordi en anden plads allerede bruger den. Vælg en anden kode."
+    },
+    "lock_rejected_memory_full": {
+      "message": "Låsen afviste koden, fordi kodehukommelsen er fuld. Ryd en plads, du ikke længere bruger, og prøv igen."
     },
     "invalid_slot": {
       "message": "Pladsen skal være mellem {min} og {max}"

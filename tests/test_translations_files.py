@@ -23,6 +23,9 @@ FILES = [
 LANGUAGE_FILES = FILES[1:]
 EXCEPTION_KEYS = [
     "lock_unreachable",
+    "lock_rejected",
+    "lock_rejected_duplicate",
+    "lock_rejected_memory_full",
     "invalid_slot",
     "invalid_pin",
     "lock_not_found",

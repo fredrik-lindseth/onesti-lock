@@ -5,8 +5,9 @@ code in the source. That misses a renamed attribute or a whole params dict
 handed to a log call. This file guards by value instead. A known PIN goes
 in through the service and the options flow, the real coordinator and the
 real ZhaLockTransport carry it to the lock's zigpy Door Lock cluster, and
-the cluster answers with success, a failure status, the Nimly IndexError,
-a timeout, a failed delivery, or a ValueError that quotes the params.
+the cluster answers with success, a failure status, a duplicate-code
+status, the Nimly IndexError, a timeout, a failed delivery, or a ValueError
+that quotes the params.
 Afterwards the canary must not be found in:
 
 - any log record, from any logger, at DEBUG and up, tracebacks included,
@@ -69,15 +70,17 @@ def _raising(kind: type[BaseException], text: str) -> Callable[[dict], BaseExcep
     return lambda params: kind(text.format(params=params))
 
 
-# What the lock's cluster does with each command, in order. Each message
+# What the lock's cluster does with each command, in order, and the error
+# key the caller gets (None when the PIN was delivered). Each message
 # quotes the params, the worst case for anything that logs it.
-SCENARIOS: dict[str, tuple[list[Callable[[dict], Any]], bool]] = {
-    "success": ([], True),
-    "failure_status": ([lambda params: SimpleNamespace(status=ZclStatus.FAILURE)], False),
-    "index_error": ([_raising(IndexError, "tuple index out of range parsing {params}")], True),
-    "timeout": ([_raising(TimeoutError, "no answer to {params}")] * 2, False),
-    "delivery_error": ([_raising(DeliveryError, "failed to deliver {params}")] * 2, False),
-    "value_error": ([_raising(ValueError, "Invalid params {params}")], False),
+SCENARIOS: dict[str, tuple[list[Callable[[dict], Any]], str | None]] = {
+    "success": ([], None),
+    "failure_status": ([lambda params: SimpleNamespace(status=ZclStatus.FAILURE)], "lock_rejected"),
+    "duplicate_status": ([lambda params: SimpleNamespace(status=3)], "lock_rejected_duplicate"),
+    "index_error": ([_raising(IndexError, "tuple index out of range parsing {params}")], None),
+    "timeout": ([_raising(TimeoutError, "no answer to {params}")] * 2, "lock_unreachable"),
+    "delivery_error": ([_raising(DeliveryError, "failed to deliver {params}")] * 2, "lock_unreachable"),
+    "value_error": ([_raising(ValueError, "Invalid params {params}")], "lock_unreachable"),
 }
 
 
@@ -243,34 +246,32 @@ def _pin_sent(zha_service) -> bool:
 
 @pytest.mark.parametrize("scenario", SCENARIOS)
 async def test_service_set_pin(hass, entry, mock_zha, zha_service, bus_events, caplog, scenario) -> None:
-    effects, delivered = SCENARIOS[scenario]
+    effects, error = SCENARIOS[scenario]
     zha_service.effects[:] = effects
 
     raised = await _service_set_pin(hass, CANARY)
     await _after_the_write(hass, mock_zha)
 
     assert _pin_sent(zha_service)
-    assert (raised is None) is delivered
-    if raised is not None:
-        assert raised.translation_key == "lock_unreachable"
-    assert entry.options["slots"].get(str(SLOT), {}).get("has_pin", False) is delivered
+    assert (raised.translation_key if raised else None) == error
+    assert entry.options["slots"].get(str(SLOT), {}).get("has_pin", False) is (error is None)
     assert_no_canary(hass, entry, caplog, bus_events, raised)
 
 
 @pytest.mark.parametrize("scenario", SCENARIOS)
 async def test_options_flow_set_pin(hass, entry, mock_zha, zha_service, bus_events, caplog, scenario) -> None:
-    effects, delivered = SCENARIOS[scenario]
+    effects, error = SCENARIOS[scenario]
     zha_service.effects[:] = effects
 
     result = await _flow_set_pin(hass, entry, CANARY)
     await _after_the_write(hass, mock_zha)
 
     assert _pin_sent(zha_service)
-    if delivered:
+    if error is None:
         assert result["type"] is FlowResultType.CREATE_ENTRY
     else:
         assert result["type"] is FlowResultType.FORM
-        assert result["errors"] == {"base": "lock_unreachable"}
+        assert result["errors"] == {"base": error}
     assert_no_canary(hass, entry, caplog, bus_events)
 
 

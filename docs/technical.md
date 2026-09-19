@@ -86,13 +86,25 @@ Without the listener nothing reports who unlocked, though PIN writes may still w
 - No manufacturer code. The service only fills one in for manufacturer clusters (0xFC00 and up), and it never passes it on to the cluster call anyway.
 - A `None` answer is success. An exception handed back as the answer is a failure. Otherwise the answer's `status` field decides, if it has one: anything but `SUCCESS` is a failure. The answer is either a Default Response or the command's own response, such as Set PIN Code Response, and both name the field `status`. An answer without one counts as success, as in ZHA.
 
-Where the service raised `ZHAException` for a failure status, `send()` returns `False` with a warning naming the status. The lock answered, so it is awake, and nothing is woken.
+`send()` returns a `SendOutcome` with one of three values of `Delivery`:
+
+| Outcome     | When                                                                                                       | Wake and retry |
+| ----------- | ---------------------------------------------------------------------------------------------------------- | -------------- |
+| `DELIVERED` | The lock answered with no failure status, or the Nimly `IndexError` quirk (below)                         | No             |
+| `REJECTED`  | The lock answered with a status other than `SUCCESS`; the outcome carries the status                     | No             |
+| `UNREACHED` | Timeout or failed delivery after one wake and retry, any other Zigbee error, no cluster, an exception handed back, or any unexpected error | Only for timeout and failed delivery |
+
+Where the service raised `ZHAException` for a failure status, `send()` returns `REJECTED` with a warning naming the status. The lock answered, so it is awake, and nothing is woken. A refusal still counts as a moment the radio is awake, so the coordinator schedules the capability read after it, as after a delivered command.
+
+For Set PIN Code the ZCL Door Lock spec gives the response's status byte four values: 0 success, 1 general failure, 2 memory full, 3 duplicate code. `REJECTED` records 2 as `MEMORY_FULL` and 3 as `DUPLICATE_CODE`, but only from Set PIN Code's own response. A Default Response carries a general ZCL status, where those numbers mean something else, so it is always `OTHER`. The services raise, and the options flow shows, `lock_rejected_memory_full`, `lock_rejected_duplicate` or `lock_rejected` with the status number, instead of the "could not reach the lock" text, which is wrong advice for a lock that answered.
+
+None of these statuses has been seen from a real Onesti lock. Which of them a Nimly lock sends for a duplicate code, a full table or a slot above its capacity, and whether it sends any at all rather than silently storing or dropping the code, is still to be captured on hardware. Until then, the texts for duplicate and memory full rest on the ZCL spec alone.
 
 The service is not used because Home Assistant fires a `call_service` event with the full service data for every service call, and the recorder stores those events. Through the service, every PIN the integration set, from the options flow as well, was written to the recorder database in clear text. `tests_ha/test_pin_canary.py` checks that no `call_service` event carries the code. The same bypass keeps the parameters out of the debug line ZHA's service logs for each command.
 
 `tests_ha/test_zha_contract.py` fails when Home Assistant moves to a zha library release whose `issue_cluster_command` has not been read against `send()`. zha 0.0.59 (HA 2025.6) and 2.2.2 (HA 2026.9) have been.
 
-Not verified on a real lock: that the direct call behaves like the service did against an Onesti lock. The frame on the air should be the same, since both end in the same zigpy call with the same arguments, but no PIN has been set this way on hardware yet. The status check is also new for HA 2025.x: the answer's status was never read there (see below), so a lock that answers a delivered PIN with a failure status now gets `False` where it used to get `True`.
+Not verified on a real lock: that the direct call behaves like the service did against an Onesti lock. The frame on the air should be the same, since both end in the same zigpy call with the same arguments, but no PIN has been set this way on hardware yet. The status check is also new for HA 2025.x: the answer's status was never read there (see below), so a lock that answers a delivered PIN with a failure status now gets `REJECTED` where it used to count as delivered.
 
 ### Nimly response quirk
 
@@ -112,9 +124,9 @@ The config entry is at version 2.2. `async_migrate_entry` takes a 2.1 entry to 2
 
 ### PIN operations
 
-`set_pin`, `clear_pin` and `clear_slot` refuse slots below the first user slot (`_check_writable`), whoever calls them, so slot 0 is never written from HA. They run one at a time per lock under an `asyncio.Lock`, since the options flow and the services can both write, and interleaved sends and saves could leave storage describing the older of two writes. Local state changes only after a command reached the lock: a failed `clear_slot` does not show the slot as vacant while the lock still accepts the old code.
+`set_pin`, `clear_pin` and `clear_slot` refuse slots below the first user slot (`_check_writable`), whoever calls them, so slot 0 is never written from HA. They run one at a time per lock under an `asyncio.Lock`, since the options flow and the services can both write, and interleaved sends and saves could leave storage describing the older of two writes. Each returns the transport's `SendOutcome`, and local state changes only when it is `DELIVERED`: a failed or refused `clear_slot` does not show the slot as vacant while the lock still accepts the old code, and a refused `set_pin` does not mark the slot as having a PIN.
 
-A successful send means the lock took the frame. It does not mean the lock accepted the code, since the Onesti response cannot be parsed (see the quirk above).
+A delivered send means the lock took the frame and reported no failure. Whether that means it stored the code depends on what the lock reports, which is unverified (see Sending commands), so a code that looks set may still be worth trying on the keypad.
 
 In the options flow, a PIN write runs as its own task, and the progress task HA shows only waits for it through `asyncio.shield`. HA cancels the progress task when the dialog closes, and by then the command may have reached the lock, so cancelling it before the save would leave storage describing the old code. The write finishes on its own and logs its outcome, and the flow logs at info level when a dialog closes while a write is running.
 

@@ -31,7 +31,15 @@ class TestOptionsFlowErrorStrings:
 
     def test_error_codes_have_strings(self):
         errors = _load_strings()["options"]["error"]
-        for code in ("invalid_pin", "invalid_slot", "lock_unreachable", "unknown"):
+        for code in (
+            "invalid_pin",
+            "invalid_slot",
+            "lock_unreachable",
+            "lock_rejected",
+            "lock_rejected_duplicate",
+            "lock_rejected_memory_full",
+            "unknown",
+        ):
             assert errors[code].strip()
 
     def test_unknown_error_string_exists(self):

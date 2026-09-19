@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Coroutine, Mapping
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import voluptuous as vol
 from homeassistant.config_entries import (
@@ -29,12 +29,29 @@ from .const import (
 )
 from .localize import async_get_strings, format_reserved_slot_row, format_slot_label
 from .redact import redact_digits
-from .zha import device_metadata, has_door_lock_cluster, is_zha_loaded, iter_device_proxies
+from .zha import (
+    Delivery,
+    SendOutcome,
+    device_metadata,
+    has_door_lock_cluster,
+    is_zha_loaded,
+    iter_device_proxies,
+)
 
 if TYPE_CHECKING:
     from .coordinator import NimlyConfigEntry, NimlyCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class _FormError(NamedTuple):
+    """A failed write as its form shows it: the error key and its placeholders."""
+
+    key: str
+    # {status} for the lock_rejected texts. Given to every form that can
+    # show a write error, since the frontend fills an error's placeholders
+    # from the form's description_placeholders.
+    placeholders: dict[str, str]
 
 
 class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -110,11 +127,11 @@ class NimlyProOptionsFlow(OptionsFlow):
     def __init__(self) -> None:
         super().__init__()
         self._set_pin_input: dict[str, Any] | None = None
-        self._set_pin_task: asyncio.Task[str | None] | None = None
-        self._set_pin_error: str | None = None
+        self._set_pin_task: asyncio.Task[_FormError | None] | None = None
+        self._set_pin_error: _FormError | None = None
         self._clear_pin_input: dict[str, Any] | None = None
-        self._clear_pin_task: asyncio.Task[str | None] | None = None
-        self._clear_pin_error: str | None = None
+        self._clear_pin_task: asyncio.Task[_FormError | None] | None = None
+        self._clear_pin_error: _FormError | None = None
 
     # -- Helpers --
 
@@ -153,8 +170,8 @@ class NimlyProOptionsFlow(OptionsFlow):
         return schema
 
     def _start_write(
-        self, write: Coroutine[Any, Any, str | None]
-    ) -> asyncio.Task[str | None]:
+        self, write: Coroutine[Any, Any, _FormError | None]
+    ) -> asyncio.Task[_FormError | None]:
         """Run a PIN write so that closing the dialog cannot interrupt it.
 
         HA cancels the progress task when the dialog closes. By then the
@@ -165,26 +182,26 @@ class NimlyProOptionsFlow(OptionsFlow):
         """
         write_task = self.hass.async_create_task(write)
 
-        async def wait_for_write() -> str | None:
+        async def wait_for_write() -> _FormError | None:
             return await asyncio.shield(write_task)
 
         return self.hass.async_create_task(wait_for_write())
 
     async def _write(
-        self, action: str, slot: int, write: Coroutine[Any, Any, bool]
-    ) -> str | None:
+        self, action: str, slot: int, write: Coroutine[Any, Any, SendOutcome]
+    ) -> _FormError | None:
         """Await a coordinator write and log how it went.
 
-        Returns the form error code, or None on success. The log line is the
+        Returns the form error, or None on success. The log line is the
         only trace of the outcome once the dialog is gone. It carries the
         slot, never the PIN code.
         """
         entry_id = self.config_entry.entry_id
         try:
-            success = await write
+            outcome = await write
         except TimeoutError:
             _LOGGER.warning("Timeout %s on slot %s for %s", action, slot, entry_id)
-            return "lock_unreachable"
+            return _FormError("lock_unreachable", {})
         except Exception as err:
             # No traceback and a redacted message: the transport promises
             # never to raise, and if it breaks that promise the error may
@@ -197,20 +214,30 @@ class NimlyProOptionsFlow(OptionsFlow):
                 type(err).__name__,
                 redact_digits(err),
             )
-            return "unknown"
-        if not success:
+            return _FormError("unknown", {})
+        key = outcome.error_key
+        if key is None:
+            _LOGGER.debug("Finished %s on slot %s for %s", action, slot, entry_id)
+            return None
+        if outcome.delivery is Delivery.UNREACHED:
             _LOGGER.warning("Lock did not confirm %s on slot %s for %s", action, slot, entry_id)
-            return "lock_unreachable"
-        _LOGGER.debug("Finished %s on slot %s for %s", action, slot, entry_id)
-        return None
+            return _FormError(key, {})
+        _LOGGER.warning(
+            "Lock refused %s on slot %s for %s with status %s",
+            action,
+            slot,
+            entry_id,
+            outcome.status_text,
+        )
+        return _FormError(key, {"status": outcome.status_text})
 
     @staticmethod
-    def _task_error(task: asyncio.Task[str | None]) -> str | None:
-        """The form error code a finished write task left, or None on success."""
+    def _task_error(task: asyncio.Task[_FormError | None]) -> _FormError | None:
+        """The form error a finished write task left, or None on success."""
         if task.cancelled():
             # Only the write itself being cancelled gets here, which happens
             # when HA shuts down under it.
-            return "unknown"
+            return _FormError("unknown", {})
         return task.result()
 
     @callback
@@ -243,12 +270,14 @@ class NimlyProOptionsFlow(OptionsFlow):
         """Set a PIN code: show form, validate, start background task."""
         errors: dict[str, str] = {}
         suggested: dict[str, Any] | None = None
+        error_placeholders: dict[str, str] = {}
 
         # Returning from a failed progress step: show the error with the input
         # preserved. Checked before user_input, since HA can route back here
         # with the submitted input still attached (see async_step_clear_pin).
         if self._set_pin_error:
-            errors["base"] = self._set_pin_error
+            errors["base"] = self._set_pin_error.key
+            error_placeholders = self._set_pin_error.placeholders
             suggested = self._set_pin_input
             self._set_pin_error = None
         elif user_input is not None:
@@ -270,7 +299,10 @@ class NimlyProOptionsFlow(OptionsFlow):
             errors=errors,
             # Always sent, not only with the error: the frontend fills
             # {min}-{max} in invalid_pin from the form's placeholders.
-            description_placeholders=self._pin_length_placeholders(),
+            description_placeholders={
+                **self._pin_length_placeholders(),
+                **error_placeholders,
+            },
         )
 
     async def async_step_set_pin_progress(
@@ -348,8 +380,10 @@ class NimlyProOptionsFlow(OptionsFlow):
         # within the submit itself, HA routes progress_done back here with the
         # submitted input still attached, and it must not start another send.
         suggested: dict[str, Any] | None = None
+        error_placeholders: dict[str, str] = {}
         if self._clear_pin_error:
-            errors["base"] = self._clear_pin_error
+            errors["base"] = self._clear_pin_error.key
+            error_placeholders = self._clear_pin_error.placeholders
             suggested = self._clear_pin_input
             self._clear_pin_error = None
         elif user_input is not None:
@@ -366,6 +400,7 @@ class NimlyProOptionsFlow(OptionsFlow):
             step_id="clear_pin",
             data_schema=schema,
             errors=errors,
+            description_placeholders=error_placeholders,
         )
 
     async def async_step_clear_pin_progress(

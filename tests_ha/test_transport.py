@@ -20,7 +20,7 @@ from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.onesti_lock.const import CONF_IEEE, DOMAIN
-from custom_components.onesti_lock.zha import ZhaLockTransport
+from custom_components.onesti_lock.zha import SEND_DELIVERED, ZhaLockTransport
 from tests_ha.conftest import LOCK_IEEE, FakeDoorLockCluster, lock_cluster, make_lock_proxy
 
 OTHER_IEEE = "00:0d:6f:00:55:66:77:88"
@@ -82,7 +82,7 @@ async def test_timeout_wakes_our_lock_through_the_registries(
     cluster = _scripted_cluster(mock_zha, [TimeoutError(), None])
     transport = ZhaLockTransport(hass, LOCK_IEEE)
 
-    assert await transport.send(0x0007, {"user_id": 5}) is True
+    assert await transport.send(0x0007, {"user_id": 5}) == SEND_DELIVERED
 
     assert lock_service_calls == [lock_entities[LOCK_IEEE]]
     assert len(cluster.commands) == 2
@@ -151,7 +151,7 @@ async def test_command_goes_to_the_cluster_on_its_own_endpoint(hass: HomeAssista
     cluster = FakeDoorLockCluster(endpoint_id=1)
     mock_zha.device_proxies = {LOCK_IEEE: make_lock_proxy(cluster=cluster)}
 
-    assert await ZhaLockTransport(hass, LOCK_IEEE).send(0x0007, {"user_id": 5}) is True
+    assert await ZhaLockTransport(hass, LOCK_IEEE).send(0x0007, {"user_id": 5}) == SEND_DELIVERED
 
     assert cluster.commands == [{"command": 0x0007, "params": {"user_id": 5}}]
 
@@ -161,7 +161,7 @@ async def test_no_zha_service_is_called_and_no_event_carries_the_params(hass: Ho
     hass.bus.async_listen(EVENT_CALL_SERVICE, fired.append)
     params = {"user_id": 5, "user_status": 1, "user_type": 0, "pin_code": "83729164"}
 
-    assert await ZhaLockTransport(hass, LOCK_IEEE).send(0x0005, params) is True
+    assert await ZhaLockTransport(hass, LOCK_IEEE).send(0x0005, params) == SEND_DELIVERED
     await hass.async_block_till_done()
 
     assert lock_cluster(mock_zha).commands == [{"command": 0x0005, "params": params}]
@@ -208,7 +208,7 @@ async def test_capabilities_missed_at_startup_arrive_after_a_command(
     assert "capabilities" not in entry.options
 
     cluster.wake()
-    assert await coordinator.clear_pin(5) is True
+    assert await coordinator.clear_pin(5) == SEND_DELIVERED
     await hass.async_block_till_done(wait_background_tasks=True)
 
     expected = {"num_pin_users": 50, "max_pin_length": 8, "min_pin_length": 4}

@@ -18,7 +18,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Onesti Lock — PIN-administrasjon",
+        "title": "Onesti Lock: PIN-administrasjon",
         "menu_options": {
           "set_pin": "Sett PIN-kode",
           "clear_pin": "Fjern PIN-kode",
@@ -57,7 +57,7 @@
       },
       "settings": {
         "title": "Innstillinger",
-        "description": "Nimly PRO, Touch Pro og Code reserverer slot 0-2 til masterkoder (3). Nimly Code Pro reserverer bare slot 0 (1). Slot 0 kan aldri skrives fra Home Assistant.",
+        "description": "Nimly PRO, Touch Pro og Code bruker slot 0-2 til masterkoder, så velg 3. Nimly Code Pro bruker bare slot 0, så velg 1. Slot 0 skrives aldri fra Home Assistant.",
         "data": {
           "reserved_slots": "Reserverte masterslots"
         }

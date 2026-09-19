@@ -105,6 +105,9 @@
     },
     "multiple_locks": {
       "message": "More than one Onesti lock is set up ({ieees}). Pick the lock with device_id, or give its ieee."
+    },
+    "write_failed": {
+      "message": "Unexpected error writing to slot {slot}. See the log for details."
     }
   },
   "issues": {

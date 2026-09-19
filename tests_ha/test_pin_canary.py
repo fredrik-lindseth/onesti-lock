@@ -321,16 +321,6 @@ async def test_zha_command_event_carries_the_pin(hass, entry, zha_service, bus_e
     assert not any(CANARY in repr(dict(e.data)) for e in zha_events)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Latent: ZhaLockTransport.send never raises, and that contract is the "
-        "only thing keeping the code out. If a write raises anyway, the "
-        "options flow logs the traceback with _LOGGER.exception and the "
-        "service hands the exception to the caller, both with the message "
-        "unredacted."
-    ),
-)
 @pytest.mark.parametrize("path", ["options_flow", "service"])
 async def test_a_transport_that_raises_does_not_leak(hass, entry, zha_service, bus_events, caplog, path) -> None:
     async def send(command: int, params: dict) -> bool:
@@ -342,10 +332,12 @@ async def test_a_transport_that_raises_does_not_leak(hass, entry, zha_service, b
         result = await _flow_set_pin(hass, entry, CANARY)
         assert result["errors"] == {"base": "unknown"}
     else:
-        try:
-            raised = await _service_set_pin(hass, CANARY)
-        except ValueError as err:
-            raised = err
+        raised = await _service_set_pin(hass, CANARY)
         assert raised is not None
+        assert raised.translation_key == "write_failed"
+        assert raised.__cause__ is None and raised.__context__ is None
+    # The failure is still reported, just without the code or a traceback.
+    assert any(r.levelname == "ERROR" and "ValueError" in r.getMessage() for r in caplog.records)
+    assert not any(r.exc_info for r in caplog.records)
 
     assert_no_canary(hass, entry, caplog, bus_events, raised)

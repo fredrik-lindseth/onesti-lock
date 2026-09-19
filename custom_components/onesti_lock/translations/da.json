@@ -105,6 +105,9 @@
     },
     "multiple_locks": {
       "message": "Der er sat mere end én Onesti-lås op ({ieees}). Vælg låsen med device_id, eller angiv ieee."
+    },
+    "write_failed": {
+      "message": "Uventet fejl ved skrivning til plads {slot}. Se loggen for detaljer."
     }
   },
   "issues": {

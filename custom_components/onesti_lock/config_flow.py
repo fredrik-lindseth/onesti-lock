@@ -28,6 +28,7 @@ from .const import (
     SUPPORTED_MODELS,
 )
 from .localize import async_get_strings, format_reserved_slot_row, format_slot_label
+from .redact import redact_digits
 from .zha import device_metadata, has_door_lock_cluster, is_zha_loaded, iter_device_proxies
 
 if TYPE_CHECKING:
@@ -184,8 +185,18 @@ class NimlyProOptionsFlow(OptionsFlow):
         except TimeoutError:
             _LOGGER.warning("Timeout %s on slot %s for %s", action, slot, entry_id)
             return "lock_unreachable"
-        except Exception:
-            _LOGGER.exception("Unexpected error %s on slot %s for %s", action, slot, entry_id)
+        except Exception as err:
+            # No traceback and a redacted message: the transport promises
+            # never to raise, and if it breaks that promise the error may
+            # quote the command params, PIN included.
+            _LOGGER.error(
+                "Unexpected error %s on slot %s for %s: %s: %s",
+                action,
+                slot,
+                entry_id,
+                type(err).__name__,
+                redact_digits(err),
+            )
             return "unknown"
         if not success:
             _LOGGER.warning("Lock did not confirm %s on slot %s for %s", action, slot, entry_id)

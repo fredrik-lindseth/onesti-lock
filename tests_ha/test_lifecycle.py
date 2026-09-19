@@ -1,9 +1,9 @@
 """Entry lifecycle against real Home Assistant.
 
-Migration, the repair issue for missing ZHA internals, the reload when ZHA
-comes back with new zigpy objects, the options update listener, the startup
-capability read and the wake echo through the real event listener. All of
-it runs through Home Assistant's own config entry machinery, issue registry
+Migration, the setup retry for a lock missing from ZHA, the repair issue
+for missing ZHA internals, the reload when ZHA comes back with new zigpy
+objects, the options update listener, the startup capability read and the
+wake echo through the real event listener. All of it runs through Home Assistant's own config entry machinery, issue registry
 and service registry, with ZHA mocked at the gateway proxy (see conftest.py).
 
 Run with `just test-ha minimum` and `just test-ha current`.
@@ -12,6 +12,7 @@ Run with `just test-ha minimum` and `just test-ha current`.
 from __future__ import annotations
 
 import asyncio
+from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -21,7 +22,8 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from homeassistant.util import dt as dt_util
+from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
 from custom_components.onesti_lock.const import CONF_IEEE, CONF_RESERVED_SLOTS, DOMAIN
 from custom_components.onesti_lock.events import ATTR_OPERATION_EVENT
@@ -61,6 +63,25 @@ def _cluster(mock_zha) -> FakeDoorLockCluster:
 
 def _zha_issue(hass: HomeAssistant, entry: MockConfigEntry):
     return ir.async_get(hass).async_get_issue(DOMAIN, f"zha_internals_{entry.entry_id}")
+
+
+class ClusterWithoutOnEvent:
+    """A Door Lock cluster from a zigpy that dropped on_event."""
+
+    endpoint = SimpleNamespace(endpoint_id=11)
+
+    async def read_attributes(self, attributes):
+        return {}, {}
+
+
+def _without_on_event(mock_zha) -> None:
+    mock_zha.device_proxies = {LOCK_IEEE: make_lock_proxy(cluster=ClusterWithoutOnEvent())}
+
+
+async def _retry_setup(hass: HomeAssistant) -> None:
+    """Move time past Home Assistant's longest setup retry backoff."""
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=5))
+    await hass.async_block_till_done(wait_background_tasks=True)
 
 
 async def _report(hass: HomeAssistant, cluster: FakeDoorLockCluster, raw_value: int) -> None:
@@ -125,13 +146,7 @@ async def test_listener_registered_leaves_no_issue(hass: HomeAssistant, mock_zha
 async def test_missing_on_event_raises_a_repair_issue(
     hass: HomeAssistant, mock_zha, caplog: pytest.LogCaptureFixture
 ) -> None:
-    class ClusterWithoutOnEvent:
-        endpoint = SimpleNamespace(endpoint_id=11)
-
-        async def read_attributes(self, attributes):
-            return {}, {}
-
-    mock_zha.device_proxies = {LOCK_IEEE: make_lock_proxy(cluster=ClusterWithoutOnEvent())}
+    _without_on_event(mock_zha)
 
     entry = await _setup(hass)
 
@@ -147,14 +162,73 @@ async def test_missing_on_event_raises_a_repair_issue(
     assert any(r.levelname == "ERROR" and "ZHA internals missing" in r.message for r in caplog.records)
 
 
-async def test_lock_missing_from_zha_names_the_lock(hass: HomeAssistant, mock_zha) -> None:
+async def test_missing_door_lock_cluster_raises_a_repair_issue(hass: HomeAssistant, mock_zha) -> None:
+    """ZHA lists the lock, but the chain walk finds no Door Lock cluster."""
+    lock_proxy = make_lock_proxy()
+    lock_proxy.device.device.endpoints[11].in_clusters.clear()
+    mock_zha.device_proxies = {LOCK_IEEE: lock_proxy}
+
+    entry = await _setup(hass)
+
+    assert entry.state is ConfigEntryState.LOADED
+    issue = _zha_issue(hass, entry)
+    assert issue is not None
+    assert LOCK_IEEE in issue.translation_placeholders["detail"]
+
+
+# -- Lock missing from a running ZHA --
+
+
+async def test_lock_missing_from_zha_retries_setup(
+    hass: HomeAssistant, mock_zha, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A lock removed from ZHA is not a ZHA fault: retry, no repair issue."""
     mock_zha.device_proxies = {}
 
     entry = await _setup(hass)
 
-    issue = _zha_issue(hass, entry)
-    assert issue is not None
-    assert LOCK_IEEE in issue.translation_placeholders["detail"]
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+    assert _zha_issue(hass, entry) is None
+    assert not ir.async_get(hass).issues
+    # The translated message is what Settings shows as the reason.
+    assert entry.reason is not None
+    assert LOCK_IEEE in entry.reason
+    assert "not among ZHA's devices" in entry.reason
+    assert not [
+        r for r in caplog.records if r.levelname == "ERROR" and r.name.startswith("custom_components.onesti_lock")
+    ]
+
+
+async def test_lock_back_in_zha_is_set_up_on_retry(hass: HomeAssistant, mock_zha) -> None:
+    lock_proxy = mock_zha.device_proxies.pop(LOCK_IEEE)
+    entry = await _setup(hass)
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+
+    mock_zha.device_proxies[LOCK_IEEE] = lock_proxy
+    await _retry_setup(hass)
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.runtime_data.listened_cluster is _cluster(mock_zha)
+    assert len(_cluster(mock_zha)._event_listeners["attribute_report"]) == 1
+    assert _zha_issue(hass, entry) is None
+
+
+async def test_lock_ieee_is_matched_without_regard_to_case(hass: HomeAssistant, mock_zha) -> None:
+    mock_zha.device_proxies = {LOCK_IEEE.upper(): mock_zha.device_proxies[LOCK_IEEE]}
+
+    entry = await _setup(hass)
+
+    assert entry.state is ConfigEntryState.LOADED
+
+
+async def test_retry_message_renders_in_every_language(hass: HomeAssistant, mock_zha) -> None:
+    from homeassistant.helpers.translation import async_get_translations
+
+    for language in ("en", "nb", "sv", "da"):
+        strings = await async_get_translations(hass, language, "exceptions", [DOMAIN])
+        message = strings.get(f"component.{DOMAIN}.exceptions.lock_not_in_zha.message")
+        assert message, language
+        assert "{ieee}" in message, language
 
 
 async def test_zha_not_loaded_yet_is_not_an_internals_issue(
@@ -187,7 +261,7 @@ async def test_loaded_zha_without_gateway_names_the_gateway(hass: HomeAssistant,
 
 
 async def test_unload_removes_the_issue(hass: HomeAssistant, mock_zha) -> None:
-    mock_zha.device_proxies = {}
+    _without_on_event(mock_zha)
     entry = await _setup(hass)
     assert _zha_issue(hass, entry) is not None
 
@@ -258,14 +332,15 @@ async def test_zha_reload_with_same_cluster_does_not_reload(
     assert len(_cluster(mock_zha)._event_listeners["attribute_report"]) == 1
 
 
-async def test_zha_coming_up_late_clears_the_issue(
+async def test_zha_coming_back_with_on_event_clears_the_issue(
     hass: HomeAssistant, mock_zha, zha_entry: MockConfigEntry
 ) -> None:
-    lock_proxy = mock_zha.device_proxies.pop(LOCK_IEEE)
+    lock_proxy = mock_zha.device_proxies[LOCK_IEEE]
+    _without_on_event(mock_zha)
     entry = await _setup(hass)
     assert _zha_issue(hass, entry) is not None
 
-    mock_zha.device_proxies[LOCK_IEEE] = lock_proxy
+    mock_zha.device_proxies = {LOCK_IEEE: lock_proxy}
     await _reload_zha(hass, zha_entry)
 
     assert entry.state is ConfigEntryState.LOADED
@@ -296,6 +371,45 @@ async def test_zha_in_setup_retry_then_loaded_starts_the_listener(
     assert entry.runtime_data.capabilities_final
     assert _zha_issue(hass, entry) is None
     assert not [r for r in caplog.records if r.levelname == "ERROR"]
+
+
+async def test_zha_reloaded_without_the_lock_retries_setup(
+    hass: HomeAssistant, mock_zha, zha_entry: MockConfigEntry
+) -> None:
+    """The lock is removed from ZHA while we listen: the watch reloads us into
+    SETUP_RETRY, and the retry sets it up again once the lock is re-paired."""
+    entry = await _setup(hass)
+    lock_proxy = mock_zha.device_proxies.pop(LOCK_IEEE)
+
+    await _reload_zha(hass, zha_entry)
+
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+    assert _zha_issue(hass, entry) is None
+
+    mock_zha.device_proxies[LOCK_IEEE] = lock_proxy
+    await _retry_setup(hass)
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.runtime_data.listened_cluster is _cluster(mock_zha)
+
+
+async def test_zha_starting_late_without_the_lock_retries_setup(
+    hass: HomeAssistant, zha_dependency
+) -> None:
+    """We wait for a ZHA still starting; once it is up without the lock, the
+    reload the watch schedules ends in SETUP_RETRY, not a repair issue."""
+    zha_entry = MockConfigEntry(domain="zha", state=ConfigEntryState.SETUP_RETRY)
+    zha_entry.add_to_hass(hass)
+    hass.data["zha"] = SimpleNamespace(gateway_proxy=None)
+    entry = await _setup(hass)
+    assert entry.state is ConfigEntryState.LOADED
+
+    hass.data["zha"] = SimpleNamespace(gateway_proxy=SimpleNamespace(device_proxies={}))
+    zha_entry.mock_state(hass, ConfigEntryState.LOADED)
+    await hass.async_block_till_done(wait_background_tasks=True)
+
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+    assert _zha_issue(hass, entry) is None
 
 
 async def test_zha_added_again_with_a_new_entry_is_followed(

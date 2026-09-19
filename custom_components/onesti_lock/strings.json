@@ -120,6 +120,9 @@
     },
     "write_failed": {
       "message": "Unexpected error writing to slot {slot}. See the log for details."
+    },
+    "lock_not_in_zha": {
+      "message": "The lock {ieee} is not among ZHA's devices. If it was removed or its Zigbee module replaced, pair it in ZHA again. Setup is retried until the lock is back."
     }
   },
   "issues": {

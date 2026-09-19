@@ -120,6 +120,9 @@
     },
     "write_failed": {
       "message": "Uventet fejl ved skrivning til plads {slot}. Se loggen for detaljer."
+    },
+    "lock_not_in_zha": {
+      "message": "Låsen {ieee} findes ikke blandt enhederne i ZHA. Hvis den er fjernet eller har fået et nyt Zigbee-modul, så par den i ZHA igen. Opsætningen forsøges igen, indtil låsen er tilbage."
     }
   },
   "issues": {

@@ -115,7 +115,7 @@ jobs:
 
       - name: Check Python syntax on the lowest runtime Python
         run: |
-          python3.13 -m py_compile custom_components/onesti_lock/*.py
+          python3.13 -m py_compile custom_components/onesti_lock/*.py custom_components/onesti_lock/ble/*.py
           echo "Python syntax is valid on 3.13"
 
       - name: Lint with Ruff

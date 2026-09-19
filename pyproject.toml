@@ -16,7 +16,8 @@ requires-python = ">=3.13.2"
 
 [dependency-groups]
 # tests/ with its homeassistant stubs, the environment `just test-unit` builds.
-# Only pytest and pytest-cov, so it matches what scripts/ci_sim.py simulates.
+# No Home Assistant, voluptuous or zigpy, which is what scripts/ci_sim.py
+# simulates by blocking them.
 # pytest-cov is the release ha-current already pulls in through
 # pytest-homeassistant-custom-component, so both suites write coverage data
 # with the same coverage version and the files combine cleanly.
@@ -27,6 +28,12 @@ unit = [
     # it those tests skip (pytest.importorskip), and the release flow would
     # have no check that release.yml still attests before it publishes.
     "pyyaml==6.0.3",
+    # The BLE library (custom_components/onesti_lock/ble/crypto.py) does its
+    # ECDH and AES through it. Home Assistant ships cryptography as a core
+    # requirement, so it is not in manifest.json: a pin there could fight the
+    # one HA sets. This is the release HA current pins (2026.9.3); HA 2025.6.0
+    # pins 45.0.1, and crypto.py uses only API both have.
+    "cryptography==48.0.1",
 ]
 # Real Home Assistant for tests_ha/. tests/ stubs homeassistant in
 # sys.modules and must never share an environment with these groups, so no

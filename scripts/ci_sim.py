@@ -1,9 +1,11 @@
 """Run the test suite the way CI sees it.
 
-CI installs only ruff, pytest and pytest-cov, so a test that imports homeassistant,
-voluptuous or zigpy passes locally and fails there. This runs the same ruff
-check as CI, then blocks those modules through an import hook and runs the
-suite, which is the only way to catch a stray import before pushing.
+CI runs tests/ in the uv group `unit`, which has pytest and the few libraries
+the tests need (pyyaml, and cryptography for the BLE library) but no
+homeassistant, voluptuous or zigpy, so a test that imports one of those passes
+locally and fails there. This runs the same ruff check as CI, then blocks
+those modules through an import hook and runs the suite, which is the only
+way to catch a stray import before pushing.
 
     python3 scripts/ci_sim.py
 """

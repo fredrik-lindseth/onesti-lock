@@ -293,7 +293,9 @@ def disconnected(client: BleakClient) -> None:
     if transport is not None:
         transport.client_disconnected(client)
 
-client = await establish_connection(BleakClientWithServiceCache, device, name, disconnected_callback=disconnected)
+client = await establish_connection(
+    bleak_retry_connector.BleakClientWithServiceCache, device, name, disconnected_callback=disconnected
+)
 transport = BleakTransport(client)
 ```
 
@@ -344,7 +346,11 @@ needs nothing extra: Home Assistant routes the connection through it when the
 proxy is the closest adapter, as long as the proxy has active connections
 enabled. A proxy has only a few connection slots, so the session should be
 closed as soon as the work is done. That glue imports Home Assistant, so it
-lives outside `ble/`, in the integration.
+lives outside `ble/`, in the integration's `bluetooth.py`
+([technical.md](../technical.md#reaching-the-lock-over-bluetooth)). Read the
+client class off `bleak_retry_connector` at call time, as above, rather than
+importing it by name: habluetooth replaces it with the wrapper that routes
+through adapters and proxies once Home Assistant's Bluetooth is set up.
 
 ### Tracing frames
 

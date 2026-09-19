@@ -1,7 +1,8 @@
 # Onesti Lock: agent guidelines
 
 Home Assistant custom integration for Onesti/Nimly smart locks via ZHA. It
-tells **who** unlocked the door and **how**, which no other ZHA integration does.
+tells **who** unlocked the door and **how**. ZHA's stock quirk decodes the same attribute
+only into raw numbers.
 
 ## Critical rules
 
@@ -81,7 +82,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 | `docs/technical.md`                             | Integration internals: event decoding, coordinator, auto-wake, sleepy device, community refs  |
 | `docs/zigbee-protocol/zigbee-captures.md`       | Raw ZCL frames and verified protocol values (canonical for attrid 0x0100)                     |
 | `docs/nimly-connect-app/app-architecture.md`    | iotiliti cloud ecosystem, white-label hierarchy, DoorlockTypes, cloud events                  |
-| `docs/nimly-connect-app/reversing-notes.md`     | Nimly Connect APK reverse engineering, REST API, CAS error codes                              |
+| `docs/nimly-connect-app/reversing-notes.md`     | Nimly Connect APK reverse engineering, REST API, white-label hosts                            |
 | `docs/nimly-connect-app/iotiliti-api-spec.yaml` | OpenAPI spec for iotiliti cloud (reverse-engineered)                                          |
 | `docs/nimly-ble-app/ble-protocol.md`            | BLE protocol from decompiled nimly BLE app (not used by integration)                          |
 | `docs/connect-bridge/hardware-gateway.md`       | Connect Bridge hardware, network stack, firmware                                              |

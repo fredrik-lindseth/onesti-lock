@@ -45,7 +45,7 @@ ZCL commands that use slot numbers:
 
 ### BLE ekey protocol
 
-Decompiled from `easyaccess.ekey.app` v1.5.1 (see `docs/nimly-ble-app/ble-protocol.md`):
+Decompiled from `easyaccess.ekey.app` v1.5.2 (see `docs/nimly-ble-app/ble-protocol.md`):
 
 | Slot range | Purpose    | Source                                                      |
 | ---------- | ---------- | ----------------------------------------------------------- |

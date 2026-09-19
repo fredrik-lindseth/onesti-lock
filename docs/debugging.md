@@ -16,7 +16,7 @@ Source: [Nimly Touch Pro Manual](https://nimly.se/wp-content/uploads/2024/09/EN-
 | Repeated frequent beeps on locking | Low battery, replace batteries soon                |
 | White backlit keypad               | Keypad woken (touch), ready for input              |
 
-Three wrong codes in a row disable the keypad for 5 minutes (anti-tamper).
+With the anti-tamper function on (programming sequence `#2`, master code, `#1`), three wrong codes in a row disable the keypad for 5 minutes. The manual does not say whether it is on from the factory.
 
 The camouflage function lets you type false digits before and after the real code, so `21345681#` works when the real code is `3456`.
 
@@ -32,21 +32,23 @@ Set with the master code (programming sequence `#0`):
 
 ### Connect Module LED (E-Life 3.0 / ZMNC010)
 
-| LED    | Pattern    | Meaning                                 |
-| ------ | ---------- | --------------------------------------- |
-| Blue   | slow blink | BLE pairing mode (searching)            |
-| Orange | slow blink | Zigbee pairing mode (searching)         |
-| Orange | fast blink | Reset in progress (hold button ~15 sec) |
-| Blue   | solid      | BLE connected                           |
-| Orange | solid      | Zigbee connected                        |
-| No LED |            | Normal state (paired and sleeping)      |
+The flashing and reset rows come from the Connect Module installation guide. The solid and no-LED rows are not in any manual and have not been checked against a module, so treat them as a guess.
+
+| LED    | Pattern    | Meaning                                        |
+| ------ | ---------- | ---------------------------------------------- |
+| Blue   | flashing   | BLE pairing mode (searching)                   |
+| Orange | flashing   | Zigbee pairing mode (searching)                |
+| Orange | fast blink | Reset in progress (hold button ~15 sec)        |
+| Blue   | solid      | BLE connected (unverified)                     |
+| Orange | solid      | Zigbee connected (unverified)                  |
+| No LED |            | Normal state, paired and sleeping (unverified) |
 
 ### Connect Module reset
 
-1. Hold the reset button on the module for 15 seconds.
-2. Let go when the orange LED blinks rapidly.
+1. Hold the reset button on the module for about 15 seconds.
+2. Let go as soon as the orange LED blinks rapidly.
 3. The module is now reset and ready to pair again.
-4. It goes into pairing mode on its own for 4 minutes after the reset.
+4. Pairing mode lasts four minutes and starts when the module gets power. If it has run out, remove and reinsert the batteries with the inside and outside units connected.
 
 ### Lock factory reset
 
@@ -204,7 +206,7 @@ Event listener registered on DoorLock (events: ['attribute_report'])
 
 `Could not find DoorLock cluster for event listener` means the integration did not find the cluster. Try reloading the integration (Settings → Integrations → Onesti Lock → Reload).
 
-Next, check that attribute reports actually arrive. Turn on debug logging (see section 4) and unlock the door. You should see:
+Next, check that attribute reports actually arrive. Set the integration's logger to `info` or `debug` (see section 4) and unlock the door. You should see:
 
 ```
 Lock event: unlock by Kari via keypad (raw: 0x02020003)
@@ -278,8 +280,10 @@ The raw value is a bitmap32: `0x02020003` → source=0x02 (keypad), action=0x02 
 
 ```
 Timeout on attempt 1 for command 0x0005, waking lock and retrying
-Waking lock via lock.onesti_lock_nimly_pro_...
+Waking lock via lock.onesti_products_as_nimlypro_door_lock
 ```
+
+The entity in the second line is ZHA's lock entity, so its id follows ZHA's naming, not this integration's.
 
 **Failed command:**
 
@@ -308,11 +312,13 @@ ZHA gateway_proxy not found
 
 **Raw attribute report from zigpy (with `zigpy.zcl: debug`):**
 
+zigpy logs every incoming frame twice, first raw (`Received ZCL frame: ...`) and then decoded. The decoded line for an operation event looks like this, with the exact repr depending on the zigpy version:
+
 ```
-[0x...] DoorLock: Received report for attr 0x0100: <bitmap32 value>
+[0x...:11:0x0101] Decoded ZCL frame: DoorLock:Report_Attributes(attribute_reports=[Attribute(attrid=0x0100, ...)])
 ```
 
-If you see reports for `0x0000` (lock state) but not `0x0100` (operation event), the lock has lost its reporting configuration. Try Reconfigure.
+If you see reports with `attrid=0x0000` (lock state) but none with `attrid=0x0100` (operation event), the lock has lost its reporting configuration. Try Reconfigure.
 
 ## 5. Common ZHA issues
 
@@ -328,7 +334,7 @@ If Reconfigure fails repeatedly, follow "Reconfigure in ZHA" in section 1.
 
 - **Put a Zigbee router near the lock.** A smart plug that works as a Zigbee router, 1-3 meters from the door, makes an enormous difference for sleepy devices.
 - **Don't move the coordinator.** The Zigbee network takes time to find new routes after the topology changes.
-- **Keep the firmware updated.** ZHA supports OTA for some devices, but Onesti/Nimly locks have no OTA over Zigbee. The firmware can only be updated from the BLE app.
+- **Do not wait for a Zigbee firmware update.** The module lists the OTA Upgrade cluster, but no image for it exists in the community zigbee-OTA index, so ZHA has nothing to offer. Whether the vendor's BLE app can update the firmware has not been checked.
 - **Keep an eye on the battery.** An automation that warns about low battery lets you avoid the problems that come with a battery change.
 
 ## 6. Cleanup after versions 1.1.0 through 1.2.0

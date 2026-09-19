@@ -2,7 +2,7 @@
 
 ## How user identification works
 
-Onesti locks send a custom attribute report (`attrid 0x0100`) on the Door Lock cluster for every lock and unlock. The value is a bitmap32 holding user slot, action and source, and no existing integration decoded it. This integration listens for the reports with `cluster.on_event("attribute_report", ...)` and decodes the bitmap:
+Onesti locks send a custom attribute report (`attrid 0x0100`) on the Door Lock cluster for every lock and unlock. The value is a bitmap32 holding user slot, action and source. ZHA's stock quirk and the Zigbee2MQTT converter both decode it into raw numbers; this integration is the one that turns it into named users and readable activity. It listens for the reports with `cluster.on_event("attribute_report", ...)` and decodes the bitmap:
 
 ```
 Bits 0-15:  user_slot (uint16 LE; 0 = master or no user, see below)
@@ -66,7 +66,7 @@ User-to-slot mappings are stored in the config entry's options dict (`.storage`)
 
 ### Listener pattern
 
-Sensors (for example the slot overview sensor) register callbacks with `add_listener(callback)`. When slot data changes (a name set, a PIN set or cleared), the coordinator calls `_notify_listeners()`, which runs `async_write_ha_state()` in each sensor.
+The slot sensors register callbacks with `add_listener(callback)`. When slot data changes (a name set, a PIN set or cleared), the coordinator calls `_notify_listeners()`, which runs `async_write_ha_state()` in each sensor.
 
 ### Activity sensor
 
@@ -95,7 +95,7 @@ The wake has a side effect, since it is a real lock command and not a read. An u
 
 Nothing sent over the air wakes a sleeping EndDevice, since its radio is off. All the coordinator can do is queue a unicast at the parent router and hope the lock polls within the 7.68-second window; once one frame gets through, the lock fast-polls and drains the rest, which is what looks like waking. At that level a `read_attributes` is queued exactly like a lock command, so if `lock.lock` works better than a plain read (`read_lock_capabilities` just times out against a sleeping lock), the difference is the retry and extended-timeout envelope ZHA gives its lock entity, not the fact that it writes. That is why `homeassistant.update_entity` on the ZHA lock entity, which goes through the same entity path, is the candidate for a bolt-free wake, with "only wake when the cached state is already locked" as the fallback.
 
-To find the ZHA lock entity, `_wake_lock()` scans the entity registry for an entity where `platform == "zha"`, the `unique_id` contains the device's IEEE address, and the `unique_id` ends with `"257"` (the DoorLock cluster endpoint identifier).
+To find the ZHA lock entity, `_wake_lock()` scans the entity registry for an entity where `platform == "zha"`, the `unique_id` contains the device's IEEE address, and the `unique_id` ends with `"257"` (the Door Lock cluster id 0x0101 in decimal, which ZHA puts last in its `ieee-endpoint-cluster` unique ids).
 
 Commands go through `zha.issue_zigbee_cluster_command` instead of touching the cluster directly, so ZHA's service layer handles ZCL framing and transport.
 
@@ -165,21 +165,21 @@ The unregistered manufacturer code (`0x1234`) points to an OEM module rather tha
 | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | [Keymaster](https://github.com/FutureTense/keymaster)                     | Z-Wave only, no Zigbee support                                                                    |
 | [Lock Code Manager](https://github.com/raman325/lock_code_manager)        | Requires `supported_features` on lock entity. ZHA reports `supported_features: 0` for these locks |
-| [Zigbee Lock Manager](https://github.com/Fiercefish1/Zigbee-Lock-Manager) | Abandoned (last update Sep 2024). No config flow, doesn't handle Onesti response quirk            |
+| [Zigbee Lock Manager](https://github.com/Fiercefish1/Zigbee-Lock-Manager) | Dormant (no commits since January 2025). No config flow, doesn't handle Onesti response quirk     |
 
 ## Comparison with Zigbee2MQTT
 
 Z2M has an `onesti.ts` converter for these locks, and this integration decodes the same Onesti attributes. Where they differ:
 
-| Feature                                           | This integration (ZHA)                                  | Z2M `onesti.ts`                 |
-| ------------------------------------------------- | ------------------------------------------------------- | ------------------------------- |
-| Decode attrid 0x0100 (user/source/action)         | Yes                                                     | Yes                             |
-| Last used PIN code (attrid 0x0101)                | No, removed on purpose (0x0101 is the PIN in plaintext) | Yes, `last_used_pin_code` state |
-| Lock capabilities (max users, min/max PIN length) | Yes, read at setup                                      | Yes                             |
-| Set / clear PIN codes                             | Yes, via HA UI and services                             | Yes, via MQTT                   |
-| Name any slot (for RFID/fingerprint)              | Yes, persisted in HA                                    | No                              |
-| Activity sensor with human-readable messages      | Yes                                                     | No, raw fields only             |
-| HA events for automations                         | Yes, `onesti_lock_activity`                             | Via MQTT events                 |
-| Auto-wake for sleepy device                       | Yes, send lock command before retry                     | No                              |
-| Blueprints included                               | Yes (connectivity, goodnight, notifications)            | No                              |
-| Protocol                                          | ZHA only                                                | Zigbee2MQTT only                |
+| Feature                                           | This integration (ZHA)                                  | Z2M `onesti.ts`                                   |
+| ------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------- |
+| Decode attrid 0x0100 (user/source/action)         | Yes                                                     | Yes                                               |
+| Last used PIN code (attrid 0x0101)                | No, removed on purpose (0x0101 is the PIN in plaintext) | Yes, `last_used_pin_code` state                   |
+| Lock capabilities (max users, min/max PIN length) | Yes, read at setup                                      | Exposed, never populated (see upstream-status.md) |
+| Set / clear PIN codes                             | Yes, via HA UI and services                             | Yes, via MQTT                                     |
+| Name any slot (for RFID/fingerprint)              | Yes, persisted in HA                                    | No                                                |
+| Activity sensor with human-readable messages      | Yes                                                     | No, raw fields only                               |
+| HA events for automations                         | Yes, `onesti_lock_activity`                             | Via MQTT events                                   |
+| Auto-wake for sleepy device                       | Yes, send lock command before retry                     | No                                                |
+| Blueprints included                               | Yes (connectivity, goodnight, notifications)            | No                                                |
+| Protocol                                          | ZHA only                                                | Zigbee2MQTT only                                  |

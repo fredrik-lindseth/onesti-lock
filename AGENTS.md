@@ -65,7 +65,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
    - The per-lock option `reserved_slots` (1-3, default 3, `pin_rules.first_user_slot`) is the floor for set_pin/clear_pin/clear_slot. The coordinator itself enforces it, and slot 0 is never written.
    - Every slot 0-999 can be named.
    - Slot 0 events from keypad/fingerprint/rfid are the master user. From zigbee/auto/unattributed they are no user.
-   - `set_pin` rejects slots at or above the lock's reported `NumberOfPINUsersSupported` (50 on both tested models).
+   - `set_pin` rejects slots at or above the lock's reported `NumberOfPINUsersSupported` (50 on NimlyPRO, read from the lock, and on NimlyCodePRO, from a device interview posted in a Zigbee2MQTT issue).
    - BLE uses 800-899. The UI shows 10 sensors for slots 3-12.
 3. **Options flow progress**: HA's `async_show_progress` needs step `foo_progress` with action `foo_progress`, which then calls `foo_progress_done` → `async_step_foo_result` on its own.
 4. **Activity sensor suppression**: system-initiated locking (source `auto`, and on NimlyCodePRO an `unattributed` lock with no user slot) fires the HA event but does NOT update the activity sensor, so "Kari unlocked with code" is not overwritten by "Auto-lock".

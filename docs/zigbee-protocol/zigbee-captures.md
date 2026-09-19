@@ -136,15 +136,17 @@ Value in seconds. 0 = disabled.
 
 ### PIN commands (0x0005, 0x0006, 0x0007)
 
-The responses to Set PIN Code (0x0005) and Clear PIN Code (0x0007) are
-malformed and crash zigpy's parser with `IndexError` before any payload is
-available. The command is still carried out. Per ZCL, a Set PIN Code Response
-carries one status byte: 0 = success, 1 = general failure, 2 = memory full,
-3 = duplicate code. That byte is exactly the confirmation the integration
-lacks, and it is what the malformed response destroys. No raw 0x0005 response
-has been captured yet. If one shows a parsable status byte, a zigpy quirk that
-reads it is the path to real confirmation, with no extra round trip and no PIN
-on the air.
+The responses to Set PIN Code (0x0005) and Clear PIN Code (0x0007) have
+raised `IndexError` before any payload was available. The command is still
+carried out. The likely source is ZHA reading a second field from a response
+that carries one (see technical.md), not zigpy's parser, and whether the
+error still occurs now that commands go to the zigpy cluster directly is
+untested on hardware. Per ZCL, a Set PIN Code Response carries one status
+byte: 0 = success, 1 = general failure, 2 = memory full, 3 = duplicate code.
+That byte is exactly the confirmation the integration lacks. No raw 0x0005
+response has been captured yet. If one shows a parsable status byte, a zigpy
+quirk that reads it is the path to real confirmation, with no extra round
+trip and no PIN on the air.
 
 Get PIN Code (0x0006) has never been sent to a lock from this project, so
 whether its response parses is unknown. A successful response would contain

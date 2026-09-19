@@ -14,8 +14,9 @@ All notable changes to Onesti Lock. The format is based on [Keep a Changelog](ht
 - **Every slot can be named**, master slots 0-2 included, so the activity sensor can say who used the master code. View user slots now lists the master rows too. (#6) <!--short-->
 - **You are told when the lock refuses a code.** If the lock answers that it refused a PIN, Set PIN and `set_pin` fail with an error that says so, and says why when the lock gives a reason: another slot already uses the code, or the code memory is full. Before, a refusal was reported as the lock being unreachable, or not at all. Which answers Nimly locks send has not been checked on a real lock, so still try a new code on the keypad. <!--short-->
 - **Pick the lock by device in services.** `set_pin`, `clear_pin`, `set_name` and `clear_slot` take a `device_id` with a device picker in the automation editor. `ieee` still works and now ignores case.
-- **Repair issue when lock events cannot be received.** If the integration cannot find the lock in ZHA, or a part of ZHA it depends on, Settings, Repairs says so and names what is missing. Before, activity just stopped arriving. A ZHA that is still starting, for example with a slow Zigbee stick, is waited for instead of reported. <!--short-->
+- **Repair issue when lock events cannot be received.** If a part of ZHA the integration depends on is missing, Settings, Repairs says so and names it. Before, activity just stopped arriving. A lock that is gone from ZHA, removed or moved to a new Connect Module, is not treated as an error: setup waits and retries until the lock is back. A ZHA that is still starting, for example with a slow Zigbee stick, is waited for the same way. <!--short-->
 - **PIN length follows the lock.** Set PIN and `set_pin` check the code against the minimum and maximum length the lock reports, with 4-8 digits until it has reported.
+- **Download diagnostics.** The integration page has a diagnostics download you can attach to a bug report. It leaves out the IEEE address, the slot names and everything about PIN codes.
 
 ### Security
 
@@ -35,6 +36,7 @@ All notable changes to Onesti Lock. The format is based on [Keep a Changelog](ht
 - **Lock events keep arriving after ZHA reloads.** A ZHA reload or re-pair left the integration listening to the old device, and activity stopped without a warning. It now reloads onto the new one.
 - **Commands to a sleeping lock retry in more cases.** A failed delivery now wakes the lock and retries, like a timeout already did. Other Zigbee errors fail at once without moving the bolt.
 - **The lock's slot and PIN limits are actually read.** They were only read at startup, when the lock is usually asleep. The read now repeats while the lock is awake until it answers, and the answer is kept.
+- **A mistake in a service call is no longer logged as an error.** A slot out of range, a PIN of the wrong length or a lock that is not set up fails with a message where the call was made, without a traceback in the log. Errors from the lock itself still reach the log.
 
 ### Breaking changes
 

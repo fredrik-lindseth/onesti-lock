@@ -172,7 +172,7 @@ What to try:
 
 ### IndexError quirk (Nimly response parsing)
 
-PIN commands (`set_pin_code`, `clear_pin_code`) get a malformed ZCL response back, and zigpy's parser crashes on it with `IndexError: tuple index out of range`. The command reached the lock and was carried out. Only the response parsing fails.
+PIN commands (`set_pin_code`, `clear_pin_code`) have raised `IndexError: tuple index out of range` when their response was read. The command reached the lock and was carried out; only reading the answer failed. The likely source is ZHA code reading `response[1]` on a Set PIN Code Response that carries a single field (see [technical.md](technical.md)), not a crash in zigpy's parser, and since commands now go to the zigpy cluster directly the error may not occur at all. That has not been tested on a real lock, so the handling stays.
 
 The integration catches the error, logs it at debug level and treats it as success (`ZhaLockTransport.send()` in `zha.py`):
 

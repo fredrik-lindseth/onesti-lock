@@ -97,6 +97,23 @@ No zigpy release looks like the last row: every version has at least one of the 
 
 Without the listener nothing reports who unlocked, though PIN writes may still work when ZHA itself runs. The issue is deleted when the listener registers and when the entry unloads. What the user does about it is in [debugging.md](debugging.md#repair-issue-lock-events-are-not-being-received).
 
+## Reaching the lock over Bluetooth
+
+`bluetooth.py` is the Bluetooth counterpart of `zha.py`: everything that knows Home Assistant's Bluetooth integration and bleak-retry-connector. The protocol is the `ble/` library ([ble-library.md](nimly-ble-app/ble-library.md)), which may not import Home Assistant, and `ble/client/bleak_transport.py` speaks it over a connected bleak client. Nothing uses `bluetooth.py` yet, and `__init__.py` does not import it: there is no config flow step or coordinator for it, and it has not talked to a lock through Home Assistant.
+
+The manifest depends on `bluetooth_adapters`, as Home Assistant's own Bluetooth integrations do. It depends on `bluetooth` and loads after ESPHome, Shelly and the other integrations that bring remote scanners, so every proxy is known before this entry sets up. There is no `bluetooth` matcher in the manifest, since that would start discovery flows in the UI before any flow can enroll a lock.
+
+`async_open_session()` is the one call a caller needs: it finds the lock, connects, runs the key exchange and hands over a `Session`, and releases the connection when the block ends, however it ends. An ESPHome Bluetooth proxy has only a few connection slots, and a held one blocks other integrations. The steps are also public on their own:
+
+- `async_find_lock()` looks among the connectable advertisements Home Assistant already holds (`async_discovered_service_info`) for 0xFD00 service data that is the enrolled lock with a given device id (`Advertisement.matches`), or without a device id, a factory-reset lock (seed `00 00`). Two factory-reset locks with no address to choose between is an error, since enrolling the wrong one hands over a neighbour's lock. When the lock is not known yet it registers a callback for 0xFD00 and waits `BLE_ADVERTISEMENT_TIMEOUT_S` (30 s). That number is a guess: whether the Connect Module advertises all the time or only after a key press has not been measured.
+- `async_connect()` takes the `BLEDevice` for the best path from `async_ble_device_from_address`, drops stale connections from a crashed run (`close_stale_connections_by_address`), and connects with `establish_connection`, whose `ble_device_callback` fetches a fresh path before each retry. bleak's disconnected callback is relayed to `BleakTransport.client_disconnected()` once the transport exists.
+
+The client class is read off `bleak_retry_connector` at call time, never imported by name. While the Bluetooth integration runs, habluetooth replaces `BleakClientWithServiceCache` in that module with its own wrapper, which is what routes the connection through an adapter or a proxy; a reference taken at import time, before Bluetooth was set up, would connect past Home Assistant's Bluetooth stack.
+
+Every failure is a `BleError` with a message a person can act on: Bluetooth not set up (checked in `hass.config.components`, since the API itself raises a `RuntimeError` from habluetooth then), no adapter or proxy in reach, no free connection slot, or the connect failing or timing out (`BleTimeoutError`).
+
+The two pinned Home Assistant releases run different Bluetooth stacks: bleak 0.22.3, bleak-retry-connector 3.9.0 and habluetooth 3.49.0 on 2025.6, and 3.0.2, 4.7.0 and 6.26.11 on 2026.9. The calls `bluetooth.py` makes have the same shape in both. What differs is outside them: `async_register_callback` gained keyword-only `scan_interval`, `scan_duration` and `replay` arguments, `BluetoothScanningMode` an `AUTO` member, `establish_connection` a `pair` argument, and bleak 1.0 dropped `rssi` from `BLEDevice`. Both releases replay advertisements already seen to a newly registered callback. `tests_ha/test_bluetooth.py` runs the lookup and the connect against the real Bluetooth manager of each, with advertisements injected the way Home Assistant's own tests do.
+
 ## Sending commands
 
 `ZhaLockTransport.send()` calls the command on the lock's zigpy Door Lock cluster directly, `cluster.command(command_id, **params)`, on the cluster `find_door_lock_cluster()` returns. The cluster belongs to its endpoint, so the command goes out from wherever ZHA found it. This is the call ZHA's `issue_zigbee_cluster_command` service ends in (`Device.issue_cluster_command` in the zha library), and `send()` does what that method does around it:

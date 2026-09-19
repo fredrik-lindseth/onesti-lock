@@ -11,8 +11,10 @@ tests use the fake lock in tests/ble/fake_lock.py.
 The app does the same steps in the same order (NimlyEkeyDeviceBase.connect):
 request MTU 23, discover services, read the Software Revision String, enable
 notifications on the communication characteristic, then start the key
-exchange. Session frames every write for MTU 23 whatever the link negotiated,
-since the app never sends anything larger and nothing says the lock takes it.
+exchange. Session frames its writes for MTU 23 unless it is given another mtu,
+and it never learns what the link negotiated: the app never sends anything
+larger, and nothing says the lock takes it. No other value has been tried
+against a lock; the parameter exists so that can be tested.
 """
 from __future__ import annotations
 

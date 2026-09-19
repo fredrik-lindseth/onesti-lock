@@ -128,7 +128,10 @@ class Session:
 
     response_timeout is how long a command waits for its answer (the app's
     20 s). command_delay is the pause after an answer before the next command
-    goes out (320 ms in the app); tests set it to 0. late_answer_grace is how
+    goes out (320 ms in the app); tests set it to 0. mtu is what the
+    packets are cut for, the app's 23 unless a test against a lock tries
+    more; the session does not ask the transport what the link negotiated.
+    late_answer_grace is how
     long the next command holds back after a timeout under the static
     CommandRef (firmware below 4.7.90), which the app does not do; see the
     module docstring. key_pair_factory makes the key pair for the link key

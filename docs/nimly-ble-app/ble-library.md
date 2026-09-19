@@ -240,8 +240,10 @@ when the link is gone; the session lets anything else through unchanged.
 The UUIDs are exported: `SERVICE_UUID`, `COMMUNICATION_CHARACTERISTIC_UUID`,
 `SOFTWARE_REVISION_CHARACTERISTIC_UUID` and `ADVERTISING_UUID`.
 
-The session frames every write for MTU 23, whatever the link negotiated,
-because the app never asks for more and nothing says the lock takes more. The
+The session frames its writes for MTU 23, whatever the link negotiated,
+because the app never asks for more and nothing says the lock takes more.
+`Session(transport, mtu=...)` changes that, for trying a larger MTU against a
+lock; nobody has yet. The
 app writes with the characteristic's default write type, which on Android is
 a write with response when the characteristic allows it. Which properties the
 lock's characteristic has is not recorded, so a transport should use a write

@@ -1,9 +1,13 @@
 """The Onesti/Nimly BLE protocol, in pure Python.
 
-This is the public API, and what a Home Assistant integration or a command
-line tool imports. Nothing in the package imports Home Assistant, and nothing
-reaches outside it. The protocol is described in docs/nimly-ble-app/, and
-every constant was read out of the decompiled Nimly BLE app, not guessed.
+This is the public API. Nothing in the package imports Home Assistant, and
+nothing reaches outside it. The integration imports it as .ble. Anything
+outside Home Assistant, such as a command line tool, cannot import it as
+custom_components.onesti_lock.ble, because that runs the component's own
+__init__.py, which imports Home Assistant. It puts custom_components/onesti_lock
+on sys.path and does import ble instead (docs/nimly-ble-app/ble-library.md).
+The protocol is described in docs/nimly-ble-app/, and every constant was read
+out of the decompiled Nimly BLE app, not guessed.
 
     async with Session(transport) as session:
         enrollment = await enroll(session, name="Door")   # a factory-reset lock

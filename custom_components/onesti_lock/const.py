@@ -27,7 +27,7 @@ MAX_SLOTS = 1000  # ZCL slots 0-999 (per Nimly manual)
 # lowers it per lock.
 SLOT_FIRST_USER = 3
 # Number of user slots to show as sensors in UI
-NUM_USER_SLOTS = 10  # Shows slots 3-12
+NUM_USER_SLOTS = 10  # Sensor row length, starting at the first user slot
 # Known model_id strings from zigbee-herdsman-converters (onesti.ts). This list
 # is informational: it labels the hardware we know about and lets config flow
 # warn about a model string nobody has seen before. It is not a discovery

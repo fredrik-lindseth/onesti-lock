@@ -164,11 +164,17 @@ jobs:
       # fail here, inside the graph the release gate waits for. In the publish
       # step it would fail after the tag had been decided, and the flow would
       # stop with a version that CI had already called green.
+      #
+      # --require-date adds the release-day step that used to live in a
+      # checklist: the section for the manifest version must carry its date and
+      # not say "Unreleased". Only the section for that one version is looked
+      # at, so the version being written above it is untouched. release_publish
+      # runs the same function before it publishes.
       - name: Check the release note for the manifest version
         run: |
           VERSION=$(jq -r '.version' custom_components/onesti_lock/manifest.json)
-          python3 scripts/release_notes.py "$VERSION" --short > /dev/null
-          echo "CHANGELOG.md has a release note for $VERSION"
+          python3 scripts/release_notes.py "$VERSION" --short --require-date > /dev/null
+          echo "CHANGELOG.md has a dated release note for $VERSION"
 
   test-ha:
     name: Real Home Assistant (${{ matrix.target }})

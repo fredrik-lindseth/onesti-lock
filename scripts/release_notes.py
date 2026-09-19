@@ -22,9 +22,16 @@ category headings, and a link to the full changelog. That is the release
 body, which HACS shows in a narrow update panel inside Home Assistant. Both
 cuts come from CHANGELOG.md, so there is still one text to write.
 
+`--require-date` adds the release-day check: the heading of the section must
+carry a date, not `Unreleased`. Putting the date there is the last manual step
+of a release, and a step that is only written down is a step that gets
+forgotten. CI runs the check for the manifest version, and the publish flow
+runs the same function, so the answer is the same in both places.
+
 Usage:
     python3 scripts/release_notes.py 1.4.0
     python3 scripts/release_notes.py 1.4.0 --short
+    python3 scripts/release_notes.py 1.4.0 --short --require-date
     python3 scripts/release_notes.py 1.4.0 --changelog path/to/CHANGELOG.md
 
 Prints to stdout and exits 0. Exits 1 with a message on stderr when the
@@ -40,12 +47,19 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+from datetime import date
 from pathlib import Path
 from urllib.parse import quote
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CHANGELOG = REPO_ROOT / "CHANGELOG.md"
 REPO_URL = "https://github.com/fredrik-lindseth/onesti-lock"
+
+# The version a trial release carries. It ships again and again from a
+# throwaway tag to exercise the publish flow end to end, so its section never
+# gets a real date. Same number as TRIAL_VERSION in release_publish.py, which
+# reads it from here.
+TRIAL_VERSION = "0.0.0"
 
 # The category for steps the user must take after upgrading.
 ACTION = "Action required"
@@ -58,8 +72,13 @@ ACTION = "Action required"
 MARKER_TEXT = "<!--short-->"
 MARKER = re.compile(r"[ \t]*<!--\s*short\s*-->")
 
-# "## [1.3.0] - 2026-08-23" and "## [1.4.0] - Unreleased" are both in use.
-SECTION = re.compile(r"^## \[(?P<version>[^\]]+)\]\s*(?:-\s*\S.*?)?\s*$")
+# "## [1.3.0] - 2026-08-23" and "## [1.4.0] - Unreleased" are both in use. What
+# stands after the dash decides whether the version has shipped, see
+# require_release_date.
+SECTION = re.compile(r"^## \[(?P<version>[^\]]+)\]\s*(?:-\s*(?P<date>\S.*?))?\s*$")
+
+# The date a shipped section carries, the way Keep a Changelog writes it.
+RELEASE_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 # A category heading such as "### Bug fixes".
 CATEGORY = re.compile(r"^### +(?P<name>.+?)\s*$")
@@ -102,6 +121,17 @@ class UnmarkedError(Exception):
     def __init__(self, version: str) -> None:
         super().__init__(f"the section for {version} has no bullet marked with {MARKER_TEXT}")
         self.version = version
+
+
+class UndatedError(Exception):
+    """The section for a version that is shipping still has no release date."""
+
+    def __init__(self, version: str, heading: str, found: str) -> None:
+        says = f"it says {found!r}" if found else "there is nothing after the version"
+        super().__init__(f"the section for {version} has no release date, {says}")
+        self.version = version
+        self.heading = heading
+        self.found = found
 
 
 def find_section(changelog: str, version: str) -> str | None:
@@ -154,6 +184,55 @@ def is_in_progress(changelog: str, version: str) -> bool:
     """
     versions = known_versions(changelog)
     return bool(versions) and versions[0] == version
+
+
+def _heading(changelog: str, version: str) -> re.Match[str] | None:
+    """The `## [version]` heading line, as a match, or None when there is none."""
+    for line in changelog.splitlines():
+        match = SECTION.match(line)
+        if match and match.group("version") == version:
+            return match
+    return None
+
+
+def section_date(changelog: str, version: str) -> str | None:
+    """What the heading says after the dash: a date, "Unreleased" or nothing.
+
+    None when the version has no section, or when the heading is the version
+    alone.
+    """
+    match = _heading(changelog, version)
+    if match is None:
+        return None
+    found = (match.group("date") or "").strip()
+    return found or None
+
+
+def require_release_date(changelog: str, version: str) -> None:
+    """The section for a version that is shipping has to carry its date.
+
+    Writing the date into the heading is the last manual step of a release, and
+    a section that still says "Unreleased" after the version is out tells every
+    reader that the version was never finished. So the check runs in CI and in
+    the publish flow rather than living in a checklist.
+
+    The rule only looks at the section for this one version. Sections below it
+    are history, and the one above it is the next version being written, which
+    is supposed to say "Unreleased".
+
+    A missing section is not this function's business: build_body answers None
+    for that, with its own message. TRIAL_VERSION is exempt, since the trial
+    release ships the same throwaway section over and over.
+    """
+    if version == TRIAL_VERSION:
+        return
+    match = _heading(changelog, version)
+    if match is None:
+        return
+    found = (match.group("date") or "").strip()
+    if RELEASE_DATE.match(found):
+        return
+    raise UndatedError(version, match.group(0).strip(), found)
 
 
 def _absolute_url(target: str, tag: str, repo_root: Path, repo_url: str, dead: list[str]) -> str:
@@ -430,6 +509,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="only the lead, Action required and the marked bullets, plus a changelog link",
     )
+    parser.add_argument(
+        "--require-date",
+        action="store_true",
+        help="also fail when the section heading still says Unreleased (the release-day check)",
+    )
     args = parser.parse_args(argv)
 
     version = args.version.removeprefix("v")
@@ -441,6 +525,21 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     strict = is_in_progress(changelog, version)
+
+    if args.require_date:
+        try:
+            require_release_date(changelog, version)
+        except UndatedError as err:
+            print(
+                f"The heading '{err.heading}' in {args.changelog} has no release date.\n"
+                f"Version {err.version} is the one being released, so write the date it goes\n"
+                f"out into the heading:\n"
+                f"  ## [{err.version}] - {date.today().isoformat()}\n"
+                "A published version whose section says Unreleased tells every reader that it\n"
+                f"was never finished. Only version {TRIAL_VERSION}, the trial release, ships undated.",
+                file=sys.stderr,
+            )
+            return 1
 
     try:
         if args.short:

@@ -62,6 +62,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+# The CHANGELOG rules live next door, and the release body is built from them.
+# Imported rather than run as a subprocess, so the failures come out as
+# exceptions with text we can pass on.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import release_notes  # noqa: E402
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 COMPONENT = "custom_components/onesti_lock"
 ASSET_NAME = "onesti_lock.zip"
@@ -82,8 +89,10 @@ SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
 
 # The version a trial run must carry. The way around the main-branch guard is
-# tied to this number, see require_main_branch.
-TRIAL_VERSION = "0.0.0"
+# tied to this number, see require_main_branch. It is also the one version
+# allowed to ship with an undated CHANGELOG section, so the number is kept in
+# one place.
+TRIAL_VERSION = release_notes.TRIAL_VERSION
 
 # The first version this flow ships. Below it, HACS installed from the tag's
 # source tree, and the ZIPs that hang on those releases were packed by hand from
@@ -458,18 +467,28 @@ def download_asset(gh: Gh, candidate: Candidate, asset: dict[str, Any], target: 
 def release_note(version: str, repo_root: Path) -> str:
     """The short CHANGELOG note, through scripts/release_notes.py.
 
-    Imported rather than run as a subprocess, so the failures come out as
-    exceptions with text we can pass on.
-
     The short cut is what users actually read: HACS shows the release body in a
     narrow panel inside Home Assistant, and a section of forty bullets gets
     scrolled past. The whole section stays in CHANGELOG.md, which the note
     links to.
-    """
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    import release_notes
 
+    The date check runs here too, and not only in CI. `publish` is re-run and
+    dispatched by hand, and then nothing else stands between a section that
+    still says "Unreleased" and a release page telling every user that the
+    version was never finished.
+    """
     changelog = (repo_root / "CHANGELOG.md").read_text(encoding="utf-8")
+
+    try:
+        release_notes.require_release_date(changelog, version)
+    except release_notes.UndatedError as err:
+        raise Failure(
+            f"{err}.\n"
+            f"Put the release date in CHANGELOG.md before {version} ships: "
+            f"'## [{version}] - YYYY-MM-DD'.\n"
+            f"Only version {TRIAL_VERSION}, the trial release, ships with an undated section."
+        ) from err
+
     try:
         body = release_notes.build_short_body(
             changelog,

@@ -92,6 +92,46 @@ class TestFindSection:
         assert release_notes.previous_version(FAKE_CHANGELOG, "1.8.0") is None
 
 
+class TestReleaseDate:
+    """The release-day check: the section for the shipping version is dated."""
+
+    def test_the_date_is_read_off_the_heading(self):
+        assert release_notes.section_date(FAKE_CHANGELOG, "2.0.0") == "2026-02-01"
+        assert release_notes.section_date(FAKE_CHANGELOG, "2.1.0") == "Unreleased"
+        assert release_notes.section_date(FAKE_CHANGELOG, "1.9.0") is None
+        assert release_notes.section_date(FAKE_CHANGELOG, "0.0.1") is None
+
+    def test_a_dated_section_passes(self):
+        release_notes.require_release_date(FAKE_CHANGELOG, "2.0.0")
+
+    def test_unreleased_fails_and_names_the_heading(self):
+        with pytest.raises(release_notes.UndatedError) as err:
+            release_notes.require_release_date(FAKE_CHANGELOG, "2.1.0")
+        assert err.value.version == "2.1.0"
+        assert err.value.heading == "## [2.1.0] - Unreleased"
+        assert err.value.found == "Unreleased"
+
+    @pytest.mark.parametrize("heading", ["## [3.0.0]", "## [3.0.0] - TBD", "## [3.0.0] - 2026-13"])
+    def test_a_heading_without_a_real_date_fails_too(self, heading):
+        """Deleting the word Unreleased is not the same as dating the section."""
+        with pytest.raises(release_notes.UndatedError):
+            release_notes.require_release_date(f"{heading}\n\n- A fix\n", "3.0.0")
+
+    def test_the_trial_version_may_stay_unreleased(self):
+        """0.0.0 ships again and again from a throwaway tag and never gets a date."""
+        changelog = f"## [{release_notes.TRIAL_VERSION}] - Unreleased\n\n- A trial\n"
+        release_notes.require_release_date(changelog, release_notes.TRIAL_VERSION)
+
+    def test_the_version_being_written_above_does_not_count(self):
+        """2.1.0 says Unreleased, and 2.0.0 shipping is not blocked by that."""
+        assert release_notes.section_date(FAKE_CHANGELOG, "2.1.0") == "Unreleased"
+        release_notes.require_release_date(FAKE_CHANGELOG, "2.0.0")
+
+    def test_a_missing_section_is_not_this_rule_to_report(self):
+        """build_body answers None for that, with a message that lists what is there."""
+        release_notes.require_release_date(FAKE_CHANGELOG, "7.7.7")
+
+
 class TestAbsolutizeLinks:
     def _repo(self, tmp_path: Path) -> Path:
         (tmp_path / "docs").mkdir()
@@ -262,6 +302,33 @@ class TestCli:
         assert "3.0.0" in err
         assert "<!--short-->" in err
 
+    def test_require_date_accepts_a_dated_section(self, tmp_path, capsys):
+        args = self._repo(tmp_path, "## [3.0.0] - 2026-05-05\n\n### Bug fixes\n\n- A fix <!--short-->\n")
+        assert release_notes.main(["3.0.0", "--short", "--require-date", *args]) == 0
+        assert "A fix" in capsys.readouterr().out
+
+    def test_require_date_fails_on_unreleased_and_says_what_to_write(self, tmp_path, capsys):
+        args = self._repo(tmp_path, "## [3.0.0] - Unreleased\n\n### Bug fixes\n\n- A fix <!--short-->\n")
+        assert release_notes.main(["3.0.0", "--short", "--require-date", *args]) == 1
+        err = capsys.readouterr().err
+        assert "## [3.0.0] - Unreleased" in err
+        assert "## [3.0.0] - " in err.split("heading:")[-1], "the message has to show the fix"
+        assert release_notes.TRIAL_VERSION in err, "the one exception belongs in the message"
+
+    def test_require_date_lets_the_trial_version_through(self, tmp_path, capsys):
+        changelog = (
+            f"## [{release_notes.TRIAL_VERSION}] - Unreleased\n\n### Features\n\n- A trial <!--short-->\n"
+        )
+        args = self._repo(tmp_path, changelog)
+        assert release_notes.main([release_notes.TRIAL_VERSION, "--short", "--require-date", *args]) == 0
+        assert "A trial" in capsys.readouterr().out
+
+    def test_without_the_flag_an_unreleased_section_still_prints(self, tmp_path, capsys):
+        """Printing the note for the version being written is a normal thing to do."""
+        args = self._repo(tmp_path, "## [3.0.0] - Unreleased\n\n### Bug fixes\n\n- A fix <!--short-->\n")
+        assert release_notes.main(["3.0.0", "--short", *args]) == 0
+        assert "A fix" in capsys.readouterr().out
+
     def test_short_for_shipped_history_gives_the_whole_section(self, tmp_path, capsys):
         args = self._repo(
             tmp_path,
@@ -293,6 +360,13 @@ class TestRealChangelog:
             (REPO_ROOT / "custom_components" / "onesti_lock" / "manifest.json").read_text(encoding="utf-8")
         )
         assert manifest["version"] in release_notes.known_versions(self._changelog())
+
+    def test_the_manifest_version_has_a_dated_section(self):
+        """The release-day step CI checks: the shipping version is not Unreleased."""
+        manifest = json.loads(
+            (REPO_ROOT / "custom_components" / "onesti_lock" / "manifest.json").read_text(encoding="utf-8")
+        )
+        release_notes.require_release_date(self._changelog(), manifest["version"])
 
     def test_markers_go_at_the_end_of_a_line(self):
         """At the start of a bullet, GitHub can render the rest as raw text."""

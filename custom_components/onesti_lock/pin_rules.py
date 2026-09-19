@@ -28,8 +28,10 @@ def first_user_slot(options: Mapping[str, object] | None) -> int:
 
     The value is clamped to [RESERVED_SLOTS_MIN, RESERVED_SLOTS_MAX] so
     slot 0 stays protected whatever is stored. A missing or non-numeric
-    value falls back to SLOT_FIRST_USER, the conservative default. HA's
-    number selector stores floats, so integral floats are accepted.
+    value falls back to SLOT_FIRST_USER, the conservative default. The
+    settings step stores an int, but options can also be edited by hand in
+    .storage or come from an older save, so an integral float such as 1.0
+    is read as its int rather than thrown away.
     """
     value = (options or {}).get(CONF_RESERVED_SLOTS)
     if isinstance(value, bool):

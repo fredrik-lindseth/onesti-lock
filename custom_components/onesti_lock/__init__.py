@@ -11,16 +11,17 @@ from homeassistant.config_entries import (
     ConfigEntryState,
 )
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.typing import ConfigType
 
 from . import pin_rules
-from .const import DEFAULT_SLOT, DOMAIN, ZHA_DOMAIN
+from .const import CONF_IEEE, DEFAULT_SLOT, DOMAIN, ZHA_DOMAIN
 from .coordinator import NimlyConfigEntry, NimlyCoordinator
 from .events import ZhaInternalsMissing, register_event_listener
 from .localize import async_get_strings
-from .zha import is_zha_loaded
+from .zha import is_zha_loaded, iter_device_proxies
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -65,7 +66,22 @@ async def async_migrate_entry(hass: HomeAssistant, entry: NimlyConfigEntry) -> b
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: NimlyConfigEntry) -> bool:
-    """Set up Onesti Lock from a config entry."""
+    """Set up Onesti Lock from a config entry.
+
+    Raises ConfigEntryNotReady when ZHA is running without this lock, so
+    Home Assistant retries with backoff until the lock is back in ZHA.
+    """
+    ieee: str = entry.data[CONF_IEEE]
+    if is_zha_loaded(hass) and not _lock_in_zha(hass, ieee):
+        # Removed from ZHA, or replaced by a Connect Module with a new
+        # IEEE. Nothing in ZHA is broken, so this is not a repair issue.
+        # Raised before the platforms are forwarded, as HA requires.
+        raise ConfigEntryNotReady(
+            translation_domain=DOMAIN,
+            translation_key="lock_not_in_zha",
+            translation_placeholders={"ieee": ieee},
+        )
+
     coordinator = NimlyCoordinator(hass, entry)
     coordinator.strings = await async_get_strings(hass, hass.config.language)
     entry.runtime_data = coordinator
@@ -101,6 +117,15 @@ async def async_unload_entry(hass: HomeAssistant, entry: NimlyConfigEntry) -> bo
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
+def _lock_in_zha(hass: HomeAssistant, ieee: str) -> bool:
+    """Whether ZHA knows a device with this IEEE, cluster or not.
+
+    A device without the Door Lock cluster still counts: that is ZHA's
+    object layout changing under us, which the repair issue reports.
+    """
+    return any(str(dev_ieee).lower() == ieee.lower() for dev_ieee, _ in iter_device_proxies(hass))
+
+
 def _zha_entry_loaded(hass: HomeAssistant) -> bool:
     return any(
         zha_entry.state is ConfigEntryState.LOADED
@@ -118,10 +143,11 @@ def _start_event_listener(
 ) -> None:
     """Register the lock event listener, or raise a repair issue saying why not.
 
-    Only called while ZHA is running, so a missing piece here means ZHA's
-    internals changed. Without the listener the integration still sets PINs
-    but never sees who unlocked, so the failure is an error and a repair
-    issue, not a debug line.
+    Only called while ZHA is running and, when its gateway answers, lists
+    the lock, so a missing piece here means ZHA's internals changed.
+    Without the listener the integration still sets PINs but never sees
+    who unlocked, so the failure is an error and a repair issue, not a
+    debug line.
     """
     issue_id = _zha_issue_id(entry)
     try:
@@ -160,8 +186,13 @@ def _watch_zha_entries(
     stay on the old cluster and lock events would stop arriving without a
     word, so a ZHA entry reaching LOADED with another cluster reloads this
     entry onto it. So does ZHA reaching LOADED while nothing is listened to
-    (ZHA was still starting, or the lock was missing), and that setup either
-    registers the listener or raises the repair issue.
+    (ZHA was still starting, or its internals were missing), and that setup
+    registers the listener, raises the repair issue, or goes into
+    SETUP_RETRY when the lock is not among ZHA's devices.
+
+    A lock missing from ZHA never reaches this watch: that setup raised
+    ConfigEntryNotReady before it, and Home Assistant's own retry picks the
+    lock up once ZHA lists it again.
 
     ZHA entries added while this entry is loaded are watched too, so a ZHA
     that is removed and added again is still followed.

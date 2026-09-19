@@ -52,7 +52,7 @@ jobs:
 
       - name: Lint with Ruff
         run: |
-          ruff check custom_components/onesti_lock/ tests/ scripts/
+          ruff check custom_components/onesti_lock/ tests/ tests_ha/ scripts/
           echo "Ruff linting passed"
 
       - name: Run tests
@@ -68,3 +68,27 @@ jobs:
             exit 1
           fi
           echo "Version format is valid"
+
+  test-ha:
+    name: Real Home Assistant (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # minimum is the version hacs.json promises. If it fails, fix the
+        # compatibility or raise the minimum on purpose, never silently.
+        target: [minimum, current]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          enable-cache: true
+
+      - name: Set up just
+        uses: extractions/setup-just@v4
+
+      - name: Run real-HA tests
+        run: just test-ha ${{ matrix.target }}

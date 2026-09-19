@@ -108,11 +108,29 @@ pytest tests/ -v -k event   # Run event-related tests
 ```
 
 Tests mock ZHA entirely, so no hardware is needed. Home Assistant is not
-installed here, and CI installs only `ruff` and `pytest`, so no test may import
-`homeassistant` or `voluptuous` without stubbing them.
+installed for `tests/`, and its CI job installs only `ruff` and `pytest`, so no
+test there may import `homeassistant` or `voluptuous` without stubbing them.
 `tests/test_coordinator_behavior.py` has the harness that runs real coordinator
 code under stubs. `python3 scripts/ci_sim.py` runs the suite with those modules
 blocked, which is the only way to catch a stray import before CI does.
+
+### Tests against real Home Assistant
+
+`tests_ha/` loads the integration into a real Home Assistant from
+`pytest-homeassistant-custom-component`, with ZHA mocked at the gateway proxy
+(`conftest.py` explains how). It needs `just` and `uv`:
+
+```bash
+just test-ha minimum   # HA 2024.12.0, the version hacs.json promises (Python 3.13)
+just test-ha current   # newest pinned HA (Python 3.14)
+```
+
+Each target has its own venv (`.venv-ha-minimum`, `.venv-ha-current`) and
+its own dependency group in `pyproject.toml`, locked in `uv.lock`. The two
+trees never share an environment: the stubs in `tests/conftest.py` would
+collide with the real package. To move a target, change the plugin pin in
+`pyproject.toml` (each plugin release pins one exact HA version), run `uv
+lock`, and update `hacs.json` when the minimum moves. CI runs both targets.
 
 ### Testing on the real lock
 

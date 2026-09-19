@@ -19,3 +19,4 @@ secrets.md
 # Manufacturer manuals are Nimly's copyright, so they stay local; README.md links to the sources
 docs/manuals/*
 !docs/manuals/README.md
+.venv-*/

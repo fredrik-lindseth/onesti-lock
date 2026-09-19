@@ -21,7 +21,7 @@ secrets.md
 *.db
 .beads-credential-key
 
-# Issue-sporing skjer i dcat, ikke beads
+# Beads-katalogen fra et eldre oppsett
 .beads/
 
 # Produsentmanualer er Nimlys opphavsrett og lagres bare lokalt; README.md lenker til kildene

@@ -1,4 +1,4 @@
-# Vurdering: multilås-bug i services.py (dcat issues-58mevg)
+# Vurdering: multilås-bug i services.py
 
 ## Bekreftelse av funnet (verifisert i kode)
 

@@ -85,7 +85,9 @@ ha-current = { requires-python = ">=3.14.2" }
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short"
-asyncio_mode = "auto"
+# asyncio_mode is set where pytest-asyncio is installed, on the tests_ha
+# command line in the justfile. The unit group has no pytest-asyncio, and an
+# unknown option here warns on every run of tests/.
 
 [tool.coverage.run]
 # Relative paths let the unit and HA data files, written in different

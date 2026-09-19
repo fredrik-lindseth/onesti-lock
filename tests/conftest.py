@@ -1,10 +1,10 @@
 """One shared Home Assistant and voluptuous stub for every test module.
 
-CI installs only ruff and pytest, so the integration modules cannot import
-the real homeassistant or voluptuous packages. The stubs below carry just
-the names the integration touches, and they go into sys.modules because
-scripts/ci_sim.py blocks the real packages with a meta path finder, which
-sys.modules bypasses.
+CI runs tests/ in the uv group `unit`, which has no homeassistant or
+voluptuous, so the integration modules cannot import the real packages.
+The stubs below carry just the names the integration touches, and they go
+into sys.modules because scripts/ci_sim.py blocks the real packages with a
+meta path finder, which sys.modules bypasses.
 
 load_component_module() loads the integration's modules under one stub
 package name. A relative import inside one module (`from .coordinator

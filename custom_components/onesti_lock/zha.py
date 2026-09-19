@@ -198,6 +198,7 @@ class ZhaLockTransport:
         does not move the bolt needs hardware verification first, tracked as
         a separate issue.
         """
+        previous_wake = self._last_wake
         try:
             entity_id = find_lock_entity_id(self.hass, self.ieee)
             if entity_id is None:
@@ -217,6 +218,11 @@ class ZhaLockTransport:
             )
             await asyncio.sleep(1)
         except Exception as err:
+            # This lock command failed, so a Zigbee lock event in the next
+            # window is not known to be its echo. Keeping the stamp would
+            # hide a real lock from the dashboard. An earlier wake that did
+            # go out keeps its own window.
+            self._last_wake = previous_wake
             # A failed wake must not abort the send: the retry runs anyway.
             _LOGGER.debug(
                 "Wake attempt failed (%s), proceeding anyway", type(err).__name__

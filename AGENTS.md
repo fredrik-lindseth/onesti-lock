@@ -46,6 +46,7 @@ ZhaLockTransport (zha.py, injected into the coordinator; tests pass a fake)
   │   device registry's zigbee connection); why that works and a plain read
   │   does not is unverified
   ├── wake_echo_pending(): True for WAKE_ECHO_WINDOW_S (30 s) after a wake
+  │   whose lock.lock call did not fail
   └── read_capabilities(): ZCL 0x0012/0x0017/0x0018 as a dict, None when the lock
       was not reached (so the read is repeated), {} when it answered without them
 

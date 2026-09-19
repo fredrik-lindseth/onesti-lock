@@ -5,7 +5,7 @@
 
 Home Assistant integration for Onesti/Nimly smart locks paired through ZHA.
 
-The lock reports every event on a custom Zigbee attribute that no other ZHA integration decodes. This integration decodes it, so Home Assistant knows who locked or unlocked the door and how (keypad, RFID, fingerprint).
+The lock reports every event on a custom Zigbee attribute. ZHA's stock quirk exposes it as raw numbers at most, and an open upstream report says those entities do not update live. This integration decodes it into who locked or unlocked the door, by the name you gave the slot, and how (keypad, RFID, fingerprint).
 
 On top of that you can manage PIN codes from the HA interface and give every slot a name people recognize. There is an activity sensor, an event for automations, and three automation blueprints.
 
@@ -42,7 +42,7 @@ NimlyCodePRO (firmware 4.8) reports the same source code for Zigbee commands, au
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=fredrik-lindseth&repository=onesti-lock&category=integration)
 
-The button adds this repository to HACS. Install "Onesti Lock" and restart Home Assistant. To add it by hand, go to HACS → Integrations → ⋮ → Custom repositories and add `https://github.com/fredrik-lindseth/onesti-lock` as Integration.
+The button adds this repository to HACS. Install "Onesti Lock" and restart Home Assistant. To add it by hand, go to HACS → ⋮ (top right) → Custom repositories and add `https://github.com/fredrik-lindseth/onesti-lock` as Integration.
 
 ### Manual
 
@@ -122,7 +122,7 @@ How Zigbee, BLE and cloud slot numbers relate is documented in [docs/slot-number
 
 Per configured lock:
 
-- `sensor.*_slot_3` through `sensor.*_slot_12`: the name on the slot, with `has_pin` and `has_rfid` attributes
+- `sensor.*_slot_3` through `sensor.*_slot_12`: the name on the slot, with `slot_id`, `has_pin` and `has_rfid` attributes
 - `sensor.*_last_activity`: the last activity, for example "Kari unlocked with code"
 
 Entity IDs come from the server language when the entity is created, so a lock set up on a Norwegian server gets `sensor.*_siste_aktivitet` and keeps it.
@@ -165,7 +165,7 @@ To add a language, copy `custom_components/onesti_lock/translations/en.json` and
 
 6. **Slot state drift**: if PINs are changed on the keypad or in another app, the integration's slot data can fall out of sync. Use "View user slots" to check.
 
-7. **No OTA firmware updates**: the Zigbee module does not support over-the-air updates.
+7. **No OTA firmware updates over Zigbee**: the module lists the OTA Upgrade cluster, but no firmware image for it exists in the community zigbee-OTA index, so ZHA has nothing to offer.
 
 ## Documentation
 

@@ -13,50 +13,11 @@ with asyncio.run().
 from __future__ import annotations
 
 import asyncio
-import importlib.util
 import json
-import os
-import sys
-import types
 
-if "homeassistant" not in sys.modules:
-    sys.modules["homeassistant"] = types.ModuleType("homeassistant")
-if "homeassistant.core" not in sys.modules:
-    _core = types.ModuleType("homeassistant.core")
-    _core.HomeAssistant = object
-    sys.modules["homeassistant"].core = _core
-    sys.modules["homeassistant.core"] = _core
-if "homeassistant.config_entries" not in sys.modules:
-    _ce = types.ModuleType("homeassistant.config_entries")
-    _ce.ConfigEntry = object
-    sys.modules["homeassistant"].config_entries = _ce
-    sys.modules["homeassistant.config_entries"] = _ce
+from .conftest import load_component_module
 
-_COMPONENT_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "custom_components", "onesti_lock"
-)
-_PACKAGE = "onesti_lock_coordinator_under_test"
-
-
-def _load_coordinator():
-    """Load coordinator.py under a stub package, like test_localize.py does."""
-    if _PACKAGE not in sys.modules:
-        package = types.ModuleType(_PACKAGE)
-        package.__path__ = [_COMPONENT_DIR]
-        sys.modules[_PACKAGE] = package
-    name = f"{_PACKAGE}.coordinator"
-    if name in sys.modules:
-        return sys.modules[name]
-    spec = importlib.util.spec_from_file_location(
-        name, os.path.join(_COMPONENT_DIR, "coordinator.py")
-    )
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-coordinator_mod = _load_coordinator()
+coordinator_mod = load_component_module("coordinator")
 
 
 class FakeConfigEntry:

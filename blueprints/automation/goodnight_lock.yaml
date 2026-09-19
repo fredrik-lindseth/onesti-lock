@@ -1,27 +1,27 @@
 blueprint:
-  name: Onesti Lock — lås døren om kvelden
+  name: "Onesti Lock: lock the door at night"
   description: >
-    Låser døren automatisk på et bestemt tidspunkt. Kan kombineres med
-    å slå av lys og andre enheter.
+    Locks the door automatically at a set time. Can be combined with
+    turning off lights and other devices.
   domain: automation
   input:
     lock_entity:
-      name: Låsentitet
-      description: Velg din Onesti/Nimly-lås
+      name: Lock entity
+      description: Pick your Onesti/Nimly lock
       selector:
         entity:
           filter:
             - domain: lock
               integration: zha
     lock_time:
-      name: Tidspunkt
-      description: Når døren skal låses
+      name: Time
+      description: When to lock the door
       default: "22:00:00"
       selector:
         time:
     additional_actions:
-      name: Ekstra handlinger (valgfritt)
-      description: Handlinger som kjøres sammen med låsing (f.eks. slå av lys)
+      name: Extra actions (optional)
+      description: Actions to run along with locking (e.g. turning off lights)
       default: []
       selector:
         action:

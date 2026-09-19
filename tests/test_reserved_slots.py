@@ -134,3 +134,66 @@ class TestSetNameIsOpen:
         _hass, _entry, coord, _sent = _lock({"slots": {}})
         error = _refused(coord, "set_name", slot=slot, name="X")
         assert error.translation_placeholders == {"min": "0", "max": "999"}
+
+
+class TestCoordinatorIsTheLastGuard:
+    """The coordinator refuses reserved slots itself, whatever the caller."""
+
+    @pytest.mark.parametrize("reserved", [None, 1, 3])
+    @pytest.mark.parametrize(
+        "method,args",
+        [("set_pin", ("Kari", "1234")), ("clear_pin", ()), ("clear_slot", ())],
+    )
+    def test_slot_0_refused(self, reserved, method, args):
+        options = {"slots": {}}
+        if reserved is not None:
+            options["reserved_slots"] = reserved
+        hass, _entry, coord, sent = _lock(options)
+        with pytest.raises(ValueError, match="reserved master slot"):
+            asyncio.run(getattr(coord, method)(0, *args))
+        assert sent == []
+        assert hass.config_entries.written == []
+
+    @pytest.mark.parametrize(
+        "method,args",
+        [("set_pin", ("Kari", "1234")), ("clear_pin", ()), ("clear_slot", ())],
+    )
+    def test_slot_below_the_floor_refused(self, method, args):
+        _hass, _entry, coord, sent = _lock({"slots": {}})
+        with pytest.raises(ValueError, match="start at slot 3"):
+            asyncio.run(getattr(coord, method)(2, *args))
+        assert sent == []
+
+    @pytest.mark.parametrize(
+        "method,args",
+        [("set_pin", ("Kari", "1234")), ("clear_pin", ()), ("clear_slot", ())],
+    )
+    def test_first_user_slot_accepted(self, method, args):
+        _hass, _entry, coord, sent = _lock({"slots": {}, "reserved_slots": 1})
+        assert asyncio.run(getattr(coord, method)(1, *args)) is True
+        assert sent and sent[0][1] == 1
+
+
+class TestEmptyNameLeavesNoRecord:
+    """An empty name removes the name and never stores a blank slot."""
+
+    def test_empty_name_on_unknown_slot_stores_nothing(self):
+        hass, _entry, coord, _sent = _lock({"slots": {}})
+        asyncio.run(coord.set_slot_name(5, ""))
+        assert "5" not in coord._slots
+        assert hass.config_entries.written == []
+
+    def test_empty_name_drops_a_name_only_slot(self):
+        hass, _entry, coord, _sent = _lock({"slots": {}})
+        asyncio.run(coord.set_slot_name(0, "Master"))
+        asyncio.run(coord.set_slot_name(0, ""))
+        assert "0" not in coord._slots
+        assert "0" not in hass.config_entries.written[-1]["slots"]
+
+    def test_empty_name_keeps_a_slot_with_a_pin(self):
+        hass, _entry, coord, _sent = _lock({"slots": {}})
+        asyncio.run(coord.set_pin(4, "Kari", "1234"))
+        asyncio.run(coord.set_slot_name(4, ""))
+        stored = hass.config_entries.written[-1]["slots"]["4"]
+        assert stored["name"] == ""
+        assert stored["has_pin"] is True

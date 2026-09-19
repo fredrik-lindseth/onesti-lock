@@ -95,9 +95,36 @@ class NimlyCoordinator:
         """Lowest slot PIN writes and clears may touch on this lock."""
         return pin_rules.first_user_slot(self.entry.options)
 
+    def _check_writable(self, slot: int) -> None:
+        """Refuse PIN writes and clears on reserved master slots.
+
+        services.py and the options flow already stop these with a
+        translated message. This is the last guard, so the rule holds for
+        any future caller too: slot 0 is never written from Home Assistant.
+        """
+        first = self.first_user_slot()
+        if slot < first:
+            raise ValueError(
+                f"Slot {slot} is a reserved master slot on this lock; "
+                f"PIN writes and clears start at slot {first}"
+            )
+
     async def set_slot_name(self, slot: int, name: str) -> None:
-        """Set name for a slot (does not send ZCL command)."""
-        self._slots.setdefault(str(slot), {**DEFAULT_SLOT})["name"] = name
+        """Set name for a slot (does not send ZCL command).
+
+        An empty name removes the name. A slot left with no name and no
+        credentials is dropped from storage rather than kept as a blank
+        record.
+        """
+        key = str(slot)
+        if name:
+            self._slots.setdefault(key, {**DEFAULT_SLOT})["name"] = name
+        elif key in self._slots:
+            self._slots[key]["name"] = ""
+            if self._slots[key] == DEFAULT_SLOT:
+                del self._slots[key]
+        else:
+            return
         await self._save_slots()
         self._notify_listeners()
 
@@ -303,6 +330,7 @@ class NimlyCoordinator:
 
     async def set_pin(self, slot: int, name: str, code: str) -> bool:
         """Set PIN code for a slot."""
+        self._check_writable(slot)
         success = await self._send_cluster_command(
             0x0005,
             {
@@ -322,6 +350,7 @@ class NimlyCoordinator:
 
     async def clear_pin(self, slot: int) -> bool:
         """Clear PIN code for a slot."""
+        self._check_writable(slot)
         success = await self._send_cluster_command(
             0x0007,
             {"user_id": slot},
@@ -334,6 +363,7 @@ class NimlyCoordinator:
 
     async def clear_slot(self, slot: int) -> bool:
         """Clear all credentials and name for a slot."""
+        self._check_writable(slot)
         success = await self._send_cluster_command(
             0x0007,
             {"user_id": slot},

@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Debugging guide
+    url: https://github.com/fredrik-lindseth/onesti-lock/blob/main/docs/debugging.md
+    about: Common problems, debug logging, and what to do if a PIN has ended up in a log.
+  - name: Supported locks
+    url: https://github.com/fredrik-lindseth/onesti-lock#supported-devices
+    about: The models known to work, and why an unknown model string is usually fine.

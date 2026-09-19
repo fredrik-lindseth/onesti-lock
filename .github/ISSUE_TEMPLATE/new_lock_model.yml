@@ -1,0 +1,71 @@
+name: New lock model or model string
+description: A lock that is not listed in the README, or that reports a model string nobody has seen.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Remove PIN codes before you post.** Attribute `0x0101` on the Door Lock cluster is the last used PIN in plain text, and ZHA's "Download diagnostics" file contains it. Replace every `0x0101` value and every PIN with `****` before you paste anything from a diagnostics file or a debug log. This issue is public.
+  - type: input
+    id: product
+    attributes:
+      label: Lock product
+      description: Brand and model as sold, for example Nimly Code Pro or Keyfree Touch.
+    validations:
+      required: true
+  - type: input
+    id: zigbee_model
+    attributes:
+      label: Manufacturer and model from Zigbee info
+      description: On the lock's device page in ZHA, open Zigbee info and copy both fields exactly.
+      placeholder: "Onesti Products AS / NimlyTwist"
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware
+      description: The firmware ZHA shows on the device page, and the lock firmware from the vendor app if you know it.
+  - type: dropdown
+    id: module_reset
+    attributes:
+      label: Was the Connect Module reset before it was paired with ZHA?
+      description: A module that was not reset can report a sibling model string.
+      options:
+        - "Yes"
+        - "No"
+        - "Don't know"
+    validations:
+      required: true
+  - type: input
+    id: master_slots
+    attributes:
+      label: Master code slots according to the manual
+      description: Which slots the manual reserves for master codes, for example 000 only, or 000 to 002. A link to the manual helps.
+  - type: checkboxes
+    id: works
+    attributes:
+      label: What works with Onesti Lock
+      options:
+        - label: The lock is offered when adding the integration
+        - label: Unlocking with a code updates the activity sensor with the right slot
+        - label: Setting a PIN from Home Assistant works on the keypad
+        - label: Fingerprint or RFID events show up
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant version
+    validations:
+      required: true
+  - type: input
+    id: integration_version
+    attributes:
+      label: Onesti Lock version
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log lines from custom_components.onesti_lock
+      description: With debug logging on for the integration, lock and unlock once with a code and paste the lines that mention `onesti_lock`. Remove PIN codes and `0x0101` values first.
+      render: text

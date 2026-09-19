@@ -652,6 +652,36 @@ class TestFailures:
 
         run(scenario())
 
+    @pytest.mark.parametrize("ending", ["drop_link", "close"])
+    def test_link_lost_during_the_pause_fails_before_writing(self, ending):
+        """A transport that writes into a dead link without raising is not waited out."""
+
+        async def scenario():
+            transport = open_transport()
+            session = new_session(transport, command_delay=0.05, response_timeout=5.0)
+            await session.connect()
+
+            async def swallow(data):
+                transport.writes.append(data)
+
+            transport.write = swallow
+            writes_before = len(transport.writes)
+            task = asyncio.create_task(session.send(commands.batt_info_get()))
+            await asyncio.sleep(0.01)
+            if ending == "drop_link":
+                transport.drop_link()
+            else:
+                await session.close()
+            loop = asyncio.get_running_loop()
+            started = loop.time()
+            with pytest.raises(errors.BleDisconnectedError, match="closed"):
+                await task
+            return loop.time() - started, len(transport.writes) - writes_before
+
+        waited, writes = run(scenario())
+        assert waited < 1.0
+        assert writes == 0
+
     def test_disconnect_during_the_writes(self):
         """The link drops between two packets of a blob; the error surfaces once, cleanly."""
 

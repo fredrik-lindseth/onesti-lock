@@ -258,6 +258,11 @@ class Session:
             pause = self._ready_at - loop.time()
             if pause > 0:
                 await asyncio.sleep(pause)
+                # The link can drop or close() run during the pause. A transport
+                # that writes into a dead link without raising would otherwise
+                # leave this command waiting out the whole response timeout.
+                if self._state not in (_State.CONNECTING, _State.CONNECTED):
+                    raise self._not_connected()
 
             command_ref = self._refs.next()
             frames = self._stream.frame(command.with_ref(command_ref).to_bytes())

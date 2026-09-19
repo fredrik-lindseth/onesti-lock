@@ -1,4 +1,4 @@
-# Vurdering: auto-wake låser døren fysisk (dcat issues-11muex)
+# Vurdering: auto-wake låser døren fysisk
 
 ## Bekreftelse av funnet
 

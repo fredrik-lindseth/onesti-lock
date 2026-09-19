@@ -1,4 +1,4 @@
-# Vurdering: set_pin melder suksess uten bekreftelse (dcat issues-2i5n8q)
+# Vurdering: set_pin melder suksess uten bekreftelse
 
 Dato: 2026-08-23. Kun analyse — ingen kode endret.
 

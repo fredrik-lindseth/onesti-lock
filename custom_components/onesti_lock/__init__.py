@@ -4,9 +4,15 @@ from __future__ import annotations
 import logging
 
 import homeassistant.helpers.config_validation as cv
-from homeassistant.config_entries import ConfigEntryState
+from homeassistant.config_entries import (
+    SIGNAL_CONFIG_ENTRY_CHANGED,
+    ConfigEntry,
+    ConfigEntryChange,
+    ConfigEntryState,
+)
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.typing import ConfigType
 
 from . import pin_rules
@@ -66,9 +72,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: NimlyConfigEntry) -> boo
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    _start_event_listener(hass, entry, coordinator)
     _watch_zha_entries(hass, entry, coordinator)
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
+
+    if not is_zha_loaded(hass) and not _zha_entry_loaded(hass):
+        # ZHA is still starting, usually in SETUP_RETRY because the
+        # coordinator stick came up late. Nothing is wrong yet: the ZHA
+        # watch reloads this entry once ZHA is LOADED, and that setup
+        # registers the listener and reads the capabilities.
+        _LOGGER.info(
+            "ZHA is not loaded yet, lock events for %s start when it is",
+            coordinator.ieee,
+        )
+        return True
+
+    _start_event_listener(hass, entry, coordinator)
 
     # Read lock capabilities in the background, tied to the entry so an
     # unload cancels a read still waiting on a sleeping lock. A no-op once
@@ -83,6 +101,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: NimlyConfigEntry) -> bo
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
+def _zha_entry_loaded(hass: HomeAssistant) -> bool:
+    return any(
+        zha_entry.state is ConfigEntryState.LOADED
+        for zha_entry in hass.config_entries.async_entries(ZHA_DOMAIN)
+    )
+
+
 def _zha_issue_id(entry: NimlyConfigEntry) -> str:
     return f"{ISSUE_ZHA_INTERNALS}_{entry.entry_id}"
 
@@ -93,8 +118,10 @@ def _start_event_listener(
 ) -> None:
     """Register the lock event listener, or raise a repair issue saying why not.
 
-    Without the listener the integration still sets PINs but never sees who
-    unlocked, so the failure is an error and a repair issue, not a debug line.
+    Only called while ZHA is running, so a missing piece here means ZHA's
+    internals changed. Without the listener the integration still sets PINs
+    but never sees who unlocked, so the failure is an error and a repair
+    issue, not a debug line.
     """
     issue_id = _zha_issue_id(entry)
     try:
@@ -127,35 +154,52 @@ def _start_event_listener(
 def _watch_zha_entries(
     hass: HomeAssistant, entry: NimlyConfigEntry, coordinator: NimlyCoordinator
 ) -> None:
-    """Reload when ZHA comes back with a different Door Lock cluster.
+    """Reload when ZHA comes up with a Door Lock cluster we do not listen to.
 
     A ZHA reload or re-pair builds new zigpy objects. The listener would
     stay on the old cluster and lock events would stop arriving without a
-    word, so a ZHA entry reaching LOADED with another cluster (or with one
-    where there was none) reloads this entry onto it.
+    word, so a ZHA entry reaching LOADED with another cluster reloads this
+    entry onto it. So does ZHA reaching LOADED while nothing is listened to
+    (ZHA was still starting, or the lock was missing), and that setup either
+    registers the listener or raises the repair issue.
+
+    ZHA entries added while this entry is loaded are watched too, so a ZHA
+    that is removed and added again is still followed.
     """
 
     @callback
-    def _on_zha_state_change(zha_entry) -> None:
+    def _on_zha_state_change(zha_entry: ConfigEntry) -> None:
         if zha_entry.state is not ConfigEntryState.LOADED:
             return
         if entry.state is not ConfigEntryState.LOADED:
             return
-        cluster = coordinator.transport.cluster()
-        if cluster is coordinator.listened_cluster:
-            return
-        _LOGGER.info(
-            "ZHA was loaded again with a new Door Lock cluster for %s, reloading",
-            coordinator.ieee,
-        )
+        if coordinator.listened_cluster is not None:
+            if coordinator.transport.cluster() is coordinator.listened_cluster:
+                return
+            _LOGGER.info(
+                "ZHA was loaded again with a new Door Lock cluster for %s, reloading",
+                coordinator.ieee,
+            )
+        else:
+            _LOGGER.info("ZHA is loaded, setting up lock events for %s", coordinator.ieee)
         hass.config_entries.async_schedule_reload(entry.entry_id)
 
-    for zha_entry in hass.config_entries.async_entries(ZHA_DOMAIN):
+    @callback
+    def _watch(zha_entry: ConfigEntry) -> None:
         entry.async_on_unload(
-            zha_entry.async_on_state_change(
-                lambda zha_entry=zha_entry: _on_zha_state_change(zha_entry)
-            )
+            zha_entry.async_on_state_change(lambda: _on_zha_state_change(zha_entry))
         )
+
+    @callback
+    def _on_config_entry_changed(change: ConfigEntryChange, changed: ConfigEntry) -> None:
+        if change is ConfigEntryChange.ADDED and changed.domain == ZHA_DOMAIN:
+            _watch(changed)
+
+    for zha_entry in hass.config_entries.async_entries(ZHA_DOMAIN):
+        _watch(zha_entry)
+    entry.async_on_unload(
+        async_dispatcher_connect(hass, SIGNAL_CONFIG_ENTRY_CHANGED, _on_config_entry_changed)
+    )
 
 
 async def _async_options_updated(hass: HomeAssistant, entry: NimlyConfigEntry) -> None:

@@ -153,5 +153,6 @@ class TestFirstUserSlot:
         """Code Pro reserves only slot 000."""
         assert pin_rules.first_user_slot({"reserved_slots": 1}) == 1
 
-    def test_integral_float_from_the_number_selector(self):
+    def test_integral_float_from_hand_edited_options(self):
+        """Hand-edited or older stored options may hold 1.0 instead of 1."""
         assert pin_rules.first_user_slot({"reserved_slots": 1.0}) == 1

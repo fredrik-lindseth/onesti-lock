@@ -45,7 +45,7 @@ def _load_decode_operation_event():
     wanted: list[ast.stmt] = []
     for node in tree.body:
         is_map = isinstance(node, ast.Assign) and any(
-            getattr(t, "id", None) in ("_SOURCE_MAP", "_ACTION_MAP")
+            getattr(t, "id", None) in ("_SOURCE_MAP", "_ACTION_MAP", "_CREDENTIAL_SOURCES")
             for t in node.targets
         )
         is_decoder = (
@@ -186,6 +186,28 @@ class TestEventDecoding:
         coord = MockCoordinator({300: "Bjarte"})
         result = _decode(0x0202012C, coord)
         assert result["user_name"] == "Bjarte"
+
+    def test_master_code_keypad_unlock(self):
+        """Capture 29.03: 0x02020000 is the master code, attributed to slot 0."""
+        coord = MockCoordinator({0: "Master"})
+        result = _decode(0x02020000, coord)
+        assert result["user_slot"] == 0
+        assert result["user_name"] == coord.get_slot_name(0)
+        assert result["action"] == "unlock"
+        assert result["source"] == "keypad"
+
+    @pytest.mark.parametrize("raw", [0x03020000, 0x04020000])
+    def test_slot_0_from_fingerprint_or_rfid_is_master(self, raw):
+        result = _decode(raw)
+        assert result["user_slot"] == 0
+        assert result["user_name"] == "Slot 0"
+
+    @pytest.mark.parametrize("raw", [0x0A010000, 0x00010000, 0x05010000, 0x00000000])
+    def test_slot_0_from_system_sources_has_no_user(self, raw):
+        """Auto-lock, Zigbee and CodePRO relock keep slot 0 as 'no user'."""
+        result = _decode(raw)
+        assert result["user_slot"] is None
+        assert result["user_name"] is None
 
     def test_overflow_returns_none(self):
         """Values above uint32 are rejected by the explicit range guard."""

@@ -49,6 +49,12 @@ _SOURCE_MAP = {
     0x0A: SOURCE_AUTO,
 }
 
+# Sources where a person presented a credential, so slot 0 is the master user
+# rather than "no user". The master code unlocks the door (capture 29.03:
+# 0x02020000 = slot 0, unlock, keypad), and Z2M and the ZHA quirk both report
+# it as slot 0. Code Pro users on slots 1-2 are already > 0 and unaffected.
+_CREDENTIAL_SOURCES = frozenset({SOURCE_KEYPAD, SOURCE_FINGERPRINT, SOURCE_RFID})
+
 _ACTION_MAP = {
     0x01: ACTION_LOCK,
     0x02: ACTION_UNLOCK,
@@ -107,11 +113,18 @@ def _decode_operation_event(coordinator, val: int) -> dict | None:
     user_slot = val & 0xFFFF
     action = _ACTION_MAP.get((val >> 16) & 0xFF, ACTION_UNKNOWN)
     source = _SOURCE_MAP.get((val >> 24) & 0xFF, SOURCE_UNKNOWN)
-    user_slot_or_none = user_slot if user_slot > 0 else None
+    # Slot 0 only means "no user" for system and remote sources (auto-lock,
+    # Zigbee, CodePRO relock); from a credential source it is the master user.
+    no_user = user_slot == 0 and source not in _CREDENTIAL_SOURCES
+    user_slot_or_none = None if no_user else user_slot
 
     return {
         "user_slot": user_slot_or_none,
-        "user_name": coordinator.get_slot_name(user_slot) if user_slot > 0 else None,
+        "user_name": (
+            coordinator.get_slot_name(user_slot_or_none)
+            if user_slot_or_none is not None
+            else None
+        ),
         "action": action,
         "source": source,
     }

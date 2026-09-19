@@ -31,6 +31,14 @@ SOURCE_MAP = {
 }
 ACTION_MAP = {0x01: "lock", 0x02: "unlock"}
 
+# Slot 0 means "no user" only for system/remote sources; from a credential
+# source (keypad, fingerprint, rfid) it is the master user.
+NO_USER_SOURCES = {0x00, 0x05, 0x0A}
+
+
+def expected_user_slot(slot: int, source: int) -> int | None:
+    return None if slot == 0 and source in NO_USER_SOURCES else slot
+
 _real_decode = _load_decode_operation_event()
 
 
@@ -51,8 +59,7 @@ class TestRoundtrip:
         """Every valid user slot (0-999) decodes correctly."""
         val = encode(slot, 0x02, 0x02)
         result = decode(val)
-        expected_slot = slot if slot > 0 else None
-        assert result["user_slot"] == expected_slot
+        assert result["user_slot"] == expected_user_slot(slot, 0x02)
         assert result["action"] == "unlock"
         assert result["source"] == "keypad"
 
@@ -133,7 +140,7 @@ class TestKnownValues:
         (0x02020003, 3, "unlock", "keypad", "Ola slot 3 unlock via keypad — hytta"),
         (0x02020004, 4, "unlock", "keypad", "Kari slot 4 unlock via keypad — hytta"),
         (0x0A010000, None, "lock", "auto", "Auto-lock — hytta"),
-        (0x02020000, None, "unlock", "keypad", "Master slot 0 unlock via keypad — hjemme"),
+        (0x02020000, 0, "unlock", "keypad", "Master slot 0 unlock via keypad — hjemme"),
         (0x05010000, None, "lock", "unattributed", "NimlyCodePRO zigbee/auto/interior lock — supersej"),
     ]
 
@@ -154,7 +161,6 @@ class TestEncodeConsistency:
     def test_encode_decode_roundtrip(self, slot, action, source):
         val = encode(slot, action, source)
         result = decode(val)
-        expected_slot = slot if slot > 0 else None
-        assert result["user_slot"] == expected_slot
+        assert result["user_slot"] == expected_user_slot(slot, source)
         assert result["action"] == ACTION_MAP[action]
         assert result["source"] == SOURCE_MAP[source]

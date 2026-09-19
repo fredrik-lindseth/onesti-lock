@@ -28,7 +28,7 @@ from .const import (
     SUPPORTED_MODELS,
     ZHA_DOMAIN,
 )
-from .localize import async_get_strings
+from .localize import async_get_strings, format_reserved_slot_row
 
 if TYPE_CHECKING:
     from .coordinator import NimlyCoordinator
@@ -392,19 +392,16 @@ class NimlyProOptionsFlow(OptionsFlow):
         label_template = strings.get("slot_label", "Slot {slot}: {name}")
         pin_active = strings.get("slot_status_pin_active", "(PIN active)")
         no_pin = strings.get("slot_status_no_pin", "(no PIN)")
-        master = strings.get("slot_status_master", "(master)")
         vacant = strings.get("slot_vacant", "Vacant")
         slots = self.config_entry.options.get("slots", {})
-        coordinator = self._coordinator()
-        first = coordinator.first_user_slot()
+        first = self._coordinator().first_user_slot()
         lines = []
         # Reserved master slots first: they cannot be written from here, but
         # a name on them is what events show for the master user. They hold
-        # a master code, so they are never "Vacant"; the name is the one the
-        # activity sensor uses for the same slot.
+        # a master code, so they are never "Vacant".
         for i in range(first):
-            line = label_template.format(slot=i, name=coordinator.get_slot_name(i))
-            lines.append(f"{line} {master}")
+            name = slots.get(str(i), {}).get("name", "")
+            lines.append(format_reserved_slot_row(strings, i, name))
         for i in range(first, first + NUM_USER_SLOTS):
             slot_data = slots.get(str(i), {})
             name = slot_data.get("name", "")

@@ -170,6 +170,44 @@ class TestFormatActivity:
         assert localize.format_activity({}, "unlock", "keypad", "Kari")
 
 
+class TestFormatReservedSlotRow:
+    """Reserved master rows in view slots never repeat the slot number."""
+
+    @pytest.mark.parametrize("lang", ["en", "nb", "sv", "da"])
+    @pytest.mark.parametrize("slot", [0, 1, 2])
+    def test_unnamed_reads_master_once(self, lang, slot):
+        localize = _load_localize()
+        strings = localize.load_strings(lang)
+        row = localize.format_reserved_slot_row(strings, slot, "")
+        label = strings["slot_label"].format(
+            slot=slot, name=strings["slot_fallback_master"]
+        )
+        assert row == label
+        prefix = strings["slot_label"].split("{slot}")[0]
+        assert row.count(prefix.strip()) == 1
+        assert strings["slot_status_master"] not in row
+
+    @pytest.mark.parametrize("slot", [0, 1, 2])
+    def test_named_gets_master_suffix(self, slot):
+        localize = _load_localize()
+        strings = localize.load_strings("en")
+        row = localize.format_reserved_slot_row(strings, slot, "Christian")
+        assert row == f"Slot {slot}: Christian (master)"
+
+    def test_english_rows(self):
+        localize = _load_localize()
+        strings = localize.load_strings("en")
+        assert localize.format_reserved_slot_row(strings, 0, "") == "Slot 0: Master"
+        assert localize.format_reserved_slot_row(strings, 1, "") == "Slot 1: Master"
+
+    def test_falls_back_without_strings(self):
+        localize = _load_localize()
+        assert localize.format_reserved_slot_row({}, 2, "") == "Slot 2: Master"
+        assert (
+            localize.format_reserved_slot_row({}, 2, "Kari") == "Slot 2: Kari (master)"
+        )
+
+
 class FakeHass:
     """Just enough hass for async_get_strings: data dict + executor."""
 

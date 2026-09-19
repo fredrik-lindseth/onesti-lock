@@ -255,19 +255,19 @@ class TestReservedSlotsFloor:
     def test_view_slots_marks_reserved_slots_as_master(self):
         body = _step_source("async_step_view_slots")
         assert "first_user_slot()" in body
-        assert "slot_status_master" in body
+        assert "format_reserved_slot_row(" in body
 
-    def test_view_slots_names_reserved_slots_like_the_activity_sensor(self):
-        """Slot 0 always holds a master code, so it is never shown as Vacant.
+    def test_view_slots_never_shows_reserved_slots_as_vacant(self):
+        """Reserved slots hold a master code, so they are never Vacant.
 
-        The reserved rows take their name from get_slot_name, which is what
-        the activity sensor shows ("Master" for an unnamed slot 0).
+        The row text itself is tested in test_localize.py
+        (TestFormatReservedSlotRow).
         """
         body = _step_source("async_step_view_slots")
         reserved_loop = body.split("for i in range(first):", 1)[1].split(
             "for i in range(first, ", 1
         )[0]
-        assert "get_slot_name(i)" in reserved_loop
+        assert "format_reserved_slot_row(strings, i, name)" in reserved_loop
         assert "vacant" not in reserved_loop
 
 

@@ -26,6 +26,10 @@ blueprint:
 
 mode: single
 
+# Blueprint inputs are not visible to templates until bound as variables.
+variables:
+  unavailable_minutes: !input unavailable_minutes
+
 triggers:
   - trigger: state
     entity_id: !input lock_entity

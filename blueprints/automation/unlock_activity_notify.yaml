@@ -28,6 +28,11 @@ blueprint:
 
 mode: single
 
+# Blueprint inputs are not visible to templates until bound as variables.
+variables:
+  only_unlock: !input only_unlock
+  notify_service: !input notify_service
+
 triggers:
   - trigger: state
     entity_id: !input activity_sensor

@@ -45,7 +45,7 @@
       },
       "name_slot": {
         "title": "Name a user slot",
-        "description": "Assign a name to a slot number (0-999). Used for RFID tags, fingerprints, the master code on slots 0-2, or other access methods not set via the PIN menu. Leave the name empty to remove it.",
+        "description": "Assign a name to a slot number (0-999). Used for RFID tags, fingerprints, the master codes, or other access methods not set via the PIN menu. Leave the name empty to remove it.",
         "data": {
           "slot": "Slot number",
           "name": "Name"

@@ -45,7 +45,7 @@
       },
       "name_slot": {
         "title": "Navngi bruker",
-        "description": "Knytt et navn til et slot-nummer (0-999). Brukes for RFID-brikker, fingeravtrykk, masterkoden på slot 0-2 eller andre tilgangsmetoder som ikke settes via PIN-menyen. La navnet stå tomt for å fjerne det.",
+        "description": "Knytt et navn til et slot-nummer (0-999). Brukes for RFID-brikker, fingeravtrykk, masterkodene eller andre tilgangsmetoder som ikke settes via PIN-menyen. La navnet stå tomt for å fjerne det.",
         "data": {
           "slot": "Slot-nummer",
           "name": "Navn"

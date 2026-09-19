@@ -113,7 +113,8 @@ Example: set "8832" on slot 803:
 ```
 
 **Slot numbering (BLE):** slot 0 is the master PIN, slots 800-899 are regular
-user PINs. Zigbee ZCL uses slots 3-999, so the two channels number differently.
+user PINs. Zigbee ZCL uses slots 0-999 (master slots first, see
+[slot-numbering.md](../slot-numbering.md)), so the two channels number differently.
 
 **Requirements:** firmware ≥ 4.7.90, PIN 4-8 digits (0-9).
 

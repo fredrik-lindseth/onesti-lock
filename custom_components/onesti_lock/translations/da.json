@@ -45,7 +45,7 @@
       },
       "name_slot": {
         "title": "Navngiv bruger",
-        "description": "Knyt et navn til et pladsnummer (0-999). Bruges til RFID-brikker, fingeraftryk, masterkoden på plads 0-2 eller andre adgangsmetoder, der ikke indstilles via PIN-menuen. Lad navnet stå tomt for at fjerne det.",
+        "description": "Knyt et navn til et pladsnummer (0-999). Bruges til RFID-brikker, fingeraftryk, masterkoderne eller andre adgangsmetoder, der ikke indstilles via PIN-menuen. Lad navnet stå tomt for at fjerne det.",
         "data": {
           "slot": "Pladsnummer",
           "name": "Navn"

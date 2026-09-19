@@ -585,8 +585,11 @@ What it refuses to do:
 - Nobody knows whether the lock locks out after failed owner logins. Each
   refused login is recorded in `<state-dir>/failed-logins.jsonl`, and after
   two against one address within a day the CLI stops until `--force-login`.
-- Firmware below 4.7.90 is refused for PIN, RFID and fingerprint commands,
-  and fingerprint commands on models without a reader, as the app does.
+- A command the app would not send to this lock (`Session.availability`,
+  the firmware and model gates) is refused right after the handshake, before
+  a login is spent on it; `read` skips such a read and says so. The CLI has
+  no way past the gates: `skip_app_gates` is for code, not for a session
+  against the front door.
 
 State lives in `--state-dir`, by default `~/.config/onesti-lock-ble/`,
 outside the repository. The directory is 0700 and every file in it 0600. Each

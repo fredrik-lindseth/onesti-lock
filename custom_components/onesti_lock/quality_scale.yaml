@@ -30,10 +30,7 @@ rules:
       The integration has no condition platform.
   docs-high-level-description: done
   docs-installation-instructions: done
-  docs-removal-instructions:
-    status: todo
-    comment: |
-      README has no section on removing the integration.
+  docs-removal-instructions: done
   docs-triggers:
     status: exempt
     comment: |
@@ -48,11 +45,7 @@ rules:
     comment: |
       The flow only offers devices that ZHA knows with a Door Lock cluster.
       The lock sleeps, so a command cannot be used as a connection test.
-  test-before-setup:
-    status: todo
-    comment: |
-      async_setup_entry never raises ConfigEntryNotReady when the lock is
-      missing from ZHA.
+  test-before-setup: done
   unique-config-entry: done
 
   # Silver
@@ -89,10 +82,7 @@ rules:
     comment: |
       device_info has only identifiers, name and manufacturer. No model and no
       link to the ZHA device.
-  diagnostics:
-    status: todo
-    comment: |
-      There is no diagnostics.py.
+  diagnostics: done
   discovery:
     status: todo
     comment: |
@@ -103,19 +93,13 @@ rules:
     comment: |
       The lock has no network address to update. Its IEEE address is its
       identity and never changes.
-  docs-data-update:
-    status: todo
-    comment: |
-      README has no section on how data reaches the integration.
+  docs-data-update: done
   docs-examples: done
   docs-known-limitations: done
   docs-supported-devices: done
   docs-supported-functions: done
   docs-troubleshooting: done
-  docs-use-cases:
-    status: todo
-    comment: |
-      README describes no use cases.
+  docs-use-cases: done
   dynamic-devices:
     status: exempt
     comment: |

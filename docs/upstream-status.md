@@ -37,10 +37,19 @@ NimlyCodePRO. Decoding works, `lock.*` updates, but `sensor.*_last_action_source
 and its siblings keep the value from startup. Their lead: the attribute is
 stored twice in appdb, once with `mfg_code=4660` and once with `mfg_code=None`,
 while incoming `Report_Attributes` frames carry no manufacturer code, and the
-attribute is declared `is_manufacturer_specific=True`. That is worth chasing.
-It does not affect us, because we listen on `cluster.on_event("attribute_report")`
-directly rather than through `QuirkBuilder` sensors, which is exactly the
-workaround documented in `technical.md`.
+attribute is declared `is_manufacturer_specific=True`. supersej has since
+filed the actual mechanism as zigpy/zha-device-handlers#5235 (2026-08-08):
+ZHA's DoorLock cluster handler forwards only `lock_state` to entities and
+drops every other attribute report on cluster 0x0101, so the quirk's sensors
+bound to 0x0100 never see a report. It does not affect us, because we listen
+on `cluster.on_event("attribute_report")` directly rather than through
+`QuirkBuilder` sensors, which is exactly the workaround documented in
+`technical.md`.
+
+**PR 5345 (vinnyspb, 2026-09-16) adds NimlyCodePRO to the same model list.**
+A subset of what PR 4881 does; whichever lands second gets a small conflict
+in the model list. vinnyspb runs a real Code Pro and could confirm the `0x05`
+decoding on a second device.
 
 **A slot above 255 has never been captured.** We decode the user slot as 16
 bits and so does the PR, but nothing observed proves the width. Post the frame

@@ -68,12 +68,14 @@ The ZHA entry is often still in `SETUP_RETRY` when this entry sets up, typically
 
 ### Repair issue for missing ZHA internals
 
+A lock that is missing from ZHA altogether, removed or replaced by a Connect Module with a new IEEE, is not a repair issue: `async_setup_entry` raises `ConfigEntryNotReady` before anything is set up, and Home Assistant retries with backoff until the lock is back. Nothing in ZHA is broken in that case.
+
 The event listener depends on three things that are not public API: the gateway, the Door Lock cluster under the device, and `cluster.on_event`. If one is missing at setup while ZHA is running (a gateway exists or a ZHA entry is `LOADED`), `register_event_listener()` raises `ZhaInternalsMissing`, and `__init__.py` logs an error and creates the repair issue `zha_internals_<entry_id>` (severity error, not fixable). Its `detail` placeholder names the missing piece:
 
 | `detail`                              | Meaning                                         |
 | ------------------------------------- | ----------------------------------------------- |
 | `ZHA gateway (get_zha_gateway_proxy)` | ZHA is `LOADED` but has no gateway              |
-| `Door Lock cluster for <ieee>`        | ZHA runs, but the lock or its cluster is absent |
+| `Door Lock cluster for <ieee>`        | ZHA lists the lock, but no Door Lock cluster    |
 | `<ClusterClass>.on_event`             | The cluster has no `on_event`                   |
 
 Without the listener nothing reports who unlocked, though PIN writes may still work when ZHA itself runs. The issue is deleted when the listener registers and when the entry unloads. What the user does about it is in [debugging.md](debugging.md#repair-issue-lock-events-are-not-being-received).

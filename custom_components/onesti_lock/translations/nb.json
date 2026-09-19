@@ -77,7 +77,8 @@
       "unknown": "En uventet feil oppstod. Sjekk loggene."
     },
     "abort": {
-      "no_active_slots": "Ingen aktive PIN-koder å fjerne"
+      "no_active_slots": "Ingen aktive PIN-koder å fjerne",
+      "lock_not_loaded": "Denne låsen kjører ikke akkurat nå, så PIN-kodene kan ikke administreres. Integrasjonssiden sier hvorfor. Mangler låsen i ZHA, ventes det på den, og oppsettet prøves på nytt til den er tilbake."
     }
   },
   "entity": {
@@ -129,6 +130,92 @@
     "zha_internals": {
       "title": "Låsehendelser kommer ikke fram",
       "description": "Onesti Lock fant ikke en del av ZHA som integrasjonen er avhengig av: {detail}. Å sette PIN-koder kan fortsatt virke, men aktivitetssensoren og hendelsen onesti_lock_activity forblir stille til dette er løst. Kjører ZHA og låsen er paret, har trolig en Home Assistant-oppdatering endret ZHA-internene. Opprett en sak på integrasjonens GitHub-side med Home Assistant-versjonen og denne meldingen. Når ZHA starter igjen med låsen, kobler integrasjonen seg til på nytt av seg selv."
+    }
+  },
+  "services": {
+    "set_pin": {
+      "name": "Sett PIN-kode",
+      "description": "Sett en PIN-kode på en slot i låsen. Svarer låsen at den avviste koden, feiler handlingen og sier hvorfor. Hvilke svar Nimly-låsene sender, er ikke sjekket på en ekte lås, så prøv den nye koden på tastaturet.",
+      "fields": {
+        "slot": {
+          "name": "Slot",
+          "description": "Brukerslot. Slots under innstillingen for reserverte masterslots (3 som standard) avvises, og slot 0 er alltid masterkoden. Slots over PIN-kapasiteten låsen oppgir, avvises også."
+        },
+        "name": {
+          "name": "Navn",
+          "description": "Navn på denne brukeren, for eksempel Kari."
+        },
+        "code": {
+          "name": "PIN-kode",
+          "description": "Bare siffer. Lengden må være innenfor det låsen oppgir, 4-8 siffer hvis den ikke har oppgitt noe."
+        },
+        "device_id": {
+          "name": "Lås",
+          "description": "Låsen som skal brukes. Trengs når det er satt opp mer enn én lås. Vinner over IEEE-adresse hvis begge er oppgitt."
+        },
+        "ieee": {
+          "name": "IEEE-adresse",
+          "description": "Avansert, for skript. Låsens Zigbee IEEE-adresse, slik ZHA viser den (for eksempel 00:0d:6f:00:11:22:33:44). Brukes bare når ingen lås er valgt over."
+        }
+      }
+    },
+    "clear_pin": {
+      "name": "Fjern PIN-kode",
+      "description": "Fjern PIN-koden fra en slot i låsen. Sloten beholder navnet sitt i Home Assistant.",
+      "fields": {
+        "slot": {
+          "name": "Slot",
+          "description": "Brukerslot. Slots under innstillingen for reserverte masterslots (3 som standard) avvises, og slot 0 er alltid masterkoden."
+        },
+        "device_id": {
+          "name": "Lås",
+          "description": "Låsen som skal brukes. Trengs når det er satt opp mer enn én lås. Vinner over IEEE-adresse hvis begge er oppgitt."
+        },
+        "ieee": {
+          "name": "IEEE-adresse",
+          "description": "Avansert, for skript. Låsens Zigbee IEEE-adresse, slik ZHA viser den (for eksempel 00:0d:6f:00:11:22:33:44). Brukes bare når ingen lås er valgt over."
+        }
+      }
+    },
+    "set_name": {
+      "name": "Navngi slot",
+      "description": "Sett eller endre navnet på en slot uten å endre PIN-koden.",
+      "fields": {
+        "slot": {
+          "name": "Slot",
+          "description": "Sloten som skal navngis (0-999). Navn lagres bare i Home Assistant, så masterslots kan også navngis."
+        },
+        "name": {
+          "name": "Navn",
+          "description": "Navn på denne brukeren."
+        },
+        "device_id": {
+          "name": "Lås",
+          "description": "Låsen som skal brukes. Trengs når det er satt opp mer enn én lås. Vinner over IEEE-adresse hvis begge er oppgitt."
+        },
+        "ieee": {
+          "name": "IEEE-adresse",
+          "description": "Avansert, for skript. Låsens Zigbee IEEE-adresse, slik ZHA viser den (for eksempel 00:0d:6f:00:11:22:33:44). Brukes bare når ingen lås er valgt over."
+        }
+      }
+    },
+    "clear_slot": {
+      "name": "Tøm slot",
+      "description": "Fjern PIN-koden fra en slot i låsen, som Fjern PIN-kode, og fjern også slotens navn i Home Assistant.",
+      "fields": {
+        "slot": {
+          "name": "Slot",
+          "description": "Brukerslot. Slots under innstillingen for reserverte masterslots (3 som standard) avvises, og slot 0 er alltid masterkoden."
+        },
+        "device_id": {
+          "name": "Lås",
+          "description": "Låsen som skal brukes. Trengs når det er satt opp mer enn én lås. Vinner over IEEE-adresse hvis begge er oppgitt."
+        },
+        "ieee": {
+          "name": "IEEE-adresse",
+          "description": "Avansert, for skript. Låsens Zigbee IEEE-adresse, slik ZHA viser den (for eksempel 00:0d:6f:00:11:22:33:44). Brukes bare når ingen lås er valgt over."
+        }
+      }
     }
   },
   "common": {

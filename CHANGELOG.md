@@ -6,7 +6,7 @@ All notable changes to Onesti Lock. The format is based on [Keep a Changelog](ht
 
 ### Action required
 
-- **Import the blueprints again if you use them.** HACS does not update imported blueprints, and copies from 1.3.0 and earlier ignore some of their settings (see Bug fixes). Import and overwrite them from [the Blueprints section](README.md#blueprints) of the README.
+- **Import the blueprints again if you use them.** HACS does not update imported blueprints, and copies from 1.3.0 and earlier ignore some of their settings (see Bug fixes). Import and overwrite them from [the Blueprints section](README.md#blueprints) of the README. The new copies are in English, the notification texts included. Blueprints have no translation mechanism in Home Assistant, so the Norwegian texts are gone; edit your automation's message if you want them back.
 
 ### Features
 
@@ -16,11 +16,12 @@ All notable changes to Onesti Lock. The format is based on [Keep a Changelog](ht
 - **Pick the lock by device in services.** `set_pin`, `clear_pin`, `set_name` and `clear_slot` take a `device_id` with a device picker in the automation editor. `ieee` still works and now ignores case.
 - **Repair issue when lock events cannot be received.** If a part of ZHA the integration depends on is missing, Settings, Repairs says so and names it. Before, activity just stopped arriving. A lock that is gone from ZHA, removed or moved to a new Connect Module, is not treated as an error: setup waits and retries until the lock is back. A ZHA that is still starting, for example with a slow Zigbee stick, is waited for the same way. <!--short-->
 - **PIN length follows the lock.** Set PIN and `set_pin` check the code against the minimum and maximum length the lock reports, with 4-8 digits until it has reported.
-- **Download diagnostics.** The integration page has a diagnostics download you can attach to a bug report. It leaves out the IEEE address, the slot names and everything about PIN codes.
+- **Download diagnostics.** The integration page has a diagnostics download you can attach to a bug report. No PIN code is in it, and neither is the IEEE address: each slot is listed as named or unnamed, with whether it holds a code, next to the slot and length limits the lock reports.
+- **The integration has an icon of its own.** Newer Home Assistant versions show it on the integration page and in the device list, in place of the default puzzle piece.
 
 ### Security
 
-- **PIN codes no longer end up in the recorder database.** Every PIN command went through ZHA's `issue_zigbee_cluster_command` service, and Home Assistant records each service call with its data, so every code set since 1.0.0, from the options flow as well, was stored in clear text. Commands now go straight to the lock's Door Lock cluster. Events already stored are removed when the recorder purges them, after 10 days unless you changed `purge_keep_days`. <!--short-->
+- **Setting a PIN from the UI no longer puts the code in the recorder database.** Every PIN command went through ZHA's `issue_zigbee_cluster_command` action, and Home Assistant records each action call with its data, so every code set since 1.0.0 was stored in clear text. Commands now go straight to the lock's Door Lock cluster. Calling the `onesti_lock.set_pin` action still records the code you passed it, because Home Assistant records that call too, and so does the trace of the automation or script that made it (see [Security](README.md#security)). Events already stored are removed when the recorder purges them, after 10 days unless you changed `purge_keep_days`. <!--short-->
 - **Errors no longer put PIN codes in the log.** A failed PIN command could log the error from ZHA, which quotes the command, code included, and a failed service call passed that error on to the caller. Digit runs of four or more are now masked in everything the integration logs about a command, and services raise their own error instead. <!--short-->
 
 ### Bug fixes
@@ -32,7 +33,7 @@ All notable changes to Onesti Lock. The format is based on [Keep a Changelog](ht
 - **Locks reporting an unexpected model string can be added.** A Connect Module can report a sibling model, such as a Code Pro that pairs as NimlyTwist, and setup said no devices were found. Any Onesti lock with a Door Lock cluster is now offered. (#5)
 - **The last activity survives a restart.** The activity sensor was empty after every Home Assistant restart until the next lock event. Its `timestamp` attribute is now UTC with an offset instead of local time without one.
 - **Setting a PIN no longer overwrites the last activity.** Waking a sleeping lock before a PIN write locks the door through ZHA, and the activity sensor showed that as "Locked via Zigbee". Locking from a dashboard still shows up.
-- **Blueprints use their settings.** "Notify on unlock" ignored "only unlock" and the notify service you picked, and "connectivity alerts" ignored the number of minutes. Import them again to get the fix.
+- **Blueprints use their settings.** "Notify on unlock" ignored "only unlock" and the notify service you picked, and "connectivity alerts" ignored the number of minutes. Import them again to get the fix. <!--short-->
 - **Lock events keep arriving after ZHA reloads.** A ZHA reload or re-pair left the integration listening to the old device, and activity stopped without a warning. It now reloads onto the new one.
 - **Commands to a sleeping lock retry in more cases.** A failed delivery now wakes the lock and retries, like a timeout already did. Other Zigbee errors fail at once without moving the bolt.
 - **The lock's slot and PIN limits are actually read.** They were only read at startup, when the lock is usually asleep. The read now repeats while the lock is awake until it answers, and the answer is kept.

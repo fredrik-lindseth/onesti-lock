@@ -103,6 +103,14 @@ class ConfigEntry[DataT]:
     """
 
 
+class ConfigEntryState(enum.Enum):
+    """The entry states the options flow compares against, as HA names them."""
+
+    LOADED = "loaded"
+    SETUP_RETRY = "setup_retry"
+    NOT_LOADED = "not_loaded"
+
+
 class _FlowResultsMixin:
     """Records every flow result as a plain dict, keyed like HA's FlowResult."""
 
@@ -141,6 +149,7 @@ class OptionsFlow(_FlowResultsMixin):
 
 
 config_entries.ConfigEntry = ConfigEntry
+config_entries.ConfigEntryState = ConfigEntryState
 config_entries.ConfigFlow = ConfigFlow
 config_entries.ConfigFlowResult = dict
 config_entries.OptionsFlow = OptionsFlow

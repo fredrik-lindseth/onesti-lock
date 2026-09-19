@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 import voluptuous as vol
 from homeassistant.config_entries import (
     ConfigEntry,
+    ConfigEntryState,
     ConfigFlow,
     ConfigFlowResult,
     OptionsFlow,
@@ -258,7 +259,18 @@ class NimlyProOptionsFlow(OptionsFlow):
     # -- Main menu --
 
     async def async_step_init(self, user_input=None) -> ConfigFlowResult:
-        """Main menu: choose action."""
+        """Main menu: choose action, or say that the lock is not running.
+
+        Every step below reads the coordinator from entry.runtime_data, which
+        Home Assistant sets while the entry is loaded and drops on unload. A
+        lock that is missing from ZHA leaves the entry in SETUP_RETRY, and
+        reading it there is an AttributeError the dialog shows as "Unknown
+        error". The menu is the only way into this flow, so the check belongs
+        here.
+        """
+        if self.config_entry.state is not ConfigEntryState.LOADED:
+            return self.async_abort(reason="lock_not_loaded")
+
         return self.async_show_menu(
             step_id="init",
             menu_options=["set_pin", "clear_pin", "name_slot", "view_slots", "settings"],

@@ -15,6 +15,7 @@ import pytest
 
 MODULES = [
     "sensor.py",
+    "entity.py",
     "config_flow.py",
     "services.py",
     "coordinator.py",
@@ -84,12 +85,12 @@ class TestNoNorwegianLiterals:
 class TestSensorNaming:
     """The sensors must let HA translate their names."""
 
-    def _class_node(self, name):
-        tree = _parse("sensor.py")
+    def _class_node(self, name, module="sensor.py"):
+        tree = _parse(module)
         for node in ast.walk(tree):
             if isinstance(node, ast.ClassDef) and node.name == name:
                 return node
-        raise AssertionError(f"class {name} not found in sensor.py")
+        raise AssertionError(f"class {name} not found in {module}")
 
     @pytest.mark.parametrize("class_name", ["NimlySlotSensor", "NimlyActivitySensor"])
     def test_no_name_property_override(self, class_name):
@@ -102,8 +103,8 @@ class TestSensorNaming:
                     "_attr_translation_key"
                 )
 
-    def _assigned_attrs(self, class_name):
-        node = self._class_node(class_name)
+    def _assigned_attrs(self, class_name, module="sensor.py"):
+        node = self._class_node(class_name, module)
         attrs = set()
         for child in node.body:
             if not isinstance(child, ast.FunctionDef) or child.name != "__init__":
@@ -138,6 +139,7 @@ class TestSensorNaming:
         """
         for cls in ("NimlySlotSensor", "NimlyActivitySensor"):
             assert "_attr_name" not in self._assigned_attrs(cls), cls
+        assert "_attr_name" not in self._assigned_attrs("NimlyEntity", "entity.py")
 
     def test_slot_translation_key_is_shared(self):
         """One key with a {slot} placeholder, not ten per-slot keys."""

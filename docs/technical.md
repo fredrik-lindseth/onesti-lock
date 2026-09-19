@@ -56,7 +56,7 @@ ZHADeviceProxy (depth 0, no endpoints)
 
 ### Finding ZHA's lock entity
 
-The auto-wake calls `lock.lock` on ZHA's own lock entity, and `find_lock_entity_id()` finds it through the registries. ZHA registers each device with a zigbee connection holding the IEEE address in lowercase, so the device registry gives the device, and the lock entity is the one entity on it in the `lock` domain from the `zha` platform. Disabled entities are skipped, since HA would refuse the service call. No unique_id format is parsed.
+The auto-wake calls `lock.lock` on ZHA's own lock entity, and `find_lock_entity_id()` finds it through the registries. ZHA registers each device with a zigbee connection holding the IEEE address in lowercase. The device is the one with that connection among the devices of ZHA's own config entries (`async_entries_for_config_entry`), not a registry-wide `async_get_device`: from HA 2026.9 a connection is unique only within one config entry, and HA reports `async_get_device` as breaking in 2027.8. The lock entity is the one entity on it in the `lock` domain from the `zha` platform. Disabled entities are skipped, since HA would refuse the service call. No unique_id format is parsed.
 
 ### When ZHA is reloaded
 

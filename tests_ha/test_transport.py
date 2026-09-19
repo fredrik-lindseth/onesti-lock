@@ -106,6 +106,40 @@ async def test_uppercase_ieee_in_the_entry_still_finds_the_lock(
     assert lock_service_calls == [lock_entities[LOCK_IEEE]]
 
 
+async def test_a_device_of_another_integration_with_the_same_connection_is_skipped(
+    hass: HomeAssistant, lock_entities, lock_service_calls
+) -> None:
+    # From HA 2026.9 a zigbee connection is unique only within one config
+    # entry, so another integration may hold a device with the same one.
+    other_entry = MockConfigEntry(domain="other_zigbee")
+    other_entry.add_to_hass(hass)
+    dr.async_get(hass).async_get_or_create(
+        config_entry_id=other_entry.entry_id,
+        connections={(dr.CONNECTION_ZIGBEE, LOCK_IEEE)},
+        identifiers={("other_zigbee", LOCK_IEEE)},
+    )
+
+    await ZhaLockTransport(hass, LOCK_IEEE).wake()
+
+    assert lock_service_calls == [lock_entities[LOCK_IEEE]]
+
+
+async def test_lookup_does_not_use_the_deprecated_async_get_device(
+    hass: HomeAssistant, lock_entities, lock_service_calls, monkeypatch
+) -> None:
+    # HA 2026.9 reports device_registry.async_get_device as breaking in
+    # 2027.8. Patched to fail rather than read from the log, because Home
+    # Assistant reports each such use only once per process.
+    def refuse(*args, **kwargs):
+        raise AssertionError("device_registry.async_get_device is deprecated")
+
+    monkeypatch.setattr(dr.DeviceRegistry, "async_get_device", refuse)
+
+    await ZhaLockTransport(hass, LOCK_IEEE).wake()
+
+    assert lock_service_calls == [lock_entities[LOCK_IEEE]]
+
+
 async def test_disabled_lock_entity_is_not_actuated(hass: HomeAssistant, lock_entities, lock_service_calls) -> None:
     er.async_get(hass).async_update_entity(
         lock_entities[LOCK_IEEE], disabled_by=er.RegistryEntryDisabler.USER

@@ -35,6 +35,7 @@ IEEE_ZHA_KEY = IEEE.upper()
 OTHER_IEEE = "aa:bb:cc:dd:ee:ff:00:11"
 DOORLOCK_CLUSTER_ID = 0x0101
 PIN = "83729164"
+ZHA_ENTRY_ID = "zha-entry"
 
 
 class FakeConfigEntry:
@@ -65,6 +66,10 @@ class FakeConfigEntries:
         self.written.append(json.loads(json.dumps(options)))
         return True
 
+    def async_entries(self, domain):
+        """One ZHA config entry, which owns the ZHA devices."""
+        return [SimpleNamespace(entry_id=ZHA_ENTRY_ID, domain="zha")] if domain == "zha" else []
+
 
 class FakeRegistryEntry:
     def __init__(self, entity_id, platform, device_id, disabled_by=None):
@@ -81,21 +86,19 @@ class FakeEntityRegistry:
 
 
 class FakeDeviceRegistry:
-    """Looks a device up by connection, exactly as given, like HA does."""
+    """Holds devices; the conftest stub lists them per config entry."""
 
     def __init__(self, devices=()):
         self.devices = list(devices)
 
-    def async_get_device(self, identifiers=None, connections=None):
-        for device in self.devices:
-            if device.connections & set(connections or ()):
-                return device
-        return None
 
-
-def _zha_device(ieee=IEEE, device_id="dev-front"):
+def _zha_device(ieee=IEEE, device_id="dev-front", config_entry_id=ZHA_ENTRY_ID):
     # ZHA registers str(EUI64), which zigpy renders in lowercase.
-    return SimpleNamespace(id=device_id, connections={("zigbee", ieee.lower())})
+    return SimpleNamespace(
+        id=device_id,
+        connections={("zigbee", ieee.lower())},
+        config_entries={config_entry_id},
+    )
 
 
 def _lock_entity(entity_id="lock.front_door", device_id="dev-front", **kwargs):

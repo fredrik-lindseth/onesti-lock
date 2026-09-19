@@ -493,6 +493,24 @@ class TestEvents:
         run(scenario())
         assert seen == []
 
+    def test_removing_twice_leaves_the_same_listener_added_again(self):
+        # The remover is idempotent: the second call must not take out the
+        # other registration of the same function.
+        seen = []
+
+        async def scenario():
+            transport = open_transport()
+            async with new_session(transport) as session:
+                remove = session.add_event_listener(seen.append)
+                session.add_event_listener(seen.append)
+                remove()
+                remove()
+                transport.send_response(LOCK_STATUS_EVENT)
+                await asyncio.sleep(0.01)
+
+        run(scenario())
+        assert len(seen) == 1
+
     def test_a_failing_listener_does_not_stop_the_others(self, caplog):
         seen = []
 

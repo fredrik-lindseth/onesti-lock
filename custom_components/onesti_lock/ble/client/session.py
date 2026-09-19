@@ -233,9 +233,21 @@ class Session:
         return parse(await self.send(command))
 
     def add_event_listener(self, listener: EventListener) -> Callable[[], None]:
-        """Call listener with every LockStatus and UserAdded event; returns the remover."""
+        """Call listener with every LockStatus and UserAdded event; returns the remover.
+
+        Calling the remover again does nothing, so a caller can run it from
+        more than one cleanup path.
+        """
         self._listeners.append(listener)
-        return lambda: self._listeners.remove(listener)
+        removed = False
+
+        def remove() -> None:
+            nonlocal removed
+            if not removed:
+                removed = True
+                self._listeners.remove(listener)
+
+        return remove
 
     async def _exchange(self, command: CommandPayload) -> Response:
         async with self._command_lock:

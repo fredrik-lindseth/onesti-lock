@@ -141,6 +141,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 | `docs/nimly-connect-app/reversing-notes.md`     | Nimly Connect APK reverse engineering, REST API, white-label hosts                            |
 | `docs/nimly-connect-app/iotiliti-api-spec.yaml` | OpenAPI spec for iotiliti cloud (reverse-engineered)                                          |
 | `docs/nimly-ble-app/ble-protocol.md`            | BLE protocol from decompiled nimly BLE app (not used by integration)                          |
+| `docs/nimly-ble-app/ble-auth-provisioning.md`   | Owner enrollment over BLE: local ECDH owner key, factory-reset default cred, cloud only for guests |
 | `docs/connect-bridge/hardware-gateway.md`       | Connect Bridge hardware, network stack, firmware                                              |
 | `docs/slot-numbering.md`                        | Slot numbering across Zigbee, BLE and cloud, verified and unverified                          |
 | `docs/manuals/README.md`                        | Index of vendor manuals per model and brand, fetched locally by `scripts/fetch_manuals.py`    |
@@ -208,7 +209,9 @@ floor as well.
 
 Fredrik's Home Assistant is reachable as `ssh ha-local` (the SSH add-on, so
 `/config` is the HA config directory). Use it when something cannot be settled
-without a running instance. Tests do miss things here. `_attr_name` was once
+without a running instance. `scripts/ha.sh` wraps the common calls (`states`,
+`state`, `logs`, `grep`, `call`, `debug`) so a session does not re-type the SSH
+and curl boilerplate; it uses the same `ssh ha-local` alias. Tests do miss things here. `_attr_name` was once
 added as a harmless-looking fallback for entity names and silently disabled
 every translated name, since HA checks `_attr_name` before the translation key.
 Only a deployment showed it.

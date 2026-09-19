@@ -204,22 +204,94 @@ class TestOptionsFlowInstanceVars:
         assert "_clear_pin_error" in source
 
 
+def _step_source(name):
+    source = _load_source()
+    for node in ast.walk(_load_source_ast()):
+        is_func = isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        if is_func and node.name == name:
+            return ast.get_source_segment(source, node)
+    pytest.fail(f"{name} not found in config_flow.py")
+
+
 class TestNameSlotValidation:
-    """name_slot must enforce the same slot range as the services."""
+    """name_slot accepts every slot, like the set_name service (issue #6)."""
 
-    def _name_slot_source(self):
-        source = _load_source()
-        tree = _load_source_ast()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.AsyncFunctionDef) and node.name == "async_step_name_slot":
-                return ast.get_source_segment(source, node)
-        pytest.fail("async_step_name_slot not found in config_flow.py")
-
-    def test_validates_against_slot_constants(self):
-        body = self._name_slot_source()
-        assert "SLOT_FIRST_USER" in body, "name_slot must use the shared slot constants"
-        assert "MAX_SLOTS" in body, "name_slot must use the shared slot constants"
+    def test_accepts_slot_0_up_to_max_slots(self):
+        body = _step_source("async_step_name_slot")
+        assert "0 <= slot < MAX_SLOTS" in body, (
+            "name_slot must accept 0 to MAX_SLOTS - 1, master slots included"
+        )
+        assert "SLOT_FIRST_USER" not in body
 
     def test_out_of_range_maps_to_invalid_slot(self):
-        body = self._name_slot_source()
+        body = _step_source("async_step_name_slot")
         assert 'errors["slot"] = "invalid_slot"' in body
+
+    def test_name_is_optional_so_it_can_be_removed(self):
+        """An empty name is the only way to unname a reserved slot."""
+        body = _step_source("async_step_name_slot")
+        assert 'vol.Optional("name", default="")' in body
+
+    @pytest.mark.parametrize("filename", ["strings.json", "translations/en.json"])
+    def test_invalid_slot_message_starts_at_0(self, filename):
+        with open(_component_path(*filename.split("/"))) as f:
+            message = json.load(f)["options"]["error"]["invalid_slot"]
+        assert "between 0 and 999" in message
+
+
+class TestReservedSlotsFloor:
+    """PIN steps start at the lock's first user slot, not a constant."""
+
+    def test_set_pin_schema_starts_at_first_user_slot(self):
+        body = _step_source("_build_set_pin_schema")
+        assert "first_user_slot()" in body
+        assert "SLOT_FIRST_USER" not in body
+
+    def test_clear_pin_skips_reserved_slots(self):
+        body = _step_source("async_step_clear_pin")
+        assert "first_user_slot()" in body
+        assert "range(first, MAX_SLOTS)" in body
+
+    def test_view_slots_marks_reserved_slots_as_master(self):
+        body = _step_source("async_step_view_slots")
+        assert "first_user_slot()" in body
+        assert "slot_status_master" in body
+
+
+class TestSettingsStep:
+    """The settings step stores reserved_slots next to the slot data."""
+
+    def test_settings_in_menu(self):
+        body = _step_source("async_step_init")
+        assert '"settings"' in body
+        strings = _load_strings()
+        assert "settings" in strings["options"]["step"]["init"]["menu_options"]
+
+    def test_step_exists_with_strings(self):
+        _step_source("async_step_settings")
+        step = _load_strings()["options"]["step"]["settings"]
+        assert step["title"].strip()
+        assert step["description"].strip()
+        assert step["data"]["reserved_slots"].strip()
+
+    def test_schema_bounded_by_constants(self):
+        body = _step_source("async_step_settings")
+        assert "CONF_RESERVED_SLOTS" in body
+        assert "vol.Range(min=RESERVED_SLOTS_MIN, max=RESERVED_SLOTS_MAX)" in body
+        assert "vol.Coerce(int)" in body
+
+    def test_default_comes_from_coordinator(self):
+        body = _step_source("async_step_settings")
+        assert "default=self._coordinator().first_user_slot()" in body
+
+    def test_saves_without_dropping_other_options(self):
+        """Slot data lives in the same options dict and must survive."""
+        body = _step_source("async_step_settings")
+        assert "**self.config_entry.options" in body
+        assert "async_create_entry" in body
+
+    def test_error_codes_have_strings(self):
+        """Every options error code the flow can raise has a message."""
+        errors = _load_strings()["options"]["error"]
+        for code in ("invalid_pin", "invalid_slot", "lock_unreachable", "unknown"):
+            assert errors[code].strip()

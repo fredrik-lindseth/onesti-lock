@@ -23,12 +23,13 @@
           "set_pin": "Indstil PIN-kode",
           "clear_pin": "Fjern PIN-kode",
           "name_slot": "Navngiv bruger",
-          "view_slots": "Vis brugerpladser"
+          "view_slots": "Vis brugerpladser",
+          "settings": "Indstillinger"
         }
       },
       "set_pin": {
         "title": "Indstil PIN-kode",
-        "description": "Vælg plads, indtast navn og PIN-kode (4-8 cifre). Pladsnumrene svarer til låsens interne brugerpladser (ZCL DoorLock). Plads 0-2 er reserveret til masterkoder. Bemærk: hvis låsen sover, får første forsøg timeout, og integrationen vækker låsen ved at sende en låsekommando. En ulåst dør bliver fysisk låst, så luk døren, før du starter.",
+        "description": "Vælg plads, indtast navn og PIN-kode (4-8 cifre). Pladsnumrene svarer til låsens interne brugerpladser (ZCL DoorLock). Listen starter efter masterpladserne, der er angivet under Indstillinger. Bemærk: hvis låsen sover, får første forsøg timeout, og integrationen vækker låsen ved at sende en låsekommando. En ulåst dør bliver fysisk låst, så luk døren, før du starter.",
         "data": {
           "slot": "Brugerplads",
           "name": "Navn",
@@ -44,7 +45,7 @@
       },
       "name_slot": {
         "title": "Navngiv bruger",
-        "description": "Knyt et navn til et pladsnummer. Bruges til RFID-brikker, fingeraftryk eller andre adgangsmetoder der ikke indstilles via PIN-menuen.",
+        "description": "Knyt et navn til et pladsnummer (0-999). Bruges til RFID-brikker, fingeraftryk, masterkoden på plads 0-2 eller andre adgangsmetoder, der ikke indstilles via PIN-menuen. Lad navnet stå tomt for at fjerne det.",
         "data": {
           "slot": "Pladsnummer",
           "name": "Navn"
@@ -53,6 +54,13 @@
       "view_slots": {
         "title": "Brugerpladser",
         "description": "{slot_status}"
+      },
+      "settings": {
+        "title": "Indstillinger",
+        "description": "Nimly PRO, Touch Pro og Code reserverer plads 0-2 til masterkoder (3). Nimly Code Pro reserverer kun plads 0 (1). Plads 0 kan aldrig skrives fra Home Assistant.",
+        "data": {
+          "reserved_slots": "Reserverede masterpladser"
+        }
       }
     },
     "progress": {
@@ -61,7 +69,7 @@
     },
     "error": {
       "invalid_pin": "PIN-kode skal være 4-8 cifre",
-      "invalid_slot": "Pladsnummeret skal være mellem 3 og 999",
+      "invalid_slot": "Pladsnummeret skal være mellem 0 og 999",
       "lock_unreachable": "Kunne ikke nå låsen. Tryk på tastaturet og prøv igen.",
       "unknown": "En uventet fejl opstod. Tjek logfilerne."
     },
@@ -100,9 +108,11 @@
     "unknown_user": "Ukendt",
     "slot_vacant": "Ledig",
     "slot_fallback_name": "Plads {slot}",
+    "slot_fallback_master": "Master",
     "slot_label": "Plads {slot}: {name}",
     "slot_status_pin_active": "(PIN aktiv)",
     "slot_status_no_pin": "(ingen PIN)",
+    "slot_status_master": "(master)",
     "lock_keypad": "{name} låste med kode",
     "unlock_keypad": "{name} låste op med kode",
     "lock_fingerprint": "{name} låste med fingeraftryk",

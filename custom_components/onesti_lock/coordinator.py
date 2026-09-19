@@ -80,6 +80,11 @@ class NimlyCoordinator:
         name = self._slots.get(str(slot), {}).get("name", "")
         if name:
             return name
+        if slot == 0:
+            # Slot 0 is the master code on every model, so an unnamed
+            # master unlock reads "Master unlocked with code", not "Slot 0".
+            # Slots 1-2 are only master on some models (issue #6).
+            return self.strings.get("slot_fallback_master", "Master")
         return self.strings.get("slot_fallback_name", "Slot {slot}").format(slot=slot)
 
     def max_user_slot(self) -> int:

@@ -25,7 +25,10 @@ class MockCoordinator:
         self._slots = slots or {}
 
     def get_slot_name(self, slot: int) -> str:
-        return self._slots.get(slot, f"Slot {slot}")
+        # Mirrors NimlyCoordinator: unnamed slot 0 falls back to "Master".
+        if slot in self._slots:
+            return self._slots[slot]
+        return "Master" if slot == 0 else f"Slot {slot}"
 
 
 def _load_decode_operation_event():
@@ -200,7 +203,7 @@ class TestEventDecoding:
     def test_slot_0_from_fingerprint_or_rfid_is_master(self, raw):
         result = _decode(raw)
         assert result["user_slot"] == 0
-        assert result["user_name"] == "Slot 0"
+        assert result["user_name"] == "Master"
 
     @pytest.mark.parametrize("raw", [0x0A010000, 0x00010000, 0x05010000, 0x00000000])
     def test_slot_0_from_system_sources_has_no_user(self, raw):
@@ -233,4 +236,4 @@ class TestSlotMapping:
 
     def test_system_slot(self):
         coord = MockCoordinator()
-        assert coord.get_slot_name(0) == "Slot 0"
+        assert coord.get_slot_name(0) == "Master"

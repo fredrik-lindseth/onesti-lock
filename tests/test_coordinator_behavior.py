@@ -205,3 +205,27 @@ class TestCapabilitySlotCeiling:
         _hass, _entry, coord = _make_coordinator({"slots": {}})
         coord.lock_capabilities["num_pin_users"] = 50
         assert coord.max_user_slot() == 49
+
+
+class TestSlotNameFallback:
+    """Unnamed slot 0 is the master user; other unnamed slots stay numbered."""
+
+    def _coord(self, slots=None):
+        _hass, _entry, coord = _make_coordinator({"slots": slots or {}})
+        coord.strings = {"slot_fallback_name": "Plass {slot}", "slot_fallback_master": "Hovud"}
+        return coord
+
+    def test_unnamed_slot_0_uses_master_string(self):
+        assert self._coord().get_slot_name(0) == "Hovud"
+
+    def test_named_slot_0_uses_the_name(self):
+        assert self._coord({"0": {"name": "Fredrik"}}).get_slot_name(0) == "Fredrik"
+
+    def test_slots_1_and_2_keep_the_numbered_fallback(self):
+        coord = self._coord()
+        assert coord.get_slot_name(1) == "Plass 1"
+        assert coord.get_slot_name(2) == "Plass 2"
+
+    def test_english_default_without_loaded_strings(self):
+        _hass, _entry, coord = _make_coordinator({"slots": {}})
+        assert coord.get_slot_name(0) == "Master"

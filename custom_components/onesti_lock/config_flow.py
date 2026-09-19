@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Mapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
 from homeassistant.config_entries import (
@@ -17,15 +17,21 @@ from homeassistant.core import callback
 
 from .const import (
     CONF_IEEE,
+    CONF_RESERVED_SLOTS,
     DOMAIN,
     DOORLOCK_CLUSTER_ID,
     MANUFACTURER,
     MAX_SLOTS,
-    SLOT_FIRST_USER,
+    NUM_USER_SLOTS,
+    RESERVED_SLOTS_MAX,
+    RESERVED_SLOTS_MIN,
     SUPPORTED_MODELS,
     ZHA_DOMAIN,
 )
 from .localize import async_get_strings
+
+if TYPE_CHECKING:
+    from .coordinator import NimlyCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -128,6 +134,9 @@ class NimlyProOptionsFlow(OptionsFlow):
 
     # -- Helpers --
 
+    def _coordinator(self) -> NimlyCoordinator:
+        return self.hass.data[DOMAIN][self.config_entry.entry_id]["coordinator"]
+
     def _build_set_pin_schema(
         self,
         strings: Mapping[str, str],
@@ -137,14 +146,15 @@ class NimlyProOptionsFlow(OptionsFlow):
         slots = self.config_entry.options.get("slots", {})
         label_template = strings.get("slot_label", "Slot {slot}: {name}")
         vacant = strings.get("slot_vacant", "Vacant")
+        first = self._coordinator().first_user_slot()
         slot_options = {}
-        for i in range(SLOT_FIRST_USER, SLOT_FIRST_USER + 10):
+        for i in range(first, first + NUM_USER_SLOTS):
             name = slots.get(str(i), {}).get("name", "")
             slot_options[str(i)] = label_template.format(slot=i, name=name or vacant)
 
         schema = vol.Schema(
             {
-                vol.Required("slot", default=str(SLOT_FIRST_USER)): vol.In(slot_options),
+                vol.Required("slot", default=str(first)): vol.In(slot_options),
                 vol.Required("name"): str,
                 vol.Required("code"): str,
             }
@@ -157,8 +167,7 @@ class NimlyProOptionsFlow(OptionsFlow):
         """Background task: send set_pin command to coordinator."""
         inp = self._set_pin_input
         assert inp is not None
-        coordinator = self.hass.data[DOMAIN][self.config_entry.entry_id]["coordinator"]
-        return await coordinator.set_pin(
+        return await self._coordinator().set_pin(
             int(inp["slot"]), inp["name"], inp["code"],
         )
 
@@ -166,8 +175,7 @@ class NimlyProOptionsFlow(OptionsFlow):
         """Background task: send clear_slot command to coordinator."""
         inp = self._set_pin_input  # reused for clear_pin slot
         assert inp is not None
-        coordinator = self.hass.data[DOMAIN][self.config_entry.entry_id]["coordinator"]
-        return await coordinator.clear_slot(int(inp["slot"]))
+        return await self._coordinator().clear_slot(int(inp["slot"]))
 
     # -- Main menu --
 
@@ -175,7 +183,7 @@ class NimlyProOptionsFlow(OptionsFlow):
         """Main menu: choose action."""
         return self.async_show_menu(
             step_id="init",
-            menu_options=["set_pin", "clear_pin", "name_slot", "view_slots"],
+            menu_options=["set_pin", "clear_pin", "name_slot", "view_slots", "settings"],
         )
 
     # -- Set PIN: form → progress → result --
@@ -262,8 +270,11 @@ class NimlyProOptionsFlow(OptionsFlow):
         label_template = strings.get("slot_label", "Slot {slot}: {name}")
         fallback_template = strings.get("slot_fallback_name", "Slot {slot}")
         slots = self.config_entry.options.get("slots", {})
+        # Reserved master slots are never offered: clear_slot refuses them,
+        # and a named slot 0 would otherwise show up as removable.
+        first = self._coordinator().first_user_slot()
         active_slots = {}
-        for i in range(MAX_SLOTS):
+        for i in range(first, MAX_SLOTS):
             slot_data = slots.get(str(i), {})
             if slot_data.get("has_pin") or slot_data.get("name"):
                 name = slot_data.get("name", "")
@@ -346,20 +357,21 @@ class NimlyProOptionsFlow(OptionsFlow):
         suggested: dict[str, Any] | None = None
         if user_input is not None:
             slot = int(user_input["slot"])
-            # Same range the services enforce, so the two entry points
-            # cannot drift apart on what a valid slot is.
-            if not SLOT_FIRST_USER <= slot < MAX_SLOTS:
+            # Same range set_name enforces. Names never reach the lock, so
+            # master slots can be named too (issue #6).
+            if not 0 <= slot < MAX_SLOTS:
                 errors["slot"] = "invalid_slot"
                 suggested = user_input
             else:
-                coordinator = self.hass.data[DOMAIN][self.config_entry.entry_id]["coordinator"]
-                await coordinator.set_slot_name(slot, user_input["name"])
+                # An empty name removes it. That is the only way to unname a
+                # reserved slot, since clear_slot refuses those.
+                await self._coordinator().set_slot_name(slot, user_input.get("name", "").strip())
                 return self.async_create_entry(data=self.config_entry.options)
 
         schema = vol.Schema(
             {
                 vol.Required("slot"): vol.Coerce(int),
-                vol.Required("name"): str,
+                vol.Optional("name", default=""): str,
             }
         )
         if suggested:
@@ -379,10 +391,18 @@ class NimlyProOptionsFlow(OptionsFlow):
         label_template = strings.get("slot_label", "Slot {slot}: {name}")
         pin_active = strings.get("slot_status_pin_active", "(PIN active)")
         no_pin = strings.get("slot_status_no_pin", "(no PIN)")
+        master = strings.get("slot_status_master", "(master)")
         vacant = strings.get("slot_vacant", "Vacant")
         slots = self.config_entry.options.get("slots", {})
+        first = self._coordinator().first_user_slot()
         lines = []
-        for i in range(SLOT_FIRST_USER, SLOT_FIRST_USER + 10):
+        # Reserved master slots first: they cannot be written from here, but
+        # a name on them is what events show for the master user.
+        for i in range(first):
+            name = slots.get(str(i), {}).get("name", "")
+            line = label_template.format(slot=i, name=name or vacant)
+            lines.append(f"{line} {master}")
+        for i in range(first, first + NUM_USER_SLOTS):
             slot_data = slots.get(str(i), {})
             name = slot_data.get("name", "")
             has_pin = slot_data.get("has_pin", False)
@@ -403,4 +423,32 @@ class NimlyProOptionsFlow(OptionsFlow):
             step_id="view_slots",
             description_placeholders={"slot_status": "\n".join(lines)},
             data_schema=vol.Schema({}),
+        )
+
+    # -- Settings --
+
+    async def async_step_settings(self, user_input=None) -> ConfigFlowResult:
+        """Per-lock settings: how many slots from 0 up are master codes."""
+        if user_input is not None:
+            # Merged into the existing options, which also hold slot data.
+            return self.async_create_entry(
+                data={
+                    **self.config_entry.options,
+                    CONF_RESERVED_SLOTS: int(user_input[CONF_RESERVED_SLOTS]),
+                }
+            )
+
+        return self.async_show_form(
+            step_id="settings",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_RESERVED_SLOTS,
+                        default=self._coordinator().first_user_slot(),
+                    ): vol.All(
+                        vol.Coerce(int),
+                        vol.Range(min=RESERVED_SLOTS_MIN, max=RESERVED_SLOTS_MAX),
+                    ),
+                }
+            ),
         )

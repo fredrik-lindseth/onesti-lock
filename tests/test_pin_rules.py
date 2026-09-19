@@ -2,23 +2,20 @@
 
 pin_rules imports nothing but .const, so a stub package whose __path__
 points at the component directory is enough to execute the real module.
-The source-text class covers services.py, which cannot be imported in CI
-(no voluptuous, no homeassistant); tests/test_service_slot_limits.py
-executes the handlers themselves under stubs.
+TestOnlySetPinIsCapped runs the real service handlers on the stubs from
+conftest.py, with the harness from tests/test_service_slot_limits.py.
 """
 from __future__ import annotations
 
-import os
-import re
+import asyncio
 
-from .conftest import COMPONENT_DIR, load_component_module
+import pytest
+from homeassistant.exceptions import HomeAssistantError
+
+from .conftest import load_component_module
+from .test_service_slot_limits import FakeCall, FakeCoordinator, _handlers
 
 pin_rules = load_component_module("pin_rules")
-
-
-def _services_source() -> str:
-    with open(os.path.join(COMPONENT_DIR, "services.py")) as f:
-        return f.read()
 
 
 class TestMaxUserSlotFallback:
@@ -67,34 +64,70 @@ class TestMaxUserSlotCeiling:
         assert pin_rules.max_user_slot({"num_pin_users": 1000}) == 999
 
 
+class _EveryHandlerCoordinator(FakeCoordinator):
+    """A lock reporting 50 PIN users, recording all four operations."""
+
+    def __init__(self):
+        super().__init__({"num_pin_users": 50})
+        self.calls = []
+
+    async def set_pin(self, slot, name, code):
+        self.calls.append(("set_pin", slot))
+        return True
+
+    async def clear_pin(self, slot):
+        self.calls.append(("clear_pin", slot))
+        return True
+
+    async def clear_slot(self, slot):
+        self.calls.append(("clear_slot", slot))
+        return True
+
+    async def set_slot_name(self, slot, name):
+        self.calls.append(("set_name", slot))
+
+
+def _call(handlers, service, slot):
+    data = {"slot": slot, "name": "Kari", "code": "1234"}
+    if service in ("clear_pin", "clear_slot"):
+        del data["name"], data["code"]
+    elif service == "set_name":
+        del data["code"]
+    asyncio.run(handlers[service](FakeCall(**data)))
+
+
 class TestOnlySetPinIsCapped:
-    """The ceiling belongs to set_pin; the other services stay permissive."""
+    """The ceiling belongs to set_pin; the other services stay open to 999.
 
-    def _set_pin_body(self) -> str:
-        source = _services_source()
-        start = source.index("async def handle_set_pin")
-        end = source.index("async def handle_clear_pin")
-        return source[start:end]
+    The lock reports 50 PIN users. A capacity cap on clear_pin or
+    clear_slot would strand codes written before the capacity was known,
+    and names never reach the lock at all. Their floors differ (the
+    reserved-slots setting for the two that touch the lock, 0 for
+    set_name), which tests/test_reserved_slots.py covers.
+    """
 
-    def test_set_pin_uses_the_dynamic_ceiling(self):
-        body = self._set_pin_body()
-        assert "coordinator.max_user_slot()" in body
-        assert '"max": str(max_slot)' in body
+    def test_set_pin_stops_at_the_reported_capacity(self):
+        coordinator = _EveryHandlerCoordinator()
+        handlers = _handlers(coordinator)
+        with pytest.raises(HomeAssistantError) as excinfo:
+            _call(handlers, "set_pin", 50)
+        assert excinfo.value.translation_placeholders["max"] == "49"
+        assert coordinator.calls == []
 
-    def test_set_pin_no_longer_uses_the_static_ceiling(self):
-        assert "MAX_SLOTS - 1" not in self._set_pin_body()
+    @pytest.mark.parametrize("service", ["clear_pin", "clear_slot", "set_name"])
+    def test_the_other_three_reach_slot_999(self, service):
+        coordinator = _EveryHandlerCoordinator()
+        _call(_handlers(coordinator), service, 999)
+        assert coordinator.calls == [(service, 999)]
 
-    def test_the_other_three_handlers_keep_the_manual_ceiling(self):
-        """clear_pin, set_name and clear_slot stay open up to slot 999.
-
-        Their floors differ (the reserved-slots setting for the two that
-        touch the lock, 0 for set_name), which the handler tests in
-        test_reserved_slots.py execute; here only the static ceiling is
-        pinned, since a capacity cap on them would strand old codes.
-        """
-        source = _services_source()
-        assert len(re.findall(r"slot < MAX_SLOTS", source)) == 3
-        assert "SLOT_FIRST_USER" not in source
+    @pytest.mark.parametrize("service", ["clear_pin", "clear_slot", "set_name"])
+    def test_the_other_three_stop_at_the_manual_ceiling(self, service):
+        coordinator = _EveryHandlerCoordinator()
+        with pytest.raises(HomeAssistantError) as excinfo:
+            _call(_handlers(coordinator), service, 1000)
+        assert excinfo.value.translation_key == "invalid_slot"
+        assert excinfo.value.translation_placeholders["max"] == "999"
+        assert coordinator.calls == []
 
 
 class TestFirstUserSlot:

@@ -6,17 +6,15 @@ tasks and entry updates. The coordinator is the real one created by
 async_setup_entry. Only its transport is swapped for a fake, which stands
 in for the Zigbee radio and records every command the flow sends.
 
-The PIN steps never leave their progress step under Home Assistant's flow
-manager: when the task finishes, HA calls async_step_set_pin_progress again,
-which shows the same finished task, and the *_progress_done steps are never
-reached. The end-to-end tests for that are xfail. The rest drive the flow
-through HA up to the finished task and then call the done step on the flow
-object, which is how the error mapping and the preserved input get tested
-until the glue is fixed.
+The PIN steps run their command as a progress task. When it finishes, HA
+calls the progress step again on its own, and the step answers with
+progress_done pointing at the result or back at the form. The PIN tests
+follow that whole path through HA's flow manager, success and failure alike.
 """
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import pytest
@@ -36,10 +34,14 @@ class FakeTransport:
     """Stands in for ZhaLockTransport.
 
     `result` is what send() returns, or an exception instance to raise.
+    send() yields to the loop first, the way a radio round trip does, so the
+    progress task is still running when the flow shows its spinner. With
+    `instant` it finishes inside the eagerly started task instead.
     """
 
     def __init__(self) -> None:
         self.result: bool | BaseException = True
+        self.instant = False
         self.sent: list[tuple[int, dict]] = []
 
     def cluster(self) -> None:
@@ -50,6 +52,8 @@ class FakeTransport:
 
     async def send(self, command: int, params: dict) -> bool:
         self.sent.append((command, params))
+        if not self.instant:
+            await asyncio.sleep(0)
         if isinstance(self.result, BaseException):
             raise self.result
         return self.result
@@ -95,9 +99,16 @@ async def _open_step(hass: HomeAssistant, entry: MockConfigEntry, step: str) -> 
 
 
 async def _finish_progress(hass: HomeAssistant, result: dict[str, Any]) -> dict[str, Any]:
-    """Let the background task finish and return where HA took the flow."""
+    """Let the background task finish and return where HA took the flow.
+
+    HA moves the flow off the progress step by itself when the task is done,
+    and the frontend then calls configure to follow it. The assert checks the
+    first half, the configure call is the second.
+    """
     assert result["type"] is FlowResultType.SHOW_PROGRESS
+    flow = _flow(hass, result)
     await hass.async_block_till_done()
+    assert flow.cur_step["type"] is FlowResultType.SHOW_PROGRESS_DONE
     return await hass.config_entries.options.async_configure(result["flow_id"])
 
 
@@ -108,32 +119,6 @@ def _flow(hass: HomeAssistant, result: dict[str, Any]) -> Any:
     has held it under this name from the minimum target to current.
     """
     return hass.config_entries.options._progress[result["flow_id"]]
-
-
-async def _finish_progress_by_hand(hass: HomeAssistant, result: dict[str, Any]) -> dict[str, Any]:
-    """Let the task finish, then run the done step as HA should have.
-
-    A done step that routes back to the form is followed to that form, the
-    way HA follows a SHOW_PROGRESS_DONE result.
-    """
-    assert result["type"] is FlowResultType.SHOW_PROGRESS
-    await hass.async_block_till_done()
-    flow = _flow(hass, result)
-    done = await getattr(flow, f"async_step_{result['step_id']}_done")()
-    if done["type"] is FlowResultType.SHOW_PROGRESS_DONE:
-        return await getattr(flow, f"async_step_{done['step_id']}")()
-    return done
-
-
-PROGRESS_STUCK = pytest.mark.xfail(
-    reason=(
-        "config_flow.py: async_step_set_pin_progress and "
-        "async_step_clear_pin_progress never check task.done(), so HA re-shows "
-        "the progress step when the task finishes and the *_progress_done "
-        "steps are never called"
-    ),
-    strict=True,
-)
 
 
 def _slot_choices(result: dict[str, Any]) -> dict[str, str]:
@@ -184,7 +169,6 @@ async def test_set_pin_invalid_code_shows_error(
     assert transport.sent == []
 
 
-@PROGRESS_STUCK
 async def test_set_pin_completes_through_ha(
     hass: HomeAssistant, entry: MockConfigEntry, transport: FakeTransport
 ) -> None:
@@ -211,7 +195,7 @@ async def test_set_pin_valid_code_runs_progress_and_saves(
     assert result["progress_action"] == "set_pin_progress"
     # Passed as progress_task, which HA has required since 2024.5.
     assert _flow(hass, result).async_get_progress_task() is not None
-    result = await _finish_progress_by_hand(hass, result)
+    result = await _finish_progress(hass, result)
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert transport.sent == [
@@ -241,7 +225,7 @@ async def test_set_pin_failure_returns_to_form_with_input(
     result = await _open_step(hass, entry, "set_pin")
 
     result = await hass.config_entries.options.async_configure(result["flow_id"], user_input)
-    result = await _finish_progress_by_hand(hass, result)
+    result = await _finish_progress(hass, result)
 
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "set_pin"
@@ -257,14 +241,12 @@ async def test_set_pin_can_retry_after_failure(
     user_input = {"slot": "5", "name": "Ola", "code": "56789"}
     result = await _open_step(hass, entry, "set_pin")
     result = await hass.config_entries.options.async_configure(result["flow_id"], user_input)
-    flow = _flow(hass, result)
-    result = await _finish_progress_by_hand(hass, result)
+    result = await _finish_progress(hass, result)
     assert result["errors"] == {"base": "lock_unreachable"}
 
-    # The form's submit, as HA would route it once the flow is back on it.
     transport.result = True
-    result = await flow.async_step_set_pin(user_input)
-    result = await _finish_progress_by_hand(hass, result)
+    result = await hass.config_entries.options.async_configure(result["flow_id"], user_input)
+    result = await _finish_progress(hass, result)
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert len(transport.sent) == 2
@@ -332,7 +314,6 @@ async def test_clear_pin_without_active_slots_aborts(hass: HomeAssistant, entry:
     assert result["reason"] == "no_active_slots"
 
 
-@PROGRESS_STUCK
 @pytest.mark.parametrize("entry_options", [{"slots": {"4": {"name": "Kari", "has_pin": True}}}])
 async def test_clear_pin_completes_through_ha(hass: HomeAssistant, entry: MockConfigEntry) -> None:
     result = await _open_step(hass, entry, "clear_pin")
@@ -353,7 +334,7 @@ async def test_clear_pin_clears_the_slot(
     assert result["step_id"] == "clear_pin_progress"
     assert result["progress_action"] == "clear_pin_progress"
     assert _flow(hass, result).async_get_progress_task() is not None
-    result = await _finish_progress_by_hand(hass, result)
+    result = await _finish_progress(hass, result)
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert transport.sent == [(CLEAR_PIN_COMMAND, {"user_id": 4})]
@@ -381,13 +362,80 @@ async def test_clear_pin_failure_returns_to_form_with_input(
     result = await _open_step(hass, entry, "clear_pin")
 
     result = await hass.config_entries.options.async_configure(result["flow_id"], {"slot": "4"})
-    result = await _finish_progress_by_hand(hass, result)
+    result = await _finish_progress(hass, result)
 
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "clear_pin"
     assert result["errors"] == {"base": error}
     assert _suggested(result) == {"slot": "4"}
     assert entry.options["slots"]["4"] == {"name": "Kari", "has_pin": True}
+
+
+@pytest.mark.parametrize("entry_options", [{"slots": {"4": {"name": "Kari", "has_pin": True}}}])
+async def test_clear_pin_can_retry_after_failure(
+    hass: HomeAssistant, entry: MockConfigEntry, transport: FakeTransport
+) -> None:
+    transport.result = TimeoutError()
+    result = await _open_step(hass, entry, "clear_pin")
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"slot": "4"})
+    result = await _finish_progress(hass, result)
+    assert result["errors"] == {"base": "lock_unreachable"}
+
+    transport.result = True
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"slot": "4"})
+    result = await _finish_progress(hass, result)
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert len(transport.sent) == 2
+    assert entry.options["slots"]["4"]["has_pin"] is False
+
+
+# -- A task that is done before the spinner shows --
+#
+# HA starts tasks eagerly, so a command that never waits finishes inside the
+# submit. The progress step then answers progress_done at once, and HA follows
+# it within the same configure call, passing the submitted input along.
+
+
+@pytest.mark.parametrize(("outcome", "error"), [(True, None), (False, "lock_unreachable")])
+async def test_set_pin_instant_task(
+    hass: HomeAssistant, entry: MockConfigEntry, transport: FakeTransport, outcome: bool, error: str | None
+) -> None:
+    transport.instant = True
+    transport.result = outcome
+    user_input = {"slot": "5", "name": "Ola", "code": "56789"}
+    result = await _open_step(hass, entry, "set_pin")
+
+    result = await hass.config_entries.options.async_configure(result["flow_id"], user_input)
+
+    if error is None:
+        assert result["type"] is FlowResultType.CREATE_ENTRY
+    else:
+        assert result["type"] is FlowResultType.FORM
+        assert result["errors"] == {"base": error}
+        assert _suggested(result) == user_input
+    assert len(transport.sent) == 1
+
+
+@pytest.mark.parametrize("entry_options", [{"slots": {"4": {"name": "Kari", "has_pin": True}}}])
+@pytest.mark.parametrize(("outcome", "error"), [(True, None), (False, "lock_unreachable")])
+async def test_clear_pin_instant_task(
+    hass: HomeAssistant, entry: MockConfigEntry, transport: FakeTransport, outcome: bool, error: str | None
+) -> None:
+    transport.instant = True
+    transport.result = outcome
+    result = await _open_step(hass, entry, "clear_pin")
+
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"slot": "4"})
+
+    if error is None:
+        assert result["type"] is FlowResultType.CREATE_ENTRY
+    else:
+        assert result["type"] is FlowResultType.FORM
+        assert result["errors"] == {"base": error}
+        assert _suggested(result) == {"slot": "4"}
+    # One send only: the form must not restart the task on the routed input.
+    assert len(transport.sent) == 1
 
 
 # -- name_slot --

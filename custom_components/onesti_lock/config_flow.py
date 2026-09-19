@@ -149,6 +149,18 @@ class NimlyProOptionsFlow(OptionsFlow):
         assert inp is not None
         return await self._coordinator().clear_slot(int(inp["slot"]))
 
+    def _task_error(self, task: asyncio.Task, action: str) -> str | None:
+        """Map a finished PIN task to a form error code, or None on success."""
+        try:
+            success = task.result()
+        except TimeoutError:
+            _LOGGER.warning("Timeout %s for %s", action, self.config_entry.entry_id)
+            return "lock_unreachable"
+        except Exception:
+            _LOGGER.exception("Unexpected error %s for %s", action, self.config_entry.entry_id)
+            return "unknown"
+        return None if success else "lock_unreachable"
+
     # -- Main menu --
 
     async def async_step_init(self, user_input=None) -> ConfigFlowResult:
@@ -165,7 +177,9 @@ class NimlyProOptionsFlow(OptionsFlow):
         errors: dict[str, str] = {}
         suggested: dict[str, Any] | None = None
 
-        # Returning from failed progress step: show error with preserved input
+        # Returning from a failed progress step: show the error with the input
+        # preserved. Checked before user_input, since HA can route back here
+        # with the submitted input still attached (see async_step_clear_pin).
         if self._set_pin_error:
             errors["base"] = self._set_pin_error
             suggested = self._set_pin_input
@@ -193,43 +207,37 @@ class NimlyProOptionsFlow(OptionsFlow):
     async def async_step_set_pin_progress(
         self, user_input=None,
     ) -> ConfigFlowResult:
-        """Show spinner while set_pin runs in background."""
+        """Show a spinner while set_pin runs, then route on its outcome.
+
+        HA runs this step again once the progress task finishes, so the step
+        itself has to notice that the task is done and move the flow on.
+        """
         if not self._set_pin_task:
             self._set_pin_task = self.hass.async_create_task(
                 self._do_set_pin()
             )
 
-        return self.async_show_progress(
-            step_id="set_pin_progress",
-            progress_action="set_pin_progress",
-            progress_task=self._set_pin_task,
-        )
+        if not self._set_pin_task.done():
+            return self.async_show_progress(
+                step_id="set_pin_progress",
+                progress_action="set_pin_progress",
+                progress_task=self._set_pin_task,
+            )
 
-    async def async_step_set_pin_progress_done(
-        self, user_input=None,
-    ) -> ConfigFlowResult:
-        """Called automatically when set_pin_task completes."""
-        # NOTE: HA calls this step when the progress_task finishes.
-        # The naming convention is {progress_action}_done.
         task = self._set_pin_task
         self._set_pin_task = None
+        self._set_pin_error = self._task_error(task, "setting PIN")
+        if self._set_pin_error:
+            # The form step shows the error with the input preserved.
+            return self.async_show_progress_done(next_step_id="set_pin")
+        return self.async_show_progress_done(next_step_id="set_pin_done")
 
-        try:
-            success = task.result()
-        except TimeoutError:
-            _LOGGER.warning("Timeout setting PIN for %s", self.config_entry.entry_id)
-            self._set_pin_error = "lock_unreachable"
-        except Exception:
-            _LOGGER.exception("Unexpected error setting PIN for %s", self.config_entry.entry_id)
-            self._set_pin_error = "unknown"
-        else:
-            if success:
-                self._set_pin_input = None
-                return self.async_create_entry(data=self.config_entry.options)
-            self._set_pin_error = "lock_unreachable"
-
-        # Error: route back to form with preserved input
-        return self.async_show_progress_done(next_step_id="set_pin")
+    async def async_step_set_pin_done(
+        self, user_input=None,
+    ) -> ConfigFlowResult:
+        """Finish the flow after the lock accepted the PIN."""
+        self._set_pin_input = None
+        return self.async_create_entry(data=self.config_entry.options)
 
     # -- Clear PIN: form → progress → result --
 
@@ -257,16 +265,16 @@ class NimlyProOptionsFlow(OptionsFlow):
         if not active_slots:
             return self.async_abort(reason="no_active_slots")
 
-        if user_input is not None:
-            # Store input and kick off background task
-            self._set_pin_input = user_input  # reuse for slot reference
-            self._clear_pin_error = None
-            return await self.async_step_clear_pin_progress()
-
-        # Show form (possibly with error from previous attempt)
+        # A failed attempt is checked before user_input: when the task finishes
+        # within the submit itself, HA routes progress_done back here with the
+        # submitted input still attached, and it must not start another send.
         if self._clear_pin_error:
             errors["base"] = self._clear_pin_error
             self._clear_pin_error = None
+        elif user_input is not None:
+            # Store input and kick off background task
+            self._set_pin_input = user_input  # reuse for slot reference
+            return await self.async_step_clear_pin_progress()
 
         suggested = self._set_pin_input if errors else None
         schema = vol.Schema(
@@ -284,41 +292,35 @@ class NimlyProOptionsFlow(OptionsFlow):
     async def async_step_clear_pin_progress(
         self, user_input=None,
     ) -> ConfigFlowResult:
-        """Show spinner while clear_pin runs in background."""
+        """Show a spinner while clear_pin runs, then route on its outcome.
+
+        Same shape as async_step_set_pin_progress.
+        """
         if not self._clear_pin_task:
             self._clear_pin_task = self.hass.async_create_task(
                 self._do_clear_pin()
             )
 
-        return self.async_show_progress(
-            step_id="clear_pin_progress",
-            progress_action="clear_pin_progress",
-            progress_task=self._clear_pin_task,
-        )
+        if not self._clear_pin_task.done():
+            return self.async_show_progress(
+                step_id="clear_pin_progress",
+                progress_action="clear_pin_progress",
+                progress_task=self._clear_pin_task,
+            )
 
-    async def async_step_clear_pin_progress_done(
-        self, user_input=None,
-    ) -> ConfigFlowResult:
-        """Called automatically when clear_pin_task completes."""
         task = self._clear_pin_task
         self._clear_pin_task = None
+        self._clear_pin_error = self._task_error(task, "clearing PIN")
+        if self._clear_pin_error:
+            return self.async_show_progress_done(next_step_id="clear_pin")
+        return self.async_show_progress_done(next_step_id="clear_pin_done")
 
-        try:
-            success = task.result()
-        except TimeoutError:
-            _LOGGER.warning("Timeout clearing PIN for %s", self.config_entry.entry_id)
-            self._clear_pin_error = "lock_unreachable"
-        except Exception:
-            _LOGGER.exception("Unexpected error clearing PIN for %s", self.config_entry.entry_id)
-            self._clear_pin_error = "unknown"
-        else:
-            if success:
-                self._set_pin_input = None
-                return self.async_create_entry(data=self.config_entry.options)
-            self._clear_pin_error = "lock_unreachable"
-
-        # Error: route back to form with preserved input
-        return self.async_show_progress_done(next_step_id="clear_pin")
+    async def async_step_clear_pin_done(
+        self, user_input=None,
+    ) -> ConfigFlowResult:
+        """Finish the flow after the lock cleared the slot."""
+        self._set_pin_input = None
+        return self.async_create_entry(data=self.config_entry.options)
 
     # -- Name slot (for RFID, fingerprint, etc.) --
 

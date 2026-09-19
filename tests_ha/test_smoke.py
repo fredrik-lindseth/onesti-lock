@@ -22,7 +22,7 @@ from homeassistant.helpers.translation import async_get_translations
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.onesti_lock.const import CONF_IEEE, DOMAIN, NUM_USER_SLOTS, SLOT_FIRST_USER
-from tests_ha.conftest import LOCK_IEEE, make_lock_proxy
+from tests_ha.conftest import LISTENER_PATHS, LOCK_IEEE, make_lock_proxy
 
 SERVICES = {"set_pin", "clear_pin", "set_name", "clear_slot"}
 
@@ -87,13 +87,15 @@ async def test_config_flow_without_zha_gateway_aborts(hass: HomeAssistant, zha_d
     assert result["reason"] == "zha_not_found"
 
 
+@pytest.mark.parametrize("cluster_class", LISTENER_PATHS, indirect=True)
 async def test_setup_and_unload_entry(hass: HomeAssistant, mock_zha) -> None:
+    """Both zigpy listener hooks: one listener on setup, none after unload."""
     cluster = mock_zha.device_proxies[LOCK_IEEE].device.device.endpoints[11].in_clusters[0x0101]
 
     entry = await _setup_entry(hass)
 
     assert entry.state is ConfigEntryState.LOADED
-    assert len(cluster._event_listeners["attribute_report"]) == 1
+    assert cluster.listener_count == 1
     coordinator = entry.runtime_data
     assert coordinator.lock_capabilities.get("num_pin_users") == 50
 
@@ -101,7 +103,7 @@ async def test_setup_and_unload_entry(hass: HomeAssistant, mock_zha) -> None:
     await hass.async_block_till_done()
 
     assert entry.state is ConfigEntryState.NOT_LOADED
-    assert cluster._event_listeners["attribute_report"] == []
+    assert cluster.listener_count == 0
 
 
 async def test_unload_then_setup_again(hass: HomeAssistant, mock_zha) -> None:
@@ -118,7 +120,7 @@ async def test_unload_then_setup_again(hass: HomeAssistant, mock_zha) -> None:
 
     assert entry.state is ConfigEntryState.LOADED
     assert entry.runtime_data is not first_coordinator
-    assert len(cluster._event_listeners["attribute_report"]) == 1
+    assert cluster.listener_count == 1
     assert set(hass.services.async_services().get(DOMAIN, {})) == SERVICES
 
 

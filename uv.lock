@@ -5,7 +5,8 @@ resolution-markers = [
     "python_full_version >= '3.14.2' and extra != 'group-11-onesti-lock-ha-current' and extra != 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit'",
     "python_full_version < '3.14.2' and extra != 'group-11-onesti-lock-ha-current' and extra != 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit'",
     "python_full_version >= '3.14' and extra != 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum' and extra != 'group-11-onesti-lock-unit'",
-    "python_full_version < '3.14' and extra != 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum' and extra != 'group-11-onesti-lock-unit'",
+    "python_full_version < '3.14' and sys_platform != 'win32' and extra != 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum' and extra != 'group-11-onesti-lock-unit'",
+    "python_full_version < '3.14' and sys_platform == 'win32' and extra != 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum' and extra != 'group-11-onesti-lock-unit'",
     "python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current' and extra != 'group-11-onesti-lock-ha-minimum' and extra != 'group-11-onesti-lock-unit'",
     "python_full_version < '3.14.2' and extra == 'group-11-onesti-lock-ha-current' and extra != 'group-11-onesti-lock-ha-minimum' and extra != 'group-11-onesti-lock-unit'",
     "extra != 'group-11-onesti-lock-ha-current' and extra != 'group-11-onesti-lock-ha-minimum' and extra != 'group-11-onesti-lock-unit'",
@@ -21,7 +22,8 @@ name = "acme"
 version = "3.3.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "cryptography", version = "45.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
@@ -60,7 +62,8 @@ name = "aiodns"
 version = "3.4.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "pycares", version = "4.11.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
@@ -121,7 +124,8 @@ name = "aiohasupervisor"
 version = "0.3.1"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "aiohttp", version = "3.12.12", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
@@ -155,7 +159,8 @@ name = "aiohttp"
 version = "3.12.12"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "aiohappyeyeballs", marker = "(python_full_version < '3.14' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
@@ -276,7 +281,8 @@ name = "aiohttp-asyncmdnsresolver"
 version = "0.1.1"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "aiodns", version = "3.4.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
@@ -310,7 +316,8 @@ name = "aiohttp-cors"
 version = "0.7.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "aiohttp", version = "3.12.12", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
@@ -370,6 +377,34 @@ wheels = [
 ]
 
 [[package]]
+name = "aiosqlite"
+version = "0.21.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14.2'",
+]
+dependencies = [
+    { name = "typing-extensions", marker = "python_full_version >= '3.14.2'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/13/7d/8bca2bf9a247c2c5dfeec1d7a5f40db6518f88d314b8bca9da29670d2671/aiosqlite-0.21.0.tar.gz", hash = "sha256:131bb8056daa3bc875608c631c678cda73922a2d4ba8aec373b19f18c17e7aa3", size = 13454, upload-time = "2025-02-03T07:30:16.235Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f5/10/6c25ed6de94c49f88a91fa5018cb4c0f3625f31d5be9f771ebe5cc7cd506/aiosqlite-0.21.0-py3-none-any.whl", hash = "sha256:2549cf4057f95f53dcba16f2b64e8e2791d7e1adedb13197dd8ed77bb226d7d0", size = 15792, upload-time = "2025-02-03T07:30:13.6Z" },
+]
+
+[[package]]
+name = "aiosqlite"
+version = "0.22.1"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4e/8a/64761f4005f17809769d23e518d915db74e6310474e733e3593cfc854ef1/aiosqlite-0.22.1.tar.gz", hash = "sha256:043e0bd78d32888c0a9ca90fc788b38796843360c855a7262a532813133a0650", size = 14821, upload-time = "2025-12-23T19:25:43.997Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/00/b7/e3bf5133d697a08128598c8d0abc5e16377b51465a33756de24fa7dee953/aiosqlite-0.22.1-py3-none-any.whl", hash = "sha256:21c002eb13823fad740196c5a2e9d8e62f6243bd9e7e4a1f87fb5e44ecb4fceb", size = 17405, upload-time = "2025-12-23T19:25:42.139Z" },
+]
+
+[[package]]
 name = "aiozoneinfo"
 version = "0.2.3"
 source = { registry = "https://pypi.org/simple" }
@@ -395,7 +430,8 @@ name = "annotatedyaml"
 version = "0.4.5"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "propcache", version = "0.3.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
@@ -516,7 +552,8 @@ name = "attrs"
 version = "25.1.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/49/7c/fdf464bcc51d23881d110abd74b512a42b3d5d376a55a831b44c603ae17f/attrs-25.1.0.tar.gz", hash = "sha256:1c97078a80c814273a76b2a298a932eb681c87415c11dee0a6921de7f1b02c3e", size = 810562, upload-time = "2025-01-25T11:30:12.508Z" }
 wheels = [
@@ -540,7 +577,8 @@ name = "audioop-lts"
 version = "0.2.1"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/dd/3b/69ff8a885e4c1c42014c2765275c4bd91fe7bc9847e9d8543dbcbb09f820/audioop_lts-0.2.1.tar.gz", hash = "sha256:e81268da0baa880431b68b1308ab7257eb33f356e57a5f9b1f915dfb13dd1387", size = 30204, upload-time = "2024-08-04T21:14:43.957Z" }
 wheels = [
@@ -642,7 +680,8 @@ name = "awesomeversion"
 version = "24.6.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/9d/e9/1baaf8619a3d66b467ba105976897e67b36dbad93b619753768357dbd475/awesomeversion-24.6.0.tar.gz", hash = "sha256:aee7ccbaed6f8d84e0f0364080c7734a0166d77ea6ccfcc4900b38917f1efc71", size = 11997, upload-time = "2024-06-24T11:09:27.958Z" }
 wheels = [
@@ -675,7 +714,8 @@ name = "bcrypt"
 version = "4.2.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/e4/7e/d95e7d96d4828e965891af92e43b52a4cd3395dc1c1ef4ee62748d0471d0/bcrypt-4.2.0.tar.gz", hash = "sha256:cf69eaf5185fd58f268f805b505ce31f9b9fc2d64b376642164e9244540c1221", size = 24294, upload-time = "2024-07-22T18:09:10.445Z" }
 wheels = [
@@ -1133,7 +1173,8 @@ name = "ciso8601"
 version = "2.3.2"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/09/e9/d83711081c997540aee59ad2f49d81f01d33e8551d766b0ebde346f605af/ciso8601-2.3.2.tar.gz", hash = "sha256:ec1616969aa46c51310b196022e5d3926f8d3fa52b80ec17f6b4133623bd5434", size = 28214, upload-time = "2024-12-09T12:26:40.768Z" }
 
@@ -1178,7 +1219,8 @@ name = "coverage"
 version = "7.6.12"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/0c/d6/2b53ab3ee99f2262e6f0b8369a43f6d66658eab45510331c0b3d5c8c4272/coverage-7.6.12.tar.gz", hash = "sha256:48cfc4641d95d34766ad41d9573cc0f22a48aa88d22657a1fe01dca0dbae4de2", size = 805941, upload-time = "2025-02-11T14:47:03.797Z" }
 wheels = [
@@ -1293,11 +1335,21 @@ wheels = [
 ]
 
 [[package]]
+name = "crccheck"
+version = "1.3.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/3c/d1/a943f4f1ca899917cc3fe1cb89d59348edd1b407503e4b02608e8d6b421e/crccheck-1.3.1.tar.gz", hash = "sha256:1544c0110bf0a697d875d4f29dc40d7079f9d4d402a9317383f55f90ca72563a", size = 41696, upload-time = "2025-07-10T07:01:08.683Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/01/b5/68a9054be852e61f31de1be4e8d95802646b93344ce17c2380a1748706fa/crccheck-1.3.1-py3-none-any.whl", hash = "sha256:1680c9a7bb1ca4bec45fa19b8ca64319f10d2ce4eb8b0d25d51cb99a20ca0108", size = 24608, upload-time = "2025-07-10T07:01:07.25Z" },
+]
+
+[[package]]
 name = "cronsim"
 version = "2.6"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/5b/d8/cfb8d51a51f6076ffa09902c02978c7db9764cca78f4ee832e691d20f44b/cronsim-2.6.tar.gz", hash = "sha256:5aab98716ef90ab5ac6be294b2c3965dbf76dc869f048846a0af74ebb506c10d", size = 20315, upload-time = "2024-11-02T14:34:02.475Z" }
 wheels = [
@@ -1320,7 +1372,8 @@ name = "cryptography"
 version = "45.0.1"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "cffi", marker = "(python_full_version < '3.14' and platform_python_implementation != 'PyPy' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (platform_python_implementation == 'PyPy' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit')" },
@@ -1462,7 +1515,8 @@ name = "fnv-hash-fast"
 version = "1.5.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "fnvhash", marker = "python_full_version < '3.14'" },
@@ -1533,7 +1587,8 @@ name = "freezegun"
 version = "1.5.1"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "python-dateutil", marker = "(python_full_version < '3.14' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
@@ -1556,6 +1611,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/95/dd/23e2f4e357f8fd3bdff613c1fe4466d21bfb00a6177f238079b17f7b1c84/freezegun-1.5.5.tar.gz", hash = "sha256:ac7742a6cc6c25a2c35e9292dfd554b897b517d2dec26891a2e8debf205cb94a", size = 35914, upload-time = "2025-08-09T10:39:08.338Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/5e/2e/b41d8a1a917d6581fc27a35d05561037b048e47df50f27f8ac9c7e27a710/freezegun-1.5.5-py3-none-any.whl", hash = "sha256:cd557f4a75cf074e84bc374249b9dd491eaeacd61376b9eb3c423282211619d2", size = 19266, upload-time = "2025-08-09T10:39:06.636Z" },
+]
+
+[[package]]
+name = "frozendict"
+version = "2.4.7"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/90/b2/2a3d1374b7780999d3184e171e25439a8358c47b481f68be883c14086b4c/frozendict-2.4.7.tar.gz", hash = "sha256:e478fb2a1391a56c8a6e10cc97c4a9002b410ecd1ac28c18d780661762e271bd", size = 317082, upload-time = "2025-11-11T22:40:14.251Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/38/74/f94141b38a51a553efef7f510fc213894161ae49b88bffd037f8d2a7cb2f/frozendict-2.4.7-py3-none-any.whl", hash = "sha256:972af65924ea25cf5b4d9326d549e69a9a4918d8a76a9d3a7cd174d98b237550", size = 16264, upload-time = "2025-11-11T22:40:12.836Z" },
 ]
 
 [[package]]
@@ -1817,7 +1881,8 @@ name = "hass-nabucasa"
 version = "0.101.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "acme", version = "3.3.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
@@ -1887,7 +1952,8 @@ name = "home-assistant-bluetooth"
 version = "1.13.1"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "habluetooth", marker = "python_full_version < '3.14'" },
@@ -1926,7 +1992,8 @@ name = "homeassistant"
 version = "2025.6.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "aiodns", version = "3.4.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
@@ -2146,7 +2213,8 @@ name = "josepy"
 version = "1.15.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "cryptography", version = "45.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
@@ -2173,11 +2241,40 @@ wheels = [
 ]
 
 [[package]]
+name = "jsonschema"
+version = "4.26.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "attrs", version = "25.1.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.14' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
+    { name = "attrs", version = "26.1.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
+    { name = "jsonschema-specifications", marker = "(python_full_version < '3.14' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
+    { name = "referencing", marker = "(python_full_version < '3.14' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
+    { name = "rpds-py", marker = "(python_full_version < '3.14' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b3/fc/e067678238fa451312d4c62bf6e6cf5ec56375422aee02f9cb5f909b3047/jsonschema-4.26.0.tar.gz", hash = "sha256:0c26707e2efad8aa1bfc5b7ce170f3fccc2e4918ff85989ba9ffa9facb2be326", size = 366583, upload-time = "2026-01-07T13:41:07.246Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/69/90/f63fb5873511e014207a475e2bb4e8b2e570d655b00ac19a9a0ca0a385ee/jsonschema-4.26.0-py3-none-any.whl", hash = "sha256:d489f15263b8d200f8387e64b4c3a75f06629559fb73deb8fdfb525f2dab50ce", size = 90630, upload-time = "2026-01-07T13:41:05.306Z" },
+]
+
+[[package]]
+name = "jsonschema-specifications"
+version = "2025.9.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "referencing", marker = "(python_full_version < '3.14' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/19/74/a633ee74eb36c44aa6d1095e7cc5569bebf04342ee146178e2d36600708b/jsonschema_specifications-2025.9.1.tar.gz", hash = "sha256:b540987f239e745613c7a9176f3edb72b832a4ac465cf02712288397832b5e8d", size = 32855, upload-time = "2025-09-08T01:34:59.186Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/41/45/1a4ed80516f02155c51f51e8cedb3c1902296743db0bbc66608a0db2814f/jsonschema_specifications-2025.9.1-py3-none-any.whl", hash = "sha256:98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe", size = 18437, upload-time = "2025-09-08T01:34:57.871Z" },
+]
+
+[[package]]
 name = "license-expression"
 version = "30.4.1"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "boolean-py", marker = "python_full_version < '3.14'" },
@@ -2207,7 +2304,8 @@ name = "lru-dict"
 version = "1.3.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/96/e3/42c87871920602a3c8300915bd0292f76eccc66c38f782397acbf8a62088/lru-dict-1.3.0.tar.gz", hash = "sha256:54fd1966d6bd1fcde781596cb86068214edeebff1db13a2cea11079e3fd07b6b", size = 13123, upload-time = "2023-11-06T01:40:12.951Z" }
 
@@ -2465,7 +2563,8 @@ name = "numpy"
 version = "2.2.2"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ec/d0/c12ddfd3a02274be06ffc71f3efc6d0e457b0409c4481596881e748cb264/numpy-2.2.2.tar.gz", hash = "sha256:ed6906f61834d687738d25988ae117683705636936cc605be0bb208b23df4d8f", size = 20233295, upload-time = "2025-01-19T00:02:09.581Z" }
 wheels = [
@@ -2554,10 +2653,12 @@ source = { virtual = "." }
 [package.dev-dependencies]
 ha-current = [
     { name = "pytest-homeassistant-custom-component", version = "0.13.366", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14.2'" },
+    { name = "zigpy", version = "2.2.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14.2'" },
 ]
 ha-minimum = [
     { name = "pycares", version = "4.11.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
     { name = "pytest-homeassistant-custom-component", version = "0.13.251", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
+    { name = "zigpy", version = "0.80.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
 ]
 unit = [
     { name = "pytest", version = "9.0.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14.2'" },
@@ -2568,10 +2669,14 @@ unit = [
 [package.metadata]
 
 [package.metadata.requires-dev]
-ha-current = [{ name = "pytest-homeassistant-custom-component", marker = "python_full_version >= '3.14.2'", specifier = "==0.13.366" }]
+ha-current = [
+    { name = "pytest-homeassistant-custom-component", marker = "python_full_version >= '3.14.2'", specifier = "==0.13.366" },
+    { name = "zigpy", marker = "python_full_version >= '3.14.2'", specifier = "==2.2.0" },
+]
 ha-minimum = [
     { name = "pycares", marker = "python_full_version >= '3.13.2' and python_full_version < '3.14'", specifier = "<5" },
     { name = "pytest-homeassistant-custom-component", marker = "python_full_version >= '3.13.2' and python_full_version < '3.14'", specifier = "==0.13.251" },
+    { name = "zigpy", marker = "python_full_version >= '3.13.2' and python_full_version < '3.14'", specifier = "==0.80.1" },
 ]
 unit = [
     { name = "pytest", marker = "python_full_version >= '3.14.2'", specifier = "==9.0.3" },
@@ -2584,7 +2689,8 @@ name = "orjson"
 version = "3.10.18"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/81/0b/fea456a3ffe74e70ba30e01ec183a9b26bec4d497f61dcfce1b601059c60/orjson-3.10.18.tar.gz", hash = "sha256:e8da3947d92123eda795b68228cafe2724815621fe35e8e320a9e9593a4bcd53", size = 5422810, upload-time = "2025-04-29T23:30:08.423Z" }
 wheels = [
@@ -2669,7 +2775,8 @@ name = "pillow"
 version = "11.2.1"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/af/cb/bb5c01fcd2a69335b86c22142b2bccfc3464087efb7fd382eee5ffc7fdf7/pillow-11.2.1.tar.gz", hash = "sha256:a64dd61998416367b7ef979b73d3a85853ba9bec4c2925f74e588879a58716b6", size = 47026707, upload-time = "2025-04-12T17:50:03.289Z" }
 wheels = [
@@ -2807,7 +2914,8 @@ name = "propcache"
 version = "0.3.2"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/a6/16/43264e4a779dd8588c21a70f0709665ee8f611211bdd2c87d952cfa7c776/propcache-0.3.2.tar.gz", hash = "sha256:20d7d62e4e7ef05f221e0db2856b979540686342e7dd9973b815599c7057e168", size = 44139, upload-time = "2025-06-09T22:56:06.081Z" }
 wheels = [
@@ -2971,7 +3079,8 @@ name = "pycares"
 version = "4.11.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "cffi", marker = "python_full_version < '3.14'" },
@@ -3100,7 +3209,8 @@ name = "pydantic"
 version = "2.11.3"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "annotated-types", marker = "python_full_version < '3.14'" },
@@ -3136,7 +3246,8 @@ name = "pydantic-core"
 version = "2.33.1"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "typing-extensions", marker = "python_full_version < '3.14'" },
@@ -3251,7 +3362,8 @@ name = "pyjwt"
 version = "2.10.1"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/e7/46/bd74733ff231675599650d3e47f361794b22ef3e3770998dda30d3b63726/pyjwt-2.10.1.tar.gz", hash = "sha256:3cc5772eb20009233caf06e9d8a0577824723b44e6648ee0a2aedb6cf9381953", size = 87785, upload-time = "2024-11-28T03:43:29.933Z" }
 wheels = [
@@ -3349,7 +3461,7 @@ name = "pyobjc-framework-cocoa"
 version = "12.2.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pyobjc-core", marker = "(python_full_version < '3.14' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
+    { name = "pyobjc-core", marker = "(python_full_version >= '3.14' and python_full_version < '3.14.2' and extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14' and python_full_version < '3.14.2' and extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (python_full_version >= '3.14' and python_full_version < '3.14.2' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (python_full_version < '3.14' and sys_platform != 'win32' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version < '3.14' and sys_platform != 'win32' and extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (sys_platform == 'win32' and extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (sys_platform == 'win32' and extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (sys_platform == 'win32' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/75/76/49c6da2c6a831020b4854ba20079d5a1030474bffc776b7b73c2eeff8c15/pyobjc_framework_cocoa-12.2.2.tar.gz", hash = "sha256:c96c0ef69a71afbbb0e6a7d594b455c5fe47d62e0db376ee7a2b4b828c16ace9", size = 3132831, upload-time = "2026-08-11T19:44:02.288Z" }
 wheels = [
@@ -3366,8 +3478,8 @@ name = "pyobjc-framework-corebluetooth"
 version = "12.2.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pyobjc-core", marker = "(python_full_version < '3.14' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
-    { name = "pyobjc-framework-cocoa", marker = "(python_full_version < '3.14' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
+    { name = "pyobjc-core", marker = "(python_full_version >= '3.14' and python_full_version < '3.14.2' and extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14' and python_full_version < '3.14.2' and extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (python_full_version >= '3.14' and python_full_version < '3.14.2' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (python_full_version < '3.14' and sys_platform != 'win32' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version < '3.14' and sys_platform != 'win32' and extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (sys_platform == 'win32' and extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (sys_platform == 'win32' and extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (sys_platform == 'win32' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
+    { name = "pyobjc-framework-cocoa", marker = "(python_full_version >= '3.14' and python_full_version < '3.14.2' and extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14' and python_full_version < '3.14.2' and extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (python_full_version >= '3.14' and python_full_version < '3.14.2' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (python_full_version < '3.14' and sys_platform != 'win32' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version < '3.14' and sys_platform != 'win32' and extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (sys_platform == 'win32' and extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (sys_platform == 'win32' and extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (sys_platform == 'win32' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/53/f6/424a21392b3290dab0e8a78bddbe4e71754b9f1cf70d0e1584c03d6df987/pyobjc_framework_corebluetooth-12.2.2.tar.gz", hash = "sha256:75aa13f5355be549252d3192864bb3b82eb74c1f667d0527c1388117efffd688", size = 37806, upload-time = "2026-08-11T19:44:08.594Z" }
 wheels = [
@@ -3384,8 +3496,8 @@ name = "pyobjc-framework-libdispatch"
 version = "12.2.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pyobjc-core", marker = "(python_full_version < '3.14' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
-    { name = "pyobjc-framework-cocoa", marker = "(python_full_version < '3.14' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
+    { name = "pyobjc-core", marker = "(python_full_version >= '3.14' and python_full_version < '3.14.2' and extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14' and python_full_version < '3.14.2' and extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (python_full_version >= '3.14' and python_full_version < '3.14.2' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (python_full_version < '3.14' and sys_platform != 'win32' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version < '3.14' and sys_platform != 'win32' and extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (sys_platform == 'win32' and extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (sys_platform == 'win32' and extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (sys_platform == 'win32' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
+    { name = "pyobjc-framework-cocoa", marker = "(python_full_version >= '3.14' and python_full_version < '3.14.2' and extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14' and python_full_version < '3.14.2' and extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (python_full_version >= '3.14' and python_full_version < '3.14.2' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (python_full_version < '3.14' and sys_platform != 'win32' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version < '3.14' and sys_platform != 'win32' and extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (sys_platform == 'win32' and extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (sys_platform == 'win32' and extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (sys_platform == 'win32' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/f0/76/e40db30142b551790e5ab208e74de04cfc70823177a702c8c9e3f5e73034/pyobjc_framework_libdispatch-12.2.2.tar.gz", hash = "sha256:7cb799a7c5766cc1b68b68655a02c950646adfd2a743b7cbe8e4a04a51c44ecb", size = 40625, upload-time = "2026-08-11T19:44:46.277Z" }
 wheels = [
@@ -3402,7 +3514,8 @@ name = "pyopenssl"
 version = "25.1.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "cryptography", version = "45.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
@@ -3443,6 +3556,27 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/08/64/a99f27d3b4347486c7bfc0aa516016c46dc4c0f380ffccbd742a61af1eda/PyRIC-0.1.6.3.tar.gz", hash = "sha256:b539b01cafebd2406c00097f94525ea0f8ecd1dd92f7731f43eac0ef16c2ccc9", size = 870401, upload-time = "2016-12-04T07:54:48.374Z" }
 
 [[package]]
+name = "pyserial"
+version = "3.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1e/7d/ae3f0a63f41e4d2f6cb66a5b57197850f919f59e558159a4dd3a818f5082/pyserial-3.5.tar.gz", hash = "sha256:3c77e014170dfffbd816e6ffc205e9842efb10be9f58ec16d3e8675b4925cddb", size = 159125, upload-time = "2020-11-23T03:59:15.045Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/07/bc/587a445451b253b285629263eb51c2d8e9bcea4fc97826266d186f96f558/pyserial-3.5-py2.py3-none-any.whl", hash = "sha256:c4451db6ba391ca6ca299fb3ec7bae67a5c55dde170964c7a14ceefec02f2cf0", size = 90585, upload-time = "2020-11-23T03:59:13.41Z" },
+]
+
+[[package]]
+name = "pyserial-asyncio"
+version = "0.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyserial", marker = "python_full_version < '3.14'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4a/9a/8477699dcbc1882ea51dcff4d3c25aa3f2063ed8f7d7a849fd8f610506b6/pyserial-asyncio-0.6.tar.gz", hash = "sha256:b6032923e05e9d75ec17a5af9a98429c46d2839adfaf80604d52e0faacd7a32f", size = 31322, upload-time = "2021-09-30T22:29:02.174Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/27/24/c820cf15f87f7b164e83710c1852d4f900d9793961579e5ef64189bc0c10/pyserial_asyncio-0.6-py3-none-any.whl", hash = "sha256:de9337922619421b62b9b1a84048634b3ac520e1d690a674ed246a2af7ce1fc5", size = 7594, upload-time = "2021-09-30T22:29:00.12Z" },
+]
+
+[[package]]
 name = "pyspeex-noise"
 version = "1.0.2"
 source = { registry = "https://pypi.org/simple" }
@@ -3453,7 +3587,8 @@ name = "pytest"
 version = "8.3.5"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "colorama", marker = "(python_full_version < '3.14' and sys_platform == 'win32' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (sys_platform != 'win32' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit')" },
@@ -3490,7 +3625,8 @@ name = "pytest-aiohttp"
 version = "1.1.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "aiohttp", version = "3.12.12", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
@@ -3524,7 +3660,8 @@ name = "pytest-asyncio"
 version = "0.26.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "pytest", version = "8.3.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
@@ -3554,7 +3691,8 @@ name = "pytest-cov"
 version = "6.0.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "coverage", version = "7.6.12", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.14' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
@@ -3602,7 +3740,8 @@ name = "pytest-github-actions-annotate-failures"
 version = "0.3.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "pytest", version = "8.3.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
@@ -3632,7 +3771,8 @@ name = "pytest-homeassistant-custom-component"
 version = "0.13.251"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "coverage", version = "7.6.12", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
@@ -3730,7 +3870,8 @@ name = "pytest-socket"
 version = "0.7.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "pytest", version = "8.3.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
@@ -3774,7 +3915,8 @@ name = "pytest-timeout"
 version = "2.3.1"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "pytest", version = "8.3.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
@@ -3804,7 +3946,8 @@ name = "pytest-unordered"
 version = "0.6.1"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "pytest", version = "8.3.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
@@ -3834,7 +3977,8 @@ name = "pytest-xdist"
 version = "3.6.1"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "execnet", marker = "python_full_version < '3.14'" },
@@ -3904,11 +4048,28 @@ wheels = [
 ]
 
 [[package]]
+name = "pywin32"
+version = "312"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2d/41/12fbfd7f36ed2146d8bc9de96c2741296bf0d490b98508496cff322e274c/pywin32-312-cp313-cp313-win32.whl", hash = "sha256:7a27df850933d16a8eabfbaeb73d52b273e2da667f80d70b01a89d1f6828d02c", size = 6370184, upload-time = "2026-06-04T07:49:36.253Z" },
+    { url = "https://files.pythonhosted.org/packages/ba/db/36a78e3403099d31d9746d13fdcde5accc43c1155f375a34d15983a479a7/pywin32-312-cp313-cp313-win_amd64.whl", hash = "sha256:c53e878d15a1c44788082bfe712a905433473aa38f86375b7cf8b45e3acbaaf9", size = 6914298, upload-time = "2026-06-04T07:49:38.876Z" },
+    { url = "https://files.pythonhosted.org/packages/84/37/c1697194092b76de9ed47ca124323f02c57ffc8a45c06f88a3d5acaf01eb/pywin32-312-cp313-cp313-win_arm64.whl", hash = "sha256:59aba5d5940842075343a5ddc6b11f1cdf0d1567fe745290359dfbcc7c2eb831", size = 6727640, upload-time = "2026-06-04T07:49:41.083Z" },
+    { url = "https://files.pythonhosted.org/packages/fc/2b/1f3cded5822fd49c02f40544cbb5f58c7cfd6b1694869fd476cb6170ee97/pywin32-312-cp314-cp314-win32.whl", hash = "sha256:a77a90fbb6881238d2ca9c6fd797b25817f3768fe78d214a90137ff055a75f5b", size = 6468928, upload-time = "2026-06-04T07:49:43.188Z" },
+    { url = "https://files.pythonhosted.org/packages/21/82/3bf86d2e2808902013132e1ce905a7da0da53790f3836c64bf44d55e24f3/pywin32-312-cp314-cp314-win_amd64.whl", hash = "sha256:a4dd3a848290ef724347b19f301045831d8e802fa4464f491b98b1e0a081432e", size = 7024157, upload-time = "2026-06-04T07:49:45.34Z" },
+    { url = "https://files.pythonhosted.org/packages/a4/0e/73f6d6800b4f27655abd9e9f6aaeaefcddb2b946e4674efa2bab184a7f7b/pywin32-312-cp314-cp314-win_arm64.whl", hash = "sha256:9fce94568364e0155e6dfb781ac5d95903be8baf28670632beab1b523f300daa", size = 6839598, upload-time = "2026-06-04T07:49:47.613Z" },
+    { url = "https://files.pythonhosted.org/packages/eb/61/caa39686032d2ebdd04ff0ab5cbe163126c0066d98e00c9018646e42393b/pywin32-312-cp315-cp315-win32.whl", hash = "sha256:5c1fbe4a937a73ae9297384a3da38518cbc694c68ad8a809b2e19acd350f03ed", size = 6471159, upload-time = "2026-06-04T07:49:50.035Z" },
+    { url = "https://files.pythonhosted.org/packages/0f/cd/7e1de64a4a6f69c04214169657ccab0d93a670ea50e35eb8f489d7378249/pywin32-312-cp315-cp315-win_amd64.whl", hash = "sha256:c2f03a0f73f804a13c2735b99392b0cd426bb4f2c4d0178e5ac966a0f21618d5", size = 7025293, upload-time = "2026-06-04T07:49:54.857Z" },
+    { url = "https://files.pythonhosted.org/packages/23/ed/4532e9388e65fa16b46776ef47ad631a64eda1631884488af707666350ed/pywin32-312-cp315-cp315-win_arm64.whl", hash = "sha256:a8597d28f267b39074aef51fa593530082b39cbe5a074226096857b1fed2dfb9", size = 6840337, upload-time = "2026-06-04T07:49:57.531Z" },
+]
+
+[[package]]
 name = "pyyaml"
 version = "6.0.2"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/54/ed/79a089b6be93607fa5cdaedf301d7dfb23af5f25c398d5ead2525b063e17/pyyaml-6.0.2.tar.gz", hash = "sha256:d584d9ec91ad65861cc08d42e834324ef890a082e591037abe114850ff7bbc3e", size = 130631, upload-time = "2024-08-06T20:33:50.674Z" }
 wheels = [
@@ -3960,6 +4121,20 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/da/92/1446574745d74df0c92e6aa4a7b0b3130706a4142b2d1a5869f2eaa423c6/pyyaml-6.0.3-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:16249ee61e95f858e83976573de0f5b2893b3677ba71c9dd36b9cf8be9ac6d65", size = 829923, upload-time = "2025-09-25T21:32:54.537Z" },
     { url = "https://files.pythonhosted.org/packages/f0/7a/1c7270340330e575b92f397352af856a8c06f230aa3e76f86b39d01b416a/pyyaml-6.0.3-cp314-cp314t-win_amd64.whl", hash = "sha256:4ad1906908f2f5ae4e5a8ddfce73c320c2a1429ec52eafd27138b7f1cbe341c9", size = 174062, upload-time = "2025-09-25T21:32:55.767Z" },
     { url = "https://files.pythonhosted.org/packages/f1/12/de94a39c2ef588c7e6455cfbe7343d3b2dc9d6b6b2f40c4c6565744c873d/pyyaml-6.0.3-cp314-cp314t-win_arm64.whl", hash = "sha256:ebc55a14a21cb14062aa4162f906cd962b28e2e9ea38f9b4391244cd8de4ae0b", size = 149341, upload-time = "2025-09-25T21:32:56.828Z" },
+]
+
+[[package]]
+name = "referencing"
+version = "0.37.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "attrs", version = "25.1.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.14' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
+    { name = "attrs", version = "26.1.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
+    { name = "rpds-py", marker = "(python_full_version < '3.14' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/22/f5/df4e9027acead3ecc63e50fe1e36aca1523e1719559c499951bb4b53188f/referencing-0.37.0.tar.gz", hash = "sha256:44aefc3142c5b842538163acb373e24cce6632bd54bdb01b21ad5863489f50d8", size = 78036, upload-time = "2025-10-13T15:30:48.871Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2c/58/ca301544e1fa93ed4f80d724bf5b194f6e4b945841c5bfd555878eea9fcb/referencing-0.37.0-py3-none-any.whl", hash = "sha256:381329a9f99628c9069361716891d34ad94af76e461dcb0335825aecc7692231", size = 26766, upload-time = "2025-10-13T15:30:47.625Z" },
 ]
 
 [[package]]
@@ -4055,7 +4230,8 @@ name = "requests"
 version = "2.32.4"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "certifi", marker = "(python_full_version < '3.14' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
@@ -4104,7 +4280,8 @@ name = "respx"
 version = "0.22.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "httpx", marker = "python_full_version < '3.14'" },
@@ -4130,6 +4307,87 @@ wheels = [
 ]
 
 [[package]]
+name = "rpds-py"
+version = "2026.6.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/aa/2a/9618a122aeb2a169a28b03889a2995fe297588964333d4a7d67bdf46e147/rpds_py-2026.6.3.tar.gz", hash = "sha256:1cebd1337c242e4ec2293e541f712b2da849b29f48f0c293684b71c0632625d4", size = 64051, upload-time = "2026-06-30T07:17:53.009Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a4/9e/b818ee580026ec578138e961027a68820c40afeb1ec8f6819b54fb99e196/rpds_py-2026.6.3-cp313-cp313-macosx_10_12_x86_64.whl", hash = "sha256:3cfe765c1da0072636ca06628261e0ea05688e160d5c8a03e0217c3854037223", size = 343012, upload-time = "2026-06-30T07:15:36.005Z" },
+    { url = "https://files.pythonhosted.org/packages/f3/6b/686d9dc4359a8f163cfbbf89ee0b4e586431de22fe8248edb63a8cf50d49/rpds_py-2026.6.3-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:f4d78253f6996be4901669ad25319f842f740eccf4d58e3c7f3dd39e6dde1d8f", size = 338203, upload-time = "2026-06-30T07:15:37.462Z" },
+    { url = "https://files.pythonhosted.org/packages/9e/9b/069aa329940f8207615e091f5eedbbd40e1e15eac68a0790fd05ccdf796c/rpds_py-2026.6.3-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:54f45a148e28767bf343d33a684693c70e451c6f4c0e9904709a723fafbdfc1f", size = 367984, upload-time = "2026-06-30T07:15:39.008Z" },
+    { url = "https://files.pythonhosted.org/packages/14/db/34c203e4becff3703e4d3bc121842c00b8689197f398161203a880052f4e/rpds_py-2026.6.3-cp313-cp313-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:842e7b070435622248c7a2c44ae53fa1440e073cc3023bc919fed570884097a7", size = 374815, upload-time = "2026-06-30T07:15:40.253Z" },
+    { url = "https://files.pythonhosted.org/packages/ee/7d/8071067d2cc453d916ad836e828c943f575e8a44612537759002a1e07381/rpds_py-2026.6.3-cp313-cp313-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:8020133a74bd81b4572dd8e4be028a6b1ebcd70e6726edc3918008c08bee6ee6", size = 490545, upload-time = "2026-06-30T07:15:41.729Z" },
+    { url = "https://files.pythonhosted.org/packages/a3/42/da06c5aa8f0484ff07f270787434204d9f4535e2f8c3b51ed402267e63c3/rpds_py-2026.6.3-cp313-cp313-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:cdc7e35386f3847df728fbcb5e887e2d79c19e2fa1eba9e51b6621d23e3243af", size = 382828, upload-time = "2026-06-30T07:15:43.327Z" },
+    { url = "https://files.pythonhosted.org/packages/57/d7/fe978efc2ae50abe48eb7464668ea99f53c010c60aeebb7b35ad27f23661/rpds_py-2026.6.3-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:acac386b453c2516111b50985d60ce46e7fadb5ea71ae7b25f4c946935bf27cf", size = 365678, upload-time = "2026-06-30T07:15:44.992Z" },
+    { url = "https://files.pythonhosted.org/packages/69/9d/1d8922e1990b2a6eb532b6ff53d3e73d2b3bbffc84116c75826bee73dfc6/rpds_py-2026.6.3-cp313-cp313-manylinux_2_31_riscv64.whl", hash = "sha256:425560c6fa0415f27261727bb20bd097568485e5eb0c121f1949417d1c516885", size = 377811, upload-time = "2026-06-30T07:15:46.523Z" },
+    { url = "https://files.pythonhosted.org/packages/b1/3d/198dceafb4fb034a6a47347e1b0735d34e0bd4a50be4e898d408ee66cb14/rpds_py-2026.6.3-cp313-cp313-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:a550fb4950a06dde3beb4721f5ad4b25bf4513784665b0a8522c792e2bd822a4", size = 395382, upload-time = "2026-06-30T07:15:47.955Z" },
+    { url = "https://files.pythonhosted.org/packages/1f/f1/13968e49655d40b6b19d8b9140296bbc6f1d86b3f0f6c346cf9f1adddf4b/rpds_py-2026.6.3-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:4f4bca01b63096f606e095734dd56e74e175f94cfbf24ff3d63281cec61f7bb7", size = 543832, upload-time = "2026-06-30T07:15:49.33Z" },
+    { url = "https://files.pythonhosted.org/packages/ac/ab/289bcb1b90bd3e40a2900c561fa0e2087345ecbb094f0b870f2345142b7c/rpds_py-2026.6.3-cp313-cp313-musllinux_1_2_i686.whl", hash = "sha256:ccffae9a092a00deb7efd545fe5e2c33c33b88e7c054337e9a74c179347d0b7d", size = 611011, upload-time = "2026-06-30T07:15:50.847Z" },
+    { url = "https://files.pythonhosted.org/packages/1e/16/5043105e679436ccfbc8e5e0dd2d663ed18a8b8113515fd06a5e5d77c83e/rpds_py-2026.6.3-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:1cf01971c4f2c5553b772a542e4aaf191789cd331bc2cd4ff0e6e65ba49e1e97", size = 572431, upload-time = "2026-06-30T07:15:52.394Z" },
+    { url = "https://files.pythonhosted.org/packages/85/ed/adab103321c0a6565d5ae1c2998349bc3ee175b82ccc5ae8fc04cc413075/rpds_py-2026.6.3-cp313-cp313-win32.whl", hash = "sha256:8c3d1e9c15b9d51ca0391e13da1a25a0a4df3c58a37c9dc368e0736cf7f69df0", size = 201710, upload-time = "2026-06-30T07:15:53.894Z" },
+    { url = "https://files.pythonhosted.org/packages/7b/ed/a03b09668e74e5dabbf2e211f6468e1820c0552f7b0500082da31841bf7b/rpds_py-2026.6.3-cp313-cp313-win_amd64.whl", hash = "sha256:9250a9a0a6fd4648b3f868da8d91a4c52b5811a62df58e753d50ae4454a36f80", size = 219454, upload-time = "2026-06-30T07:15:55.25Z" },
+    { url = "https://files.pythonhosted.org/packages/27/17/b8642c12930b71bc2b25831f6708ccf0f75abcd11883932ec9ce54ba3a78/rpds_py-2026.6.3-cp313-cp313-win_arm64.whl", hash = "sha256:900a67df3fd1660b035a4761c4ce73c382ea6b35f90f9863c36c6fd8bf8b09bb", size = 215063, upload-time = "2026-06-30T07:15:56.573Z" },
+    { url = "https://files.pythonhosted.org/packages/b6/36/7fbe9dcdaf857fb3f63c2a2284b62492d95f5e8334e947e5fb6e7f68c9be/rpds_py-2026.6.3-cp314-cp314-macosx_10_12_x86_64.whl", hash = "sha256:931908d9fc855d8f74783377822be318edb6dcb19e47169dc038f9a1bf60b06e", size = 344510, upload-time = "2026-06-30T07:15:57.921Z" },
+    { url = "https://files.pythonhosted.org/packages/ba/54/f785cc3d3f60839ca57a5af4927a9f347b07b2799c373fc20f7949f87c7e/rpds_py-2026.6.3-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:d7469697dce35be237db177d42e2a2ee26e6dcc5fc052078a6fefabd288c6edd", size = 339495, upload-time = "2026-06-30T07:15:59.238Z" },
+    { url = "https://files.pythonhosted.org/packages/63/ef/d4cdaf309e6b095b43597103cf8c0b951d6cca2acce68c474f75ec12e0c7/rpds_py-2026.6.3-cp314-cp314-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:bcfbcf66006befb9fd2aeaa9e01feaf881b4dc330a02ba07d2322b1c11be7b5d", size = 369454, upload-time = "2026-06-30T07:16:01.021Z" },
+    { url = "https://files.pythonhosted.org/packages/96/4a/9559a68b7ee15db09d7981212e8c2e219d2a1d6d4faa0391d813c3496a36/rpds_py-2026.6.3-cp314-cp314-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:847927daf4cffbd4e90e42bc890069897101edd015f956cb8721b3473372edda", size = 374583, upload-time = "2026-06-30T07:16:02.287Z" },
+    { url = "https://files.pythonhosted.org/packages/ef/75/8964aa7d2c6e8ac43eba8eb6e6b0fdda1f46d39f2fc3e6aa9f2cb17f485d/rpds_py-2026.6.3-cp314-cp314-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:aca6c1ef08a82bfe327cc156da694660f599923e2e6665b6d81c9c2d0ac9ffc8", size = 492919, upload-time = "2026-06-30T07:16:03.723Z" },
+    { url = "https://files.pythonhosted.org/packages/8f/97/6908094ac804115e65aedfd90f1b5fee4eebebd3f6c4cfc5419939267565/rpds_py-2026.6.3-cp314-cp314-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:ae50181a047c871561212bb97f7932a2d45fb53e947bd9b57ebad85b529cbc53", size = 383725, upload-time = "2026-06-30T07:16:05.305Z" },
+    { url = "https://files.pythonhosted.org/packages/d1/9c/0d1fdc2e7aba23e290d603bc494e97bd205bae262ce33c6b32a69768ed5e/rpds_py-2026.6.3-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:dc319e5a1de4b6913aac94bf6a2f9e847371e0a140a43dd4991db1a09bc2d504", size = 367255, upload-time = "2026-06-30T07:16:07.086Z" },
+    { url = "https://files.pythonhosted.org/packages/c4/fe/f0209ca4a9ed074bc8acb44dfd0e81c3122e94c9689f5645b7973a866719/rpds_py-2026.6.3-cp314-cp314-manylinux_2_31_riscv64.whl", hash = "sha256:e4316bf32babbed84e691e352faf967ce2f0f024174a8643c37c94a1080374fc", size = 379060, upload-time = "2026-06-30T07:16:08.525Z" },
+    { url = "https://files.pythonhosted.org/packages/c6/8d/f1cc54c616b9d8897de8738aac148d20afca93f68187475fe194d09a71b9/rpds_py-2026.6.3-cp314-cp314-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:8c6e5a2f750cc71c3e3b11d71661f21d6f9bc6cebc6564b1466417a1ec03ec77", size = 395960, upload-time = "2026-06-30T07:16:09.989Z" },
+    { url = "https://files.pythonhosted.org/packages/fb/04/aafff00f73aeca2945f734f1d483c64ab8f472d0864ab02377fd8e89c3b2/rpds_py-2026.6.3-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:4470ce197d4090875cf6affbf1f853338387428df97c4fb7b7106317b8214698", size = 545356, upload-time = "2026-06-30T07:16:11.816Z" },
+    { url = "https://files.pythonhosted.org/packages/fd/cc/e229663b9e4ddac5a4acbe9085dd80a71af2a5d356b8b39d6bff233f24b0/rpds_py-2026.6.3-cp314-cp314-musllinux_1_2_i686.whl", hash = "sha256:ea964164cc9afa72d4d9b23cc28dafae93693c0a53e0b42acbff15b22c3f9ddd", size = 612319, upload-time = "2026-06-30T07:16:13.586Z" },
+    { url = "https://files.pythonhosted.org/packages/e3/7a/8a0e6d3e6cd066af108b71b43122c3fe158dd9eb86acac626593a2582eb1/rpds_py-2026.6.3-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:639c8929aa0afe81be836b04de888460d6bed38b9c54cfc18da8f6bfabf5af5d", size = 573508, upload-time = "2026-06-30T07:16:15.23Z" },
+    { url = "https://files.pythonhosted.org/packages/87/03/2a69ab618a789cf6cf85c86bb844c62d090e700ab1a2aa676b3741b6c516/rpds_py-2026.6.3-cp314-cp314-win32.whl", hash = "sha256:882076c00c0a608b131187055ddc5ae29f2e7eaf870d6168980420d58528a5c8", size = 202504, upload-time = "2026-06-30T07:16:16.893Z" },
+    { url = "https://files.pythonhosted.org/packages/85/62/a3892ba945f4e24c78f352e5de3c7620d8479f73f211406a97263d13c7d2/rpds_py-2026.6.3-cp314-cp314-win_amd64.whl", hash = "sha256:0be972be84cfcaf46c8c6edf690ca0f154ac17babf1f6a955a51579b34ad2dc5", size = 220380, upload-time = "2026-06-30T07:16:18.108Z" },
+    { url = "https://files.pythonhosted.org/packages/3d/e7/c2bd44dc831931815ad11ebb5f430b5a0a4d3caa9de837107876c30c3432/rpds_py-2026.6.3-cp314-cp314-win_arm64.whl", hash = "sha256:2a9c6f195058cb45335e8cc3802745c603d716eb96bc9625950c1aac71c0c703", size = 215976, upload-time = "2026-06-30T07:16:19.654Z" },
+    { url = "https://files.pythonhosted.org/packages/79/9c/fff7b74bce9a091ec9a012a03f9ff5f69364eaf9451060dfc4486da2ffdd/rpds_py-2026.6.3-cp314-cp314t-macosx_10_12_x86_64.whl", hash = "sha256:f90938e92afda60266da758ee7d363447f7f0138c9559f9e1811629580582d90", size = 346840, upload-time = "2026-06-30T07:16:21.268Z" },
+    { url = "https://files.pythonhosted.org/packages/e9/44/77bcb1168b33704908295533d27f10eb811e9e3e193e8993dc99572211d3/rpds_py-2026.6.3-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:ec829541c45bca16e61c7ae50c20501f213605beb75d1aba91a6ee37fbbb56a4", size = 340282, upload-time = "2026-06-30T07:16:22.875Z" },
+    { url = "https://files.pythonhosted.org/packages/87/3c/7a9081c7c9e645b39efe19e4ffbeccd80add246327cd9b888aecffd72317/rpds_py-2026.6.3-cp314-cp314t-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:afd70d95892096cdb26f15a00c45907b17817577aa8d1c76b2dcc2788391f9e9", size = 370403, upload-time = "2026-06-30T07:16:24.415Z" },
+    { url = "https://files.pythonhosted.org/packages/f7/69/af47021eb7dad6ff3396cb001c08f0f3c4d06c20253f75be6421a59fe6b7/rpds_py-2026.6.3-cp314-cp314t-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:29dfa0533a5d4c94d4dfa1b694fcb56c9c63aad8330ffdd816fd225d0a7a162f", size = 376055, upload-time = "2026-06-30T07:16:26.111Z" },
+    { url = "https://files.pythonhosted.org/packages/81/fc/a3bcf517084396a6dd258c592567a3c011ba4557f2fde23dceaf26e74f2e/rpds_py-2026.6.3-cp314-cp314t-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:af05d726809bff6b141be124d4c7ce998f9c9c7f30edb1f46c07aa103d540b41", size = 494419, upload-time = "2026-06-30T07:16:27.596Z" },
+    { url = "https://files.pythonhosted.org/packages/c9/eb/13d529d1788135425c7bf207f8463458ca5d92e43f3f701365b83e9dffc1/rpds_py-2026.6.3-cp314-cp314t-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:9826217f048f620d9a712672818bf231442c1b35d96b227a07eabd11b4bb6945", size = 384848, upload-time = "2026-06-30T07:16:29.183Z" },
+    { url = "https://files.pythonhosted.org/packages/8e/f4/b7ac49f30013aba8f7b9566b1dd07e81de95e708c1374b7bacc5b9bc5c9c/rpds_py-2026.6.3-cp314-cp314t-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:536bceea4fa4acf7e1c61da2b5786304367c816c8895be71b8f537c480b0ea1f", size = 371369, upload-time = "2026-06-30T07:16:30.912Z" },
+    { url = "https://files.pythonhosted.org/packages/31/86/6260bafa622f788b07ddec0e52d810305c8b9b0b8c27f58a2ab04bf62b4f/rpds_py-2026.6.3-cp314-cp314t-manylinux_2_31_riscv64.whl", hash = "sha256:bc0011654b91cc4fb2ae701bec0a0ba1e552c0714247fa7af6c59e0ccfa3a4e1", size = 379673, upload-time = "2026-06-30T07:16:32.486Z" },
+    { url = "https://files.pythonhosted.org/packages/19/c3/03f1ee79a047b48daeca157c89a18509cde22b6b951d642b9b0af1be660a/rpds_py-2026.6.3-cp314-cp314t-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:539d75de9e0d536c84ff18dfeb805398e58227001ce09231a26a08b9aed1ee0e", size = 397500, upload-time = "2026-06-30T07:16:34.471Z" },
+    { url = "https://files.pythonhosted.org/packages/f0/95/8ed0cd8c377dca12aea498f119fe639fc474d1461545c39d2b5872eb1c0f/rpds_py-2026.6.3-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:166cf54d9f44fc6ceb53c7860258dde44a81406646de79f8ed3234fca3b6e538", size = 545978, upload-time = "2026-06-30T07:16:36.45Z" },
+    { url = "https://files.pythonhosted.org/packages/d3/f2/0eb57f0eaa83f8fc152a7e03de968ab77e1f00732bebc892b190c6eebde7/rpds_py-2026.6.3-cp314-cp314t-musllinux_1_2_i686.whl", hash = "sha256:d34c20167764fbcf927194d532dd7e0c56772f0a5f943fa5ef9e9afbba8fb9db", size = 613350, upload-time = "2026-06-30T07:16:38.213Z" },
+    { url = "https://files.pythonhosted.org/packages/5b/de/e0674bdbc3ef7634989b3f854c3f34bc1f587d36e5bfdc5c378d57034619/rpds_py-2026.6.3-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:ea7bb13b7c9a29791f87a0387ba7d3ad3a6d783d827e4d3f27b40a0ff44495e2", size = 576486, upload-time = "2026-06-30T07:16:39.797Z" },
+    { url = "https://files.pythonhosted.org/packages/f2/f6/21101359743cd136ada781e8210a85769578422ba460672eea0e29739200/rpds_py-2026.6.3-cp314-cp314t-win32.whl", hash = "sha256:6de4744d05bd1aa1be4ed7ea1189e3979196808008113bbbf899a460966b925e", size = 201068, upload-time = "2026-06-30T07:16:41.316Z" },
+    { url = "https://files.pythonhosted.org/packages/a6/b2/9574d4d44f7760c2aa32d92a0a4f41698e33f5b204a0bf5c9758f52c79d5/rpds_py-2026.6.3-cp314-cp314t-win_amd64.whl", hash = "sha256:c7b9a2f8f4d8e90af72571d3d495deebdd7e3c75451f5b41719aee166e940fc2", size = 220600, upload-time = "2026-06-30T07:16:43.091Z" },
+    { url = "https://files.pythonhosted.org/packages/08/ae/f23a2697e6ee6340a578b0f136be6483657bef0c6f9497b752bb5c0964bb/rpds_py-2026.6.3-cp315-cp315-macosx_10_12_x86_64.whl", hash = "sha256:e059c5dde6452b44424bd1834557556c226b57781dee1227af23518459722b13", size = 344726, upload-time = "2026-06-30T07:16:44.5Z" },
+    { url = "https://files.pythonhosted.org/packages/c3/63/e7b3a1a5358dd32c930a1062d8e15b67fd6e8922e81df9e91706d66ee5c8/rpds_py-2026.6.3-cp315-cp315-macosx_11_0_arm64.whl", hash = "sha256:2f7c26fbc5acd2522b95d4177fe4710ffd8e9b20529e703ffbf8db4d93903f05", size = 339587, upload-time = "2026-06-30T07:16:46.255Z" },
+    { url = "https://files.pythonhosted.org/packages/ec/64/10a85681916ca55fffb91b0a211f84e34297c109243484dd6394660a8a7c/rpds_py-2026.6.3-cp315-cp315-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:a3086b538543802f84c843911242db20447de00d8752dd0efc936dbcf02218ba", size = 369585, upload-time = "2026-06-30T07:16:48.101Z" },
+    { url = "https://files.pythonhosted.org/packages/76/c2/baf95c7c38823e12ba34407c5f5767a89e5cf2233895e56f608167ae9493/rpds_py-2026.6.3-cp315-cp315-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:8f2e5c5ee828d42cb11760761c0af6507927bec42d0ad5458f97c9203b054617", size = 375479, upload-time = "2026-06-30T07:16:49.93Z" },
+    { url = "https://files.pythonhosted.org/packages/6a/94/0aad06c72d65101e11d33528d438cda99a39ce0da99466e156158f2541d3/rpds_py-2026.6.3-cp315-cp315-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:ed0c1e5d10cdc7135537988c74a0188da68e2f3c30813ba3744ab1e42e0480f9", size = 492418, upload-time = "2026-06-30T07:16:51.641Z" },
+    { url = "https://files.pythonhosted.org/packages/b5/17/de3f5a479a1f056535d7489819639d8cd591ea6281d700390b43b1abd745/rpds_py-2026.6.3-cp315-cp315-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:8c2642a7603ec0b16ed77da4555db3b4b472341904873788327c0b0d7b95f1bb", size = 384123, upload-time = "2026-06-30T07:16:53.622Z" },
+    { url = "https://files.pythonhosted.org/packages/46/7d/bf09bd1b145bb2671c03e1e6d1ab8651858d90d8c7dfeadd85a37a934fd8/rpds_py-2026.6.3-cp315-cp315-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:8e4320744c1ffdd95a603def63344bfab2d33edeab301c5007e7de9f9f5b3885", size = 367351, upload-time = "2026-06-30T07:16:55.241Z" },
+    { url = "https://files.pythonhosted.org/packages/a3/ea/1bb734f314b8be319149ddee80b18bd41372bdcfbdf88d28131c0cd37719/rpds_py-2026.6.3-cp315-cp315-manylinux_2_31_riscv64.whl", hash = "sha256:a9f4645593036b81bbdb36b9c8e0ea0d1c3fee968c4d59db0344c14087ef143a", size = 378827, upload-time = "2026-06-30T07:16:56.841Z" },
+    { url = "https://files.pythonhosted.org/packages/4b/93/d9611e5b25e26df9a3649813ed66193ace9347a7c7fc4ab7cf70e94851c0/rpds_py-2026.6.3-cp315-cp315-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:e55d236be29255554da47abe5c577637db7c24a02b8b46f0ca9524c855801868", size = 395966, upload-time = "2026-06-30T07:16:58.557Z" },
+    { url = "https://files.pythonhosted.org/packages/c3/cb/99d77e16e5534ae1d90629bbe419ba6ee170833a6a85e3aa1cc41726fbbc/rpds_py-2026.6.3-cp315-cp315-musllinux_1_2_aarch64.whl", hash = "sha256:24e9c5386e16669b674a69c156c8eeefcb578f3b3397b713b08e6d60f3c7b187", size = 545680, upload-time = "2026-06-30T07:17:00.164Z" },
+    { url = "https://files.pythonhosted.org/packages/59/15/11a29755f790cef7a2f755e8e14f4f0c33f39489e1893a632a2eee59672b/rpds_py-2026.6.3-cp315-cp315-musllinux_1_2_i686.whl", hash = "sha256:c60924535c75f1566b6eb75b5c31a48a43fef04fa2d0d201acbad8a9969c6107", size = 611853, upload-time = "2026-06-30T07:17:01.962Z" },
+    { url = "https://files.pythonhosted.org/packages/68/86/0c27547e21644da938fb530f7e1a8148dd24d02db07e7a5f2567a17ce710/rpds_py-2026.6.3-cp315-cp315-musllinux_1_2_x86_64.whl", hash = "sha256:38a2fea2787428f811719ceb9114cb78964a3138838320c29ac39526c79c16ba", size = 573715, upload-time = "2026-06-30T07:17:03.693Z" },
+    { url = "https://files.pythonhosted.org/packages/29/71/4d8fcf700931815594bce892255bbd973b94efaf0fc1932b0590df18d886/rpds_py-2026.6.3-cp315-cp315-win32.whl", hash = "sha256:d483fe17f01ad64b7bf7cc38fcefff1ca9fb83f8c2b2542b68f97ffe0611b369", size = 202864, upload-time = "2026-06-30T07:17:05.746Z" },
+    { url = "https://files.pythonhosted.org/packages/eb/62/b577562de0edbb55b2be85ce5fd09c33e386b9b13eee09833af4240fd5c4/rpds_py-2026.6.3-cp315-cp315-win_amd64.whl", hash = "sha256:67e3a721ffc5d8d2210d3671872298c4a84e4b8035cfe42ffd7cde35d772b146", size = 220430, upload-time = "2026-06-30T07:17:07.471Z" },
+    { url = "https://files.pythonhosted.org/packages/c8/95/d6d0b2509825141eef60669a5739eec88dbc6a48053d6c92993a5704defe/rpds_py-2026.6.3-cp315-cp315-win_arm64.whl", hash = "sha256:6e84adbcf4bf841aed8116a8264b9f50b4cb3e7bd89b516122e616ac56ca269e", size = 215877, upload-time = "2026-06-30T07:17:09.008Z" },
+    { url = "https://files.pythonhosted.org/packages/b7/bf/f3ea278f0afd615c1d0f19cb69043a41526e2bb600c2b536eb192218eb27/rpds_py-2026.6.3-cp315-cp315t-macosx_10_12_x86_64.whl", hash = "sha256:ae6dd8f10bd17aad820876d24caec9efdafd80a318d16c0a48edb5e136902c6b", size = 346933, upload-time = "2026-06-30T07:17:10.762Z" },
+    { url = "https://files.pythonhosted.org/packages/9d/29/9907bdf1c5346763cf10b7f6852aad86652168c259def904cbe0082c5864/rpds_py-2026.6.3-cp315-cp315t-macosx_11_0_arm64.whl", hash = "sha256:bdbd97738551fca3917c1bd7188bec1920bb520104f28e7e1007f9ceb17b7690", size = 340274, upload-time = "2026-06-30T07:17:12.266Z" },
+    { url = "https://files.pythonhosted.org/packages/6f/2c/8e03767b5778ef25cebf74a7a91a2c3806f8eced4c92cb7406bbe060756d/rpds_py-2026.6.3-cp315-cp315t-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:8b95977e7211527ab0ba576e286d023389fbeeb32a6b7b771665d333c60e5342", size = 370763, upload-time = "2026-06-30T07:17:14.107Z" },
+    { url = "https://files.pythonhosted.org/packages/2e/e1/df2a7e1ba2efd796af26194250b8d42c821b46592311595162af9ef0528d/rpds_py-2026.6.3-cp315-cp315t-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:d15fde0e6fb0d88a60d221204873743e5d9f0b7d29165e62cd86d0413ad74ba6", size = 376467, upload-time = "2026-06-30T07:17:15.76Z" },
+    { url = "https://files.pythonhosted.org/packages/6b/de/8a0814d1946af29cb068fb259aa8622f856df1d0bab58429448726b537f5/rpds_py-2026.6.3-cp315-cp315t-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:a136d453475ac0fcbda502ef1e6504bd28d6d904700915d278deeab0d00fe140", size = 496689, upload-time = "2026-06-30T07:17:17.308Z" },
+    { url = "https://files.pythonhosted.org/packages/df/f3/f19e0c852ba13694f5a79f3b719331051573cb5693feacf8a88ffffc3a71/rpds_py-2026.6.3-cp315-cp315t-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:f826877d462181e5eb1c26a0026b8d0cab05d99844ecb6d8bf3627a2ca0c0442", size = 385340, upload-time = "2026-06-30T07:17:18.928Z" },
+    { url = "https://files.pythonhosted.org/packages/e2/ae/7ec3a9d2d4351f99e37bcb06b6b6f954512646bfdbf9742e1de727865daf/rpds_py-2026.6.3-cp315-cp315t-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:79486287de1730dbaff3dbd124d0ca4d2ef7f9d29bf2544f1f93c09b5bcbbd12", size = 372179, upload-time = "2026-06-30T07:17:20.539Z" },
+    { url = "https://files.pythonhosted.org/packages/d3/ac/9cee911dff2aaa9a5a8354f6610bf2e6a616de9197c5fff4f54f82585f1e/rpds_py-2026.6.3-cp315-cp315t-manylinux_2_31_riscv64.whl", hash = "sha256:808345f53cb952433ca2816f1604ff3515608a81784954f38d4452acfe8e61d5", size = 379993, upload-time = "2026-06-30T07:17:22.212Z" },
+    { url = "https://files.pythonhosted.org/packages/83/6b/7c2a07ba88d1e9a936612f7a5d067467ed03d971d5a06f7d309dff044a7e/rpds_py-2026.6.3-cp315-cp315t-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:1967debc37f64f2c4dc90a7f563aec558b471966e12adcac4e1c4240496b6ebf", size = 398909, upload-time = "2026-06-30T07:17:23.66Z" },
+    { url = "https://files.pythonhosted.org/packages/97/0b/776ffcb66783637b0031f6d58d6fb55913c8b5abf00aeecd46bf933fb477/rpds_py-2026.6.3-cp315-cp315t-musllinux_1_2_aarch64.whl", hash = "sha256:f0840b5b17057f7fd918b76183a4b5a0635f43e14eb2ce60dce1d4ee4707ea00", size = 546584, upload-time = "2026-06-30T07:17:25.264Z" },
+    { url = "https://files.pythonhosted.org/packages/55/33/ba3bc04d7092bd553c9b2b195624992d2cc4f3de1f380b7b93cbee67bd79/rpds_py-2026.6.3-cp315-cp315t-musllinux_1_2_i686.whl", hash = "sha256:faa679d19a6696fd54259ad321251ad77a13e70e03dd834daa762a44fb6196ef", size = 614357, upload-time = "2026-06-30T07:17:26.888Z" },
+    { url = "https://files.pythonhosted.org/packages/8b/71/14edf065f04630b1a8472f7653cad03f6c478bcf95ea0e6aed55451e33ea/rpds_py-2026.6.3-cp315-cp315t-musllinux_1_2_x86_64.whl", hash = "sha256:23a439f31ccbeff1574e24889128821d1f7917470e830cf6544dced1c662262a", size = 576533, upload-time = "2026-06-30T07:17:28.546Z" },
+    { url = "https://files.pythonhosted.org/packages/ba/76/65002b08596c389105720a8c0d22298b8dc25a4baf89b2ce431343c8b1de/rpds_py-2026.6.3-cp315-cp315t-win32.whl", hash = "sha256:913ca42ccad3f8cc6e292b587ae8ae49c8c823e5dce51a736252fc7c7cdfa577", size = 201204, upload-time = "2026-06-30T07:17:30.193Z" },
+    { url = "https://files.pythonhosted.org/packages/8c/97/d855d6b3c322d1f27e26f5241c42016b56cf01377ea8ed348285f54652f0/rpds_py-2026.6.3-cp315-cp315t-win_amd64.whl", hash = "sha256:ae3d4fe8c0b9213624fdce7279d70e3b148b682ca20719ebd193a23ebfa47324", size = 220719, upload-time = "2026-06-30T07:17:31.788Z" },
+]
+
+[[package]]
 name = "s3transfer"
 version = "0.19.2"
 source = { registry = "https://pypi.org/simple" }
@@ -4146,7 +4404,8 @@ name = "securetar"
 version = "2025.2.1"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "cryptography", version = "45.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
@@ -4185,6 +4444,24 @@ wheels = [
 ]
 
 [[package]]
+name = "serialx"
+version = "1.10.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pywin32", marker = "python_full_version >= '3.14.2' and sys_platform == 'win32'" },
+    { name = "typing-extensions", marker = "python_full_version >= '3.14.2'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ca/18/1880d96ad54cf2e9ba381971c0c4e82e6d0f1e5024c6403de32936f41761/serialx-1.10.0.tar.gz", hash = "sha256:9b69e8a31059bfbfff74186ea9da6790d0a21bb107451a833c10789e58aa368c", size = 708504, upload-time = "2026-09-04T01:48:09.04Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/52/b3/c77018d4e9f25d871130a467e6afa3aa372f279a619b792e9ed87df45bf3/serialx-1.10.0-cp310-abi3-macosx_10_12_x86_64.whl", hash = "sha256:7ecc1dcbefbe6a98f8f03bbe54bb1020fdd060c42df2853baf84d1c88859d6de", size = 292499, upload-time = "2026-09-04T01:48:01.284Z" },
+    { url = "https://files.pythonhosted.org/packages/4c/ec/045956b3daf493476014d253a7d1109aafba47575988e9e8c9239ebcd00e/serialx-1.10.0-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:f03549520c156fb18a0746ab20a4d3e0e4ce03d507213e561c5064d649f35206", size = 288804, upload-time = "2026-09-04T01:48:02.654Z" },
+    { url = "https://files.pythonhosted.org/packages/96/f2/6e02e60b87da815b009ec3cd29d490ec62dddaadac5f55e50e380a99fba3/serialx-1.10.0-cp310-abi3-win32.whl", hash = "sha256:ce3f62cf43b9453656369463a436571c2100ba1adcd8a4007baaa0ea497b120f", size = 192222, upload-time = "2026-09-04T01:48:04.027Z" },
+    { url = "https://files.pythonhosted.org/packages/be/dd/8ccdb032d6afe24cae51921a1283793b75a9f1affb63ac696f1de885771d/serialx-1.10.0-cp310-abi3-win_amd64.whl", hash = "sha256:7ef6639ff9dc47d47c6459876934eb5524d7199d090ed002328846b875f4604b", size = 198860, upload-time = "2026-09-04T01:48:05.486Z" },
+    { url = "https://files.pythonhosted.org/packages/01/95/578b0a3cc9cc7878733210fdeec0badc2766f780146c7455512280940f78/serialx-1.10.0-cp310-abi3-win_arm64.whl", hash = "sha256:97204439ecfb1881e0503201fef645771676b0ed07107ae329e161e3e5dc86c4", size = 195484, upload-time = "2026-09-04T01:48:06.767Z" },
+    { url = "https://files.pythonhosted.org/packages/64/61/da9aadc5cbdcf92a7fd8472489dd47c5a2e0f4d0bdf7c8a18efafe5dee44/serialx-1.10.0-py3-none-any.whl", hash = "sha256:256712ba329d9ce0d1d08e0ddc6e9cd5d55784d15d47a70ea64f3610b37e8091", size = 74631, upload-time = "2026-09-04T01:48:07.969Z" },
+]
+
+[[package]]
 name = "six"
 version = "1.17.0"
 source = { registry = "https://pypi.org/simple" }
@@ -4198,7 +4475,8 @@ name = "snitun"
 version = "0.40.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "aiohttp", version = "3.12.12", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
@@ -4232,7 +4510,8 @@ name = "sqlalchemy"
 version = "2.0.40"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "greenlet", marker = "(python_full_version < '3.14' and platform_machine == 'AMD64') or (python_full_version < '3.14' and platform_machine == 'WIN32') or (python_full_version < '3.14' and platform_machine == 'aarch64') or (python_full_version < '3.14' and platform_machine == 'amd64') or (python_full_version < '3.14' and platform_machine == 'ppc64le') or (python_full_version < '3.14' and platform_machine == 'win32') or (python_full_version < '3.14' and platform_machine == 'x86_64')" },
@@ -4319,7 +4598,8 @@ name = "syrupy"
 version = "4.8.1"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "pytest", version = "8.3.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
@@ -4418,7 +4698,8 @@ name = "ulid-transform"
 version = "1.4.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/d4/f2/16c8e6f3d82debedeb1b09bec889ad4a1ca8a71d2d269c156dd80d049c2e/ulid_transform-1.4.0.tar.gz", hash = "sha256:5914a3c4277b0d25ebb67f47bfee2167ac858d970249ea275221fb3e5d91c9a0", size = 16023, upload-time = "2025-03-07T10:44:02.653Z" }
 wheels = [
@@ -4487,7 +4768,8 @@ name = "urllib3"
 version = "1.26.20"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/e4/e8/6ff5e6bc22095cfc59b6ea711b687e2b7ed4bdb373f7eeec370a97d7392f/urllib3-1.26.20.tar.gz", hash = "sha256:40c2dc0c681e47eb8f90e7e27bf6ff7df2e677421fd46756da1161c39ca70d32", size = 307380, upload-time = "2024-08-29T15:43:11.37Z" }
 wheels = [
@@ -4520,7 +4802,8 @@ name = "uv"
 version = "0.7.1"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/27/e7/d3868a493e0d2f119dc7d0f24f98126bf629a486fb16274b532f4bdb8842/uv-0.7.1.tar.gz", hash = "sha256:40a15f1fc73df852d7655530e5768e29dc7227ab25d9baeb711a8dde9e7f8234", size = 3290658, upload-time = "2025-04-30T10:08:01.832Z" }
 wheels = [
@@ -4624,7 +4907,7 @@ name = "winrt-runtime"
 version = "3.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions", marker = "(python_full_version < '3.14' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
+    { name = "typing-extensions", marker = "(python_full_version < '3.14' and sys_platform == 'win32' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (python_full_version >= '3.14' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (sys_platform != 'win32' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/16/dd/acdd527c1d890c8f852cc2af644aa6c160974e66631289420aa871b05e65/winrt_runtime-3.2.1.tar.gz", hash = "sha256:c8dca19e12b234ae6c3dadf1a4d0761b51e708457492c13beb666556958801ea", size = 21721, upload-time = "2025-06-06T14:40:27.593Z" }
 wheels = [
@@ -4641,7 +4924,7 @@ name = "winrt-windows-devices-bluetooth"
 version = "3.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "winrt-runtime", marker = "(python_full_version < '3.14' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
+    { name = "winrt-runtime", marker = "(python_full_version < '3.14' and sys_platform == 'win32' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (python_full_version >= '3.14' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (sys_platform != 'win32' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/b2/a0/1c8a0c469abba7112265c6cb52f0090d08a67c103639aee71fc690e614b8/winrt_windows_devices_bluetooth-3.2.1.tar.gz", hash = "sha256:db496d2d92742006d5a052468fc355bf7bb49e795341d695c374746113d74505", size = 23732, upload-time = "2025-06-06T14:41:20.489Z" }
 wheels = [
@@ -4658,7 +4941,7 @@ name = "winrt-windows-devices-bluetooth-advertisement"
 version = "3.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "winrt-runtime", marker = "(python_full_version < '3.14' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
+    { name = "winrt-runtime", marker = "(python_full_version < '3.14' and sys_platform == 'win32' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (python_full_version >= '3.14' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (sys_platform != 'win32' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/06/fc/7ffe66ca4109b9e994b27c00f3d2d506e6e549e268791f755287ad9106d8/winrt_windows_devices_bluetooth_advertisement-3.2.1.tar.gz", hash = "sha256:0223852a7b7fa5c8dea3c6a93473bd783df4439b1ed938d9871f947933e574cc", size = 16906, upload-time = "2025-06-06T14:41:21.448Z" }
 wheels = [
@@ -4675,7 +4958,7 @@ name = "winrt-windows-devices-bluetooth-genericattributeprofile"
 version = "3.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "winrt-runtime", marker = "(python_full_version < '3.14' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
+    { name = "winrt-runtime", marker = "(python_full_version < '3.14' and sys_platform == 'win32' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (python_full_version >= '3.14' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (sys_platform != 'win32' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/44/21/aeeddc0eccdfbd25e543360b5cc093233e2eab3cdfb53ad3cabae1b5d04d/winrt_windows_devices_bluetooth_genericattributeprofile-3.2.1.tar.gz", hash = "sha256:cdf6ddc375e9150d040aca67f5a17c41ceaf13a63f3668f96608bc1d045dde71", size = 38896, upload-time = "2025-06-06T14:41:22.687Z" }
 wheels = [
@@ -4692,7 +4975,7 @@ name = "winrt-windows-devices-enumeration"
 version = "3.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "winrt-runtime", marker = "(python_full_version < '3.14' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
+    { name = "winrt-runtime", marker = "(python_full_version < '3.14' and sys_platform == 'win32' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (python_full_version >= '3.14' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (sys_platform != 'win32' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/9e/dd/75835bfbd063dffa152109727dedbd80f6e92ea284855f7855d48cdf31c9/winrt_windows_devices_enumeration-3.2.1.tar.gz", hash = "sha256:df316899e39bfc0ffc1f3cb0f5ee54d04e1d167fbbcc1484d2d5121449a935cf", size = 23538, upload-time = "2025-06-06T14:41:26.787Z" }
 wheels = [
@@ -4709,7 +4992,7 @@ name = "winrt-windows-devices-radios"
 version = "3.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "winrt-runtime", marker = "(python_full_version < '3.14' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
+    { name = "winrt-runtime", marker = "(python_full_version < '3.14' and sys_platform == 'win32' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (python_full_version >= '3.14' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (sys_platform != 'win32' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/5e/02/9704ea359ad8b0d6faa1011f98fb477e8fb6eac5201f39d19e73c2407e7b/winrt_windows_devices_radios-3.2.1.tar.gz", hash = "sha256:4dc9b9d1501846049eb79428d64ec698d6476c27a357999b78a8331072e18a0b", size = 5908, upload-time = "2025-06-06T14:41:44.868Z" }
 wheels = [
@@ -4726,7 +5009,7 @@ name = "winrt-windows-foundation"
 version = "3.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "winrt-runtime", marker = "(python_full_version < '3.14' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
+    { name = "winrt-runtime", marker = "(python_full_version < '3.14' and sys_platform == 'win32' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (python_full_version >= '3.14' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (sys_platform != 'win32' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/0c/55/098ce7ea0679efcc1298b269c48768f010b6c68f90c588f654ec874c8a74/winrt_windows_foundation-3.2.1.tar.gz", hash = "sha256:ad2f1fcaa6c34672df45527d7c533731fdf65b67c4638c2b4aca949f6eec0656", size = 30485, upload-time = "2025-06-06T14:41:53.344Z" }
 wheels = [
@@ -4743,7 +5026,7 @@ name = "winrt-windows-foundation-collections"
 version = "3.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "winrt-runtime", marker = "(python_full_version < '3.14' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
+    { name = "winrt-runtime", marker = "(python_full_version < '3.14' and sys_platform == 'win32' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (python_full_version >= '3.14' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (sys_platform != 'win32' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ef/62/d21e3f1eeb8d47077887bbf0c3882c49277a84d8f98f7c12bda64d498a07/winrt_windows_foundation_collections-3.2.1.tar.gz", hash = "sha256:0eff1ad0d8d763ad17e9e7bbd0c26a62b27215016393c05b09b046d6503ae6d5", size = 16043, upload-time = "2025-06-06T14:41:53.983Z" }
 wheels = [
@@ -4760,7 +5043,7 @@ name = "winrt-windows-storage-streams"
 version = "3.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "winrt-runtime", marker = "(python_full_version < '3.14' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
+    { name = "winrt-runtime", marker = "(python_full_version < '3.14' and sys_platform == 'win32' and extra == 'group-11-onesti-lock-ha-minimum') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-current') or (python_full_version >= '3.14' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (python_full_version >= '3.14.2' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (sys_platform != 'win32' and extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/00/50/f4488b07281566e3850fcae1021f0285c9653992f60a915e15567047db63/winrt_windows_storage_streams-3.2.1.tar.gz", hash = "sha256:476f522722751eb0b571bc7802d85a82a3cae8b1cce66061e6e758f525e7b80f", size = 34335, upload-time = "2025-06-06T14:43:23.905Z" }
 wheels = [
@@ -4777,7 +5060,8 @@ name = "yarl"
 version = "1.20.1"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "idna", marker = "(python_full_version < '3.14' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-ha-minimum') or (extra == 'group-11-onesti-lock-ha-current' and extra == 'group-11-onesti-lock-unit') or (extra == 'group-11-onesti-lock-ha-minimum' and extra == 'group-11-onesti-lock-unit')" },
@@ -4896,7 +5180,8 @@ name = "zeroconf"
 version = "0.147.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.14'",
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
     { name = "ifaddr", marker = "python_full_version < '3.14'" },
@@ -4978,4 +5263,53 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/72/60/e3590b134f3012e5a8af28ddd3ac27b4e5d046f9935d873fa8c5c01d9d52/zeroconf-0.151.1-cp315-cp315t-musllinux_1_2_x86_64.whl", hash = "sha256:6d90dc5525ae29d25a1e9d8155d7cab72b2317d90cb094dfd042312d9bb58ef3", size = 2777312, upload-time = "2026-08-29T00:00:52.177Z" },
     { url = "https://files.pythonhosted.org/packages/8b/03/b76af3268da013b4efe7e94bb029ef5606fc4c0760349aad44ec0dcad4f9/zeroconf-0.151.1-cp315-cp315t-win32.whl", hash = "sha256:eb9a98bb424fd7b0b39aab09665f56ae9570f99738343fb89707cff79e318166", size = 1914298, upload-time = "2026-08-29T00:00:54.299Z" },
     { url = "https://files.pythonhosted.org/packages/8d/6a/7d750769a89ff10e9337318dc7108f76702986620f7d5b97f11337599d63/zeroconf-0.151.1-cp315-cp315t-win_amd64.whl", hash = "sha256:90457baeae87fa5901d9eda62c84f2b3483820eb6294620764e7ea22dc1ce4b8", size = 2150295, upload-time = "2026-08-29T00:00:56.482Z" },
+]
+
+[[package]]
+name = "zigpy"
+version = "0.80.1"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.14' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
+]
+dependencies = [
+    { name = "aiohttp", version = "3.12.12", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
+    { name = "aiosqlite", version = "0.22.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
+    { name = "attrs", version = "25.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
+    { name = "crccheck", marker = "python_full_version < '3.14'" },
+    { name = "cryptography", version = "45.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
+    { name = "frozendict", marker = "python_full_version < '3.14'" },
+    { name = "jsonschema", marker = "python_full_version < '3.14'" },
+    { name = "pyserial-asyncio", marker = "python_full_version < '3.14'" },
+    { name = "typing-extensions", marker = "python_full_version < '3.14'" },
+    { name = "voluptuous", marker = "python_full_version < '3.14'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/bb/0f/d653caa8bd1ab2ee683dde4124e22dc9f645d3fe5bbf1c2c7ada70faea6c/zigpy-0.80.1.tar.gz", hash = "sha256:2da5f7e3fe77f61d993b2127361e528fb8f4772066266d3aedda8d0939dbdc0f", size = 286694, upload-time = "2025-05-25T20:07:59.183Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1b/80/f70f0ab17e29318b76f56b0b91e18a8db61378094f8013dad1f69446b041/zigpy-0.80.1-py3-none-any.whl", hash = "sha256:88dada524c0ef656696fe2f70956c5900621e88a0185b68a3093d29572bcf9b6", size = 225434, upload-time = "2025-05-25T20:07:57.846Z" },
+]
+
+[[package]]
+name = "zigpy"
+version = "2.2.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14.2'",
+]
+dependencies = [
+    { name = "aiohttp", version = "3.14.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14.2'" },
+    { name = "aiosqlite", version = "0.21.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14.2'" },
+    { name = "attrs", version = "26.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14.2'" },
+    { name = "crccheck", marker = "python_full_version >= '3.14.2'" },
+    { name = "cryptography", version = "48.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14.2'" },
+    { name = "frozendict", marker = "python_full_version >= '3.14.2'" },
+    { name = "jsonschema", marker = "python_full_version >= '3.14.2'" },
+    { name = "serialx", marker = "python_full_version >= '3.14.2'" },
+    { name = "typing-extensions", marker = "python_full_version >= '3.14.2'" },
+    { name = "voluptuous", marker = "python_full_version >= '3.14.2'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7d/bb/d26ed58d6cae5c21832451ba251d4ff4ad7b352427617d64c9ad440074b4/zigpy-2.2.0.tar.gz", hash = "sha256:821ea716ac2664af9b5ef09b1b83b04af9f87edefb5a71191c15a9bc69ad46ef", size = 338280, upload-time = "2026-09-07T19:52:25.821Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3f/40/2ddc72f0d56d51f04fb41713c669fc3e18271e7ac01f5790f0a2f66e9cdc/zigpy-2.2.0-py3-none-any.whl", hash = "sha256:e941a350bc8b1a4a9c14436d022fe31acfd78b09f15be32a425090fd1d24a231", size = 255186, upload-time = "2026-09-07T19:52:24.468Z" },
 ]

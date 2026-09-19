@@ -12,7 +12,6 @@ Run with `just test-ha minimum` and `just test-ha current`.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from types import SimpleNamespace
 
 import pytest
 from homeassistant.config_entries import ConfigEntryState
@@ -33,7 +32,7 @@ from custom_components.onesti_lock.const import (
     SLOT_FIRST_USER,
 )
 from custom_components.onesti_lock.events import ATTR_OPERATION_EVENT
-from tests_ha.conftest import DOORLOCK_CLUSTER_ID, LOCK_IEEE
+from tests_ha.conftest import DOORLOCK_CLUSTER_ID, LISTENER_PATHS, LOCK_IEEE
 
 USER_SLOTS = range(SLOT_FIRST_USER, SLOT_FIRST_USER + NUM_USER_SLOTS)
 
@@ -77,10 +76,8 @@ def _entity_id(hass: HomeAssistant, unique_suffix: str) -> str:
 
 
 async def _report(hass: HomeAssistant, mock_zha, attribute_id: int, raw_value) -> None:
-    """Deliver an attribute report the way zigpy's cluster.emit() does."""
-    event = SimpleNamespace(attribute_id=attribute_id, raw_value=raw_value)
-    for listener in list(_cluster(mock_zha)._event_listeners["attribute_report"]):
-        listener(event)
+    """Deliver an attribute report the way the installed zigpy does."""
+    _cluster(mock_zha).deliver(attribute_id, raw_value)
     await hass.async_block_till_done()
 
 
@@ -197,6 +194,7 @@ async def test_clear_pin_on_an_unused_slot_updates_its_sensor(hass: HomeAssistan
 # -- Activity sensor --
 
 
+@pytest.mark.parametrize("cluster_class", LISTENER_PATHS, indirect=True)
 @pytest.mark.parametrize(
     ("language", "expected"),
     [("en", "Kari unlocked with code"), ("nb", "Kari låste opp med kode")],
@@ -204,6 +202,7 @@ async def test_clear_pin_on_an_unused_slot_updates_its_sensor(hass: HomeAssistan
 async def test_decoded_event_sets_activity_state(
     hass: HomeAssistant, mock_zha, language: str, expected: str
 ) -> None:
+    """The end-to-end path, through both of zigpy's listener hooks."""
     hass.config.language = language
     await _setup_entry(hass, slots={"5": {"name": "Kari", "has_pin": True}})
 
@@ -217,6 +216,7 @@ async def test_decoded_event_sets_activity_state(
     assert state.attributes["source"] == "keypad"
 
 
+@pytest.mark.parametrize("cluster_class", LISTENER_PATHS, indirect=True)
 async def test_auto_lock_does_not_overwrite_activity(hass: HomeAssistant, mock_zha) -> None:
     await _setup_entry(hass, slots={"5": {"name": "Kari", "has_pin": True}})
     fired = []

@@ -131,41 +131,71 @@ class ZhaInternalsMissing(Exception):
         self.detail = detail
 
 
+class _AttributeUpdatedListener:
+    """A zigpy listener object for the pre-0.91 add_listener path.
+
+    zigpy's ListenableMixin dispatches by method name, so the hook is a
+    method rather than a callback. Older zigpy calls it with three
+    positional arguments; the default keeps the two-argument form working
+    if that ever changes back.
+    """
+
+    def __init__(self, handle: Callable[[Any, Any], None]) -> None:
+        self._handle = handle
+
+    def attribute_updated(self, attrid, value, timestamp=None) -> None:
+        self._handle(attrid, value)
+
+
 def register_event_listener(
     hass: HomeAssistant, coordinator: NimlyCoordinator
 ) -> Callable[[], Any]:
-    """Listen for attribute_report events on the DoorLock cluster.
+    """Listen for attribute reports on the DoorLock cluster.
 
     Returns the unsubscribe callable and records the cluster on
     coordinator.listened_cluster. Raises ZhaInternalsMissing when the
-    cluster cannot be found or has no on_event.
+    cluster cannot be found, or when neither hook below exists.
 
-    zigpy emits "attribute_report" via cluster.emit() for every Report_Attributes
-    ZCL frame, even for unknown attributes and even when value is unchanged.
-    This is the only reliable way to catch Onesti's custom attrid 0x0100.
-    on_event is not documented zigpy API, which is why its absence is
-    reported rather than assumed away.
+    Which hook is there depends on the zigpy version Home Assistant's ZHA
+    pins, so both are supported and the same handler runs behind them:
 
-    The alternatives don't work:
-    - add_listener + attribute_updated: suppressed for unknown attributes
+    - zigpy 0.91 and newer (HA 2026.2 and up): Cluster inherits EventBase
+      and emits "attribute_report" for every Report_Attributes frame, even
+      for unknown attributes and even when the value is unchanged.
+      cluster.on_event("attribute_report", ...) subscribes to it.
+    - zigpy before 0.91 (HA 2025.6 through 2026.1 pin 0.80.1 to 0.90.0):
+      no Cluster.on_event at all. A listener object registered with
+      cluster.add_listener gets attribute_updated(attrid, value, timestamp)
+      instead, and cluster.remove_listener takes it off again.
+
+    The second path was checked against real zigpy 0.80.1 on 2026-09-19:
+    handle_cluster_general_request calls _update_attribute for every
+    attribute in a Report_Attributes frame, unknown attrids included, and
+    _update_attribute fires listener_event("attribute_updated", ...)
+    unconditionally. An earlier version of this docstring claimed
+    attribute_updated was suppressed for unknown attributes; that is wrong
+    for 0.80.1, and the fallback rests on it not being. The path also fires
+    for our own attribute reads (0x0012 and friends), which the attrid
+    filter drops and which are the same "radio is awake" signal anyway.
+
+    Neither hook is documented zigpy API, which is why the absence of both
+    is reported rather than assumed away.
+
+    The alternatives still don't work:
     - add_listener + general_command: not dispatched to listeners
     - add_listener + handle_cluster_request: only for cluster commands, not general
     """
     cluster = coordinator.transport.cluster()
     if cluster is None:
         raise ZhaInternalsMissing(f"Door Lock cluster for {coordinator.ieee}")
-    on_event = getattr(cluster, "on_event", None)
-    if not callable(on_event):
-        raise ZhaInternalsMissing(f"{type(cluster).__name__}.on_event")
 
-    def _on_attribute_report(event) -> None:
+    def _handle_report(attribute_id: Any, raw: Any) -> None:
         # Any report means the radio is awake right now, the moment a
         # capability read that went unanswered at startup can succeed.
         coordinator.schedule_capability_refresh()
-        if event.attribute_id != ATTR_OPERATION_EVENT:
+        if attribute_id != ATTR_OPERATION_EVENT:
             return
 
-        raw = event.raw_value
         try:
             val = int(raw)
         except (TypeError, ValueError):
@@ -203,8 +233,31 @@ def register_event_listener(
             {"ieee": coordinator.ieee, **decoded},
         )
 
-    unsub = on_event("attribute_report", _on_attribute_report)
+    unsub, how = _subscribe(cluster, _handle_report)
     coordinator.listened_cluster = cluster
 
-    _LOGGER.debug("Event listener registered on %s", type(cluster).__name__)
+    _LOGGER.debug("Event listener registered on %s via %s", type(cluster).__name__, how)
     return unsub
+
+
+def _subscribe(cluster: Any, handle: Callable[[Any, Any], None]) -> tuple[Callable[[], Any], str]:
+    """Subscribe handle to the cluster's attribute reports.
+
+    Returns the unsubscribe callable and the name of the hook used, for
+    the debug line. Raises ZhaInternalsMissing when the cluster offers
+    neither hook.
+    """
+    on_event = getattr(cluster, "on_event", None)
+    if callable(on_event):
+        return on_event("attribute_report", lambda event: handle(event.attribute_id, event.raw_value)), "on_event"
+
+    add_listener = getattr(cluster, "add_listener", None)
+    remove_listener = getattr(cluster, "remove_listener", None)
+    if not callable(add_listener) or not callable(remove_listener):
+        raise ZhaInternalsMissing(
+            f"{type(cluster).__name__}.on_event, and no add_listener/remove_listener either"
+        )
+
+    listener = _AttributeUpdatedListener(handle)
+    add_listener(listener)
+    return lambda: remove_listener(listener), "add_listener"

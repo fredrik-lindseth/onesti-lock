@@ -27,11 +27,19 @@ for it instead:
    long as it still reads ZHA's object layout.
 
 zha.py imports `get_zha_gateway_proxy` from homeassistant.components.zha,
-two exception classes from zigpy and zigpy's ZCL Status. None of them
-imports without the `zha` library, so `_stub_zha_imports()` below puts
-stand-ins in sys.modules. The helper stand-in does what the real one does
-in both pinned releases, and the ZHA package keeps its real path, so any
-other submodule would still load from Home Assistant itself.
+two exception classes from zigpy and zigpy's ZCL Status. The first does not
+import without the `zha` library, so `_stub_zha_imports()` below puts a
+stand-in in sys.modules. It does what the real helper does in both pinned
+releases, and the ZHA package keeps its real path, so any other submodule
+would still load from Home Assistant itself.
+
+zigpy itself is installed, pinned per group to exactly the version that
+group's Home Assistant gets through zha (0.80.1 on minimum, 2.2.0 on
+current). The zigpy half of `_stub_zha_imports()` therefore does nothing
+now; it stays because it only stubs what is absent, and because a group
+without zigpy would otherwise fail at import rather than at the one test
+that needs the real thing. Which listener hook a real cluster offers is
+the whole point of test_zigpy_listener.py.
 
 The fake proxy mirrors the real chain: ZHADeviceProxy -> Device (with
 manufacturer and model) -> zigpy device (with endpoints and clusters).
@@ -158,14 +166,17 @@ _SERVER_COMMAND_FIELDS: dict[int, set[str]] = {
 CommandEffect = BaseException | Callable[[dict], Any] | Any | None
 
 
-class FakeDoorLockCluster:
-    """The parts of a zigpy DoorLock cluster the integration touches."""
+class _FakeDoorLockClusterBase:
+    """The parts of a zigpy DoorLock cluster the integration touches.
+
+    Everything but the listener hook, which differs by zigpy version and
+    lives in the two subclasses below.
+    """
 
     cluster_id = DOORLOCK_CLUSTER_ID
 
     def __init__(self, endpoint_id: int = 11) -> None:
         self.endpoint = SimpleNamespace(endpoint_id=endpoint_id)
-        self._event_listeners: dict[str, list[Callable]] = {}
         self.capabilities: dict[int, int] = {0x0012: 50, 0x0017: 8, 0x0018: 4}
         # Every command sent, in order, as {"command": id, "params": {...}}.
         self.commands: list[dict[str, Any]] = []
@@ -189,6 +200,17 @@ class FakeDoorLockCluster:
             return SimpleNamespace(status=ZclStatus.SUCCESS)
         return effect
 
+    async def read_attributes(self, attributes: list[int]) -> tuple[dict, dict]:
+        return {a: self.capabilities[a] for a in attributes if a in self.capabilities}, {}
+
+
+class FakeDoorLockCluster(_FakeDoorLockClusterBase):
+    """A cluster from zigpy 0.91 and newer, which emits attribute_report."""
+
+    def __init__(self, endpoint_id: int = 11) -> None:
+        super().__init__(endpoint_id)
+        self._event_listeners: dict[str, list[Callable]] = {}
+
     def on_event(self, event: str, callback: Callable) -> Callable[[], None]:
         self._event_listeners.setdefault(event, []).append(callback)
 
@@ -197,15 +219,57 @@ class FakeDoorLockCluster:
 
         return unsubscribe
 
-    async def read_attributes(self, attributes: list[int]) -> tuple[dict, dict]:
-        return {a: self.capabilities[a] for a in attributes if a in self.capabilities}, {}
+    def deliver(self, attribute_id: int, raw_value: Any) -> None:
+        event = SimpleNamespace(attribute_id=attribute_id, raw_value=raw_value)
+        for callback in list(self._event_listeners.get("attribute_report", [])):
+            callback(event)
+
+    @property
+    def listener_count(self) -> int:
+        return len(self._event_listeners.get("attribute_report", []))
+
+
+class FakeListenableDoorLockCluster(_FakeDoorLockClusterBase):
+    """A cluster from zigpy before 0.91: no on_event, listener objects instead.
+
+    Home Assistant 2025.6 through 2026.1 ship one of these (zigpy 0.80.1 to
+    0.90.0). zigpy calls attribute_updated with the timestamp positionally.
+    """
+
+    def __init__(self, endpoint_id: int = 11) -> None:
+        super().__init__(endpoint_id)
+        self._listeners: list[Any] = []
+
+    def add_listener(self, listener: Any) -> int:
+        self._listeners.append(listener)
+        return id(listener)
+
+    def remove_listener(self, listener: Any) -> None:
+        self._listeners.remove(listener)
+
+    def deliver(self, attribute_id: int, raw_value: Any) -> None:
+        for listener in list(self._listeners):
+            listener.attribute_updated(attribute_id, raw_value, 1_700_000_000.0)
+
+    @property
+    def listener_count(self) -> int:
+        return len(self._listeners)
+
+
+# Both registration paths, for the tests that must prove each of them.
+# Parametrize the cluster_class fixture indirectly to get them:
+#     @pytest.mark.parametrize("cluster_class", LISTENER_PATHS, indirect=True)
+LISTENER_PATHS = [
+    pytest.param(FakeDoorLockCluster, id="on_event"),
+    pytest.param(FakeListenableDoorLockCluster, id="add_listener"),
+]
 
 
 def make_lock_proxy(
     *,
     manufacturer: str = LOCK_MANUFACTURER,
     model: str = LOCK_MODEL,
-    cluster: FakeDoorLockCluster | None = None,
+    cluster: Any | None = None,
 ) -> Any:
     """A fake ZHADeviceProxy with the Door Lock cluster on endpoint 11."""
     zigpy_device = SimpleNamespace(
@@ -225,18 +289,30 @@ def zha_dependency(hass) -> None:
 
 
 @pytest.fixture
-def mock_zha(hass, zha_dependency) -> SimpleNamespace:
+def cluster_class(request) -> type:
+    """Which fake Door Lock cluster mock_zha builds.
+
+    The on_event one by default, since that is what a current Home
+    Assistant ships. A test that must prove both registration paths asks
+    for them with `parametrize("cluster_class", LISTENER_PATHS,
+    indirect=True)`.
+    """
+    return getattr(request, "param", FakeDoorLockCluster)
+
+
+@pytest.fixture
+def mock_zha(hass, zha_dependency, cluster_class) -> SimpleNamespace:
     """A running ZHA with one Onesti lock.
 
     Returns the fake gateway proxy. Tests change `device_proxies` to show
     ZHA with other devices or none.
     """
-    gateway_proxy = SimpleNamespace(device_proxies={LOCK_IEEE: make_lock_proxy()})
+    gateway_proxy = SimpleNamespace(device_proxies={LOCK_IEEE: make_lock_proxy(cluster=cluster_class())})
     hass.data["zha"] = SimpleNamespace(gateway_proxy=gateway_proxy)
     return gateway_proxy
 
 
-def lock_cluster(gateway_proxy: SimpleNamespace, ieee: str = LOCK_IEEE) -> FakeDoorLockCluster:
+def lock_cluster(gateway_proxy: SimpleNamespace, ieee: str = LOCK_IEEE) -> Any:
     """The fake Door Lock cluster of one lock in the fake gateway."""
     return gateway_proxy.device_proxies[ieee].device.device.endpoints[11].in_clusters[DOORLOCK_CLUSTER_ID]
 

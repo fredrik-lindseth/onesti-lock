@@ -9,6 +9,8 @@ tells **who** unlocked the door and **how**, which no other ZHA integration does
 2. Credentials, API keys and secrets do NOT go in git. They belong in `secrets.md` (gitignored). Docs hold API URLs and technical references only, never secrets.
 3. The lock is a battery-powered Zigbee EndDevice that sleeps. Every ZCL command must handle timeouts and go through the auto-wake mechanism in `coordinator.py`.
 4. The Nimly response quirk (`IndexError` in zigpy) is expected. The command reaches the lock despite the error. Do not "fix" it.
+5. The repo is public and written in English: code, comments, docs and commit messages. Work is tracked outside the repo, so no tracker ids or tracker names in files or commits. GitHub issue numbers (#6) are fine.
+6. Vendor manuals are the source for slot rules and lock behaviour. Run `python3 scripts/fetch_manuals.py` once, then read the `.txt` extracts in `docs/manuals/`. The files are gitignored, and `docs/manuals/README.md` lists what exists and where it came from.
 
 ## Architecture
 
@@ -84,10 +86,10 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 | `docs/nimly-ble-app/ble-protocol.md`            | BLE protocol from decompiled nimly BLE app (not used by integration)                          |
 | `docs/connect-bridge/hardware-gateway.md`       | Connect Bridge hardware, network stack, firmware                                              |
 | `docs/slot-numbering.md`                        | Slot numbering across Zigbee, BLE and cloud, verified and unverified                          |
+| `docs/manuals/README.md`                        | Index of vendor manuals per model and brand, fetched locally by `scripts/fetch_manuals.py`    |
 | `docs/debugging.md`                             | Troubleshooting guide for common problems                                                     |
 | `docs/cloud-api-status.md`                      | Cloud API reversing status, what has been tried and what comes next                           |
 | `docs/upstream-status.md`                       | Open threads in the ZHA quirk and the Z2M converter, and why we do not build dual transport   |
-| `docs/plans/`                                   | Dated reviews and plans. 2026-08-23-review-prosjekt.md is the broad code review               |
 
 ## Testing
 

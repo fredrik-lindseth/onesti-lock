@@ -17,6 +17,7 @@ from homeassistant.helpers import device_registry as dr
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.onesti_lock.const import CONF_IEEE, DOMAIN
+from custom_components.onesti_lock.zha import SEND_DELIVERED, SendOutcome
 from tests_ha.conftest import LOCK_IEEE, make_lock_proxy
 
 SECOND_LOCK_IEEE = "00:0d:6f:00:55:66:77:88"
@@ -29,9 +30,9 @@ class RecordingTransport:
     def __init__(self) -> None:
         self.sent: list[tuple[int, dict]] = []
 
-    async def send(self, command_id: int, params: dict) -> bool:
+    async def send(self, command_id: int, params: dict) -> SendOutcome:
         self.sent.append((command_id, params))
-        return True
+        return SEND_DELIVERED
 
 
 async def _setup_lock(hass: HomeAssistant, ieee: str) -> tuple[MockConfigEntry, RecordingTransport]:

@@ -352,9 +352,9 @@ async def test_slot_and_capability_writes_do_not_reload(hass: HomeAssistant, moc
     entry = await _setup(hass)
     coordinator = entry.runtime_data
 
-    assert await coordinator.set_pin(5, "Kari", "1234") is True
+    assert (await coordinator.set_pin(5, "Kari", "1234")).delivered
     await coordinator.set_slot_name(6, "Ola")
-    assert await coordinator.clear_pin(5) is True
+    assert (await coordinator.clear_pin(5)).delivered
     hass.config_entries.async_update_entry(
         entry, options={**entry.options, "capabilities": {"num_pin_users": 20}}
     )
@@ -448,7 +448,7 @@ async def test_wake_echo_leaves_activity_but_fires_the_event(
     await _report(hass, cluster, KARI_UNLOCKS_WITH_CODE)
     before = hass.states.get(ACTIVITY_ENTITY_ID).state
 
-    assert await entry.runtime_data.set_pin(6, "Ola", "1234") is True
+    assert (await entry.runtime_data.set_pin(6, "Ola", "1234")).delivered
     assert len(sleeping_lock) == 1
     await _report(hass, cluster, ZIGBEE_LOCK)
 

@@ -11,7 +11,7 @@ from homeassistant.core import HomeAssistant
 
 from . import pin_rules
 from .const import CONF_IEEE, DEFAULT_SLOT
-from .zha import ZhaLockTransport
+from .zha import SendOutcome, ZhaLockTransport
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -217,22 +217,27 @@ class NimlyCoordinator:
 
     # -- PIN operations --
 
-    async def _send(self, command: int, params: dict) -> bool:
+    async def _send(self, command: int, params: dict) -> SendOutcome:
         """Send through the transport, then use the awake radio.
 
-        A command that reached the lock means its radio is awake right now,
-        the one moment a capability read is likely to be answered.
+        A lock that answered, whether it accepted the command or refused
+        it, has its radio awake right now, the one moment a capability read
+        is likely to be answered.
         """
-        success = await self.transport.send(command, params)
-        if success:
+        outcome = await self.transport.send(command, params)
+        if outcome.lock_answered:
             self.schedule_capability_refresh()
-        return success
+        return outcome
 
-    async def set_pin(self, slot: int, name: str, code: str) -> bool:
+    # Each PIN operation returns the transport's outcome, and local state
+    # changes only when it was delivered. A refusal leaves the slot as the
+    # lock still has it.
+
+    async def set_pin(self, slot: int, name: str, code: str) -> SendOutcome:
         """Set PIN code for a slot."""
         self._check_writable(slot)
         async with self._pin_lock:
-            success = await self._send(
+            outcome = await self._send(
                 0x0005,
                 {
                     "user_id": slot,
@@ -241,44 +246,44 @@ class NimlyCoordinator:
                     "pin_code": code,
                 },
             )
-            if success:
+            if outcome.delivered:
                 slot_data = self._slots.setdefault(str(slot), {**DEFAULT_SLOT})
                 slot_data["name"] = name
                 slot_data["has_pin"] = True
                 await self._save_slots()
                 self._notify_listeners()
-            return success
+            return outcome
 
-    async def clear_pin(self, slot: int) -> bool:
+    async def clear_pin(self, slot: int) -> SendOutcome:
         """Clear PIN code for a slot."""
         self._check_writable(slot)
         async with self._pin_lock:
-            success = await self._send(
+            outcome = await self._send(
                 0x0007,
                 {"user_id": slot},
             )
-            if success:
+            if outcome.delivered:
                 self._slots.setdefault(str(slot), {**DEFAULT_SLOT})["has_pin"] = False
                 await self._save_slots()
                 self._notify_listeners()
-            return success
+            return outcome
 
-    async def clear_slot(self, slot: int) -> bool:
+    async def clear_slot(self, slot: int) -> SendOutcome:
         """Clear all credentials and name for a slot."""
         self._check_writable(slot)
         async with self._pin_lock:
-            success = await self._send(
+            outcome = await self._send(
                 0x0007,
                 {"user_id": slot},
             )
-            if success:
-                # Local state only follows a command that reached the lock.
-                # Wiping the slot after a failed send would show it as vacant
-                # while the lock still accepts the old code.
+            if outcome.delivered:
+                # Local state only follows a command the lock took. Wiping
+                # the slot after a failed or refused send would show it as
+                # vacant while the lock still accepts the old code.
                 self._slots[str(slot)] = {**DEFAULT_SLOT}
                 await self._save_slots()
                 self._notify_listeners()
-            return success
+            return outcome
 
     # -- Listener pattern for sensors --
 

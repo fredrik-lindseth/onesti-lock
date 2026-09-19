@@ -21,6 +21,9 @@ import pytest
 from .conftest import load_component_module
 
 coordinator_mod = load_component_module("coordinator")
+zha_mod = load_component_module("zha")
+DELIVERED = zha_mod.SEND_DELIVERED
+UNREACHED = zha_mod.SEND_UNREACHED
 
 IEEE = "00:11:22:33:44:55:66:77"
 
@@ -153,7 +156,7 @@ class TestClearSlotFailure:
     def test_failed_clear_keeps_slot_state(self):
         hass, _entry, coord = _make_coordinator(self._OCCUPIED, fail_services=True)
         result = asyncio.run(coord.clear_slot(5))
-        assert result is False
+        assert result == UNREACHED
         assert coord.get_slot(5)["name"] == "Kari"
         assert coord.get_slot(5)["has_pin"] is True
         assert hass.config_entries.written == []
@@ -161,7 +164,7 @@ class TestClearSlotFailure:
     def test_successful_clear_resets_and_persists(self):
         hass, _entry, coord = _make_coordinator(self._OCCUPIED)
         result = asyncio.run(coord.clear_slot(5))
-        assert result is True
+        assert result == DELIVERED
         assert coord.get_slot(5)["name"] == ""
         assert coord.get_slot(5)["has_pin"] is False
         assert hass.config_entries.written[-1]["slots"]["5"]["name"] == ""
@@ -169,7 +172,7 @@ class TestClearSlotFailure:
     def test_failed_set_pin_does_not_mark_has_pin(self):
         hass, _entry, coord = _make_coordinator({"slots": {}}, fail_services=True)
         result = asyncio.run(coord.set_pin(5, "Kari", "1234"))
-        assert result is False
+        assert result == UNREACHED
         assert coord.get_slot(5)["has_pin"] is False
         assert hass.config_entries.written == []
 
@@ -253,7 +256,7 @@ class GatedTransport:
         self.max_in_flight = max(self.max_in_flight, self.in_flight)
         await self.gate.wait()
         self.in_flight -= 1
-        return True
+        return DELIVERED
 
 
 class TestPinOperationsAreSerialised:
@@ -274,7 +277,7 @@ class TestPinOperationsAreSerialised:
             transport.gate.set()
             return await asyncio.gather(first, second, third)
 
-        assert asyncio.run(scenario()) == [True, True, True]
+        assert asyncio.run(scenario()) == [DELIVERED] * 3
         assert transport.max_in_flight == 1
         assert transport.started == [(0x0005, 5), (0x0007, 5), (0x0007, 6)]
         # The later clear_slot wins, as it was called last.
@@ -287,7 +290,7 @@ class TestPinOperationsAreSerialised:
         _hass, _entry, coord = _make_coordinator({"slots": {}}, transport=transport)
         with pytest.raises(ValueError):
             asyncio.run(coord.set_pin(0, "Master", "1234"))
-        assert asyncio.run(coord.set_pin(5, "Kari", "1234")) is True
+        assert asyncio.run(coord.set_pin(5, "Kari", "1234")) == DELIVERED
 
 
 class TestLoadSlots:

@@ -20,6 +20,7 @@ from .conftest import load_component_module
 
 services_mod = load_component_module("services")
 pin_rules = load_component_module("pin_rules")
+DELIVERED = load_component_module("zha").SEND_DELIVERED
 
 
 class FakeCoordinator:
@@ -42,11 +43,11 @@ class FakeCoordinator:
 
     async def set_pin(self, slot, name, code):
         self.set_pin_calls.append((slot, name, code))
-        return True
+        return DELIVERED
 
     async def clear_pin(self, slot):
         self.clear_pin_calls.append(slot)
-        return True
+        return DELIVERED
 
 
 class FakeServiceRegistry:
@@ -187,3 +188,31 @@ class TestSetPinLength:
         error = excinfo.value
         assert "837291645" not in str(error)
         assert "837291645" not in repr(error.translation_placeholders)
+
+
+class TestWriteOutcomeReachesTheCaller:
+    """What the lock did with the command decides the error, not just that it failed."""
+
+    zha = load_component_module("zha")
+
+    @pytest.mark.parametrize(
+        ("outcome", "key", "placeholders"),
+        [
+            (zha.SEND_UNREACHED, "lock_unreachable", {}),
+            (zha.rejected(0x0005, object(), 1), "lock_rejected", {"status": "1"}),
+            (zha.rejected(0x0005, object(), 2), "lock_rejected_memory_full", {"status": "2"}),
+            (zha.rejected(0x0005, object(), 3), "lock_rejected_duplicate", {"status": "3"}),
+        ],
+        ids=["unreached", "failure", "memory_full", "duplicate"],
+    )
+    def test_set_pin_error_follows_the_outcome(self, outcome, key, placeholders):
+        coordinator = FakeCoordinator()
+
+        async def set_pin(slot, name, code):
+            return outcome
+
+        coordinator.set_pin = set_pin
+        with pytest.raises(HomeAssistantError) as excinfo:
+            asyncio.run(_handlers(coordinator)["set_pin"](FakeCall(slot=5, name="Kari", code="1234")))
+        assert excinfo.value.translation_key == key
+        assert excinfo.value.translation_placeholders == placeholders

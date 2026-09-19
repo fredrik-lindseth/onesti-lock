@@ -29,7 +29,7 @@
       },
       "set_pin": {
         "title": "Set PIN code",
-        "description": "Pick a slot, then enter a name and a PIN code. Slot numbers are the lock's own user slots (ZCL DoorLock), and the list starts after the master slots set under Settings. The lock confirms that it received the code, not that it accepted it, so try the new code on the keypad. If the lock is asleep, the first attempt times out and the integration wakes it with a lock command, which physically locks an unlocked door. Close the door before you start.",
+        "description": "Pick a slot, then enter a name and a PIN code. Slot numbers are the lock's own user slots (ZCL DoorLock), and the list starts after the master slots set under Settings. If the lock answers that it refused the code, you get an error saying why. Which answers Nimly locks actually send has not been checked on a real lock, so a refused code may still look set: try the new code on the keypad. If the lock is asleep, the first attempt times out and the integration wakes it with a lock command, which physically locks an unlocked door. Close the door before you start.",
         "data": {
           "slot": "User slot",
           "name": "Name",
@@ -71,6 +71,9 @@
       "invalid_pin": "PIN code must be {min}-{max} digits",
       "invalid_slot": "Slot number must be between 0 and 999",
       "lock_unreachable": "Could not reach the lock. Press the keypad and try again.",
+      "lock_rejected": "The lock refused the command (status {status}). Check the slot and the code, then try again.",
+      "lock_rejected_duplicate": "The lock refused the code because another slot already uses it. Pick a different code.",
+      "lock_rejected_memory_full": "The lock refused the code because its code memory is full. Clear a slot you no longer use, then try again.",
       "unknown": "An unexpected error occurred. Check the logs."
     },
     "abort": {
@@ -90,6 +93,15 @@
   "exceptions": {
     "lock_unreachable": {
       "message": "Could not reach the lock. Press a button on the lock to wake it and try again."
+    },
+    "lock_rejected": {
+      "message": "The lock refused the command (status {status}). Check the slot and the code, then try again."
+    },
+    "lock_rejected_duplicate": {
+      "message": "The lock refused the code because another slot already uses it. Pick a different code."
+    },
+    "lock_rejected_memory_full": {
+      "message": "The lock refused the code because its code memory is full. Clear a slot you no longer use, then try again."
     },
     "invalid_slot": {
       "message": "Slot must be between {min} and {max}"

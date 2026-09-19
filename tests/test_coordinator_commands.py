@@ -28,6 +28,10 @@ from .conftest import load_component_module
 coordinator_mod = load_component_module("coordinator")
 zha_mod = load_component_module("zha")
 const_mod = load_component_module("const")
+Delivery = zha_mod.Delivery
+Rejection = zha_mod.Rejection
+DELIVERED = zha_mod.SEND_DELIVERED
+UNREACHED = zha_mod.SEND_UNREACHED
 
 # Letters in the ieee so the case-insensitivity tests compare something.
 IEEE = "f4:ce:36:0a:00:11:22:aa"
@@ -184,7 +188,7 @@ def _transport(ieee=IEEE, **hass_kwargs):
 class FakeTransport:
     """Records each command the coordinator sends and reports it delivered."""
 
-    def __init__(self, result=True, capabilities=None):
+    def __init__(self, result=DELIVERED, capabilities=None):
         self.result = result
         self.capabilities = capabilities
         self.sent = []
@@ -251,7 +255,7 @@ class TestSendClusterCommand:
         hass, transport = _transport()
         params = {"user_id": 5, "user_status": 1, "user_type": 0, "pin_code": "123456"}
         result = _run(transport.send(0x0005, params))
-        assert result is True
+        assert result == DELIVERED
         assert hass.cluster.commands == [(0x0005, params)]
         assert hass.services.other_calls == []
 
@@ -261,13 +265,13 @@ class TestSendClusterCommand:
         hass, transport = _transport()
         cluster = ScriptedCluster(endpoint_id=1)
         hass.data["zha"] = _zha_topology(cluster)
-        assert _run(transport.send(0x0007, {"user_id": 5})) is True
+        assert _run(transport.send(0x0007, {"user_id": 5})) == DELIVERED
         assert cluster.commands == [(0x0007, {"user_id": 5})]
 
     def test_no_cluster_fails_without_wake(self):
         hass, transport = _transport()
         hass.data["zha"] = _zha_topology(None)
-        assert _run(transport.send(0x0007, {"user_id": 5})) is False
+        assert _run(transport.send(0x0007, {"user_id": 5})) == UNREACHED
         assert hass.services.lock_calls == []
 
     def test_index_error_counts_as_success(self):
@@ -279,7 +283,7 @@ class TestSendClusterCommand:
             zha_effects=[IndexError("tuple index out of range")]
         )
         result = _run(transport.send(0x0005, {"user_id": 5}))
-        assert result is True
+        assert result == DELIVERED
         assert len(hass.cluster.commands) == 1
         assert hass.services.lock_calls == []
 
@@ -293,18 +297,28 @@ class TestSendClusterCommand:
         # status, or an answer with no status field at all.
         hass, transport = _transport()
         hass.cluster.command = _answering(answer)
-        assert _run(transport.send(0x0007, {"user_id": 5})) is True
+        assert _run(transport.send(0x0007, {"user_id": 5})) == DELIVERED
 
     @pytest.mark.parametrize(
-        "status", [Status.FAILURE, Status.NOT_AUTHORIZED, 3], ids=["failure", "not_authorized", "duplicate_code"]
+        ("status", "rejection"),
+        [
+            (Status.FAILURE, Rejection.OTHER),
+            (Status.NOT_AUTHORIZED, Rejection.OTHER),
+            (2, Rejection.MEMORY_FULL),
+            (3, Rejection.DUPLICATE_CODE),
+        ],
+        ids=["failure", "not_authorized", "memory_full", "duplicate_code"],
     )
-    def test_failure_status_fails_without_wake(self, caplog, status):
+    def test_failure_status_is_rejected_without_wake(self, caplog, status, rejection):
         # The lock answered, so it is awake: waking would move the bolt for
-        # nothing. Set PIN Code Response uses 3 for a duplicate code.
+        # nothing. Set PIN Code Response uses 2 for memory full and 3 for a
+        # duplicate code.
         hass, transport = _transport(zha_effects=[SimpleNamespace(status=status)])
         with caplog.at_level(logging.DEBUG):
             result = _run(transport.send(0x0005, {"user_id": 5, "pin_code": PIN}))
-        assert result is False
+        assert result.delivery is Delivery.REJECTED
+        assert result.status == int(status)
+        assert result.rejection is rejection
         assert len(hass.cluster.commands) == 1
         assert hass.services.lock_calls == []
         warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
@@ -316,7 +330,8 @@ class TestSendClusterCommand:
         hass, transport = _transport()
         hass.cluster.command = _answering(ValueError(f"pin_code={PIN}"))
         with caplog.at_level(logging.DEBUG):
-            assert _run(transport.send(0x0005, {"user_id": 5})) is False
+            # Not the lock's answer, so not a refusal either.
+            assert _run(transport.send(0x0005, {"user_id": 5})) == UNREACHED
         assert PIN not in caplog.text
 
     @pytest.mark.parametrize(
@@ -329,17 +344,34 @@ class TestSendClusterCommand:
         # frame the radio could not deliver.
         hass, transport = _transport(zha_effects=[first_error, None])
         result = _run(transport.send(0x0005, {"user_id": 5}))
-        assert result is True
+        assert result == DELIVERED
         assert len(hass.cluster.commands) == 2
         assert [c["entity_id"] for c in hass.services.lock_calls] == [
             "lock.front_door"
         ]
 
-    def test_failure_status_after_wake_fails(self):
+    def test_default_response_status_is_never_duplicate(self):
+        # A Default Response carries a general ZCL status, where 3 is not
+        # "duplicate code". It is the answer with command_id.
+        hass, transport = _transport(zha_effects=[SimpleNamespace(command_id=5, status=3)])
+        result = _run(transport.send(0x0005, {"user_id": 5}))
+        assert result.delivery is Delivery.REJECTED
+        assert result.rejection is Rejection.OTHER
+
+    def test_clear_pin_status_is_never_duplicate(self):
+        # 2 and 3 only mean memory full and duplicate for Set PIN Code.
+        hass, transport = _transport(zha_effects=[SimpleNamespace(status=3)])
+        result = _run(transport.send(0x0007, {"user_id": 5}))
+        assert result.delivery is Delivery.REJECTED
+        assert result.rejection is Rejection.OTHER
+
+    def test_failure_status_after_wake_is_rejected(self):
         hass, transport = _transport(
             zha_effects=[TimeoutError(), SimpleNamespace(status=Status.FAILURE)]
         )
-        assert _run(transport.send(0x0005, {"user_id": 5})) is False
+        result = _run(transport.send(0x0005, {"user_id": 5}))
+        assert result.delivery is Delivery.REJECTED
+        assert result.status == 1
         assert len(hass.cluster.commands) == 2
         assert len(hass.services.lock_calls) == 1
 
@@ -357,7 +389,7 @@ class TestSendClusterCommand:
         # once per operation, and the loop must terminate.
         hass, transport = _transport(zha_effects=errors)
         result = _run(transport.send(0x0005, {"user_id": 5}))
-        assert result is False
+        assert result == UNREACHED
         assert len(hass.cluster.commands) == 2
         assert len(hass.services.lock_calls) == 1
 
@@ -366,7 +398,7 @@ class TestSendClusterCommand:
         hass, transport = _transport(zha_effects=[ZigbeeException("bad frame")])
         with caplog.at_level(logging.DEBUG):
             result = _run(transport.send(0x0005, {"user_id": 5}))
-        assert result is False
+        assert result == UNREACHED
         assert len(hass.cluster.commands) == 1
         assert hass.services.lock_calls == []
         records = [r for r in caplog.records if "ZigbeeException" in r.getMessage()]
@@ -377,7 +409,7 @@ class TestSendClusterCommand:
             zha_effects=[ValueError("boom"), ValueError("boom")]
         )
         result = _run(transport.send(0x0005, {"user_id": 5}))
-        assert result is False
+        assert result == UNREACHED
         assert len(hass.cluster.commands) == 1
         assert hass.services.lock_calls == []
 
@@ -408,7 +440,7 @@ class TestSendNeverLogsThePin:
         _hass, transport = _transport(zha_effects=errors)
         with caplog.at_level(logging.DEBUG):
             result = _run(transport.send(0x0005, {"user_id": 5, "pin_code": PIN}))
-        assert result is False
+        assert result == UNREACHED
         assert caplog.records, "the failure must still be logged"
         assert PIN not in caplog.text
         # No traceback either: a frame's locals or a chained message can
@@ -465,7 +497,7 @@ class TestWakeLock:
         hass, transport = _transport(zha_effects=[TimeoutError(), None], entities=[])
         with caplog.at_level(logging.WARNING):
             result = _run(transport.send(0x0005, {"user_id": 5}))
-        assert result is True
+        assert result == DELIVERED
         assert hass.services.lock_calls == []
         assert "No ZHA lock entity" in caplog.text
 
@@ -477,7 +509,7 @@ class TestWakeLock:
             wake_error=RuntimeError("registry gone"),
         )
         result = _run(transport.send(0x0005, {"user_id": 5}))
-        assert result is True
+        assert result == DELIVERED
         assert len(hass.cluster.commands) == 2
 
 
@@ -690,6 +722,44 @@ class TestRefreshCapabilities:
         assert entry.options["capabilities"] == self.EXPECTED
 
 
+class TestSendOutcome:
+    """The outcome names the text a user sees; pure logic."""
+
+    @pytest.mark.parametrize(
+        ("outcome", "key"),
+        [
+            (DELIVERED, None),
+            (UNREACHED, "lock_unreachable"),
+            (zha_mod.rejected(0x0005, SimpleNamespace(), 1), "lock_rejected"),
+            (zha_mod.rejected(0x0005, SimpleNamespace(), 2), "lock_rejected_memory_full"),
+            (zha_mod.rejected(0x0005, SimpleNamespace(), 3), "lock_rejected_duplicate"),
+            (zha_mod.rejected(0x0007, SimpleNamespace(), 3), "lock_rejected"),
+        ],
+        ids=["delivered", "unreached", "failure", "memory_full", "duplicate", "clear_status_3"],
+    )
+    def test_error_key(self, outcome, key):
+        assert outcome.error_key == key
+
+    def test_only_delivered_is_delivered(self):
+        assert DELIVERED.delivered
+        assert not UNREACHED.delivered
+        assert not zha_mod.rejected(0x0005, SimpleNamespace(), 3).delivered
+
+    def test_a_refusal_is_an_answer(self):
+        assert zha_mod.rejected(0x0005, SimpleNamespace(), 1).lock_answered
+        assert DELIVERED.lock_answered
+        assert not UNREACHED.lock_answered
+
+    def test_status_that_is_not_a_number(self):
+        outcome = zha_mod.rejected(0x0005, SimpleNamespace(), "odd")
+        assert outcome.status is None
+        assert outcome.status_text == "?"
+        assert outcome.error_key == "lock_rejected"
+
+    def test_status_text_is_the_number(self):
+        assert zha_mod.rejected(0x0005, SimpleNamespace(), Status.FAILURE).status_text == "1"
+
+
 class TestRefreshAfterSend:
     """A delivered command proves the radio awake, so it triggers a read."""
 
@@ -702,10 +772,19 @@ class TestRefreshAfterSend:
         assert coord.lock_capabilities == {"num_pin_users": 50}
 
     def test_failed_command_schedules_nothing(self):
-        transport = FakeTransport(result=False)
+        transport = FakeTransport(result=UNREACHED)
         _hass, entry, coord = _make(options={"slots": {}}, transport=transport)
         _run(coord.clear_pin(5))
         assert entry.background == []
+
+    def test_refused_command_schedules_a_read(self):
+        # The lock answered, so its radio is awake all the same.
+        transport = FakeTransport(result=zha_mod.rejected(0x0005, SimpleNamespace(), 3))
+        _hass, entry, coord = _make(options={"slots": {}}, transport=transport)
+        _run(coord.set_pin(5, "Kari", "123456"))
+        assert len(entry.background) == 1
+        for coro in entry.background:
+            coro.close()
 
     def test_nothing_scheduled_once_answered(self):
         transport = FakeTransport()
@@ -725,7 +804,7 @@ class TestPinOperations:
         events = []
         coord.add_listener(lambda: events.append(True))
         result = _run(coord.set_pin(5, "Kari", "123456"))
-        assert result is True
+        assert result == DELIVERED
         assert coord.get_slot(5) == {
             "name": "Kari",
             "has_pin": True,
@@ -750,10 +829,40 @@ class TestPinOperations:
         transport = FakeTransport()
         hass, entry, coord = _make(options=occupied, transport=transport)
         result = _run(coord.clear_pin(5))
-        assert result is True
+        assert result == DELIVERED
         assert coord.get_slot(5)["has_pin"] is False
         assert coord.get_slot(5)["name"] == "Kari"
         assert hass.config_entries.written[-1]["slots"]["5"]["name"] == "Kari"
         assert transport.sent[0][0] == 0x0007
+        for coro in entry.background:
+            coro.close()
+
+
+class TestRefusedPinOperations:
+    """A refusal leaves the slot as the lock still has it."""
+
+    REFUSED = zha_mod.rejected(0x0005, SimpleNamespace(), 3)
+    OCCUPIED = {"slots": {"5": {"name": "Kari", "has_pin": True}}}
+
+    def test_refused_set_pin_changes_nothing(self):
+        transport = FakeTransport(result=self.REFUSED)
+        hass, entry, coord = _make(options={"slots": {}}, transport=transport)
+        events = []
+        coord.add_listener(lambda: events.append(True))
+        result = _run(coord.set_pin(5, "Kari", "123456"))
+        assert result == self.REFUSED
+        assert coord.get_slot(5) == {"name": "", "has_pin": False}
+        assert [w for w in hass.config_entries.written if "slots" in w and w["slots"]] == []
+        assert events == []
+        for coro in entry.background:
+            coro.close()
+
+    @pytest.mark.parametrize("operation", ["clear_pin", "clear_slot"])
+    def test_refused_clear_keeps_the_pin(self, operation):
+        transport = FakeTransport(result=zha_mod.rejected(0x0007, SimpleNamespace(), 1))
+        _hass, entry, coord = _make(options=self.OCCUPIED, transport=transport)
+        result = _run(getattr(coord, operation)(5))
+        assert result.delivery is Delivery.REJECTED
+        assert coord.get_slot(5) == {"name": "Kari", "has_pin": True}
         for coro in entry.background:
             coro.close()

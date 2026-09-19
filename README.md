@@ -100,7 +100,7 @@ Entity IDs come from the server language when the entity is created, so a lock s
 
 Set PIN code and View user slots cover the ten slots from the first user slot. Use the `set_pin` service for anything higher.
 
-The allowed PIN length comes from the lock. Until it has reported one, 4-8 digits is the rule, and no code shorter than 4 digits is accepted whatever the lock says. The lock confirms that it received a code, not that it accepted it, so try a new code on the keypad.
+The allowed PIN length comes from the lock. Until it has reported one, 4-8 digits is the rule, and no code shorter than 4 digits is accepted whatever the lock says. If the lock answers that it refused a code, as a duplicate of another slot's code or because its memory is full, Home Assistant says so instead of reporting it unreachable. Which answers the lock actually sends has not been checked on a real lock, so try a new code on the keypad.
 
 When someone unlocks with the master code, fingerprint or tag on slot 0, the activity sensor and the event use the name you gave slot 0, or "Master" if it has none. Menu labels follow the server language.
 

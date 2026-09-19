@@ -27,6 +27,7 @@ from homeassistant.helpers.translation import async_get_translations
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.onesti_lock.const import CONF_IEEE, CONF_RESERVED_SLOTS, DOMAIN
+from custom_components.onesti_lock.zha import SEND_DELIVERED, SEND_UNREACHED, SendOutcome, rejected
 from tests_ha.conftest import LOCK_IEEE
 
 SET_PIN_COMMAND = 0x0005
@@ -45,7 +46,7 @@ class FakeTransport:
     """
 
     def __init__(self) -> None:
-        self.result: bool | BaseException = True
+        self.result: SendOutcome | BaseException = SEND_DELIVERED
         self.instant = False
         self.gate: asyncio.Event | None = None
         self.sent: list[tuple[int, dict]] = []
@@ -56,7 +57,7 @@ class FakeTransport:
     async def wake(self) -> None:
         return None
 
-    async def send(self, command: int, params: dict) -> bool:
+    async def send(self, command: int, params: dict) -> SendOutcome:
         self.sent.append((command, params))
         if self.gate is not None:
             await self.gate.wait()
@@ -262,17 +263,20 @@ async def test_set_pin_valid_code_runs_progress_and_saves(
 @pytest.mark.parametrize(
     ("outcome", "error"),
     [
-        (False, "lock_unreachable"),
+        (SEND_UNREACHED, "lock_unreachable"),
+        (rejected(SET_PIN_COMMAND, object(), 1), "lock_rejected"),
+        (rejected(SET_PIN_COMMAND, object(), 3), "lock_rejected_duplicate"),
+        (rejected(SET_PIN_COMMAND, object(), 2), "lock_rejected_memory_full"),
         (TimeoutError(), "lock_unreachable"),
         (RuntimeError("radio on fire"), "unknown"),
     ],
-    ids=["send_failed", "timeout", "unexpected"],
+    ids=["send_failed", "rejected", "duplicate", "memory_full", "timeout", "unexpected"],
 )
 async def test_set_pin_failure_returns_to_form_with_input(
     hass: HomeAssistant,
     entry: MockConfigEntry,
     transport: FakeTransport,
-    outcome: bool | BaseException,
+    outcome: SendOutcome | BaseException,
     error: str,
 ) -> None:
     transport.result = outcome
@@ -292,14 +296,14 @@ async def test_set_pin_failure_returns_to_form_with_input(
 async def test_set_pin_can_retry_after_failure(
     hass: HomeAssistant, entry: MockConfigEntry, transport: FakeTransport
 ) -> None:
-    transport.result = False
+    transport.result = SEND_UNREACHED
     user_input = {"slot": "5", "name": "Ola", "code": "56789"}
     result = await _open_step(hass, entry, "set_pin")
     result = await hass.config_entries.options.async_configure(result["flow_id"], user_input)
     result = await _finish_progress(hass, result)
     assert result["errors"] == {"base": "lock_unreachable"}
 
-    transport.result = True
+    transport.result = SEND_DELIVERED
     result = await hass.config_entries.options.async_configure(result["flow_id"], user_input)
     result = await _finish_progress(hass, result)
 
@@ -428,17 +432,18 @@ async def test_clear_pin_with_only_named_slots_aborts(hass: HomeAssistant, entry
 @pytest.mark.parametrize(
     ("outcome", "error"),
     [
-        (False, "lock_unreachable"),
+        (SEND_UNREACHED, "lock_unreachable"),
+        (rejected(CLEAR_PIN_COMMAND, object(), 1), "lock_rejected"),
         (TimeoutError(), "lock_unreachable"),
         (RuntimeError("radio on fire"), "unknown"),
     ],
-    ids=["send_failed", "timeout", "unexpected"],
+    ids=["send_failed", "rejected", "timeout", "unexpected"],
 )
 async def test_clear_pin_failure_returns_to_form_with_input(
     hass: HomeAssistant,
     entry: MockConfigEntry,
     transport: FakeTransport,
-    outcome: bool | BaseException,
+    outcome: SendOutcome | BaseException,
     error: str,
 ) -> None:
     transport.result = outcome
@@ -464,7 +469,7 @@ async def test_clear_pin_can_retry_after_failure(
     result = await _finish_progress(hass, result)
     assert result["errors"] == {"base": "lock_unreachable"}
 
-    transport.result = True
+    transport.result = SEND_DELIVERED
     result = await hass.config_entries.options.async_configure(result["flow_id"], {"slot": "4"})
     result = await _finish_progress(hass, result)
 
@@ -480,9 +485,9 @@ async def test_clear_pin_can_retry_after_failure(
 # it within the same configure call, passing the submitted input along.
 
 
-@pytest.mark.parametrize(("outcome", "error"), [(True, None), (False, "lock_unreachable")])
+@pytest.mark.parametrize(("outcome", "error"), [(SEND_DELIVERED, None), (SEND_UNREACHED, "lock_unreachable")])
 async def test_set_pin_instant_task(
-    hass: HomeAssistant, entry: MockConfigEntry, transport: FakeTransport, outcome: bool, error: str | None
+    hass: HomeAssistant, entry: MockConfigEntry, transport: FakeTransport, outcome: SendOutcome, error: str | None
 ) -> None:
     transport.instant = True
     transport.result = outcome
@@ -501,9 +506,9 @@ async def test_set_pin_instant_task(
 
 
 @pytest.mark.parametrize("entry_options", [{"slots": {"4": {"name": "Kari", "has_pin": True}}}])
-@pytest.mark.parametrize(("outcome", "error"), [(True, None), (False, "lock_unreachable")])
+@pytest.mark.parametrize(("outcome", "error"), [(SEND_DELIVERED, None), (SEND_UNREACHED, "lock_unreachable")])
 async def test_clear_pin_instant_task(
-    hass: HomeAssistant, entry: MockConfigEntry, transport: FakeTransport, outcome: bool, error: str | None
+    hass: HomeAssistant, entry: MockConfigEntry, transport: FakeTransport, outcome: SendOutcome, error: str | None
 ) -> None:
     transport.instant = True
     transport.result = outcome
@@ -766,7 +771,7 @@ async def test_set_pin_failure_does_not_reach_clear_pin(
     The dialog cannot move from one to the other, so the handler's steps are
     called directly here. That is the object both paths once shared state on.
     """
-    transport.result = False
+    transport.result = SEND_UNREACHED
     set_input = {"slot": "5", "name": "Ola", "code": "56789"}
     result = await _open_step(hass, entry, "set_pin")
     flow = _flow(hass, result)
@@ -787,7 +792,7 @@ async def test_set_pin_failure_does_not_reach_clear_pin(
     assert transport.sent[-1] == (CLEAR_PIN_COMMAND, {"user_id": 4})
 
     # And the set_pin input survived the clear attempt untouched.
-    transport.result = True
+    transport.result = SEND_DELIVERED
     await flow.async_step_set_pin_progress()
     await hass.async_block_till_done()
     await flow.async_step_set_pin_progress()

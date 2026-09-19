@@ -10,9 +10,11 @@ a lock through ZhaLockTransport.
 from __future__ import annotations
 
 import asyncio
+import enum
 import logging
 import time
 from collections.abc import Iterator
+from dataclasses import dataclass
 from typing import Any
 
 # ZHA is a manifest dependency, so its helpers and the zigpy it ships are
@@ -53,6 +55,103 @@ _CAPABILITY_NAMES = {
     0x0018: "min_pin_length",
     "min_pin_len": "min_pin_length",
 }
+
+
+# Set PIN Code (0x0005) and its response. The ZCL Door Lock spec gives the
+# response's status byte four values: 0 success, 1 general failure, 2 memory
+# full, 3 duplicate code. Which of them a Nimly lock actually sends has not
+# been captured on hardware, so 2 and 3 are read by the spec alone.
+_SET_PIN_COMMAND = 0x0005
+_SET_PIN_STATUS_MEMORY_FULL = 0x02
+_SET_PIN_STATUS_DUPLICATE_CODE = 0x03
+
+
+class Delivery(enum.Enum):
+    """What became of one ZCL command sent to the lock."""
+
+    # The lock received it and reported no failure.
+    DELIVERED = "delivered"
+    # The lock answered, so it is awake, but with a failure status.
+    REJECTED = "rejected"
+    # No answer, or the command could not be sent at all.
+    UNREACHED = "unreached"
+
+
+class Rejection(enum.Enum):
+    """Why the lock refused a command, where the status tells."""
+
+    DUPLICATE_CODE = "duplicate_code"
+    MEMORY_FULL = "memory_full"
+    OTHER = "other"
+
+
+@dataclass(frozen=True, slots=True)
+class SendOutcome:
+    """The result of ZhaLockTransport.send.
+
+    status is the ZCL status the lock answered with, set only for REJECTED.
+    It is None there too when the answer carried a status that is not a
+    number, which zigpy never produces but a quirk could.
+    """
+
+    delivery: Delivery
+    status: int | None = None
+    rejection: Rejection | None = None
+
+    @property
+    def delivered(self) -> bool:
+        return self.delivery is Delivery.DELIVERED
+
+    @property
+    def lock_answered(self) -> bool:
+        """Whether the lock's radio answered, which it only does awake."""
+        return self.delivery is not Delivery.UNREACHED
+
+    @property
+    def error_key(self) -> str | None:
+        """The translation key for this outcome, None when delivered.
+
+        The same key names the service exception (exceptions section) and
+        the options flow error (options.error section).
+        """
+        if self.delivery is Delivery.DELIVERED:
+            return None
+        if self.delivery is Delivery.UNREACHED:
+            return "lock_unreachable"
+        if self.rejection is Rejection.DUPLICATE_CODE:
+            return "lock_rejected_duplicate"
+        if self.rejection is Rejection.MEMORY_FULL:
+            return "lock_rejected_memory_full"
+        return "lock_rejected"
+
+    @property
+    def status_text(self) -> str:
+        """The status for messages: its number, or "?" when it had none."""
+        return "?" if self.status is None else str(self.status)
+
+
+SEND_DELIVERED = SendOutcome(Delivery.DELIVERED)
+SEND_UNREACHED = SendOutcome(Delivery.UNREACHED)
+
+
+def rejected(command: int, response: Any, status: Any) -> SendOutcome:
+    """The outcome for an answer with a failure status.
+
+    Memory full and duplicate code are only told apart for Set PIN Code's
+    own response. A Default Response carries a general ZCL status, where
+    2 and 3 mean nothing of the kind, and it is the one with command_id.
+    """
+    try:
+        code: int | None = int(status)
+    except (TypeError, ValueError):
+        code = None
+    rejection = Rejection.OTHER
+    if command == _SET_PIN_COMMAND and not hasattr(response, "command_id"):
+        if code == _SET_PIN_STATUS_DUPLICATE_CODE:
+            rejection = Rejection.DUPLICATE_CODE
+        elif code == _SET_PIN_STATUS_MEMORY_FULL:
+            rejection = Rejection.MEMORY_FULL
+    return SendOutcome(Delivery.REJECTED, status=code, rejection=rejection)
 
 
 def _gateway_proxy(hass: HomeAssistant):
@@ -230,7 +329,7 @@ class ZhaLockTransport:
                 "Wake attempt failed (%s), proceeding anyway", type(err).__name__
             )
 
-    async def send(self, command: int, params: dict) -> bool:
+    async def send(self, command: int, params: dict) -> SendOutcome:
         """Send a ZCL command to the lock's Door Lock cluster.
 
         Calls the command on the zigpy cluster directly, the same call ZHA's
@@ -243,10 +342,12 @@ class ZhaLockTransport:
         If the command times out or zigpy reports a failed delivery, both
         of which a sleeping lock causes, the lock is woken and the command
         retried once. Any other Zigbee error is not about sleep, so it fails
-        at once without actuating the door.
+        at once without actuating the door. Neither does an answer with a
+        failure status: the lock is awake, and it refused.
 
-        Returns True when the lock received the command and did not answer
-        with a failure status, and False otherwise. Never raises.
+        Returns DELIVERED when the lock received the command and did not
+        answer with a failure status, REJECTED with the status when it did,
+        and UNREACHED when the command did not get through. Never raises.
 
         Nothing here logs a traceback or a raw exception message: params
         may hold a PIN code, and an error may quote them. Messages go
@@ -255,20 +356,20 @@ class ZhaLockTransport:
         cluster = self.cluster()
         if cluster is None:
             # find_door_lock_cluster has logged why.
-            return False
+            return SEND_UNREACHED
         for attempt in (1, 2):
             try:
                 response = await cluster.command(command, **params)
             except IndexError:
                 # Nimly quirk: the command reached the lock, but its answer
                 # could not be read ("tuple index out of range"). See
-                # _response_status for where the known case came from.
+                # _outcome for where the known case came from.
                 _LOGGER.debug(
                     "Nimly response quirk (IndexError) for command 0x%04x, "
                     "command was sent successfully",
                     command,
                 )
-                return True
+                return SEND_DELIVERED
             except (TimeoutError, DeliveryError) as err:
                 if attempt == 1:
                     _LOGGER.info(
@@ -286,7 +387,7 @@ class ZhaLockTransport:
                     self.ieee,
                     redact_digits(err),
                 )
-                return False
+                return SEND_UNREACHED
             except ZigbeeException as err:
                 _LOGGER.warning(
                     "Zigbee error sending command 0x%04x to %s: %s: %s",
@@ -295,9 +396,9 @@ class ZhaLockTransport:
                     type(err).__name__,
                     redact_digits(err),
                 )
-                return False
+                return SEND_UNREACHED
             except Exception as err:
-                # The caller gets False, never a raise.
+                # The caller gets an outcome, never a raise.
                 _LOGGER.error(
                     "Failed to send command 0x%04x to %s: %s: %s",
                     command,
@@ -305,12 +406,12 @@ class ZhaLockTransport:
                     type(err).__name__,
                     redact_digits(err),
                 )
-                return False
-            return self._accepted(command, response)
-        return False
+                return SEND_UNREACHED
+            return self._outcome(command, response)
+        return SEND_UNREACHED
 
-    def _accepted(self, command: int, response: Any) -> bool:
-        """Whether the lock's answer to a delivered command reports success.
+    def _outcome(self, command: int, response: Any) -> SendOutcome:
+        """What the lock's answer to a delivered command says.
 
         Mirrors how ZHA's issue_cluster_command reads the answer (zha 2.x):
         nothing to read counts as success, an exception handed back as the
@@ -321,9 +422,12 @@ class ZhaLockTransport:
         which raises IndexError on the one-field Set PIN Code Response. That
         is the most likely source of the Nimly IndexError quirk, and it
         means the status was never checked there.
+
+        An exception handed back is not the lock's answer, so it counts as
+        unreached, not as a refusal.
         """
         if response is None:
-            return True
+            return SEND_DELIVERED
         if isinstance(response, Exception):
             _LOGGER.warning(
                 "Command 0x%04x to %s failed: %s: %s",
@@ -332,17 +436,19 @@ class ZhaLockTransport:
                 type(response).__name__,
                 redact_digits(response),
             )
-            return False
+            return SEND_UNREACHED
         status = getattr(response, "status", None)
         if status is None or status == Status.SUCCESS:
-            return True
+            return SEND_DELIVERED
+        outcome = rejected(command, response, status)
         _LOGGER.warning(
-            "Lock %s refused command 0x%04x with status %s",
+            "Lock %s refused command 0x%04x with status %s (%s)",
             self.ieee,
             command,
             redact_digits(_status_name(status)),
+            outcome.rejection.value if outcome.rejection else "",
         )
-        return False
+        return outcome
 
     async def read_capabilities(self) -> dict[str, int] | None:
         """Read static lock properties from the DoorLock cluster.

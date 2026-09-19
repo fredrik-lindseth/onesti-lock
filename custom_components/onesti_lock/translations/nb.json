@@ -29,7 +29,7 @@
       },
       "set_pin": {
         "title": "Sett PIN-kode",
-        "description": "Velg slot, og skriv inn navn og PIN-kode. Slot-numrene er låsens egne brukerslots (ZCL DoorLock), og listen starter etter masterslotene som er satt under Innstillinger. Låsen bekrefter at den har mottatt koden, ikke at den har godtatt den, så prøv den nye koden på tastaturet. Sover låsen, går første forsøk ut på tid, og integrasjonen vekker den med en låsekommando. Da blir en ulåst dør låst fysisk, så lukk døren før du starter.",
+        "description": "Velg slot, og skriv inn navn og PIN-kode. Slot-numrene er låsens egne brukerslots (ZCL DoorLock), og listen starter etter masterslotene som er satt under Innstillinger. Svarer låsen at den avviste koden, får du en feilmelding som sier hvorfor. Hvilke svar Nimly-låsene faktisk sender, er ikke sjekket på en ekte lås, så en avvist kode kan likevel se ut som satt. Prøv den nye koden på tastaturet. Sover låsen, går første forsøk ut på tid, og integrasjonen vekker den med en låsekommando. Da blir en ulåst dør låst fysisk, så lukk døren før du starter.",
         "data": {
           "slot": "Brukerslot",
           "name": "Navn",
@@ -71,6 +71,9 @@
       "invalid_pin": "PIN-koden må være {min}-{max} siffer",
       "invalid_slot": "Slot-nummer må være mellom 0 og 999",
       "lock_unreachable": "Fikk ikke kontakt med låsen. Trykk på tastaturet og prøv igjen.",
+      "lock_rejected": "Låsen avviste kommandoen (status {status}). Sjekk slot og kode, og prøv igjen.",
+      "lock_rejected_duplicate": "Låsen avviste koden fordi en annen slot alt bruker den. Velg en annen kode.",
+      "lock_rejected_memory_full": "Låsen avviste koden fordi kodeminnet er fullt. Tøm en slot du ikke bruker lenger, og prøv igjen.",
       "unknown": "En uventet feil oppstod. Sjekk loggene."
     },
     "abort": {
@@ -90,6 +93,15 @@
   "exceptions": {
     "lock_unreachable": {
       "message": "Fikk ikke kontakt med låsen. Trykk på en knapp på låsen for å vekke den, og prøv igjen."
+    },
+    "lock_rejected": {
+      "message": "Låsen avviste kommandoen (status {status}). Sjekk slot og kode, og prøv igjen."
+    },
+    "lock_rejected_duplicate": {
+      "message": "Låsen avviste koden fordi en annen slot alt bruker den. Velg en annen kode."
+    },
+    "lock_rejected_memory_full": {
+      "message": "Låsen avviste koden fordi kodeminnet er fullt. Tøm en slot du ikke bruker lenger, og prøv igjen."
     },
     "invalid_slot": {
       "message": "Slot må være mellom {min} og {max}"

@@ -14,6 +14,7 @@ import asyncio
 
 import pytest
 
+from .conftest import load_component_module
 from .test_coordinator_behavior import _make_coordinator
 from .test_service_slot_limits import FakeCall, HomeAssistantError, _handlers
 
@@ -26,7 +27,7 @@ class _DeliveringTransport:
 
     async def send(self, command, params):
         self.sent.append((command, params["user_id"]))
-        return True
+        return load_component_module("zha").SEND_DELIVERED
 
 
 def _lock(options=None):
@@ -175,7 +176,7 @@ class TestCoordinatorIsTheLastGuard:
     )
     def test_first_user_slot_accepted(self, method, args):
         _hass, _entry, coord, sent = _lock({"slots": {}, "reserved_slots": 1})
-        assert asyncio.run(getattr(coord, method)(1, *args)) is True
+        assert asyncio.run(getattr(coord, method)(1, *args)).delivered
         assert sent and sent[0][1] == 1
 
 

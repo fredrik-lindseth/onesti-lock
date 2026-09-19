@@ -29,7 +29,7 @@
       },
       "set_pin": {
         "title": "Ställ in PIN-kod",
-        "description": "Välj plats och ange namn och PIN-kod. Platsnumren är låsets egna användarplatser (ZCL DoorLock), och listan börjar efter masterplatserna som anges under Inställningar. Låset bekräftar att det har tagit emot koden, inte att det har godkänt den, så prova den nya koden på knappsatsen. Om låset sover får första försöket timeout, och integrationen väcker det med ett låskommando. Då låses en olåst dörr fysiskt, så stäng dörren innan du börjar.",
+        "description": "Välj plats och ange namn och PIN-kod. Platsnumren är låsets egna användarplatser (ZCL DoorLock), och listan börjar efter masterplatserna som anges under Inställningar. Om låset svarar att det avvisade koden får du ett felmeddelande som säger varför. Vilka svar Nimly-låsen faktiskt skickar har inte kontrollerats på ett riktigt lås, så en avvisad kod kan ändå se ut som satt. Prova den nya koden på knappsatsen. Om låset sover får första försöket timeout, och integrationen väcker det med ett låskommando. Då låses en olåst dörr fysiskt, så stäng dörren innan du börjar.",
         "data": {
           "slot": "Användarplats",
           "name": "Namn",
@@ -71,6 +71,9 @@
       "invalid_pin": "PIN-koden måste vara {min}-{max} siffror",
       "invalid_slot": "Platsnumret måste vara mellan 0 och 999",
       "lock_unreachable": "Kunde inte nå låset. Tryck på knappsatsen och försök igen.",
+      "lock_rejected": "Låset avvisade kommandot (status {status}). Kontrollera plats och kod och försök igen.",
+      "lock_rejected_duplicate": "Låset avvisade koden eftersom en annan plats redan använder den. Välj en annan kod.",
+      "lock_rejected_memory_full": "Låset avvisade koden eftersom kodminnet är fullt. Töm en plats du inte längre använder och försök igen.",
       "unknown": "Ett oväntat fel uppstod. Kontrollera loggarna."
     },
     "abort": {
@@ -90,6 +93,15 @@
   "exceptions": {
     "lock_unreachable": {
       "message": "Kunde inte nå låset. Tryck på en knapp på låset för att väcka det och försök igen."
+    },
+    "lock_rejected": {
+      "message": "Låset avvisade kommandot (status {status}). Kontrollera plats och kod och försök igen."
+    },
+    "lock_rejected_duplicate": {
+      "message": "Låset avvisade koden eftersom en annan plats redan använder den. Välj en annan kod."
+    },
+    "lock_rejected_memory_full": {
+      "message": "Låset avvisade koden eftersom kodminnet är fullt. Töm en plats du inte längre använder och försök igen."
     },
     "invalid_slot": {
       "message": "Platsen måste vara mellan {min} och {max}"

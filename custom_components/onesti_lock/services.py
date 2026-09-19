@@ -14,6 +14,7 @@ from . import pin_rules
 from .const import DOMAIN, MAX_SLOTS
 from .coordinator import NimlyCoordinator
 from .redact import redact_digits
+from .zha import Delivery, SendOutcome
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,16 +39,25 @@ def _lock_not_found_ieee(ieee: str) -> HomeAssistantError:
     )
 
 
-def _lock_unreachable() -> HomeAssistantError:
+def _not_delivered(outcome: SendOutcome) -> HomeAssistantError:
+    """The error for a write the lock did not take, by what became of it."""
+    if outcome.delivery is Delivery.UNREACHED:
+        return HomeAssistantError(
+            "Could not reach the lock. Press a button on the lock to wake it "
+            "and try again.",
+            translation_domain=DOMAIN,
+            translation_key="lock_unreachable",
+        )
     return HomeAssistantError(
-        "Could not reach the lock. Press a button on the lock to wake it "
-        "and try again.",
+        f"The lock refused the command (status {outcome.status_text})",
         translation_domain=DOMAIN,
-        translation_key="lock_unreachable",
+        translation_key=outcome.error_key,
+        # Every rejection text may name the status, so it is always given.
+        translation_placeholders={"status": outcome.status_text},
     )
 
 
-async def _write(action: str, slot: int, write: Awaitable[bool]) -> None:
+async def _write(action: str, slot: int, write: Awaitable[SendOutcome]) -> None:
     """Await a coordinator write and turn its outcome into what the caller sees.
 
     The transport never raises by contract. Should it anyway, the original
@@ -59,7 +69,7 @@ async def _write(action: str, slot: int, write: Awaitable[bool]) -> None:
     """
     failure: str | None = None
     try:
-        success = await write
+        outcome = await write
     except Exception as err:
         failure = f"{type(err).__name__}: {redact_digits(err)}"
     if failure is not None:
@@ -70,8 +80,8 @@ async def _write(action: str, slot: int, write: Awaitable[bool]) -> None:
             translation_key="write_failed",
             translation_placeholders={"slot": str(slot)},
         )
-    if not success:
-        raise _lock_unreachable()
+    if not outcome.delivered:
+        raise _not_delivered(outcome)
 
 
 def _find_by_ieee(coordinators: list[NimlyCoordinator], ieee: str) -> NimlyCoordinator | None:

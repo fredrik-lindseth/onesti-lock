@@ -18,6 +18,7 @@ from .conftest import load_component_module
 
 services_mod = load_component_module("services")
 pin_rules = load_component_module("pin_rules")
+DELIVERED = load_component_module("zha").SEND_DELIVERED
 
 DOMAIN = "onesti_lock"
 FRONT = "00:0d:6f:00:11:22:33:44"
@@ -39,18 +40,18 @@ class FakeCoordinator:
 
     async def set_pin(self, slot, name, code):
         self.calls.append(("set_pin", slot))
-        return True
+        return DELIVERED
 
     async def clear_pin(self, slot):
         self.calls.append(("clear_pin", slot))
-        return True
+        return DELIVERED
 
     async def set_slot_name(self, slot, name):
         self.calls.append(("set_name", slot))
 
     async def clear_slot(self, slot):
         self.calls.append(("clear_slot", slot))
-        return True
+        return DELIVERED
 
 
 class FakeDeviceRegistry:

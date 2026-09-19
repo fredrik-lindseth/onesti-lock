@@ -15,12 +15,15 @@ follow that whole path through HA's flow manager, success and failure alike.
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import logging
 from typing import Any
 
 import pytest
 import voluptuous as vol
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers.translation import async_get_translations
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.onesti_lock.const import CONF_IEEE, CONF_RESERVED_SLOTS, DOMAIN
@@ -36,12 +39,15 @@ class FakeTransport:
     `result` is what send() returns, or an exception instance to raise.
     send() yields to the loop first, the way a radio round trip does, so the
     progress task is still running when the flow shows its spinner. With
-    `instant` it finishes inside the eagerly started task instead.
+    `instant` it finishes inside the eagerly started task instead. With a
+    `gate`, send() holds until the test sets it, the way a sleeping lock
+    keeps a command waiting.
     """
 
     def __init__(self) -> None:
         self.result: bool | BaseException = True
         self.instant = False
+        self.gate: asyncio.Event | None = None
         self.sent: list[tuple[int, dict]] = []
 
     def cluster(self) -> None:
@@ -52,7 +58,9 @@ class FakeTransport:
 
     async def send(self, command: int, params: dict) -> bool:
         self.sent.append((command, params))
-        if not self.instant:
+        if self.gate is not None:
+            await self.gate.wait()
+        elif not self.instant:
             await asyncio.sleep(0)
         if isinstance(self.result, BaseException):
             raise self.result
@@ -165,8 +173,55 @@ async def test_set_pin_invalid_code_shows_error(
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "set_pin"
     assert result["errors"] == {"code": "invalid_pin"}
+    assert result["description_placeholders"] == {"min": "4", "max": "8"}
     assert _suggested(result) == user_input
     assert transport.sent == []
+
+
+async def test_set_pin_form_carries_the_length_range(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    result = await _open_step(hass, entry, "set_pin")
+
+    # Sent with the first render too, so the form never shows a bare {min}.
+    assert result["description_placeholders"] == {"min": "4", "max": "8"}
+
+
+REPORTED_6_TO_10 = {"slots": {}, "capabilities": {"min_pin_length": 6, "max_pin_length": 10}}
+
+
+@pytest.mark.parametrize("entry_options", [REPORTED_6_TO_10])
+@pytest.mark.parametrize("code", ["12345", "12345678901"])
+async def test_set_pin_outside_reported_range_is_invalid_pin_with_placeholders(
+    hass: HomeAssistant, entry: MockConfigEntry, transport: FakeTransport, code: str
+) -> None:
+    result = await _open_step(hass, entry, "set_pin")
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"slot": "4", "name": "Kari", "code": code}
+    )
+
+    assert result["errors"] == {"code": "invalid_pin"}
+    assert result["description_placeholders"] == {"min": "6", "max": "10"}
+    assert transport.sent == []
+    # The frontend fills the error text from the form's placeholders. Doing
+    # the same with the translations HA loaded shows no brace survives.
+    translations = await async_get_translations(hass, "en", "options", {DOMAIN})
+    message = translations[f"component.{DOMAIN}.options.error.invalid_pin"]
+    assert message.format(**result["description_placeholders"]) == "PIN code must be 6-10 digits"
+
+
+@pytest.mark.parametrize("entry_options", [REPORTED_6_TO_10])
+async def test_set_pin_inside_reported_range_is_sent(
+    hass: HomeAssistant, entry: MockConfigEntry, transport: FakeTransport
+) -> None:
+    result = await _open_step(hass, entry, "set_pin")
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"slot": "4", "name": "Kari", "code": "1234567890"}
+    )
+    result = await _finish_progress(hass, result)
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert len(transport.sent) == 1
 
 
 async def test_set_pin_completes_through_ha(
@@ -338,7 +393,35 @@ async def test_clear_pin_clears_the_slot(
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert transport.sent == [(CLEAR_PIN_COMMAND, {"user_id": 4})]
-    assert entry.options["slots"]["4"] == {"name": "", "has_pin": False}
+    # clear_pin, not clear_slot: the name stays.
+    assert entry.options["slots"]["4"] == {"name": "Kari", "has_pin": False}
+
+
+@pytest.mark.parametrize(
+    "entry_options",
+    [
+        {
+            "slots": {
+                "4": {"name": "Kari", "has_pin": True},
+                "5": {"name": "Tag", "has_pin": False},
+                "6": {"name": "", "has_pin": True},
+            }
+        }
+    ],
+)
+async def test_clear_pin_lists_only_slots_with_a_pin(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    result = await _open_step(hass, entry, "clear_pin")
+
+    # Slot 5 is named but has no PIN, like an RFID tag. It is not offered.
+    assert _slot_choices(result) == {"4": "Slot 4: Kari", "6": "Slot 6"}
+
+
+@pytest.mark.parametrize("entry_options", [{"slots": {"5": {"name": "Tag", "has_pin": False}}}])
+async def test_clear_pin_with_only_named_slots_aborts(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    result = await _open_step(hass, entry, "clear_pin")
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "no_active_slots"
 
 
 @pytest.mark.parametrize("entry_options", [{"slots": {"4": {"name": "Kari", "has_pin": True}}}])
@@ -623,3 +706,146 @@ async def test_settings_rejects_out_of_bounds(hass: HomeAssistant, entry: MockCo
         await hass.config_entries.options.async_configure(result["flow_id"], {CONF_RESERVED_SLOTS: value})
 
     assert CONF_RESERVED_SLOTS not in entry.options
+
+
+# -- Closing the dialog while a write runs --
+#
+# Closing the dialog aborts the flow, and HA cancels its progress task. The
+# command may already have reached the lock by then, so the write itself must
+# run to the end and save, and only the waiting is cancelled.
+
+
+@pytest.mark.parametrize("entry_options", [{"slots": {"4": {"name": "Kari", "has_pin": True}}}])
+@pytest.mark.parametrize(
+    ("step", "user_input", "action", "saved"),
+    [
+        ("set_pin", {"slot": "5", "name": "Ola", "code": "56789"}, "setting PIN", {"name": "Ola", "has_pin": True}),
+        ("clear_pin", {"slot": "4"}, "clearing PIN", {"name": "Kari", "has_pin": False}),
+    ],
+    ids=["set_pin", "clear_pin"],
+)
+async def test_closing_the_dialog_lets_the_write_finish(
+    hass: HomeAssistant,
+    entry: MockConfigEntry,
+    transport: FakeTransport,
+    caplog: pytest.LogCaptureFixture,
+    step: str,
+    user_input: dict[str, Any],
+    action: str,
+    saved: dict[str, Any],
+) -> None:
+    caplog.set_level(logging.DEBUG, logger="custom_components.onesti_lock")
+    transport.gate = asyncio.Event()
+    result = await _open_step(hass, entry, step)
+    result = await hass.config_entries.options.async_configure(result["flow_id"], user_input)
+    assert result["type"] is FlowResultType.SHOW_PROGRESS
+    progress_task = _flow(hass, result).async_get_progress_task()
+
+    hass.config_entries.options.async_abort(result["flow_id"])
+    with contextlib.suppress(asyncio.CancelledError):
+        await progress_task
+    assert progress_task.cancelled()
+    assert "keeps running" in caplog.text
+
+    transport.gate.set()
+    await hass.async_block_till_done()
+
+    assert entry.options["slots"][user_input["slot"]] == saved
+    assert f"Finished {action} on slot {user_input['slot']}" in caplog.text
+
+
+# -- Two paths, one flow object --
+
+
+@pytest.mark.parametrize("entry_options", [{"slots": {"4": {"name": "Kari", "has_pin": True}}}])
+async def test_set_pin_failure_does_not_reach_clear_pin(
+    hass: HomeAssistant, entry: MockConfigEntry, transport: FakeTransport
+) -> None:
+    """set_pin and clear_pin keep separate input and errors.
+
+    The dialog cannot move from one to the other, so the handler's steps are
+    called directly here. That is the object both paths once shared state on.
+    """
+    transport.result = False
+    set_input = {"slot": "5", "name": "Ola", "code": "56789"}
+    result = await _open_step(hass, entry, "set_pin")
+    flow = _flow(hass, result)
+    result = await hass.config_entries.options.async_configure(result["flow_id"], set_input)
+    result = await _finish_progress(hass, result)
+    assert result["errors"] == {"base": "lock_unreachable"}
+
+    form = await flow.async_step_clear_pin()
+    assert form["errors"] == {}
+    assert _suggested(form) == {}
+
+    await flow.async_step_clear_pin({"slot": "4"})
+    await hass.async_block_till_done()
+    await flow.async_step_clear_pin_progress()
+    form = await flow.async_step_clear_pin()
+    assert form["errors"] == {"base": "lock_unreachable"}
+    assert _suggested(form) == {"slot": "4"}
+    assert transport.sent[-1] == (CLEAR_PIN_COMMAND, {"user_id": 4})
+
+    # And the set_pin input survived the clear attempt untouched.
+    transport.result = True
+    await flow.async_step_set_pin_progress()
+    await hass.async_block_till_done()
+    await flow.async_step_set_pin_progress()
+    assert transport.sent[-1][1]["user_id"] == 5
+    assert entry.options["slots"]["5"] == {"name": "Ola", "has_pin": True}
+
+
+# -- Two dialogs at once --
+
+
+@pytest.mark.parametrize("entry_options", [{"slots": {"4": {"name": "Kari", "has_pin": True}}}])
+async def test_concurrent_flows_keep_both_writes(
+    hass: HomeAssistant, entry: MockConfigEntry, transport: FakeTransport
+) -> None:
+    transport.gate = asyncio.Event()
+    set_result = await _open_step(hass, entry, "set_pin")
+    clear_result = await _open_step(hass, entry, "clear_pin")
+    set_result = await hass.config_entries.options.async_configure(
+        set_result["flow_id"], {"slot": "5", "name": "Ola", "code": "56789"}
+    )
+    clear_result = await hass.config_entries.options.async_configure(clear_result["flow_id"], {"slot": "4"})
+    assert set_result["type"] is FlowResultType.SHOW_PROGRESS
+    assert clear_result["type"] is FlowResultType.SHOW_PROGRESS
+
+    transport.gate.set()
+    set_result = await _finish_progress(hass, set_result)
+    clear_result = await _finish_progress(hass, clear_result)
+
+    assert set_result["type"] is FlowResultType.CREATE_ENTRY
+    assert clear_result["type"] is FlowResultType.CREATE_ENTRY
+    assert sorted(command for command, _ in transport.sent) == [SET_PIN_COMMAND, CLEAR_PIN_COMMAND]
+    # Each result dialog saved the options as they stood when it finished,
+    # so neither wrote the other's change back out.
+    assert entry.options["slots"] == {
+        "4": {"name": "Kari", "has_pin": False},
+        "5": {"name": "Ola", "has_pin": True},
+    }
+
+
+async def test_concurrent_set_pin_flows_keep_their_own_input(
+    hass: HomeAssistant, entry: MockConfigEntry, transport: FakeTransport
+) -> None:
+    transport.gate = asyncio.Event()
+    first = await _open_step(hass, entry, "set_pin")
+    second = await _open_step(hass, entry, "set_pin")
+    first = await hass.config_entries.options.async_configure(
+        first["flow_id"], {"slot": "4", "name": "Kari", "code": "1234"}
+    )
+    second = await hass.config_entries.options.async_configure(
+        second["flow_id"], {"slot": "5", "name": "Ola", "code": "56789"}
+    )
+
+    transport.gate.set()
+    await _finish_progress(hass, first)
+    await _finish_progress(hass, second)
+
+    assert sorted(params["user_id"] for _, params in transport.sent) == [4, 5]
+    assert entry.options["slots"] == {
+        "4": {"name": "Kari", "has_pin": True},
+        "5": {"name": "Ola", "has_pin": True},
+    }

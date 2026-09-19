@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Mapping
+from collections.abc import Coroutine, Mapping
 from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
@@ -15,6 +15,7 @@ from homeassistant.config_entries import (
 )
 from homeassistant.core import callback
 
+from . import pin_rules
 from .const import (
     CONF_IEEE,
     CONF_RESERVED_SLOTS,
@@ -97,19 +98,33 @@ class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class NimlyProOptionsFlow(OptionsFlow):
-    """Options flow for Onesti Lock: PIN code management UI."""
+    """Options flow for Onesti Lock: PIN code management UI.
 
-    _set_pin_task: asyncio.Task | None = None
-    _set_pin_input: dict[str, Any] | None = None
-    _set_pin_error: str | None = None
-    _clear_pin_task: asyncio.Task | None = None
-    _clear_pin_error: str | None = None
+    set_pin and clear_pin each keep their own input, task and pending error,
+    so a failure on one path never feeds the other. All of it is instance
+    state: HA builds one flow object per open dialog, and two dialogs must
+    not see each other's input.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._set_pin_input: dict[str, Any] | None = None
+        self._set_pin_task: asyncio.Task[str | None] | None = None
+        self._set_pin_error: str | None = None
+        self._clear_pin_input: dict[str, Any] | None = None
+        self._clear_pin_task: asyncio.Task[str | None] | None = None
+        self._clear_pin_error: str | None = None
 
     # -- Helpers --
 
     def _coordinator(self) -> NimlyCoordinator:
         entry: NimlyConfigEntry = self.config_entry
         return entry.runtime_data
+
+    def _pin_length_placeholders(self) -> dict[str, str]:
+        """{min} and {max} for the set_pin texts, from the lock's reported range."""
+        low, high = pin_rules.pin_length_range(self._coordinator().lock_capabilities)
+        return {"min": str(low), "max": str(high)}
 
     def _build_set_pin_schema(
         self,
@@ -136,31 +151,71 @@ class NimlyProOptionsFlow(OptionsFlow):
             schema = self.add_suggested_values_to_schema(schema, suggested)
         return schema
 
-    async def _do_set_pin(self) -> bool:
-        """Background task: send set_pin command to coordinator."""
-        inp = self._set_pin_input
-        assert inp is not None
-        return await self._coordinator().set_pin(
-            int(inp["slot"]), inp["name"], inp["code"],
-        )
+    def _start_write(
+        self, write: Coroutine[Any, Any, str | None]
+    ) -> asyncio.Task[str | None]:
+        """Run a PIN write so that closing the dialog cannot interrupt it.
 
-    async def _do_clear_pin(self) -> bool:
-        """Background task: send clear_slot command to coordinator."""
-        inp = self._set_pin_input  # reused for clear_pin slot
-        assert inp is not None
-        return await self._coordinator().clear_slot(int(inp["slot"]))
+        HA cancels the progress task when the dialog closes. By then the
+        command may have reached the lock, and cancelling before the save
+        would leave storage describing the old code. The write therefore runs
+        as its own task, logs its own outcome, and the progress task only
+        waits for it through asyncio.shield.
+        """
+        write_task = self.hass.async_create_task(write)
 
-    def _task_error(self, task: asyncio.Task, action: str) -> str | None:
-        """Map a finished PIN task to a form error code, or None on success."""
+        async def wait_for_write() -> str | None:
+            return await asyncio.shield(write_task)
+
+        return self.hass.async_create_task(wait_for_write())
+
+    async def _write(
+        self, action: str, slot: int, write: Coroutine[Any, Any, bool]
+    ) -> str | None:
+        """Await a coordinator write and log how it went.
+
+        Returns the form error code, or None on success. The log line is the
+        only trace of the outcome once the dialog is gone. It carries the
+        slot, never the PIN code.
+        """
+        entry_id = self.config_entry.entry_id
         try:
-            success = task.result()
+            success = await write
         except TimeoutError:
-            _LOGGER.warning("Timeout %s for %s", action, self.config_entry.entry_id)
+            _LOGGER.warning("Timeout %s on slot %s for %s", action, slot, entry_id)
             return "lock_unreachable"
         except Exception:
-            _LOGGER.exception("Unexpected error %s for %s", action, self.config_entry.entry_id)
+            _LOGGER.exception("Unexpected error %s on slot %s for %s", action, slot, entry_id)
             return "unknown"
-        return None if success else "lock_unreachable"
+        if not success:
+            _LOGGER.warning("Lock did not confirm %s on slot %s for %s", action, slot, entry_id)
+            return "lock_unreachable"
+        _LOGGER.debug("Finished %s on slot %s for %s", action, slot, entry_id)
+        return None
+
+    @staticmethod
+    def _task_error(task: asyncio.Task[str | None]) -> str | None:
+        """The form error code a finished write task left, or None on success."""
+        if task.cancelled():
+            # Only the write itself being cancelled gets here, which happens
+            # when HA shuts down under it.
+            return "unknown"
+        return task.result()
+
+    @callback
+    def async_remove(self) -> None:
+        """Say so when the dialog closes while a write is still running."""
+        for action, task in (
+            ("setting PIN", self._set_pin_task),
+            ("clearing PIN", self._clear_pin_task),
+        ):
+            if task is not None and not task.done():
+                _LOGGER.info(
+                    "Options dialog for %s closed while %s; the command keeps "
+                    "running and its result is logged",
+                    self.config_entry.entry_id,
+                    action,
+                )
 
     # -- Main menu --
 
@@ -186,13 +241,12 @@ class NimlyProOptionsFlow(OptionsFlow):
             suggested = self._set_pin_input
             self._set_pin_error = None
         elif user_input is not None:
-            code = user_input["code"]
-
-            if not code.isdigit() or len(code) < 4 or len(code) > 8:
+            if not pin_rules.is_valid_pin(
+                user_input["code"], self._coordinator().lock_capabilities
+            ):
                 errors["code"] = "invalid_pin"
                 suggested = user_input
             else:
-                # Input valid: store and kick off background task
                 self._set_pin_input = user_input
                 return await self.async_step_set_pin_progress()
 
@@ -203,6 +257,9 @@ class NimlyProOptionsFlow(OptionsFlow):
             step_id="set_pin",
             data_schema=self._build_set_pin_schema(strings, suggested),
             errors=errors,
+            # Always sent, not only with the error: the frontend fills
+            # {min}-{max} in invalid_pin from the form's placeholders.
+            description_placeholders=self._pin_length_placeholders(),
         )
 
     async def async_step_set_pin_progress(
@@ -214,8 +271,15 @@ class NimlyProOptionsFlow(OptionsFlow):
         itself has to notice that the task is done and move the flow on.
         """
         if not self._set_pin_task:
-            self._set_pin_task = self.hass.async_create_task(
-                self._do_set_pin()
+            inp = self._set_pin_input
+            assert inp is not None
+            slot = int(inp["slot"])
+            self._set_pin_task = self._start_write(
+                self._write(
+                    "setting PIN",
+                    slot,
+                    self._coordinator().set_pin(slot, inp["name"], inp["code"]),
+                )
             )
 
         if not self._set_pin_task.done():
@@ -227,7 +291,7 @@ class NimlyProOptionsFlow(OptionsFlow):
 
         task = self._set_pin_task
         self._set_pin_task = None
-        self._set_pin_error = self._task_error(task, "setting PIN")
+        self._set_pin_error = self._task_error(task)
         if self._set_pin_error:
             # The form step shows the error with the input preserved.
             return self.async_show_progress_done(next_step_id="set_pin")
@@ -238,6 +302,8 @@ class NimlyProOptionsFlow(OptionsFlow):
     ) -> ConfigFlowResult:
         """Finish the flow after the lock accepted the PIN."""
         self._set_pin_input = None
+        # Read now, not when the dialog opened: the coordinator has saved this
+        # write, and any other flow's or service's that finished meanwhile.
         return self.async_create_entry(data=self.config_entry.options)
 
     # -- Clear PIN: form → progress → result --
@@ -246,22 +312,23 @@ class NimlyProOptionsFlow(OptionsFlow):
         """Clear a PIN code: show form, start background task."""
         errors: dict[str, str] = {}
 
-        # Build schema first to check for active slots
         strings = await async_get_strings(self.hass, self.hass.config.language)
         fallback_template = strings.get("slot_fallback_name", "Slot {slot}")
         slots = self.config_entry.options.get("slots", {})
-        # Reserved master slots are never offered: clear_slot refuses them,
-        # and a named slot 0 would otherwise show up as removable.
+        # Only slots with a PIN: a slot that is merely named may hold an RFID
+        # tag or a fingerprint, and has no code to clear. Reserved master
+        # slots are never offered, since the coordinator refuses them.
         first = self._coordinator().first_user_slot()
         active_slots = {}
         for i in range(first, MAX_SLOTS):
             slot_data = slots.get(str(i), {})
-            if slot_data.get("has_pin") or slot_data.get("name"):
-                name = slot_data.get("name", "")
-                if name:
-                    active_slots[str(i)] = format_slot_label(strings, i, name)
-                else:
-                    active_slots[str(i)] = fallback_template.format(slot=i)
+            if not slot_data.get("has_pin"):
+                continue
+            name = slot_data.get("name", "")
+            if name:
+                active_slots[str(i)] = format_slot_label(strings, i, name)
+            else:
+                active_slots[str(i)] = fallback_template.format(slot=i)
 
         if not active_slots:
             return self.async_abort(reason="no_active_slots")
@@ -269,15 +336,15 @@ class NimlyProOptionsFlow(OptionsFlow):
         # A failed attempt is checked before user_input: when the task finishes
         # within the submit itself, HA routes progress_done back here with the
         # submitted input still attached, and it must not start another send.
+        suggested: dict[str, Any] | None = None
         if self._clear_pin_error:
             errors["base"] = self._clear_pin_error
+            suggested = self._clear_pin_input
             self._clear_pin_error = None
         elif user_input is not None:
-            # Store input and kick off background task
-            self._set_pin_input = user_input  # reuse for slot reference
+            self._clear_pin_input = user_input
             return await self.async_step_clear_pin_progress()
 
-        suggested = self._set_pin_input if errors else None
         schema = vol.Schema(
             {vol.Required("slot"): vol.In(active_slots)}
         )
@@ -298,8 +365,12 @@ class NimlyProOptionsFlow(OptionsFlow):
         Same shape as async_step_set_pin_progress.
         """
         if not self._clear_pin_task:
-            self._clear_pin_task = self.hass.async_create_task(
-                self._do_clear_pin()
+            inp = self._clear_pin_input
+            assert inp is not None
+            slot = int(inp["slot"])
+            # clear_pin, not clear_slot: the name stays, as the step text says.
+            self._clear_pin_task = self._start_write(
+                self._write("clearing PIN", slot, self._coordinator().clear_pin(slot))
             )
 
         if not self._clear_pin_task.done():
@@ -311,7 +382,7 @@ class NimlyProOptionsFlow(OptionsFlow):
 
         task = self._clear_pin_task
         self._clear_pin_task = None
-        self._clear_pin_error = self._task_error(task, "clearing PIN")
+        self._clear_pin_error = self._task_error(task)
         if self._clear_pin_error:
             return self.async_show_progress_done(next_step_id="clear_pin")
         return self.async_show_progress_done(next_step_id="clear_pin_done")
@@ -319,8 +390,9 @@ class NimlyProOptionsFlow(OptionsFlow):
     async def async_step_clear_pin_done(
         self, user_input=None,
     ) -> ConfigFlowResult:
-        """Finish the flow after the lock cleared the slot."""
-        self._set_pin_input = None
+        """Finish the flow after the lock cleared the PIN."""
+        self._clear_pin_input = None
+        # Read now, for the same reason as in async_step_set_pin_done.
         return self.async_create_entry(data=self.config_entry.options)
 
     # -- Name slot (for RFID, fingerprint, etc.) --

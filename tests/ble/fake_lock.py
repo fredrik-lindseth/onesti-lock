@@ -33,13 +33,14 @@ from cryptography.hazmat.primitives.asymmetric import ec
 
 from ..conftest import load_component_module
 
-const = load_component_module("ble.const")
+const = load_component_module("ble.protocol.const")
+client_const = load_component_module("ble.client.const")
 crypto = load_component_module("ble.crypto")
 errors = load_component_module("ble.errors")
-packet = load_component_module("ble.packet")
-command = load_component_module("ble.command")
-response = load_component_module("ble.response")
-streams = load_component_module("ble.streams")
+packet = load_component_module("ble.protocol.packet")
+command = load_component_module("ble.protocol.command")
+response = load_component_module("ble.protocol.response")
+streams = load_component_module("ble.protocol.streams")
 
 CommandId = const.CommandId
 ResponseId = const.ResponseId
@@ -98,8 +99,8 @@ class FakeLock:
 
     firmware: bytes = b"4.8.0"
     model: int = const.LockModelId.NIMLY_PRO_24
-    owner_key: bytes = const.DEFAULT_ENCRYPTION_KEY
-    device_id: bytes = const.DEFAULT_DEVICE_ID
+    owner_key: bytes = client_const.DEFAULT_ENCRYPTION_KEY
+    device_id: bytes = client_const.DEFAULT_DEVICE_ID
     name: str = ""
     clock: int | None = None
     server_public_key: bytes | None = None

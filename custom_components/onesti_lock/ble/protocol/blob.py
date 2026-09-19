@@ -20,8 +20,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Final
 
+from ..errors import BleProtocolError
 from .const import BLOB_FLAG_ENCRYPTED, BLOB_HEADER_SIZE
-from .errors import BleProtocolError
 from .streams import ByteReader, ByteWriter
 
 # The header's length field is a uint16.

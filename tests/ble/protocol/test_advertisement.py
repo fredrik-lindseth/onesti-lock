@@ -1,4 +1,4 @@
-"""The 0xFD00 service data, and the package's public API.
+"""protocol/advertisement.py: the 0xFD00 service data.
 
 The advertisement vectors are derived from BleScanner.getNimlyEkeyScanResult:
 no advertisement has been captured from a lock.
@@ -6,13 +6,12 @@ no advertisement has been captured from a lock.
 from __future__ import annotations
 
 import hashlib
-import importlib
 
 import pytest
 
-from ..conftest import PACKAGE, load_component_module
+from ...conftest import load_component_module
 
-advertisement = load_component_module("ble.advertisement")
+advertisement = load_component_module("ble.protocol.advertisement")
 errors = load_component_module("ble.errors")
 
 DEVICE_ID = bytes.fromhex("5A 17 C3 09 E4 21")
@@ -51,10 +50,3 @@ class TestAdvertisement:
         with pytest.raises(errors.BleValidationError, match="6 bytes"):
             advertisement.parse_advertisement(ENROLLED).matches(b"\x01")
 
-
-def test_public_api_exports_resolve():
-    ble = importlib.import_module(f"{PACKAGE}.ble")
-    missing = [name for name in ble.__all__ if not hasattr(ble, name)]
-    assert not missing
-    assert ble.Session is load_component_module("ble.session").Session
-    assert issubclass(ble.BleEnrollmentError, ble.BleError)

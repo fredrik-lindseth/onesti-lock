@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from ..errors import BleProtocolError
 from .const import (
     COMMAND_HEADER_SIZE,
     COMMAND_REF_COUNTER_WRAP,
@@ -21,7 +22,6 @@ from .const import (
     CommandId,
     FirmwareVersion,
 )
-from .errors import BleProtocolError
 from .streams import ByteReader, ByteWriter
 
 

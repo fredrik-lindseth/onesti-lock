@@ -18,9 +18,9 @@ from pathlib import Path
 import pytest
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
-from ..conftest import load_component_module
-from . import crypto_vectors, vectors
-from .fake_lock import (
+from ...conftest import load_component_module
+from .. import crypto_vectors, vectors
+from ..fake_lock import (
     BATT_INFO_PAYLOAD,
     LOCK_LINK_PRIVATE_KEY,
     PHONE_LINK_PRIVATE_KEY,
@@ -30,14 +30,14 @@ from .fake_lock import (
     public_key,
 )
 
-const = load_component_module("ble.const")
-commands = load_component_module("ble.commands")
+const = load_component_module("ble.protocol.const")
+commands = load_component_module("ble.protocol.commands")
 crypto = load_component_module("ble.crypto")
 errors = load_component_module("ble.errors")
-packet = load_component_module("ble.packet")
-response_mod = load_component_module("ble.response")
-responses = load_component_module("ble.responses")
-session_mod = load_component_module("ble.session")
+packet = load_component_module("ble.protocol.packet")
+response_mod = load_component_module("ble.protocol.response")
+responses = load_component_module("ble.protocol.responses")
+session_mod = load_component_module("ble.client.session")
 
 CommandId = const.CommandId
 ResponseId = const.ResponseId

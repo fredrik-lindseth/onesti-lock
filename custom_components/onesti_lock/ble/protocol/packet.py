@@ -21,6 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Final, Protocol
 
+from ..errors import BleProtocolError
 from .blob import BLOB_LENGTH_MAX, BlobAssembler, BlobHeader
 from .const import (
     ATT_OVERHEAD,
@@ -31,7 +32,6 @@ from .const import (
     PACKET_PAYLOAD_MAX,
     PacketTypeId,
 )
-from .errors import BleProtocolError
 from .streams import ByteReader, ByteWriter
 
 # The smallest MTU that leaves a BlobStart packet room for one byte of payload

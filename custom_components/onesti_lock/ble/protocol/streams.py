@@ -11,8 +11,8 @@ payload can hold a PIN.
 """
 from __future__ import annotations
 
+from ..errors import BleProtocolError, BleValidationError
 from .const import CHARACTER_SET
-from .errors import BleProtocolError, BleValidationError
 
 
 class ByteReader:

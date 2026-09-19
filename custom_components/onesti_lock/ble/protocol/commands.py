@@ -17,6 +17,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Final
 
+from ..errors import BleValidationError
 from .command import CommandPayload
 from .const import (
     CHALLENGE_LENGTH,
@@ -32,7 +33,6 @@ from .const import (
     EkeyOperationId,
     LockVolumeId,
 )
-from .errors import BleValidationError
 from .streams import ByteWriter
 
 # The slot a master PIN is written to (NimlyEkeyDevice.masterPincodeSet).

@@ -42,24 +42,20 @@ from dataclasses import dataclass
 from types import TracebackType
 from typing import Self
 
-from .command import CommandPayload, CommandRefCounter
-from .commands import device_model_get, exchange_key_pub_m
-from .const import (
-    COMMAND_RESPONSE_DELAY_S,
-    DEFAULT_MTU,
-    DEFAULT_RESPONSE_TIMEOUT_S,
-    MIN_FIRMWARE_ADMIN,
-    MIN_FIRMWARE_CONNECT,
-    CommandId,
-    FirmwareVersion,
-    LockModelId,
-    ResponseId,
+from ..crypto import KeyPair, LinkKeys, derive_link_keys, generate_key_pair
+from ..errors import (
+    BleDisconnectedError,
+    BleFirmwareTooOldError,
+    BleProtocolError,
+    BleTimeoutError,
 )
-from .crypto import KeyPair, LinkKeys, derive_link_keys, generate_key_pair
-from .errors import BleDisconnectedError, BleFirmwareTooOldError, BleProtocolError, BleTimeoutError
-from .packet import PacketStream, ReceivedPayload
-from .response import Response, expected_response_id
-from .responses import LockStatus, UserAdded, parse_device_model, parse_event, parse_exchange_key_pub_l
+from ..protocol.command import CommandPayload, CommandRefCounter
+from ..protocol.commands import device_model_get, exchange_key_pub_m
+from ..protocol.const import DEFAULT_MTU, MIN_FIRMWARE_ADMIN, CommandId, FirmwareVersion, LockModelId, ResponseId
+from ..protocol.packet import PacketStream, ReceivedPayload
+from ..protocol.response import Response, expected_response_id
+from ..protocol.responses import LockStatus, UserAdded, parse_device_model, parse_event, parse_exchange_key_pub_l
+from .const import COMMAND_RESPONSE_DELAY_S, DEFAULT_RESPONSE_TIMEOUT_S, MIN_FIRMWARE_CONNECT
 from .transport import Transport
 
 _LOGGER = logging.getLogger(__name__)
@@ -231,7 +227,7 @@ class Session:
         return await self._exchange(command)
 
     async def request[T](self, command: CommandPayload, parse: Callable[[Response], T]) -> T:
-        """Send a command and read its answer with one of the parsers in responses.py."""
+        """Send a command and read its answer with one of the parsers in protocol/responses.py."""
         return parse(await self.send(command))
 
     def add_event_listener(self, listener: EventListener) -> Callable[[], None]:

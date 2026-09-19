@@ -1,10 +1,17 @@
-"""Protocol constants and enums for the Onesti/Nimly BLE link.
+"""Wire constants and enums for the Onesti/Nimly BLE protocol.
+
+Everything a frame is built from or parsed into: the MTU the framing is cut
+for, the Layer 1-3 header layouts, command and response ids, status bytes, the
+field lengths the builders check, slot ranges and the enums the payloads
+carry. What the client needs beyond the wire (GATT UUIDs, timing, the factory
+owner credential) is in client/const.py, and the cipher's own sizes are in
+crypto.py.
 
 Every value here is transcribed from the decompiled Nimly BLE app
 (easyaccess.ekey.app 1.5.2, package com.nimly.ekey.ble). The Java source a
-value comes from is named next to it, relative to that package, so a later
-session can check it again instead of trusting this file. None of it has been
-confirmed against a lock over the air yet.
+value comes from is named next to it, relative to that package, so anyone can
+check it again instead of trusting this file. None of it has been confirmed
+against a lock over the air.
 
 Enum members use Python names; the app's own name is in the comment where the
 two differ in more than case.
@@ -15,29 +22,12 @@ from dataclasses import dataclass
 from enum import IntEnum
 from typing import Final
 
-# --- GATT (settings/Constants.java) -----------------------------------------
-
-SERVICE_UUID: Final = "ba4bfd00-c447-19bf-f38d-4890b3a824c8"
-# The one characteristic every command, response and notification uses.
-COMMUNICATION_CHARACTERISTIC_UUID: Final = "ba4bfd03-c447-19bf-f38d-4890b3a824c8"
-# 16-bit service UUID 0xFD00, carried as service data in the advertisement.
-ADVERTISING_UUID: Final = "0000fd00-0000-1000-8000-00805f9b34fb"
-CLIENT_CHARACTERISTIC_CONFIGURATION_UUID: Final = "00002902-0000-1000-8000-00805f9b34fb"
-DEVICE_INFORMATION_SERVICE_UUID: Final = "0000180a-0000-1000-8000-00805f9b34fb"
-# Read before anything else: the firmware floors below are checked against it.
-SOFTWARE_REVISION_CHARACTERISTIC_UUID: Final = "00002a28-0000-1000-8000-00805f9b34fb"
-
 # --- Link layer (connections/BleConnection.java, communication/streams/) -----
 
 # The app asks for this MTU and never more (BleConnection.DefaultMtu).
 DEFAULT_MTU: Final = 23
 # ATT write header; PayloadStream.getPayloadMax subtracts it from the MTU.
 ATT_OVERHEAD: Final = 3
-# How long the app waits for a response (NimlyEkeyDeviceBase.DefaultTimeout).
-DEFAULT_RESPONSE_TIMEOUT_S: Final = 20.0
-# Pause after a matched response before the next command is released
-# (CommandStream.CommandResponseDelay, 320 ms).
-COMMAND_RESPONSE_DELAY_S: Final = 0.32
 
 # --- Framing (communication/packets, commands, responses, blobs) -------------
 
@@ -63,30 +53,16 @@ BLOB_HEADER_SIZE: Final = 4
 # Bit 0 of the blob flags: the reassembled payload is encrypted.
 BLOB_FLAG_ENCRYPTED: Final = 0x01
 
-# --- Crypto (settings/Constants.java, crypto/) --------------------------------
+# --- Field lengths (settings/Constants.java) --------------------------------
 
-AES_BLOCK_SIZE: Final = 16
-AES_KEY_LENGTH: Final = 16
 # secp256r1 public key on the wire: X then Y, 32 bytes each.
 PUBLIC_KEY_LENGTH: Final = 64
-PRIVATE_KEY_LENGTH: Final = 32
 CHALLENGE_LENGTH: Final = 16
 DEVICE_ID_LENGTH: Final = 6
 DEVICE_ID_SEED_LENGTH: Final = 2
 EKEY_AUTH_TOKEN_LENGTH: Final = 32
-
-# The owner credential a factory-reset lock accepts. AddLockFragment
-# authenticates a fresh lock with ParamUserAuth(DefaultAdminUserId,
-# DefaultDeviceId, DefaultEncryptionKey); see
-# docs/nimly-ble-app/ble-auth-provisioning.md.
-DEFAULT_ADMIN_USER_ID: Final = 0
-DEFAULT_ENCRYPTION_KEY: Final = bytes([0x11] * 16)
-DEFAULT_DEVICE_ID: Final = bytes(6)
+# The advertisement seed of a lock nobody has enrolled (protocol/advertisement.py).
 DEFAULT_DEVICE_ID_SEED: Final = bytes(2)
-# Defined next to the key in Constants.java, but nothing in the app reads it:
-# owner auth uses the link IV from the key exchange. Kept so nobody mistakes
-# its absence for an oversight.
-DEFAULT_ENCRYPTION_IV: Final = bytes([0x22] * 16)
 
 # --- Strings and credentials (settings/Constants.java) -----------------------
 
@@ -109,12 +85,10 @@ FINGERPRINT_SLOTS: Final = range(150, 200)
 # unrelated androidx constant that jadx inlined by value: 900.
 RFID_SLOTS: Final = range(900, 1000)
 
-# --- Firmware (settings/Constants.java, devices/, admin/devices/) ------------
+# --- Firmware (settings/Constants.java, devices/) -----------------------------
 
 type FirmwareVersion = tuple[int, int, int]
 
-# Below this the app refuses to connect (MinimumRequiredSoftwareRevisionString).
-MIN_FIRMWARE_CONNECT: Final[FirmwareVersion] = (4, 6, 0)
 # Below this DeviceModelGet, PinCodeSet and the other admin operations report
 # themselves unavailable, and command refs are static
 # (MinimumRequiredDeviceModelSoftwareRevisionString).

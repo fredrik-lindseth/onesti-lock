@@ -5,7 +5,7 @@ import pytest
 
 from ..conftest import load_component_module
 
-const = load_component_module("ble.const")
+const = load_component_module("ble.protocol.const")
 errors = load_component_module("ble.errors")
 
 FAILURES = [status for status in const.ResponseStatusId if status is not const.ResponseStatusId.SUCCESS]

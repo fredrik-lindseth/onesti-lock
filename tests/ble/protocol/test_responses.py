@@ -1,17 +1,17 @@
-"""ble/responses.py: typed payloads, read from the response vectors."""
+"""protocol/responses.py: typed payloads, read from the response vectors."""
 from __future__ import annotations
 
 from datetime import UTC, datetime
 
 import pytest
 
-from ..conftest import load_component_module
-from . import vectors
+from ...conftest import load_component_module
+from .. import vectors
 
-const = load_component_module("ble.const")
+const = load_component_module("ble.protocol.const")
 errors = load_component_module("ble.errors")
-response = load_component_module("ble.response")
-responses = load_component_module("ble.responses")
+response = load_component_module("ble.protocol.response")
+responses = load_component_module("ble.protocol.responses")
 
 ResponseId = const.ResponseId
 

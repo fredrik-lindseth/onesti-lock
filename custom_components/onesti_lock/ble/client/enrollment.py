@@ -1,25 +1,19 @@
-"""Owner authentication, and enrolling a factory-reset lock without the cloud.
-
-Owner authentication is a challenge and an answer (NimlyEkeyDevice class $27):
-UserAuthBegin names the user and device id, the lock sends a 16-byte
-challenge, and UserAuthFinalize returns it decrypted with the owner key and
-the link IV, every bit flipped, and encrypted again. The lock answers a wrong
-key with a failed status, which the session raises as its BleOperationError.
+"""Enrolling a factory-reset lock without the cloud.
 
 Enrollment takes over a factory-reset lock the way AddLockFragment.finishSetup
 does, with our own values where the app fetches the cloud's. The steps, in the
 app's order (read from the smali, where the Kotlin line table puts them on
 source lines 197, 201, 202, 203 and 206):
 
-1. Owner authentication with the factory credential: user 0, device id
-   00 x 6, key 11 x 16.
+1. Owner authentication (auth.py) with the factory credential: user 0,
+   device id 00 x 6, key 11 x 16.
 2. UserAuthUpdate (user 0, credentials 0) with a fresh public key. The lock
    answers with its own, and the new owner key is the first 16 bytes of the
    reversed ECDH secret. From here on the factory key presumably no longer
    opens the lock, so everything later is kept even when a step fails.
 3. DeviceIdSet with a device id we pick. The cloud picks it in the app. The
-   lock advertises a hash of it (advertisement.py), and the app sends it in
-   UserAuthBegin on every later connection (ConnectLockFragment).
+   lock advertises a hash of it (protocol/advertisement.py), and the app
+   sends it in UserAuthBegin on every later connection (ConnectLockFragment).
 4. CurrentTimeSet, the lock's clock in minutes since 2023-01-01 UTC.
 5. ServerKeyUpdate with the public half of a server key pair we generate and
    keep, where the app sends the cloud's key. The lock answers with a public
@@ -34,8 +28,7 @@ ECDH secret on both ends, which is what the cloud would need to sign or
 encrypt what the app relays to the lock on every connection
 (EkeyDeviceInfoGet to the cloud, EkeyDeviceInfoSet back). Holding the
 private key ourselves means no one else's server key stays trusted by the
-lock, and leaves the door open to acting as that server later. Nothing here
-uses it yet.
+lock, and would let us act as that server. Nothing in the library uses it.
 
 The guest ekey path (EkeyUserAuth 0x17 with a cloud token) is out of scope.
 """
@@ -48,34 +41,26 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any, Final
 
-from .commands import (
+from ..crypto import (
+    AES_KEY_LENGTH,
+    KeyPair,
+    derive_owner_key,
+    generate_key_pair,
+    key_pair_from_private_key,
+)
+from ..errors import BleError, BleValidationError
+from ..protocol.commands import (
     current_time_set,
     device_id_set,
     device_name_set,
     server_key_update,
     to_lock_time,
-    user_auth_begin,
-    user_auth_finalize,
     user_auth_update,
 )
-from .const import (
-    AES_KEY_LENGTH,
-    DEFAULT_ADMIN_USER_ID,
-    DEFAULT_DEVICE_ID,
-    DEVICE_ID_LENGTH,
-    PUBLIC_KEY_LENGTH,
-)
-from .crypto import (
-    DEFAULT_OWNER_CREDENTIAL,
-    KeyPair,
-    OwnerCredential,
-    answer_owner_challenge,
-    derive_owner_key,
-    generate_key_pair,
-    key_pair_from_private_key,
-)
-from .errors import BleError, BleValidationError
-from .responses import parse_server_key_update, parse_user_auth_begin, parse_user_auth_update
+from ..protocol.const import DEVICE_ID_LENGTH, PUBLIC_KEY_LENGTH
+from ..protocol.responses import parse_server_key_update, parse_user_auth_update
+from .auth import DEFAULT_OWNER_CREDENTIAL, OwnerCredential, authenticate_owner
+from .const import DEFAULT_ADMIN_USER_ID, DEFAULT_DEVICE_ID
 from .session import Session
 
 # AddLockFragment.finishSetup sends ParamUserAuthUpdate(0, 0). What another
@@ -84,22 +69,6 @@ OWNER_CREDENTIALS: Final = 0
 
 # Bumped when the stored shape of Enrollment.to_dict changes.
 ENROLLMENT_FORMAT: Final = 1
-
-
-async def authenticate_owner(session: Session, credential: OwnerCredential) -> None:
-    """Prove to the lock that we hold the owner key, on a connected session.
-
-    Raises the session's BleOperationError (BleSecurityError, as far as
-    anyone can tell without a lock) when the lock refuses the answer.
-    UserAuthFinalize's answer carries a credentials byte, which the app never
-    reads, so neither does this.
-    """
-    begin = await session.request(user_auth_begin(credential.user_id, credential.device_id), parse_user_auth_begin)
-    answer = answer_owner_challenge(begin.challenge, credential.key, session.link_keys.iv)
-    await session.send(user_auth_finalize(answer))
-
-
-# --- Enrollment ------------------------------------------------------------------
 
 
 class EnrollmentStep(StrEnum):

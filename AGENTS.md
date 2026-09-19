@@ -20,7 +20,8 @@ __init__.py (entry lifecycle)
   ├── async_setup: registers the four services once, for all locks; never removed on unload
   ├── async_migrate_entry: 2.1 -> 2.2 strips has_rfid from stored slots
   ├── async_setup_entry: coordinator on entry.runtime_data, sensor platform,
-  │   event listener, ZHA watch, update listener, background capability read
+  │   event listener, ZHA watch, update listener, background capability read;
+  │   ConfigEntryNotReady (retried by HA) when ZHA runs without the lock's IEEE
   ├── Event listener registration; on ZhaInternalsMissing an ERROR log and a
   │   repair issue (zha_internals_<entry_id>), deleted again on success or unload
   ├── ZHA watch: ConfigEntry.async_on_state_change on every ZHA entry; reloads
@@ -101,7 +102,9 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 | `custom_components/onesti_lock/localize.py`    | Runtime string lookup (reads the `common` section of translations/*.json)                                        |
 | `custom_components/onesti_lock/strings.json`   | English source for every string; identical to `translations/en.json`                                             |
 | `blueprints/automation/`                       | Blueprints users import by hand; HACS never updates imported copies                                              |
-| `.github/workflows/release.yml`                | Tags and releases when manifest.json has a version with no tag (see Releasing)                                   |
+| `scripts/release_publish.py`                   | The release state machine: deterministic ZIP, tag, draft, attestation check, publish (see Releasing)             |
+| `.github/workflows/release.yml`                | Runs CI for the candidate SHA, then builds, attests and publishes through `release_publish.py`                  |
+| `SECURITY.md`                                  | How a user verifies the ZIP HACS installed; the release body links here                                         |
 | `.github/ISSUE_TEMPLATE/`                      | Bug report and new lock model forms                                                                              |
 
 ## Gotchas
@@ -115,13 +118,13 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
    - BLE uses 800-899. The sensor row is `NUM_USER_SLOTS` (10) slots from the first user slot, so 3-12 by default and 1-10 with one reserved slot. Changing `reserved_slots` reloads the entry and removes the sensors that fell out of the row.
 3. **Options flow progress**: when the `progress_task` passed to `async_show_progress` finishes, HA calls the same progress step again. Nothing named `*_done` is ever called for you. The step must check `task.done()` and, once it is, return `async_show_progress_done(next_step_id=...)`, which HA follows to that step (`set_pin_done` on success, back to the `set_pin` form with the error on failure). HA starts tasks eagerly, so a task can already be done on the first call, and the step it routes to then receives the submitted `user_input` again: form steps check a pending error before `user_input`, or they would send the command a second time.
 4. **Activity sensor suppression**: system-initiated locking (source `auto`, and on NimlyCodePRO an `unattributed` lock with no user slot) fires the HA event but does NOT update the activity sensor, so "Kari unlocked with code" is not overwritten by "Auto-lock". A `zigbee` lock with no user is someone locking from HA and stays visible, except within `WAKE_ECHO_WINDOW_S` of our own auto-wake, which the lock reports the same way. The window is a guess nobody has measured on hardware.
-5. **CI/release workflows**: both `.github/workflows/` files must reference `custom_components/onesti_lock/` (not `nimly_pro`).
+5. **CI/release workflows**: both `.github/workflows/` files must reference `custom_components/onesti_lock/` (not `nimly_pro`), and so must `COMPONENT`/`ASSET_NAME` in `scripts/release_publish.py` and `filename` in `hacs.json`. The ZIP HACS installs is named from the domain.
 6. **NimlyCoordinator is NOT a DataUpdateCoordinator**: it is a custom, event-driven pattern with no polling, on purpose for a battery-powered device.
 7. **No user-facing strings in Python**: sensor states and options flow labels come from the `common` section of `translations/*.json` via `localize.py` (`common` because hassfest rejects top-level keys outside HA's strings schema). Entity names and service errors go through HA's own `entity`/`exceptions` sections. `tests/test_no_hardcoded_language.py` fails the build if a Norwegian literal reappears. `strings.json` is the English source and must stay identical to `translations/en.json`.
 8. **PIN length floor**: `pin_rules.PIN_LENGTH_SANE_MIN` (4) is the shortest PIN accepted, whatever the lock reports, because `redact.py` masks digit runs of that length and up. Lowering either one alone lets a PIN reach the log in clear text. Anything that logs an exception on the send path uses `redact_digits` and no `exc_info`: an error from zigpy or from building the frame can quote `pin_code`.
 9. **Services live for the whole HA run**: they are registered in `async_setup` (hence `CONFIG_SCHEMA = cv.config_entry_only_config_schema`) and never removed on unload. Each call looks the lock up among loaded entries, by `device_id` (our own device, not the ZHA one), then `ieee`, and only falls back to the single lock when there is exactly one.
 10. **Entry version**: config flow `VERSION = 2`, `MINOR_VERSION = 2`. A change to the stored shape bumps the minor version and gets a step in `async_migrate_entry`; an entry from a newer major version refuses to load.
-11. **Repair issue `zha_internals`**: raised when the listener cannot find the Door Lock cluster or `on_event`. PIN writes still work then, but no activity arrives. The issue is per entry and removed when the listener registers or the entry unloads.
+11. **Repair issue `zha_internals`**: raised when ZHA runs and lists the lock, but the gateway, the Door Lock cluster or `on_event` is missing. PIN writes still work then, but no activity arrives. The issue is per entry and removed when the listener registers or the entry unloads. A lock entirely missing from ZHA is not a repair issue: setup raises `ConfigEntryNotReady` and Home Assistant retries until the lock is back.
 12. **Options writes trigger the update listener**: slot and capability writes go to `entry.options` too, so the listener compares the first user slot and reloads only when it moved. A listener that reloads on any change reloads after every PIN operation.
 
 ## Documentation map
@@ -146,7 +149,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 
 | Suite                        | Runs against                                                                          | Command                                         | Covers                                                                                              |
 | ---------------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `tests/`                     | Stubbed `homeassistant`/`voluptuous`/`zigpy` from `tests/conftest.py`                 | `pytest tests/ -q`, `python3 scripts/ci_sim.py` | Decoding, pin_rules, redact, coordinator, services, guards against PIN leaks and hardcoded language |
+| `tests/`                     | Stubbed `homeassistant`/`voluptuous`/`zigpy` from `tests/conftest.py`                 | `pytest tests/ -q`, `python3 scripts/ci_sim.py` | Decoding, pin_rules, redact, coordinator, services, release flow, guards against PIN leaks and hardcoded language |
 | `tests_ha/`                  | Real HA from `pytest-homeassistant-custom-component`, ZHA mocked at the gateway proxy | `just test-ha minimum`, `just test-ha current`  | Setup, migration, repair issue, ZHA reload, options flow, sensors, restore, services, transport     |
 | `tests/test_version_sync.py` | `hacs.json`, `uv.lock`, prose in README/AGENTS/justfile/pyproject                     | part of `pytest tests/`                         | The minimum HA version agrees everywhere it is written                                              |
 
@@ -237,19 +240,41 @@ way.
 
 ## Releasing
 
-`release.yml` runs on every push to `main`. It reads `version` from
-`manifest.json` and, when no release `v<version>` exists yet, creates the tag
-and the release at the pushed commit. Nothing else publishes a release, and
-the workflow does not wait for CI.
+`release.yml` runs on every push to `main`. It calls `ci.yml` for the pushed
+commit, waits for the whole graph, and then runs `scripts/release_publish.py`,
+which is where the flow actually lives. Nothing else publishes a release.
+
+The candidate is one thing: repo + full commit SHA + the manifest version at
+that SHA. Tag, ZIP and attestation are all bound to it, and `draft=false` is
+the last call, so a failure anywhere leaves no public half release. Every step
+is idempotent: a re-run on the same SHA reuses the tag, the draft and an asset
+that is already correct.
+
+HACS installs `onesti_lock.zip` from the release (`zip_release` in
+`hacs.json`), not the tag's source tree, because a source tree cannot be
+attested. The ZIP is packed flat from the git objects at the candidate SHA,
+with fixed timestamps and git's file modes, so two builds of the same commit
+are byte-identical and anyone can rebuild and compare. `hide_default_branch` is
+required alongside `zip_release`; without it, installing the default branch
+404s because there is no ZIP there.
 
 1. Run the gates: `pytest tests/ -q`, `python3 scripts/ci_sim.py`, `just test-ha minimum`, `just test-ha current`, `uv lock --check`.
-2. Bump `version` in `custom_components/onesti_lock/manifest.json`. It is the only version that counts: `pyproject.toml` holds a `0.0.0` placeholder that nothing reads, so leave it.
-3. Commit as `chore: release X.Y.Z`, without `[skip ci]`. GitHub skips every workflow for a push whose head commit carries it, the release included. That happened with 1.3.0: the bump commit had `[skip ci]`, so the tag landed on the next push, a docs commit.
-4. Push to `main` and wait for the run: `gh run watch -R fredrik-lindseth/onesti-lock`.
-5. Replace the generated body with the real notes: `gh release edit vX.Y.Z -R fredrik-lindseth/onesti-lock --notes-file <file>`.
+2. Write the release note in `CHANGELOG.md` under `## [X.Y.Z]`, and mark the bullets a user would notice with `<!--short-->`. The marked ones become the release body; CI fails without them.
+3. Bump `version` in `custom_components/onesti_lock/manifest.json`. It is the only version that counts: `pyproject.toml` holds a `0.0.0` placeholder that nothing reads, so leave it.
+4. Commit as `chore: release X.Y.Z`, without `[skip ci]`. GitHub skips every workflow for a push whose head commit carries it, the release included. That happened with 1.3.0: the bump commit had `[skip ci]`, so the tag landed on the next push, a docs commit.
+5. Push to `main` and wait for the run: `gh run watch -R fredrik-lindseth/onesti-lock`.
+6. Check the result: `just release-verify vX.Y.Z`.
 
-HACS installs from the tag's source tree (`hacs.json` has no `zip_release`),
-so the release carries no assets.
+Locally, `just release-zip` builds the ZIP and prints its sha256, and `just
+release-plan` reads the state on GitHub without writing. Neither publishes: the
+attestation can only be made by the workflow run that built the file.
+
+Releases up to and including 1.3.0 predate this flow. Each carries a hand-packed
+`onesti_lock.zip` that keeps the `custom_components/onesti_lock/` prefix and is
+not the tag's tree. `FIRST_ZIP_VERSION` in `release_publish.py` is where the
+flow starts owning the artifact: below it a mismatch is reported but does not
+block, so history nobody can change does not turn every push to main red.
+`just release-verify` still fails on those tags, which is the honest answer.
 
 ## Release notes
 
@@ -260,8 +285,12 @@ entirely.
 
 Match the existing releases: `### Features`, `### Security`, `### Bug fixes`,
 `### Breaking changes`, one bullet per change with a bold lead-in, and the
-`**Full changelog**` compare link last. On push, the release workflow builds a
-body from commit subjects. Treat it as a draft and replace it.
+`**Full changelog**` compare link last. The release body is no longer written
+by hand afterwards: `release_publish.py` builds it from the `<!--short-->`
+bullets in `CHANGELOG.md` through `scripts/release_notes.py`, and appends a
+Verification section with the commit, the sha256 and a link to `SECURITY.md`.
+Editing the release on GitHub afterwards puts the text somewhere the repo
+cannot review it, so change `CHANGELOG.md` instead.
 
 ## Common tasks
 

@@ -110,9 +110,11 @@ pytest tests/ -v -k event   # Run event-related tests
 Tests mock ZHA entirely, so no hardware is needed. Home Assistant is not
 installed for `tests/`, and its CI job installs only `ruff` and `pytest`, so no
 test there may import `homeassistant` or `voluptuous` without stubbing them.
-`tests/test_coordinator_behavior.py` has the harness that runs real coordinator
-code under stubs. `python3 scripts/ci_sim.py` runs the suite with those modules
-blocked, which is the only way to catch a stray import before CI does.
+`tests/conftest.py` holds the one shared stub set and `load_component_module()`,
+and `tests/test_coordinator_behavior.py` has the fake hass harness that runs
+real coordinator code on top of it. `python3 scripts/ci_sim.py` runs the same
+ruff check as CI and then the suite with those modules blocked, which is the
+only way to catch a stray import before CI does.
 
 ### Tests against real Home Assistant
 

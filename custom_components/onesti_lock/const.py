@@ -13,7 +13,7 @@ RESERVED_SLOTS_MAX = 3
 DOORLOCK_CLUSTER_ID = 0x0101
 ZHA_DOMAIN = "zha"
 
-# Onesti hardware — all known whitelabel models
+# Onesti hardware: all known whitelabel models
 MAX_SLOTS = 1000  # ZCL slots 0-999 (per Nimly manual)
 # Default first user slot, i.e. the default for CONF_RESERVED_SLOTS. The
 # manuals differ per model: Touch Pro, PRO and Code reserve 000-002 as master

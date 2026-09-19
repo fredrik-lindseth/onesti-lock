@@ -1,4 +1,4 @@
-"""Coordinator for Onesti Lock — slot data and ZHA cluster access."""
+"""Coordinator for Onesti Lock: slot data and ZHA cluster access."""
 from __future__ import annotations
 
 import asyncio
@@ -40,7 +40,7 @@ class NimlyCoordinator:
     def _load_slots(self) -> None:
         """Load slot data from config entry options.
 
-        Only loads slots that have been used — no pre-allocation.
+        Only loads slots that have been used. No pre-allocation.
         get_slot() returns DEFAULT_SLOT for unknown slots.
         """
         stored = self.entry.options.get("slots", {})
@@ -143,7 +143,7 @@ class NimlyCoordinator:
         """Read static lock properties from the DoorLock cluster.
 
         Populates lock_capabilities with num_pin_users, max_pin_length,
-        min_pin_length. Degrades silently if the lock does not expose them —
+        min_pin_length. Degrades silently if the lock does not expose them:
         some Onesti variants skip these standard ZCL attributes, and a sleepy
         device may never respond.
         """
@@ -173,10 +173,10 @@ class NimlyCoordinator:
         try:
             result = await cluster.read_attributes(attr_ids)
         except TimeoutError:
-            _LOGGER.debug("Lock capabilities read timed out — lock asleep or out of range")
+            _LOGGER.debug("Lock capabilities read timed out (lock asleep or out of range)")
             return
         except (AttributeError, TypeError):
-            _LOGGER.debug("Lock capabilities read failed — cluster API shape changed", exc_info=True)
+            _LOGGER.debug("Lock capabilities read failed (cluster API shape changed?)", exc_info=True)
             return
         except Exception:
             # zigpy/ZHA-side errors: DeliveryError, ZigbeeException, etc.
@@ -301,7 +301,7 @@ class NimlyCoordinator:
                 # format is unexpected causing "tuple index out of range"
                 # in zigpy response parsing. Command still reached the lock.
                 _LOGGER.debug(
-                    "Nimly response quirk (IndexError) for command 0x%04x — "
+                    "Nimly response quirk (IndexError) for command 0x%04x, "
                     "command was sent successfully",
                     command,
                 )
@@ -309,13 +309,13 @@ class NimlyCoordinator:
             except TimeoutError:
                 if attempt == 0:
                     _LOGGER.info(
-                        "Timeout on attempt 1 for command 0x%04x — waking lock and retrying",
+                        "Timeout on attempt 1 for command 0x%04x, waking lock and retrying",
                         command,
                     )
                     await self._wake_lock()
                     continue
                 _LOGGER.warning(
-                    "Timeout sending command 0x%04x to %s after wake+retry — "
+                    "Timeout sending command 0x%04x to %s after wake+retry; "
                     "lock may be unreachable",
                     command,
                     self.ieee,

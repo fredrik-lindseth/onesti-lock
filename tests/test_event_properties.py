@@ -90,7 +90,7 @@ class TestRoundtrip:
 
     @pytest.mark.parametrize("slot", [256, 300, 511, 512, 800, 999])
     def test_slot_over_255_roundtrip(self, slot):
-        """Byte 1 is the high slot byte, not reserved (issues-4c287z)."""
+        """Byte 1 is the high slot byte, not reserved."""
         val = encode(slot, 0x02, 0x02)
         result = decode(val)
         assert result["user_slot"] == slot
@@ -137,11 +137,11 @@ class TestKnownValues:
     """Verify against real Zigbee captures from Nimly PRO."""
 
     CAPTURES = [
-        (0x02020003, 3, "unlock", "keypad", "Ola slot 3 unlock via keypad — hytta"),
-        (0x02020004, 4, "unlock", "keypad", "Kari slot 4 unlock via keypad — hytta"),
-        (0x0A010000, None, "lock", "auto", "Auto-lock — hytta"),
-        (0x02020000, 0, "unlock", "keypad", "Master slot 0 unlock via keypad — hjemme"),
-        (0x05010000, None, "lock", "unattributed", "NimlyCodePRO zigbee/auto/interior lock — supersej"),
+        (0x02020003, 3, "unlock", "keypad", "Ola slot 3 unlock via keypad (hytta)"),
+        (0x02020004, 4, "unlock", "keypad", "Kari slot 4 unlock via keypad (hytta)"),
+        (0x0A010000, None, "lock", "auto", "Auto-lock (hytta)"),
+        (0x02020000, 0, "unlock", "keypad", "Master slot 0 unlock via keypad (hjemme)"),
+        (0x05010000, None, "lock", "unattributed", "NimlyCodePRO zigbee/auto/interior lock (supersej)"),
     ]
 
     @pytest.mark.parametrize("raw,expected_slot,expected_action,expected_source,desc", CAPTURES)

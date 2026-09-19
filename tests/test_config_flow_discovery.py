@@ -122,7 +122,7 @@ class FakeEndpoint:
 
 
 class FakeZigpyDevice:
-    """The deepest object in the chain — the one holding endpoints."""
+    """The deepest object in the chain, the one holding endpoints."""
 
     def __init__(self, manufacturer, model, cluster_ids=(DOORLOCK_CLUSTER_ID,)):
         self.manufacturer = manufacturer

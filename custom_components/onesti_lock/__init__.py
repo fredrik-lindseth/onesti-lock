@@ -1,4 +1,4 @@
-"""Onesti Lock — PIN management and activity tracking for Onesti/Nimly locks."""
+"""Onesti Lock: PIN management and activity tracking for Onesti/Nimly locks."""
 from __future__ import annotations
 
 import logging
@@ -79,7 +79,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Register event listener on the DoorLock cluster
     _register_event_listener(hass, entry, coordinator)
 
-    # Read lock capabilities in the background — lock may be sleeping and
+    # Read lock capabilities in the background. The lock may be sleeping and
     # we don't want to block setup on a slow/missing response
     hass.async_create_task(coordinator.read_lock_capabilities())
 

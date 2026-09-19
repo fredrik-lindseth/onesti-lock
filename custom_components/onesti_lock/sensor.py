@@ -1,4 +1,4 @@
-"""Sensors for Onesti Lock — slot status and activity."""
+"""Sensors for Onesti Lock: slot status and activity."""
 from __future__ import annotations
 
 import logging

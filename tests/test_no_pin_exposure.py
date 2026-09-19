@@ -1,4 +1,4 @@
-"""Guards against PIN codes leaking out of the integration (issues-1vnbvu).
+"""Guards against PIN codes leaking out of the integration.
 
 Attrid 0x0101 on the DoorLock cluster is the actual PIN in BCD plaintext, not
 an opaque identifier. Anything we put in a state attribute, a log line or the

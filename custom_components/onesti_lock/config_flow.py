@@ -68,7 +68,7 @@ class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
         return NimlyProOptionsFlow()
 
     async def async_step_user(self, user_input=None) -> ConfigFlowResult:
-        """Handle user step — select a Nimly lock from ZHA."""
+        """Handle user step: select a Nimly lock from ZHA."""
         if ZHA_DOMAIN not in self.hass.data:
             return self.async_abort(reason="zha_not_found")
 
@@ -124,7 +124,7 @@ class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class NimlyProOptionsFlow(OptionsFlow):
-    """Options flow for Onesti Lock — PIN code management UI."""
+    """Options flow for Onesti Lock: PIN code management UI."""
 
     _set_pin_task: asyncio.Task | None = None
     _set_pin_input: dict[str, Any] | None = None
@@ -189,11 +189,11 @@ class NimlyProOptionsFlow(OptionsFlow):
     # -- Set PIN: form → progress → result --
 
     async def async_step_set_pin(self, user_input=None) -> ConfigFlowResult:
-        """Set a PIN code — show form, validate, start background task."""
+        """Set a PIN code: show form, validate, start background task."""
         errors: dict[str, str] = {}
         suggested: dict[str, Any] | None = None
 
-        # Returning from failed progress step — show error with preserved input
+        # Returning from failed progress step: show error with preserved input
         if self._set_pin_error:
             errors["base"] = self._set_pin_error
             suggested = self._set_pin_input
@@ -205,7 +205,7 @@ class NimlyProOptionsFlow(OptionsFlow):
                 errors["code"] = "invalid_pin"
                 suggested = user_input
             else:
-                # Input valid — store and kick off background task
+                # Input valid: store and kick off background task
                 self._set_pin_input = user_input
                 return await self.async_step_set_pin_progress()
 
@@ -256,13 +256,13 @@ class NimlyProOptionsFlow(OptionsFlow):
                 return self.async_create_entry(data=self.config_entry.options)
             self._set_pin_error = "lock_unreachable"
 
-        # Error — route back to form with preserved input
+        # Error: route back to form with preserved input
         return self.async_show_progress_done(next_step_id="set_pin")
 
     # -- Clear PIN: form → progress → result --
 
     async def async_step_clear_pin(self, user_input=None) -> ConfigFlowResult:
-        """Clear a PIN code — show form, start background task."""
+        """Clear a PIN code: show form, start background task."""
         errors: dict[str, str] = {}
 
         # Build schema first to check for active slots
@@ -346,7 +346,7 @@ class NimlyProOptionsFlow(OptionsFlow):
                 return self.async_create_entry(data=self.config_entry.options)
             self._clear_pin_error = "lock_unreachable"
 
-        # Error — route back to form with preserved input
+        # Error: route back to form with preserved input
         return self.async_show_progress_done(next_step_id="clear_pin")
 
     # -- Name slot (for RFID, fingerprint, etc.) --
@@ -387,7 +387,7 @@ class NimlyProOptionsFlow(OptionsFlow):
     # -- View slots --
 
     async def async_step_view_slots(self, user_input=None) -> ConfigFlowResult:
-        """View current slot status — shown as description text."""
+        """View current slot status, shown as description text."""
         strings = await async_get_strings(self.hass, self.hass.config.language)
         label_template = strings.get("slot_label", "Slot {slot}: {name}")
         pin_active = strings.get("slot_status_pin_active", "(PIN active)")

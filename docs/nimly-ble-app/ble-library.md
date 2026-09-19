@@ -11,11 +11,12 @@ the code.
 
 Two things it is not, yet:
 
-- **It has never talked to a lock.** There is no Bluetooth transport in the
-  package, and no byte in the tests was captured from real hardware. Every
-  frame is checked against the app's own code, and the crypto against the
-  app's crypto classes run on a JDK, but whether the lock agrees is open until
-  someone runs it against one. The table at the end separates the two.
+- **It has never talked to a lock.** It has a bleak transport, but that has
+  only run against a fake client, and no byte in the tests was captured from
+  real hardware. Every frame is checked against the app's own code, and the
+  crypto against the app's crypto classes run on a JDK, but whether the lock
+  agrees is open until someone runs it against one. The table at the end
+  separates the two.
 - **The integration does not use it.** Nothing outside `ble/` imports it, the
   config flow offers no BLE setup, and Home Assistant never loads it. It ships
   in the release ZIP because it lives under the component directory, so that
@@ -30,7 +31,9 @@ the ones below it, and `tests/ble/test_package.py` fails the build otherwise.
 ble/__init__.py      public API: re-exports what a caller needs
 ble/client/          one connection to one lock
   transport.py         Transport, the Protocol a Bluetooth stack implements
+  bleak_transport.py   BleakTransport, the Transport over bleak (not re-exported)
   session.py           Session: key exchange, one command at a time, events
+  tracing.py           Tracer, the hook that sees every frame a Session handles
   auth.py              OwnerCredential, authenticate_owner (challenge-response)
   enrollment.py        enroll, resume_enrollment, Enrollment, BleEnrollmentError
   const.py             GATT UUIDs, timing, connect firmware floor, factory credential
@@ -67,7 +70,8 @@ Assistant, importing it as `custom_components.onesti_lock.ble` would run the
 component's own `__init__.py`, which imports Home Assistant. Put
 `custom_components/onesti_lock` on `sys.path` and `import ble` instead; every
 import inside the package is relative and stays within `ble/`, so it loads on
-its own. The only third-party dependency is `cryptography`.
+its own. The only third-party dependency is `cryptography`, plus `bleak` for
+`ble.client.bleak_transport`, which the package does not import itself.
 
 All examples assume a connected `transport` (see
 [Plugging in a transport](#plugging-in-a-transport)) and `from ble import ...`
@@ -257,64 +261,118 @@ The UUIDs are exported: `SERVICE_UUID`, `COMMUNICATION_CHARACTERISTIC_UUID`,
 The session frames its writes for MTU 23, whatever the link negotiated,
 because the app never asks for more and nothing says the lock takes more.
 `Session(transport, mtu=...)` changes that, for trying a larger MTU against a
-lock; nobody has yet. The
-app writes with the characteristic's default write type, which on Android is
-a write with response when the characteristic allows it. Which properties the
-lock's characteristic has is not recorded, so a transport should use a write
-with response and fall back if the characteristic refuses it.
+lock; nobody has yet.
 
-A [bleak](https://github.com/hbldh/bleak) transport is a thin adapter. This
-sketch has not run against a lock:
+### bleak
+
+`client/bleak_transport.py` has `BleakTransport`, the transport over
+[bleak](https://github.com/hbldh/bleak). It is the only module in `ble/` that
+imports bleak, and `ble/__init__.py` does not import it, so the rest of the
+package loads without bleak; import it as `ble.client.bleak_transport`.
+`tests/ble/test_package.py` holds both rules.
+
+`BleakTransport.connect` builds a `BleakClient`, connects it and wraps it:
 
 ```python
-class BleakTransport:
-    def __init__(self, device: BLEDevice) -> None:
-        self._on_disconnect: DisconnectCallback | None = None
-        self._client = BleakClient(device, disconnected_callback=self._disconnected)
+from ble.client.bleak_transport import BleakTransport
 
-    async def connect(self) -> None:
-        await self._client.connect()
-
-    def _disconnected(self, _client: BleakClient) -> None:
-        if self._on_disconnect is not None:
-            self._on_disconnect()
-
-    async def read_software_revision(self) -> bytes:
-        return bytes(await self._client.read_gatt_char(SOFTWARE_REVISION_CHARACTERISTIC_UUID))
-
-    async def start_notify(self, on_notification, on_disconnect) -> None:
-        self._on_disconnect = on_disconnect
-        await self._client.start_notify(
-            COMMUNICATION_CHARACTERISTIC_UUID, lambda _char, data: on_notification(bytes(data))
-        )
-
-    async def write(self, data: bytes) -> None:
-        await self._client.write_gatt_char(COMMUNICATION_CHARACTERISTIC_UUID, data, response=True)
-
-    async def close(self) -> None:
-        if self._client.is_connected:
-            await self._client.disconnect()
+transport = await BleakTransport.connect(device)   # a BLEDevice from a scan, or an address
+async with Session(transport) as session:
+    ...
 ```
 
-bleak calls the disconnect callback on our own `close()` too, which is
-harmless: the session ignores a disconnect after it has closed. bleak raises
-its own errors, which a real adapter should turn into `BleDisconnectedError`
-or `BleTimeoutError`.
+A client that is already connected is wrapped with `BleakTransport(client)`.
+bleak takes its disconnect callback only when the client is built, before the
+transport exists, so the caller routes it to `client_disconnected` once the
+transport does exist. In Home Assistant that looks like this:
 
-In Home Assistant the same adapter works on the client its bluetooth
-integration hands out: look the lock up with
+```python
+transport: BleakTransport | None = None
+
+def disconnected(client: BleakClient) -> None:
+    if transport is not None:
+        transport.client_disconnected(client)
+
+client = await establish_connection(BleakClientWithServiceCache, device, name, disconnected_callback=disconnected)
+transport = BleakTransport(client)
+```
+
+A client that is no longer connected is refused with `BleDisconnectedError`,
+so a drop between connecting and wrapping is not lost.
+
+What it does on the link:
+
+- **Write type.** The app writes with the characteristic's default write
+  type, which on Android is a write with response when the characteristic
+  allows it. `BleakTransport` does the same: `response=True` when the
+  communication characteristic lists `write`, `response=False` when it lists
+  only `write-without-response`, and `BleError` when it lists neither. The
+  choice is logged at debug level once per connection, and
+  `write_with_response` tells which it was. Which properties the lock's
+  characteristic has is not recorded.
+- **Notifications.** bleak calls the callback with the characteristic first
+  and a `bytearray`; the transport drops the first and hands on `bytes`.
+  Nothing is handed on after `close()`.
+- **Errors.** A `TimeoutError` becomes `BleTimeoutError`. `BleakError`,
+  `EOFError` and `OSError` (what BlueZ's D-Bus socket raises when the link or
+  bluetoothd goes away) become `BleDisconnectedError` once the link is down,
+  and `BleError` otherwise, with bleak's exception as the cause.
+  `BleakGATTProtocolError` exists only from bleak 3.0 and is caught through
+  `BleakError`.
+- **Close.** Stops notifications and disconnects, never raises, and does
+  nothing the second time. bleak calls the disconnect callback on our own
+  disconnect too, and the transport ignores it.
+- **MTU.** `mtu_size` is the client's, for the log; the session frames for
+  its own `mtu`, 23 by default. CoreBluetooth cannot be asked for an MTU, and
+  bleak's BlueZ backend reports 23 whatever was negotiated.
+
+Home Assistant 2025.6 runs bleak 0.22.3 and 2026.9 runs 3.0.2, so the module
+uses only client API both have: the constructor's `disconnected_callback` and
+`timeout`, `connect`, `disconnect`, `is_connected`, `mtu_size`, `services`
+with `get_characteristic` and `properties`, `read_gatt_char`,
+`write_gatt_char` with an explicit `response`, `start_notify` and
+`stop_notify`. A test parses the module and fails on anything else, and the
+module type-checks and its tests pass on both releases. Both call the
+notification callback with the characteristic as the first argument; the
+`int` handle it used to be went away in bleak 0.18.
+
+In Home Assistant, look the lock up with
 `bluetooth.async_ble_device_from_address(hass, address, connectable=True)` and
 connect with `bleak_retry_connector.establish_connection`, as other Bluetooth
-integrations do. An ESPHome Bluetooth proxy needs nothing extra: Home
-Assistant routes the connection through it when the proxy is the closest
-adapter, as long as the proxy has active connections enabled. A proxy has only
-a few connection slots, so the session should be closed as soon as the work is
-done. Because `ble/` may not import Home Assistant, that adapter belongs
-outside the package, in the integration. Where exactly is not decided.
+integrations do, then wrap the client as above. An ESPHome Bluetooth proxy
+needs nothing extra: Home Assistant routes the connection through it when the
+proxy is the closest adapter, as long as the proxy has active connections
+enabled. A proxy has only a few connection slots, so the session should be
+closed as soon as the work is done. That glue imports Home Assistant, so it
+lives outside `ble/`, in the integration.
+
+### Tracing frames
+
+A `Tracer` passed to `Session(transport, tracer=...)` is handed every frame
+the session handles: `command` for each command with its CommandRef,
+`packet_out` for each Layer 1 packet before it is written, `packet_in` for each
+notification, `response` for each response or event that parsed, and
+`dropped` for a frame that did not, with the bytes that failed. It is a
+`Protocol`, so any object with those five methods will do. `client/tracing.py`
+spells out the order and which bytes `dropped` gets.
+
+The library does not redact what it hands a tracer. `command` sees PinCodeSet
+with the PIN and UserAuthFinalize with the challenge answer, and `response`
+sees the owner challenge; only the packets after the key exchange are
+ciphertext. A tracer that writes anything down has to redact it first. A
+tracer that raises is logged by the exception's type and does not break the
+session.
+
+### The fake lock
 
 Tests use `tests/ble/fake_lock.py`: `FakeLock` holds a lock's lasting state,
 and `FakeTransport` is one connection to it that plays the lock side with the
-`cryptography` package directly.
+`cryptography` package directly. `FakeBleakClient` puts the same lock behind
+bleak's `BleakClient` shape and raises bleak's own exceptions, and
+`tests/ble/client/test_bleak_transport.py` runs a full enrollment and a
+PinCodeSet through `Session`, `BleakTransport` and that client. bleak comes
+from the `ble` dependency group, which `unit` includes; without bleak
+installed those tests skip.
 
 ## Finding the lock
 
@@ -390,10 +448,12 @@ dropped frame's `BleProtocolError` as its cause.
   `tests/ble/client/test_session.py` checks that no `_LOGGER` call passes a
   value named like a key, PIN, challenge or payload. No log call carries a
   traceback.
-- **`cryptography` comes from Home Assistant.** It is a core Home Assistant
-  requirement, so it is not in `manifest.json`, where a pin could fight the
-  one Home Assistant sets. The tests get it from the `unit` group in
-  `pyproject.toml`. `crypto.py` uses only API that both ends of the supported
+- **`cryptography` and `bleak` come from Home Assistant.** `cryptography` is a
+  core Home Assistant requirement and bleak comes with its bluetooth
+  integration, so neither is in `manifest.json`, where a pin could fight the
+  one Home Assistant sets. The tests get them from the `unit` group in
+  `pyproject.toml`, bleak through the `ble` group it includes. `crypto.py` and
+  `client/bleak_transport.py` use only API that both ends of the supported
   Home Assistant range ship.
 - **Protocol values come from the app.** A value nobody could read out of the
   decompiled code is marked as a guess where it is used, not filled in.
@@ -423,7 +483,14 @@ What the tests cover, beyond each builder and parser:
   logs in again with the stored enrollment and checks that the factory key is
   refused.
 - `test_package.py` holds the layering, the package boundary, the rule that
-  only `BleError` is raised, and that every name in `__all__` resolves.
+  only `BleError` is raised, that only `client/bleak_transport.py` imports
+  bleak and the package loads without it, and that every name in `__all__`
+  resolves.
+- `client/test_bleak_transport.py` runs the bleak transport against
+  `FakeBleakClient`, end to end included, and holds it to the client API that
+  bleak 0.22.3 and 3.0.2 share.
+- `client/test_tracing.py` compares what a tracer is handed with what the
+  fake lock saw on its side of the link.
 
 The tests use `asyncio.run` rather than pytest-asyncio, which the `unit` group
 does not have.

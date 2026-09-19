@@ -5,8 +5,9 @@ the radio. A Transport is connected to one lock when the session gets it and
 does four things, all on the GATT side of the link: read the firmware revision,
 subscribe to the communication characteristic, write to it, and let go.
 Scanning, connecting and MTU negotiation stay with whoever builds the
-Transport. A bleak or Home Assistant bluetooth implementation plugs in here;
-tests use the fake lock in tests/ble/fake_lock.py.
+Transport. bleak_transport.py implements it over bleak, and Home Assistant's
+bluetooth integration hands out bleak clients too; tests use the fake lock in
+tests/ble/fake_lock.py.
 
 The app does the same steps in the same order (NimlyEkeyDeviceBase.connect):
 request MTU 23, discover services, read the Software Revision String, enable

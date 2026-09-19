@@ -33,7 +33,13 @@ import pytest
 # it; a bare Python without it skips this file, as it does the transport tests.
 pytest.importorskip("bleak")
 
-from .ble.fake_lock import CHALLENGE, FakeBleakClient, FakeLock  # noqa: E402
+from .ble.fake_lock import (  # noqa: E402
+    CHALLENGE,
+    DEVICE_INFORMATION_SERVICE_UUID,
+    MANUFACTURER_NAME_UUID,
+    FakeBleakClient,
+    FakeLock,
+)
 from .conftest import COMPONENT_DIR, load_component_module  # noqa: E402
 
 CLI_PATH = Path(__file__).resolve().parent.parent / "scripts" / "ble_cli.py"
@@ -88,14 +94,18 @@ class FakeRadio:
 
     open() goes through the real BleakTransport.connect, with FakeBleakClient
     as the client class, so the CLI runs on the transport it uses on a Mac.
-    configure gets each connection's lock side (a FakeTransport) to set
-    status overrides, silences and lost answers on.
+    connect() hands info a connected FakeBleakClient, whose GATT table it
+    walks. configure gets each connection's lock side (a FakeTransport) to
+    set status overrides, silences and lost answers on; configure_client
+    gets the FakeBleakClient itself, and client_kwargs go to its constructor.
     """
 
-    def __init__(self, lock=None, adverts=(), configure=None):
+    def __init__(self, lock=None, adverts=(), configure=None, configure_client=None, client_kwargs=None):
         self.lock = lock
         self.adverts = list(adverts)
         self.configure = configure
+        self.configure_client = configure_client
+        self.client_kwargs = client_kwargs or {}
         self.connects: list[str] = []
         self.clients = []
         self.scans = 0
@@ -108,25 +118,33 @@ class FakeRadio:
             on_seen(seen)
         await asyncio.sleep(seconds)
 
-    async def open(self, address, timeout):
+    def _client(self, device, **kwargs):
+        client = FakeBleakClient(device, **self.client_kwargs, **kwargs)
+        if self.configure is not None:
+            self.configure(client.link)
+        if self.configure_client is not None:
+            self.configure_client(client)
+        self.clients.append(client)
+        return client
+
+    def _check_seen(self, address):
         self.connects.append(address)
         if self.lock is None:
             raise cli.CliError(f"{address} was not seen")
 
-        def client_class(device, **kwargs):
-            client = FakeBleakClient(device, **kwargs)
-            if self.configure is not None:
-                self.configure(client.link)
-            self.clients.append(client)
-            return client
-
-        return await BleakTransport.connect(self.lock, timeout=timeout, client_class=client_class)
+    async def open(self, address, timeout):
+        self._check_seen(address)
+        return await BleakTransport.connect(self.lock, timeout=timeout, client_class=self._client)
 
     async def connect(self, address, timeout):
-        raise AssertionError("only info inspects GATT; its tests use _GattRadio")
+        # What BleakRadio.connect does: a client, connected, services discovered.
+        self._check_seen(address)
+        client = self._client(self.lock, timeout=timeout)
+        await client.connect()
+        return client
 
     async def disconnect(self, client):
-        raise AssertionError("only info inspects GATT; its tests use _GattRadio")
+        await client.disconnect()
 
 
 FACTORY_IDENTIFIER = bytes.fromhex("0a0b0c0d0e0f")
@@ -336,71 +354,59 @@ def test_scan_watch_logs_each_advertisement(run_cli):
     assert "seed 0000" in result.out
 
 
-class _Characteristic:
-    def __init__(self, uuid, properties, description=""):
-        self.uuid = uuid
-        self.properties = properties
-        self.description = description
-
-
-class _Service:
-    def __init__(self, uuid, characteristics, description=""):
-        self.uuid = uuid
-        self.characteristics = characteristics
-        self.description = description
-
-
-class _GattClient:
-    """The GATT side of a BleakClient, as much as info reads."""
-
-    mtu_size = 185
-
-    def __init__(self):
-        self.services = [
-            _Service(
-                "0000180a-0000-1000-8000-00805f9b34fb",
-                [
-                    _Characteristic(client_const.SOFTWARE_REVISION_CHARACTERISTIC_UUID, ["read"]),
-                    _Characteristic("00002a29-0000-1000-8000-00805f9b34fb", ["read"]),
-                ],
-                "Device Information",
-            ),
-            _Service(
-                client_const.SERVICE_UUID,
-                [_Characteristic(client_const.COMMUNICATION_CHARACTERISTIC_UUID, ["write", "notify"])],
-            ),
-        ]
-        self.disconnected = False
-
-    async def read_gatt_char(self, characteristic):
-        if characteristic.uuid == client_const.SOFTWARE_REVISION_CHARACTERISTIC_UUID:
-            return bytearray(b"4.8.0")
-        raise OSError("read not permitted")
-
-
-class _GattRadio(FakeRadio):
-    def __init__(self):
-        super().__init__()
-        self.client = _GattClient()
-
-    async def connect(self, address, timeout):
-        self.connects.append(address)
-        return self.client
-
-    async def disconnect(self, client):
-        client.disconnected = True
-
-
 def test_info_lists_gatt_without_protocol_frames(run_cli):
-    radio = _GattRadio()
+    lock = FakeLock()
+    radio = FakeRadio(lock, client_kwargs={"mtu_size": 185})
     result = run_cli("info", ADDRESS, radio=radio)
     assert result.code == 0, result.err
     assert "MTU 185" in result.out
-    assert f"characteristic {client_const.COMMUNICATION_CHARACTERISTIC_UUID}  [notify, write]" in result.out
+    assert "service 0000180a-0000-1000-8000-00805f9b34fb  Device Information" in result.out
+    assert f"characteristic {client_const.COMMUNICATION_CHARACTERISTIC_UUID}  [notify, read, write]" in result.out
     assert "Software Revision: '4.8.0'" in result.out
-    assert "Manufacturer Name: read failed" in result.out
-    assert radio.client.disconnected
+    # The fake refuses a read it has no value for, as a lock refuses a read.
+    assert "Manufacturer Name: read failed, BleakError" in result.out
+    [client] = radio.clients
+    assert client.disconnect_calls == 1 and not client.is_connected
+    assert client.read_calls == [client_const.SOFTWARE_REVISION_CHARACTERISTIC_UUID, MANUFACTURER_NAME_UUID]
+    assert client.write_calls == [] and client.notifying is None
+    assert lock.commands == []
     assert result.events("packet") == []
+    services = result.events("service")
+    assert [service["uuid"] for service in services] == [DEVICE_INFORMATION_SERVICE_UUID, client_const.SERVICE_UUID]
+    assert services[1]["characteristics"] == [
+        {"uuid": client_const.COMMUNICATION_CHARACTERISTIC_UUID, "properties": ["notify", "read", "write"]}
+    ]
+
+
+def test_info_prints_a_value_the_lock_answers_with(run_cli):
+    def manufacturer(client):
+        client.gatt_values[MANUFACTURER_NAME_UUID] = b"Onesti Products AS"
+
+    result = run_cli("info", ADDRESS, radio=FakeRadio(FakeLock(), configure_client=manufacturer))
+    assert result.code == 0, result.err
+    assert "Manufacturer Name: 'Onesti Products AS'" in result.out
+    [read] = [r for r in result.events("read") if r["uuid"] == MANUFACTURER_NAME_UUID]
+    assert bytes.fromhex(read["hex"]) == b"Onesti Products AS"
+
+
+def test_info_disconnects_when_the_walk_fails(run_cli):
+    """A GATT table the stack cannot hand out still lets go of the connection."""
+
+    def undiscovered(client):
+        class Undiscovered:
+            def __iter__(self):
+                from bleak.exc import BleakError
+
+                raise BleakError("Service Discovery has not been performed yet")
+
+        client.services = Undiscovered()
+
+    radio = FakeRadio(FakeLock(), configure_client=undiscovered)
+    result = run_cli("info", ADDRESS, radio=radio)
+    assert result.code == cli.EXIT_FAILED
+    assert "BleakError" in result.err
+    [client] = radio.clients
+    assert client.disconnect_calls == 1
 
 
 # --- Sessions ---------------------------------------------------------------------------

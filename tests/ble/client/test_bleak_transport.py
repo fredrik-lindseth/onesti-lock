@@ -26,11 +26,14 @@ from bleak.exc import BleakCharacteristicNotFoundError, BleakError  # noqa: E402
 
 from ...conftest import COMPONENT_DIR, load_component_module  # noqa: E402
 from ..fake_lock import (  # noqa: E402
+    DEVICE_INFORMATION_SERVICE_UUID,
     PHONE_LINK_PRIVATE_KEY,
     PHONE_SERVER_PRIVATE_KEY,
     PHONE_UPDATE_PRIVATE_KEY,
     FakeBleakClient,
     FakeLock,
+    FakeService,
+    FakeServices,
     key_pairs,
 )
 
@@ -224,6 +227,8 @@ class TestReadSoftwareRevision:
         value = run(wrap(client).read_software_revision())
         assert value == b"4.8.2"
         assert type(value) is bytes
+        # The transport reads that one characteristic and nothing else in the table.
+        assert client.read_calls == [client_const.SOFTWARE_REVISION_CHARACTERISTIC_UUID]
 
     @pytest.mark.parametrize(
         ("error", "expected", "message"),
@@ -285,7 +290,7 @@ class TestStartNotify:
 
     def test_a_lock_without_the_communication_characteristic(self):
         client = connected_client()
-        client.services = type(client.services)([client.software_revision])
+        client.services = FakeServices([FakeService(DEVICE_INFORMATION_SERVICE_UUID, [client.software_revision])])
         with pytest.raises(errors.BleError, match="no communication characteristic"):
             run(wrap(client).start_notify(lambda data: None, lambda: None))
 
@@ -488,10 +493,53 @@ def test_the_characteristic_is_passed_as_an_object_not_a_uuid():
     assert seen == [client.communication]
 
 
+def test_the_fake_gatt_table_has_the_shape_of_bleaks():
+    """The fake's services, as far as it models them, answer to bleak's own names."""
+    from bleak.backends.characteristic import BleakGATTCharacteristic
+    from bleak.backends.service import BleakGATTService, BleakGATTServiceCollection
+
+    client = connected_client()
+    service = client.services.get_service(DEVICE_INFORMATION_SERVICE_UUID)
+    shapes = [
+        (client.services, BleakGATTServiceCollection, ("services", "characteristics", "get_service", "get_characteristic")),
+        (service, BleakGATTService, ("uuid", "handle", "description", "characteristics", "get_characteristic")),
+        (
+            client.communication,
+            BleakGATTCharacteristic,
+            ("uuid", "handle", "properties", "description", "descriptors", "service_uuid", "service_handle"),
+        ),
+    ]
+    for fake, real, names in shapes:
+        for name in names:
+            assert hasattr(real, name), f"bleak's {real.__name__} has no {name}; the fake models something bleak lacks"
+            assert hasattr(fake, name), f"the fake {type(fake).__name__} lacks {name}"
+
+    # Iterating gives the services, each with its characteristics, as in bleak.
+    table = [(service.uuid, [c.uuid for c in service.characteristics]) for service in client.services]
+    assert table == [
+        (
+            DEVICE_INFORMATION_SERVICE_UUID,
+            [client_const.SOFTWARE_REVISION_CHARACTERISTIC_UUID, client.manufacturer_name.uuid],
+        ),
+        (client_const.SERVICE_UUID, [client_const.COMMUNICATION_CHARACTERISTIC_UUID]),
+    ]
+    assert client.services.characteristics[client.communication.handle] is client.communication
+    assert client.services.services[client.communication.service_handle].uuid == client_const.SERVICE_UUID
+    assert client.services.get_service("0000ffff-0000-1000-8000-00805f9b34fb") is None
+    service = client.services.get_service(client_const.SERVICE_UUID.upper())
+    assert service.get_characteristic(client_const.COMMUNICATION_CHARACTERISTIC_UUID) is client.communication
+    assert service.get_characteristic(client_const.SOFTWARE_REVISION_CHARACTERISTIC_UUID) is None
+
+
 def test_bleak_characteristic_not_found_is_a_ble_error():
     client = connected_client()
     client.software_revision.uuid = "00002a26-0000-1000-8000-00805f9b34fb"
-    client.services = type(client.services)([client.communication, client.software_revision])
+    client.services = FakeServices(
+        [
+            FakeService(DEVICE_INFORMATION_SERVICE_UUID, [client.software_revision]),
+            FakeService(client_const.SERVICE_UUID, [client.communication]),
+        ]
+    )
     with pytest.raises(errors.BleError, match="BleakCharacteristicNotFoundError") as caught:
         run(wrap(client).read_software_revision())
     assert isinstance(caught.value.__cause__, BleakCharacteristicNotFoundError)

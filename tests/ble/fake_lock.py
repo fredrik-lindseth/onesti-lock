@@ -28,7 +28,7 @@ and drops only the answer, as a radio that loses the lock's reply would.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -328,25 +328,82 @@ class FakeTransport:
 # --- The same lock behind bleak's BleakClient ----------------------------------------
 
 
-class FakeCharacteristic:
-    """What bleak hands out for a characteristic: its UUID and properties."""
+DEVICE_INFORMATION_SERVICE_UUID = "0000180a-0000-1000-8000-00805f9b34fb"
+MANUFACTURER_NAME_UUID = "00002a29-0000-1000-8000-00805f9b34fb"
 
-    def __init__(self, uuid: str, properties: list[str]) -> None:
+
+class FakeCharacteristic:
+    """bleak's BleakGATTCharacteristic: UUID, handle, properties, description, its service.
+
+    The service fields are filled in when a FakeService takes it.
+    """
+
+    def __init__(self, uuid: str, properties: list[str], description: str = "", *, handle: int = 0) -> None:
         self.uuid = uuid
         self.properties = properties
+        self.description = description
+        self.handle = handle
+        self.descriptors: list[object] = []
+        self.service_uuid = ""
+        self.service_handle = 0
 
     def __repr__(self) -> str:
         return f"FakeCharacteristic({self.uuid})"
 
 
-class FakeServices:
-    """BleakGATTServiceCollection, as far as get_characteristic goes."""
+class FakeService:
+    """bleak's BleakGATTService: UUID, handle, description and its characteristics."""
 
-    def __init__(self, characteristics: list[FakeCharacteristic]) -> None:
-        self._by_uuid = {c.uuid: c for c in characteristics}
+    def __init__(
+        self, uuid: str, characteristics: list[FakeCharacteristic], description: str = "", *, handle: int = 0
+    ) -> None:
+        self.uuid = uuid
+        self.handle = handle
+        self.description = description
+        self.characteristics = characteristics
+        for characteristic in characteristics:
+            characteristic.service_uuid = uuid
+            characteristic.service_handle = handle
 
     def get_characteristic(self, uuid: object) -> FakeCharacteristic | None:
-        return self._by_uuid.get(str(uuid).lower())
+        wanted = str(uuid).lower()
+        return next((c for c in self.characteristics if c.uuid == wanted), None)
+
+    def __repr__(self) -> str:
+        return f"FakeService({self.uuid})"
+
+
+class FakeServices:
+    """bleak's BleakGATTServiceCollection.
+
+    Iterating gives the services in discovery order, as bleak's does;
+    services and characteristics are dicts by handle, and get_service and
+    get_characteristic look up by UUID. Handles are numbered here when the
+    services were built without them.
+    """
+
+    def __init__(self, services: list[FakeService]) -> None:
+        handle = 0
+        for service in services:
+            handle += 1
+            service.handle = service.handle or handle
+            for characteristic in service.characteristics:
+                handle += 1
+                characteristic.handle = characteristic.handle or handle
+                characteristic.service_handle = service.handle
+        self.services = {service.handle: service for service in services}
+        self.characteristics = {c.handle: c for service in services for c in service.characteristics}
+
+    def __iter__(self) -> Iterator[FakeService]:
+        return iter(self.services.values())
+
+    def get_service(self, uuid: object) -> FakeService | None:
+        wanted = str(uuid).lower()
+        return next((s for s in self.services.values() if s.uuid == wanted), None)
+
+    def get_characteristic(self, uuid: object) -> FakeCharacteristic | None:
+        wanted = str(uuid).lower()
+        return next((c for c in self.characteristics.values() if c.uuid == wanted), None)
 
 
 class FakeBleakClient:
@@ -359,6 +416,12 @@ class FakeBleakClient:
     bleak's shape: the characteristic handed to the notification callback,
     bytearrays, the response flag on writes, and the disconnected callback
     called with the client, also on our own disconnect(), as bleak does.
+
+    The GATT table is what the lock presents: the Device Information service
+    with the software revision and the manufacturer name, and the lock's own
+    service with the communication characteristic. read_gatt_char answers
+    from gatt_values, and refuses a characteristic without a value there the
+    way a stack does a read the peripheral rejects.
 
     bleak is imported only when a method has to raise one of its errors, so
     this module still loads where bleak is not installed.
@@ -380,8 +443,24 @@ class FakeBleakClient:
         self.link = lock.connect(**link_kwargs)
         self._disconnected_callback = disconnected_callback
         self.communication = FakeCharacteristic(client_const.COMMUNICATION_CHARACTERISTIC_UUID, list(properties))
-        self.software_revision = FakeCharacteristic(client_const.SOFTWARE_REVISION_CHARACTERISTIC_UUID, ["read"])
-        self.services = FakeServices([self.communication, self.software_revision])
+        self.software_revision = FakeCharacteristic(
+            client_const.SOFTWARE_REVISION_CHARACTERISTIC_UUID, ["read"], "Software Revision String"
+        )
+        self.manufacturer_name = FakeCharacteristic(MANUFACTURER_NAME_UUID, ["read"], "Manufacturer Name String")
+        self.services = FakeServices(
+            [
+                FakeService(
+                    DEVICE_INFORMATION_SERVICE_UUID,
+                    [self.software_revision, self.manufacturer_name],
+                    "Device Information",
+                ),
+                FakeService(client_const.SERVICE_UUID, [self.communication], "Unknown"),
+            ]
+        )
+        # Values read_gatt_char returns by UUID. The software revision is the
+        # lock's firmware, read when asked; the rest answer nothing by default.
+        self.gatt_values: dict[str, bytes] = {}
+        self.read_calls: list[str] = []
         self.mtu_size = mtu_size
         self.is_connected = connected
         # What the client was asked to do, in order.
@@ -426,9 +505,16 @@ class FakeBleakClient:
     async def read_gatt_char(self, specifier: object, **kwargs: object) -> bytearray:
         self._require_connection()
         self._raise_if_set("read_gatt_char")
-        if self._resolve(specifier) is not self.software_revision:
-            raise AssertionError("The transport should read only the software revision")
-        return bytearray(self.lock.firmware)
+        characteristic = self._resolve(specifier)
+        self.read_calls.append(characteristic.uuid)
+        if characteristic is self.software_revision:
+            return bytearray(self.lock.firmware)
+        value = self.gatt_values.get(characteristic.uuid)
+        if value is None or "read" not in characteristic.properties:
+            from bleak.exc import BleakError
+
+            raise BleakError(f"Failed to read characteristic {characteristic.handle}: read not permitted")
+        return bytearray(value)
 
     async def start_notify(self, specifier: object, callback: Callable[..., None], **kwargs: object) -> None:
         self._require_connection()

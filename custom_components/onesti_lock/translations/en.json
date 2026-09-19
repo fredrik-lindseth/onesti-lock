@@ -29,7 +29,7 @@
       },
       "set_pin": {
         "title": "Set PIN code",
-        "description": "Pick a slot, then enter a name and a PIN code of 4-8 digits. Slot numbers are the lock's own user slots (ZCL DoorLock), and the list starts after the master slots set under Settings. If the lock is asleep, the first attempt times out and the integration wakes it with a lock command, which physically locks an unlocked door. Close the door before you start.",
+        "description": "Pick a slot, then enter a name and a PIN code. Slot numbers are the lock's own user slots (ZCL DoorLock), and the list starts after the master slots set under Settings. The lock confirms that it received the code, not that it accepted it, so try the new code on the keypad. If the lock is asleep, the first attempt times out and the integration wakes it with a lock command, which physically locks an unlocked door. Close the door before you start.",
         "data": {
           "slot": "User slot",
           "name": "Name",
@@ -38,7 +38,7 @@
       },
       "clear_pin": {
         "title": "Clear PIN code",
-        "description": "Pick the user to remove. If the lock is asleep, the integration wakes it with a lock command, which physically locks an unlocked door.",
+        "description": "Pick the user whose PIN code to remove. Only slots with a PIN code are listed. The name stays, so remove it under Name a user slot if the slot is no longer in use. If the lock is asleep, the integration wakes it with a lock command, which physically locks an unlocked door.",
         "data": {
           "slot": "User"
         }
@@ -68,7 +68,7 @@
       "clear_pin_progress": "Clearing PIN code from the lock..."
     },
     "error": {
-      "invalid_pin": "PIN code must be 4-8 digits",
+      "invalid_pin": "PIN code must be {min}-{max} digits",
       "invalid_slot": "Slot number must be between 0 and 999",
       "lock_unreachable": "Could not reach the lock. Press the keypad and try again.",
       "unknown": "An unexpected error occurred. Check the logs."
@@ -95,13 +95,16 @@
       "message": "Slot must be between {min} and {max}"
     },
     "invalid_pin": {
-      "message": "PIN code must be 4-8 digits"
+      "message": "PIN code must be {min}-{max} digits"
     },
     "lock_not_found": {
       "message": "No Onesti lock found"
     },
     "lock_not_found_ieee": {
       "message": "No Onesti lock found with IEEE {ieee}"
+    },
+    "multiple_locks": {
+      "message": "More than one Onesti lock is set up ({ieees}). Pick the lock with device_id, or give its ieee."
     }
   },
   "runtime": {

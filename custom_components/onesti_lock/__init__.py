@@ -1,7 +1,9 @@
 """Onesti Lock: PIN management and activity tracking for Onesti/Nimly locks."""
 from __future__ import annotations
 
+import homeassistant.helpers.config_validation as cv
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.typing import ConfigType
 
 from .const import DOMAIN
 from .coordinator import NimlyConfigEntry, NimlyCoordinator
@@ -10,15 +12,21 @@ from .localize import async_get_strings
 
 PLATFORMS = ["sensor"]
 
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Register the services once for all locks."""
+    from .services import async_setup_services
+    await async_setup_services(hass)
+    return True
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: NimlyConfigEntry) -> bool:
     """Set up Onesti Lock from a config entry."""
     coordinator = NimlyCoordinator(hass, entry)
     coordinator.strings = await async_get_strings(hass, hass.config.language)
     entry.runtime_data = coordinator
-
-    from .services import async_setup_services
-    await async_setup_services(hass)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -36,17 +44,4 @@ async def async_setup_entry(hass: HomeAssistant, entry: NimlyConfigEntry) -> boo
 
 async def async_unload_entry(hass: HomeAssistant, entry: NimlyConfigEntry) -> bool:
     """Unload a config entry."""
-    await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-
-    # The entry being unloaded is excluded by id: HA 2024.12 still reports it
-    # as LOADED here, newer releases as UNLOAD_IN_PROGRESS.
-    others = [
-        other
-        for other in hass.config_entries.async_loaded_entries(DOMAIN)
-        if other.entry_id != entry.entry_id
-    ]
-    if not others:
-        from .services import async_unload_services
-        await async_unload_services(hass)
-
-    return True
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

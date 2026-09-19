@@ -27,6 +27,7 @@ EXCEPTION_KEYS = [
     "invalid_pin",
     "lock_not_found",
     "lock_not_found_ieee",
+    "multiple_locks",
 ]
 PLACEHOLDER_RE = re.compile(r"\{(\w+)\}")
 EM_DASH = "—"
@@ -126,6 +127,38 @@ class TestExceptions:
     def test_lock_not_found_ieee_has_ieee(self):
         message = _load("strings.json")["exceptions"]["lock_not_found_ieee"]["message"]
         assert _placeholders(message) == {"ieee"}
+
+    def test_multiple_locks_lists_the_ieees(self):
+        message = _load("strings.json")["exceptions"]["multiple_locks"]["message"]
+        assert _placeholders(message) == {"ieees"}
+
+    def test_invalid_pin_names_the_lock_s_range(self):
+        """The range comes from the lock, so the text cannot hardcode 4-8."""
+        message = _load("strings.json")["exceptions"]["invalid_pin"]["message"]
+        assert _placeholders(message) == {"min", "max"}
+
+
+class TestOptionsErrors:
+    """Form errors in the options flow, filled from description_placeholders."""
+
+    def test_same_error_keys_everywhere(self):
+        base = set(_load("strings.json")["options"]["error"])
+        for filename in LANGUAGE_FILES:
+            keys = set(_load(filename)["options"]["error"])
+            assert keys == base, f"{filename}: missing {base - keys}, extra {keys - base}"
+
+    @pytest.mark.parametrize("filename", LANGUAGE_FILES)
+    def test_placeholders_match_across_files(self, filename):
+        base = _load("strings.json")["options"]["error"]
+        errors = _load(filename)["options"]["error"]
+        for key, value in base.items():
+            assert _placeholders(errors[key]) == _placeholders(value), (
+                f"{filename} options.error.{key}: placeholders differ"
+            )
+
+    def test_invalid_pin_names_the_lock_s_range(self):
+        message = _load("strings.json")["options"]["error"]["invalid_pin"]
+        assert _placeholders(message) == {"min", "max"}
 
 
 class TestRuntimeSection:

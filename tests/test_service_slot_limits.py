@@ -141,3 +141,49 @@ class TestClearPinStaysPermissive:
         handlers = _handlers(coordinator)
         asyncio.run(handlers["clear_pin"](FakeCall(slot=60)))
         assert coordinator.clear_pin_calls == [60]
+
+
+class TestSetPinLength:
+    """set_pin checks the code against the lock's reported PIN length."""
+
+    def test_the_fallback_range_applies_while_capabilities_are_unread(self):
+        coordinator = FakeCoordinator()
+        handlers = _handlers(coordinator)
+        with pytest.raises(HomeAssistantError) as excinfo:
+            asyncio.run(
+                handlers["set_pin"](FakeCall(slot=5, name="Kari", code="123456789"))
+            )
+        assert excinfo.value.translation_key == "invalid_pin"
+        assert excinfo.value.translation_placeholders == {"min": "4", "max": "8"}
+        assert coordinator.set_pin_calls == []
+
+    def test_the_reported_range_is_enforced_and_named(self):
+        coordinator = FakeCoordinator({"min_pin_length": 6, "max_pin_length": 10})
+        handlers = _handlers(coordinator)
+        with pytest.raises(HomeAssistantError) as excinfo:
+            asyncio.run(
+                handlers["set_pin"](FakeCall(slot=5, name="Kari", code="1234"))
+            )
+        assert excinfo.value.translation_key == "invalid_pin"
+        assert excinfo.value.translation_placeholders == {"min": "6", "max": "10"}
+        assert coordinator.set_pin_calls == []
+
+    def test_a_code_inside_the_reported_range_is_sent(self):
+        coordinator = FakeCoordinator({"min_pin_length": 6, "max_pin_length": 10})
+        handlers = _handlers(coordinator)
+        asyncio.run(
+            handlers["set_pin"](FakeCall(slot=5, name="Kari", code="1234567890"))
+        )
+        assert coordinator.set_pin_calls == [(5, "Kari", "1234567890")]
+
+    def test_the_error_never_carries_the_code(self):
+        """Exceptions end up in the log and in automation traces."""
+        coordinator = FakeCoordinator()
+        handlers = _handlers(coordinator)
+        with pytest.raises(HomeAssistantError) as excinfo:
+            asyncio.run(
+                handlers["set_pin"](FakeCall(slot=5, name="Kari", code="837291645"))
+            )
+        error = excinfo.value
+        assert "837291645" not in str(error)
+        assert "837291645" not in repr(error.translation_placeholders)

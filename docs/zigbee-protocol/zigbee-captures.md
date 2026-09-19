@@ -31,7 +31,8 @@ Type: bitmap32
 Sent on every lock/unlock. Little-endian byte order:
 
 ```
-Bytes 0-1: user_slot  (uint16 LE) 0 = system/auto, 3-999 = user slot
+Bytes 0-1: user_slot  (uint16 LE) 0 = master credential when the source is
+                      keypad/fingerprint/rfid, otherwise no user; 1-999 = slot
 Byte 2:    action     0x01 = lock, 0x02 = unlock
 Byte 3:    source     see table below
 ```

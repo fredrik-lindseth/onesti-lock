@@ -142,7 +142,11 @@ Reconfigure (Settings → Devices → [lock] → "Reconfigure device") re-establ
 
 ### "Slot must be between 3 and N"
 
-`set_pin` refuses slots above what the lock reports in NumberOfPINUsersSupported (highest slot = N-1; NimlyPRO and NimlyCodePRO report 50). If the lock never answered the capability read, the manual's 0-999 range applies. Slots 0-2 are reserved for master codes.
+`set_pin` refuses slots above what the lock reports in NumberOfPINUsersSupported (highest slot = N-1; NimlyPRO and NimlyCodePRO report 50). If the lock never answered the capability read, 999 is the ceiling. The lower bound is the reserved-slots setting under Configure > Settings: 3 by default, which fits Touch Pro, PRO and Code with master codes on 0-2. A Code Pro has only slot 0 as master, so set it to 1 there to use slots 1 and 2. Slot 0 is never written.
+
+### "Slot number must be between 3 and 999"
+
+Fixed after 1.3.0. The Name a user slot form used to refuse the master slots 0-2, so the master code could not get a name. It now takes any slot from 0 to 999, as does `set_name`. Names never reach the lock.
 
 ### "Could not reach the lock" in Options flow
 
@@ -204,6 +208,10 @@ Lock event: unlock by Kari via keypad (raw: 0x02020003)
 ```
 
 If nothing is logged on unlock: the lock is not sending reports. See "After battery change" in section 1.
+
+### Slot 0 shows as Unknown
+
+Fixed after 1.3.0. Earlier versions treated slot 0 as "no user" for every source, so a master code unlock showed as "Unknown unlocked with code". Slot 0 events from the keypad, fingerprint reader or key tag reader now carry the name set on slot 0, or "Master" if it has none. Name it via Configure > Name a user slot, slot 0. Slot 0 with source zigbee, auto or unattributed is still no user.
 
 ### Auto-lock overwrites user events
 

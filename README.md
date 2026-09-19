@@ -63,8 +63,11 @@ Or go to **Settings → Devices & Services → Add Integration → Onesti Lock**
 
 - **Set PIN code**: select slot, enter name and a 4-8 digit code
 - **Clear PIN code**: select the user to remove
-- **Name a user slot**: assign a name to any slot (for RFID, fingerprint, etc.)
-- **View user slots**: overview of all slots
+- **Name a user slot**: assign a name to any slot from 0 to 999, master slots included (for RFID, fingerprint, the master code, etc.). An empty name removes it.
+- **View user slots**: overview of the master slots and the first user slots
+- **Settings**: how many slots from 0 up are master codes on this lock (1-3, default 3). The Set PIN list starts after them, and `set_pin`, `clear_pin` and `clear_slot` refuse them. Set it to 1 on a Code Pro, which has only one master slot. Slot 0 is never written, whatever the setting.
+
+Names live in Home Assistant only and never reach the lock, which is why every slot can be named. When someone unlocks with the master code, fingerprint or key tag on slot 0, the activity sensor and the `onesti_lock_activity` event use the name you gave slot 0, or "Master" if it has none.
 
 Menu labels follow the Home Assistant server language.
 
@@ -78,14 +81,14 @@ data:
   code: "5478"
 ```
 
-| Service                  | Description                           |
-| ------------------------ | ------------------------------------- |
-| `onesti_lock.set_pin`    | Set PIN code with name for a slot     |
-| `onesti_lock.clear_pin`  | Remove PIN code from a slot           |
-| `onesti_lock.set_name`   | Set name without changing credentials |
-| `onesti_lock.clear_slot` | Remove all credentials and name       |
+| Service                  | Description                           | Slots accepted         |
+| ------------------------ | ------------------------------------- | ---------------------- |
+| `onesti_lock.set_pin`    | Set PIN code with name for a slot     | first user slot to N-1 |
+| `onesti_lock.clear_pin`  | Remove PIN code from a slot           | first user slot to 999 |
+| `onesti_lock.set_name`   | Set name without changing credentials | 0-999                  |
+| `onesti_lock.clear_slot` | Remove all credentials and name       | first user slot to 999 |
 
-`set_pin` refuses slot numbers above what the lock reports it can hold (NumberOfPINUsersSupported; NimlyPRO and NimlyCodePRO report 50, so the highest usable slot is 49). Until the lock has reported its capacity, the manual's range of 3-999 applies. `clear_pin`, `set_name` and `clear_slot` always accept 3-999, so a slot that was filled before the limit was known can still be emptied or renamed.
+The first user slot is the Settings value: 3 by default, 1 or 2 if you lowered it. `set_pin` also refuses slot numbers above what the lock reports it can hold (NumberOfPINUsersSupported, N above; NimlyPRO and NimlyCodePRO report 50, so the highest usable slot is 49). Until the lock has reported its capacity, 999 is the ceiling. `clear_pin` and `clear_slot` go all the way to 999, so a slot that was filled before the limit was known can still be emptied. `set_name` takes any slot, since it only touches Home Assistant.
 
 ### RFID and fingerprint
 
@@ -93,13 +96,17 @@ RFID tags and fingerprints must be enrolled via the physical lock (using master 
 
 ## Slot numbering
 
-From the Nimly/EasyAccess manual:
+The manuals disagree between models, so the numbering is per model:
 
-| Slots   | Purpose                                                    |
-| ------- | ---------------------------------------------------------- |
-| 000     | First master code (factory code `123`, change immediately) |
-| 001-002 | Additional master codes (optional)                         |
-| 003-999 | User codes, RFID tags, fingerprints                        |
+| Model          | Master codes                       | User codes | Source                                                                                                                        |
+| -------------- | ---------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Touch Pro, PRO | 000 (factory `123`), 001-002 extra | 003-999    | [Touch Pro manual (nimly.se, 2024)](https://nimly.se/wp-content/uploads/2024/09/EN-Touch-Pro-Installation-Manual-150324.pdf)  |
+| Code           | 000 (factory `123`), 001-002 extra | 003-999    | [Code installation guide (nimly.se, 2022)](https://nimly.se/wp-content/uploads/2023/11/EN-Code-Installation-Guide-130922.pdf) |
+| Code Pro       | 000 (factory `123`)                | 001-999    | [Code Pro product guide (nimly.se, 2026)](https://nimly.se/wp-content/uploads/2026/04/EN-Code-Pro-Product-Guide-120126.pdf)   |
+
+Change the factory code straight away. The manuals say master codes cannot be deleted, only overwritten, and the master code also opens the door (the Code Pro can be set to use it for programming only). Fingerprints and key tags have their own ranges in each manual (the Touch Pro takes user fingerprints on 003-199), so check yours before naming those slots.
+
+The lock does not tell the models apart over Zigbee: a Code Pro has reported itself as NimlyTwist ([#5](https://github.com/fredrik-lindseth/onesti-lock/issues/5)). That is why the number of master slots is a setting and not detected. The default of 3 is the safe choice on every model; lower it to 1 on a Code Pro to use slots 1 and 2 for users.
 
 How Zigbee, BLE and cloud slot numbers relate is documented in [docs/slot-numbering.md](docs/slot-numbering.md).
 

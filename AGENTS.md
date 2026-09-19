@@ -59,7 +59,7 @@ Session notes and stale plans contain earlier incorrect guesses. Code is authori
 ## Gotchas
 
 1. **ZHA device chain depth**: Clusters live on depth-2 object (CustomDeviceV2), not the ZHADeviceProxy. `_get_cluster()` walks .device chain up to 4 levels.
-2. **Slot numbering**: Zigbee ZCL uses 0-999 (0-2 master, 3+ users). BLE uses 800-899. UI shows 10 sensors for slots 3-12. `set_pin` rejects slots at or above the lock's reported `NumberOfPINUsersSupported` (50 on both tested models); see `pin_rules.py` and `docs/slot-numbering.md`.
+2. **Slot numbering**: Zigbee ZCL uses 0-999. Slot 0 is master on every model; 1-2 are master on Touch Pro, PRO and Code but user slots on Code Pro, and the model string cannot tell them apart (#5). So the per-lock option `reserved_slots` (1-3, default 3, `pin_rules.first_user_slot`) is the floor for set_pin/clear_pin/clear_slot, and slot 0 is never written. Every slot 0-999 can be named. Slot 0 events from keypad/fingerprint/rfid are the master user; from zigbee/auto/unattributed they are no user. BLE uses 800-899. UI shows 10 sensors for slots 3-12. `set_pin` rejects slots at or above the lock's reported `NumberOfPINUsersSupported` (50 on both tested models); see `pin_rules.py` and `docs/slot-numbering.md`.
 3. **Options flow progress**: HA's `async_show_progress` requires step `foo_progress` with action `foo_progress`, which then auto-calls `foo_progress_done` → `async_step_foo_result`.
 4. **Activity sensor suppression**: System-initiated locking (source `auto`, and on NimlyCodePRO an `unattributed` lock with no user slot) fires the HA event but does NOT update the activity sensor, to avoid overwriting "Kari låste opp med kode" with "Auto-lås".
 5. **CI/release workflows**: Both `.github/workflows/` files must reference `custom_components/onesti_lock/` (not `nimly_pro`).
@@ -157,7 +157,7 @@ notes. Replace it.
 ## Common Tasks
 
 - **Add new source type**: Update `_SOURCE_MAP` in `__init__.py` + `SOURCE_*` in `const.py` + `lock_<source>`/`unlock_<source>` in the `runtime` section of all four `translations/*.json` (and `strings.json`)
-- **Change slot range**: Update `SLOT_FIRST_USER`, `NUM_USER_SLOTS`, `MAX_SLOTS` in `const.py`
+- **Change slot range**: the master/user split is the `reserved_slots` option, so a user changes it in Settings, not in code. `SLOT_FIRST_USER` is only its default and `RESERVED_SLOTS_MIN`/`RESERVED_SLOTS_MAX` its bounds (keep MIN at 1 so slot 0 stays protected). `NUM_USER_SLOTS` and `MAX_SLOTS` set list length and the absolute ceiling, all in `const.py`. Update the model table in README and `docs/slot-numbering.md` along with it
 - **Add new lock model**: Add to `SUPPORTED_MODELS` in `const.py`
 - **Add new service**: Follow pattern in `services.py`, add schema + handler, register in `async_setup_services`
 

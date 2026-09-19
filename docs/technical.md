@@ -5,7 +5,7 @@
 Onesti locks send a custom attribute report (`attrid 0x0100`) on the Door Lock cluster for every lock/unlock event. This bitmap32 encodes user slot, action and source, but no existing integration decoded it. This integration listens for the reports via `cluster.on_event("attribute_report", ...)` and decodes the bitmap:
 
 ```
-Bits 0-15:  user_slot (uint16 LE; 0 = system, 3-999 = user)
+Bits 0-15:  user_slot (uint16 LE; 0 = master or no user, see below)
 Bits 16-23: action (1 = lock, 2 = unlock)
 Bits 24-31: source (see _SOURCE_MAP in __init__.py)
 ```
@@ -18,6 +18,8 @@ Bits 24-31: source (see _SOURCE_MAP in __init__.py)
 | `0x04`      | rfid                                                                                              |
 | `0x05`      | unattributed (NimlyCodePRO fw 4.8 reports this for Zigbee, auto-relock and interior keypad alike) |
 | `0x0A`      | auto (auto-relock)                                                                                |
+
+Slot 0 means two things. With source keypad, fingerprint or rfid a person presented the master credential (capture 29.03: `0x02020000`, slot 0, unlock, keypad), so the event carries `user_slot: 0` and the name set on slot 0, or "Master" without one. With source zigbee, auto, unattributed or unknown it means no user, and `user_slot` and `user_name` are `null`. Which slots besides 0 are master codes depends on the model, see [slot-numbering.md](slot-numbering.md).
 
 `_SOURCE_MAP` in `__init__.py` is the canonical decoder; update this table when the map changes. Raw captures behind these values live in `docs/zigbee-protocol/zigbee-captures.md`.
 
@@ -61,7 +63,7 @@ PIN commands return a malformed ZCL response causing `IndexError: tuple index ou
 
 **Listener pattern:** sensors (e.g. the slot overview sensor) register callbacks via `add_listener(callback)`. When slot data changes (name set, PIN set/cleared), the coordinator calls `_notify_listeners()`, which triggers `async_write_ha_state()` in each sensor.
 
-**Activity sensor:** registered separately via `set_activity_sensor(sensor)`. The coordinator calls `update_activity(user_slot, action, source)` on it for every decoded operation event except system-initiated locking: source `auto`, and on NimlyCodePRO an `unattributed` lock with no user slot. This keeps auto-relock from overwriting the last meaningful activity.
+**Activity sensor:** registered separately via `set_activity_sensor(sensor)`. The coordinator calls `update_activity(user_slot, action, source)` on it for every decoded operation event except system-initiated locking: source `auto`, and on NimlyCodePRO an `unattributed` lock with no user slot. A master code unlock on slot 0 is a user event and does update it. This keeps auto-relock from overwriting the last meaningful activity.
 
 **Lock capabilities:** at setup the coordinator reads the standard ZCL DoorLock attributes 0x0012 (NumberOfPINUsersSupported), 0x0017 (MaxPINCodeLength) and 0x0018 (MinPINCodeLength) in the background, degrading silently if the lock never answers. `set_pin` rejects slots above what the lock reports (`pin_rules.max_user_slot`, highest slot = N-1); when the attribute is missing or nonsensical, the manual's 0-999 range applies. NimlyPRO and NimlyCodePRO both report 50 PIN users.
 
@@ -87,7 +89,7 @@ Commands go through `zha.issue_zigbee_cluster_command`, not direct cluster acces
 Every operation event decoded from attrid `0x0100` fires a Home Assistant event for use in automations:
 
 - **Event name:** `onesti_lock_activity`
-- **Payload:** `ieee`, `user_slot`, `user_name`, `action`, `source`
+- **Payload:** `ieee`, `user_slot`, `user_name`, `action`, `source`. `user_slot` is `0` for the master credential (keypad, fingerprint or rfid source) and `null` when no user was involved
 - **Scope:** fired for ALL events including auto-lock
 - **Activity sensor:** not updated for system-initiated locking (source `auto`, or an `unattributed` lock with no user slot on NimlyCodePRO), so auto-relock does not immediately overwrite the last user event
 

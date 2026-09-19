@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
@@ -12,6 +13,7 @@ from homeassistant.helpers import device_registry as dr
 from . import pin_rules
 from .const import DOMAIN, MAX_SLOTS
 from .coordinator import NimlyCoordinator
+from .redact import redact_digits
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,6 +36,42 @@ def _lock_not_found_ieee(ieee: str) -> HomeAssistantError:
         translation_key="lock_not_found_ieee",
         translation_placeholders={"ieee": ieee},
     )
+
+
+def _lock_unreachable() -> HomeAssistantError:
+    return HomeAssistantError(
+        "Could not reach the lock. Press a button on the lock to wake it "
+        "and try again.",
+        translation_domain=DOMAIN,
+        translation_key="lock_unreachable",
+    )
+
+
+async def _write(action: str, slot: int, write: Awaitable[bool]) -> None:
+    """Await a coordinator write and turn its outcome into what the caller sees.
+
+    The transport never raises by contract. Should it anyway, the original
+    exception must not reach the caller: HA puts it in the log and the
+    automation trace, and a ValueError from ZHA quotes the command params,
+    PIN included. It is logged redacted, without traceback, and replaced by
+    an error that carries no reference to it (raised outside the except
+    block, so not even as __context__).
+    """
+    failure: str | None = None
+    try:
+        success = await write
+    except Exception as err:
+        failure = f"{type(err).__name__}: {redact_digits(err)}"
+    if failure is not None:
+        _LOGGER.error("Unexpected error %s on slot %s: %s", action, slot, failure)
+        raise HomeAssistantError(
+            f"Unexpected error {action} on slot {slot}, see the log",
+            translation_domain=DOMAIN,
+            translation_key="write_failed",
+            translation_placeholders={"slot": str(slot)},
+        )
+    if not success:
+        raise _lock_unreachable()
 
 
 def _find_by_ieee(coordinators: list[NimlyCoordinator], ieee: str) -> NimlyCoordinator | None:
@@ -141,14 +179,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 translation_placeholders={"min": str(low), "max": str(high)},
             )
 
-        success = await coordinator.set_pin(slot, name, code)
-        if not success:
-            raise HomeAssistantError(
-                "Could not reach the lock. Press a button on the lock to wake it "
-                "and try again.",
-                translation_domain=DOMAIN,
-                translation_key="lock_unreachable",
-            )
+        await _write("setting PIN", slot, coordinator.set_pin(slot, name, code))
 
     async def handle_clear_pin(call: ServiceCall) -> None:
         slot = call.data["slot"]
@@ -168,14 +199,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 },
             )
 
-        success = await coordinator.clear_pin(slot)
-        if not success:
-            raise HomeAssistantError(
-                "Could not reach the lock. Press a button on the lock to wake it "
-                "and try again.",
-                translation_domain=DOMAIN,
-                translation_key="lock_unreachable",
-            )
+        await _write("clearing PIN", slot, coordinator.clear_pin(slot))
 
     async def handle_set_name(call: ServiceCall) -> None:
         slot = call.data["slot"]
@@ -216,14 +240,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 },
             )
 
-        success = await coordinator.clear_slot(slot)
-        if not success:
-            raise HomeAssistantError(
-                "Could not reach the lock. Press a button on the lock to wake it "
-                "and try again.",
-                translation_domain=DOMAIN,
-                translation_key="lock_unreachable",
-            )
+        await _write("clearing slot", slot, coordinator.clear_slot(slot))
 
     hass.services.async_register(
         DOMAIN,

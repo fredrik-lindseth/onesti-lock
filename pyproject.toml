@@ -1,6 +1,11 @@
 [project]
 name = "onesti-lock"
-version = "1.0.0"
+# Not the release version. That lives in custom_components/onesti_lock/manifest.json,
+# which HACS and the release workflow read. This project is never built or
+# installed, so the number here stays a placeholder. It cannot be dynamic:
+# uv would then build the project through setuptools to learn its version,
+# and setuptools refuses this flat layout.
+version = "0.0.0"
 description = "Home Assistant integration for Onesti/Nimly smart locks"
 # The floor is the runtime, not the dev toolchain: the integration runs in the
 # user's Home Assistant Python, and HA 2025.6 (the hacs.json minimum) needs

@@ -1,0 +1,75 @@
+name: Bug report
+description: Something in Onesti Lock does not work as documented.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Remove PIN codes before you post.** Attribute `0x0101` on the Door Lock cluster is the last used PIN in plain text. It shows up in `zigpy.zcl` debug logs, in ZHA's "Download diagnostics" file and in automation traces. Replace every `0x0101` value and every PIN with `****`, and do not attach an unedited diagnostics file. This issue is public.
+
+        The [debugging guide](https://github.com/fredrik-lindseth/onesti-lock/blob/main/docs/debugging.md) covers the common problems and how to turn on debug logging.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant version
+      description: Settings, then About.
+    validations:
+      required: true
+  - type: input
+    id: integration_version
+    attributes:
+      label: Onesti Lock version
+      description: HACS, or Settings, Devices & services, Onesti Lock.
+    validations:
+      required: true
+  - type: input
+    id: product
+    attributes:
+      label: Lock product
+      description: Brand and model as sold, for example Nimly Code Pro or EasyAccess EasyCodeTouch.
+    validations:
+      required: true
+  - type: input
+    id: zigbee_model
+    attributes:
+      label: Manufacturer and model from Zigbee info
+      description: On the lock's device page in ZHA, open Zigbee info and copy both fields exactly. The model string is often not the product name.
+      placeholder: "Onesti Products AS / NimlyCodePRO"
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware
+      description: The firmware ZHA shows on the device page, and the lock firmware from the vendor app if you know it.
+  - type: dropdown
+    id: module_reset
+    attributes:
+      label: Was the Connect Module reset before it was paired with ZHA?
+      options:
+        - "Yes"
+        - "No"
+        - "Don't know"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log lines from custom_components.onesti_lock
+      description: |
+        Turn on debug logging for the integration (Settings, Devices & services, Onesti Lock, Enable debug logging), reproduce the problem, and paste the lines that mention `onesti_lock`. Remove PIN codes and `0x0101` values first.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Other Zigbee integrations or quirks in use, how many Onesti locks you have, and whether the problem started after an update.

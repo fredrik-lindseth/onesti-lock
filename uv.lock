@@ -2545,7 +2545,7 @@ wheels = [
 
 [[package]]
 name = "onesti-lock"
-version = "1.0.0"
+version = "0.0.0"
 source = { virtual = "." }
 
 [package.dev-dependencies]

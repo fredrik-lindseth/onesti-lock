@@ -119,17 +119,3 @@ jobs:
             **Full changelog**: https://github.com/fredrik-lindseth/onesti-lock/compare/${{ steps.changelog.outputs.prev_tag }}...v${{ steps.version.outputs.version }}
           draft: false
           prerelease: false
-
-      - name: Create ZIP for HACS
-        if: steps.check_release.outputs.exists == 'false'
-        run: |
-          mkdir -p dist
-          zip -r dist/onesti_lock.zip custom_components/onesti_lock
-          echo "Created ZIP for HACS"
-
-      - name: Upload ZIP to release
-        if: steps.check_release.outputs.exists == 'false'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.version.outputs.version }}
-          files: dist/onesti_lock.zip

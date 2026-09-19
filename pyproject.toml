@@ -28,20 +28,22 @@ unit = [
     # it those tests skip (pytest.importorskip), and the release flow would
     # have no check that release.yml still attests before it publishes.
     "pyyaml==6.0.3",
-    # The BLE library (custom_components/onesti_lock/ble/crypto.py) does its
-    # ECDH and AES through it. Home Assistant ships cryptography as a core
-    # requirement, so it is not in manifest.json: a pin there could fight the
-    # one HA sets. This is the release HA current pins (2026.9.3); HA 2025.6.0
-    # pins 45.0.1, and crypto.py uses only API both have.
-    "cryptography==48.0.1",
     { include-group = "ble" },
 ]
-# bleak for the BLE library's bleak transport (ble/client/bleak_transport.py),
-# which tests/ runs against a fake BleakClient. Not in manifest.json: Home
-# Assistant brings its own bleak through the bluetooth integration, and HA
-# 2025.6 runs 0.22.3, so the transport uses only API both releases have.
+# What the BLE library needs at runtime, and so all scripts/ble_cli.py needs:
+# `uv run --group ble scripts/ble_cli.py` works on its own. Neither is in
+# manifest.json, because Home Assistant brings both and a pin there could
+# fight the one HA sets.
 ble = [
+    # bleak for the bleak transport (ble/client/bleak_transport.py), which
+    # tests/ runs against a fake BleakClient. HA brings its own through the
+    # bluetooth integration, and HA 2025.6 runs 0.22.3, so the transport uses
+    # only API both releases have.
     "bleak==3.0.2",
+    # ECDH and AES in ble/crypto.py. A core requirement of HA. This is the
+    # release HA current pins (2026.9.3); HA 2025.6.0 pins 45.0.1, and
+    # crypto.py uses only API both have.
+    "cryptography==48.0.1",
 ]
 # Real Home Assistant for tests_ha/. tests/ stubs homeassistant in
 # sys.modules and must never share an environment with these groups, so no
@@ -80,9 +82,12 @@ ha-current = [
 default-groups = []
 # The two HA groups pin different homeassistant versions and can never share
 # an environment, and unit must never see Home Assistant at all. uv resolves
-# each as a separate branch of uv.lock.
+# each as a separate branch of uv.lock. ble is its own set only because
+# unit includes it, and a group cannot conflict with one it includes: its
+# cryptography pin is not the one HA 2025.6 pins.
 conflicts = [
     [{ group = "unit" }, { group = "ha-minimum" }, { group = "ha-current" }],
+    [{ group = "ble" }, { group = "ha-minimum" }],
 ]
 
 [tool.uv.dependency-groups]

@@ -15,7 +15,9 @@ Afterwards the canary must not be found in:
 - the state or attributes of any entity,
 - any event fired on the bus,
 - any repair issue,
-- the exception that reaches whoever called.
+- the exception that reaches whoever called,
+- the config entry's Download diagnostics, which users attach to public
+  issues (test_diagnostics_never_carry_the_pin).
 
 One thing carries the code by design and is left out of the event check:
 the call_service event for onesti_lock.set_pin is the caller's own input,
@@ -52,6 +54,9 @@ from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import issue_registry as ir
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.components.diagnostics import (
+    get_diagnostics_for_config_entry,
+)
 from zigpy.exceptions import DeliveryError
 
 from custom_components.onesti_lock.const import CONF_IEEE, DOMAIN
@@ -350,3 +355,22 @@ async def test_a_transport_that_raises_does_not_leak(hass, entry, zha_service, b
     assert not any(r.exc_info for r in caplog.records)
 
     assert_no_canary(hass, entry, caplog, bus_events, raised)
+
+
+@pytest.mark.parametrize("scenario", SCENARIOS)
+@pytest.mark.parametrize("path", ["options_flow", "service"])
+async def test_diagnostics_never_carry_the_pin(
+    hass, hass_client, entry, mock_zha, zha_service, scenario, path
+) -> None:
+    effects, _ = SCENARIOS[scenario]
+    zha_service.effects[:] = effects
+    if path == "options_flow":
+        await _flow_set_pin(hass, entry, CANARY)
+    else:
+        await _service_set_pin(hass, CANARY)
+    await _after_the_write(hass, mock_zha)
+    assert _pin_sent(zha_service)
+
+    diagnostics = await get_diagnostics_for_config_entry(hass, hass_client, entry)
+
+    assert CANARY not in json.dumps(diagnostics)

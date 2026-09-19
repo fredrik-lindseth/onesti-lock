@@ -124,6 +124,10 @@ class TestActivitySuppression:
             (0x02, 0x02, 3),   # keypad unlock by a user
             (0x02, 0x01, 3),   # keypad lock by a user
             (0x03, 0x02, 4),   # fingerprint unlock
+            (0x02, 0x02, 0),   # master code unlock (capture 0x02020000)
+            # Keypad lock on slot 0: a hardware check (locking from outside)
+            # decides whether this should be narrowed to system locks instead.
+            (0x02, 0x01, 0),
             (0x00, 0x01, 0),   # zigbee lock: explicit remote attribution
             (0x05, 0x02, 0),   # unattributed unlock: a person at the door
             (0x05, 0x01, 7),   # unattributed lock WITH a user slot

@@ -1,7 +1,8 @@
 # Nimly Connect app: reverse engineering
 
-APK `com.easyaccess.connect` v1.27.84 (171 MB), a React Native app with Hermes
-bytecode. Decompiled with `jadx` + `hermes-dec` into 3.1M lines of JavaScript.
+XAPK `com.easyaccess.connect` v1.27.84 (161 MB), a React Native app with Hermes
+bytecode. Decompiled with `jadx` + `hermes-dec` into 3.2M lines of JavaScript
+(`reversing/nimly-connect-decompiled.js`, local and gitignored).
 
 ## Architecture
 
@@ -10,7 +11,7 @@ the gateway:
 
 ```
 Phone → Cloud API (iotiliti.cloud) → ZigBee Gateway (Connect Bridge) → Lock
-         ↕ OAuth2/Cognito              ↕ CAS protocol (AES-encrypted)
+         ↕ OAuth2/Cognito              ↕ MQTT/TLS                ↕ Zigbee 3.0
 ```
 
 There is no BLE code in this app. BLE lives in a separate app, `nimly BLE`.
@@ -18,17 +19,29 @@ There is no BLE code in this app. BLE lives in a separate app, `nimly BLE`.
 ## White-label platform
 
 The app is a white-label of iotiliti (formerly NeutrAlClone), and the same
-codebase is used by:
+codebase is used by several brands. The v1.27.84 bundle carries the config for
+all of them, each with `API_URL`, `TEST_API_URL`, `INTERNAL_API_URL` and a
+client secret per environment:
 
-| Brand                | API URL                                                                                                    |
-| -------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Nimly/EasyAccess** | `api-neutralclone.iotiliti.cloud` (older) / `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` (new) |
-| Keyfree              | `api.customer.keyfree.iotiliti.cloud`                                                                      |
-| Salus                | `api-salus.iotiliti.cloud`                                                                                 |
-| Forebygg             | `api.customer.forebygg.iotiliti.cloud`                                                                     |
-| Homely               | `api.homely.no`                                                                                            |
+| Brand                | In the v1.27.84 bundle (verified)  | In the newer builds decompiled 2026-03-30 (not kept)     |
+| -------------------- | ---------------------------------- | -------------------------------------------------------- |
+| **Nimly/EasyAccess** | `api-neutralclone.iotiliti.cloud`  | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` |
+| Keyfree              | `api-keyfree.iotiliti.cloud`       | `api.customer.keyfree.iotiliti.cloud`                    |
+| Salus                | `api-salus.iotiliti.cloud`         | `api-salus.iotiliti.cloud`                               |
+| Forebygg             | `api-forebygg.iotiliti.cloud`      | `api.customer.forebygg.iotiliti.cloud`                   |
+| Homely               | `api.homely.no`                    | `api.homely.no`                                          |
+| Safe4 Care           | `api-safe4care.iotiliti.cloud`     | `api-safe4care.iotiliti.cloud`                           |
+| LF                   | `api-lf.iotiliti.cloud`            | `api-lf.iotiliti.cloud`                                  |
+| Tryg Smart           | not present                        | `api.tryg.iotiliti.cloud`                                |
 
-Company IDs are in `secrets.md` (gitignored).
+Test instances follow the pattern `test-api-<brand>.iotiliti.cloud`. The left
+column can be re-checked with `grep` in the decompiled bundle at any time; the
+right column rests on the March notes, since those decompilations were not
+kept. For Nimly both URLs were confirmed live and equivalent (see "API URL
+migration" below); for Keyfree and Forebygg the newer URL has not been tested.
+
+The company id the app sends for each brand (a GUID, used client-side to
+filter locations) is listed in the header of `iotiliti-api-spec.yaml`.
 
 ## Authentication
 
@@ -160,24 +173,21 @@ DoorLockEventFeatureState = {
 
 The `doorlock-*` cloud event types are listed with the full cloud event system in [app-architecture.md](app-architecture.md#event-system).
 
-## CAS protocol (gateway ↔ lock)
+## The "CAS" error codes are the Ezviz camera SDK, not the lock
 
-The gateway uses a protocol called "CAS" (possibly Command and Status) with AES
-encryption. The main error codes:
-
-| Code          | Name                                            | Meaning               |
-| ------------- | ----------------------------------------------- | --------------------- |
-| 380000        | `CAS_MSG_NO_ERROR`                              | OK                    |
-| 380001        | `CAS_MSG_UNKNOW_ERROR`                          | Unknown error         |
-| 380006        | `CAS_MSG_COMMAND_UNKNOW`                        | Unknown command       |
-| 380041        | `CAS_MSG_PU_BUSY`                               | Device busy           |
-| 380042        | `CAS_MSG_OPERATION_FAILED`                      | Operation failed      |
-| 380043        | `CAS_PU_NO_CRYPTO_FOUND`                        | Crypto key missing    |
-| 380047        | `CAS_SYSTEM_COMMAND_PU_COMMAND_UNSUPPORTED`     | Command not supported |
-| 380048        | `CAS_SYSTEM_COMMAND_PU_NO_RIGHTS_TO_DO_COMMAND` | Insufficient rights   |
-| 380106-380111 | `CAS_PU_PASSWORD_UPDATE_*`                      | Password error        |
-| 380125        | `CAS_PU_REFUSE_CLIENT_CONNECTION`               | Connection refused    |
-| 380126        | `CAS_PLATFORM_CLIENT_VERIFY_AUTH_ERROR`         | Auth error            |
+The bundle has a table of `CAS_*` error codes (380000 `CAS_MSG_NO_ERROR`,
+380041 `CAS_MSG_PU_BUSY`, 380047 `CAS_SYSTEM_COMMAND_PU_COMMAND_UNSUPPORTED`
+and about a hundred more). Earlier versions of these notes read it as a
+gateway protocol called CAS with AES encryption. It is the error table of the
+Hik-Connect/Ezviz camera SDK that the app bundles for camera support: the same
+table carries `CAS_PREVIEW_*`, `CAS_PTZ_*`, `CAS_TALK_*` and `CAS_PLAYBACK_*`,
+the neighbouring objects are Ezviz `TTS_*` and `ANALYZE_DATA_*` codes, and the
+decompiled sources contain `com/ezviz` and `com/hikvision`. The Ezviz SDK is
+also what crashed `apk-mitm` (see `cloud-api-status.md`). Nothing in it
+describes how the cloud talks to the Connect Bridge or how the bridge talks to
+the lock. What is known about those two hops is in
+`../connect-bridge/hardware-gateway.md`: MQTT over TLS to the cloud, Zigbee 3.0
+to the lock.
 
 ## Configuration (Nimly-specific)
 
@@ -236,16 +246,25 @@ Zigbee attribute reports carry.
 
 - Client secrets and API URLs are hardcoded in the app
 - Test environment credentials are accessible
-- Bug report credentials found in APK (see secrets.md)
+- Bug reporting goes through Instabug; whatever it carries was not copied out
 - Sentry DSN exposed
 - AWS Cognito pool IDs accessible
 - No certificate pinning observed
 
+What was copied out of the bundle into `secrets.md` (gitignored) is the Nimly
+OAuth2 client secret, the Cognito pool and client ids, and the built-in test
+login. Nothing else was kept; the other brands' secrets are in the brand config
+block of the decompiled bundle if ever needed.
+
 ## White-label decompilation (2026-03-30)
 
-All 7 white-label apps in the iotiliti ecosystem were decompiled with `apkeep` +
-`hbc-decompiler`. They share one codebase (React Native/Hermes), and only the
-config block differs.
+Seven white-label apps besides Nimly Connect were decompiled with `apkeep` +
+`hbc-decompiler`: Keyfree, Salus, Forebygg, Homely, Copiax, Tekam and iotiliti.
+They share one codebase (React Native/Hermes), and only the config block
+differs. Folklarm, Tryg Smart, Safe4 Care, LF and Larmify were found in those
+apps' brand configuration; their own APKs, where they have one, were not
+decompiled. None of these seven decompilations were kept, so the table below
+cannot be re-checked locally.
 
 ### All API instances (prod)
 
@@ -264,8 +283,6 @@ config block differs.
 | **Salus**      | `com.salusprotekt.immunity`     | `api-salus.iotiliti.cloud`                               |
 | **LF**         | _(in iotiliti app)_             | `api-lf.iotiliti.cloud`                                  |
 
-Client secrets, company IDs and test credentials are in `secrets.md` (gitignored).
-
 ### API URL migration
 
 Nimly Connect v1.27.84 (our version) uses `api-neutralclone.iotiliti.cloud`.
@@ -276,7 +293,8 @@ from each.
 ### Internal test API
 
 `https://test-api-neurosys.iotiliti.cloud` is the internal test instance at
-Neurosys (Poland). Its client secret is in `secrets.md`.
+Neurosys (Poland), configured as `INTERNAL_API_URL` in the bundle. Its client
+secret was not kept.
 
 ### Hidden Developer Options
 
@@ -292,7 +310,7 @@ All apps have a hidden "Developer Options" menu:
 
 The LF brand uses its own Keycloak realm,
 `realms/lftt-kong-oidc/protocol/openid-connect/token`, with external auth at
-`https://test-auth.lfhub.net`. Credentials are in `secrets.md`. Users log in
+`https://test-auth.lfhub.net`. Its credentials were not kept. Users log in
 with a username rather than an email, and cannot change their password or
 delete their account.
 

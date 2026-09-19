@@ -19,7 +19,7 @@ info:
 
     ```
     Phone -> Cloud API (iotiliti.cloud) -> ZigBee Gateway (Connect Bridge) -> Lock
-              OAuth2/Cognito                 CAS protocol (AES-encrypted)
+              OAuth2/Cognito                 MQTT over TLS          Zigbee 3.0
     ```
 
     ## White-label instances
@@ -37,15 +37,15 @@ info:
 
     Two authentication methods exist:
 
-    1. **OAuth2 password grant** (primary) — documented in this spec
-    2. **AWS Cognito** (alternative) — Region: eu-central-1, User Pool: <extracted-from-apk, see secrets.md>
+    1. **OAuth2 password grant** (primary), documented in this spec
+    2. **AWS Cognito** (alternative), Region: eu-central-1, User Pool: <extracted-from-apk, see secrets.md>
 
     All authenticated endpoints require `Authorization: Bearer <access_token>`.
 
   contact:
-    name: Reverse-engineered — not an official spec
+    name: Reverse-engineered, not an official spec
   license:
-    name: Unlicensed — research purposes only
+    name: Unlicensed, research purposes only
 
 servers:
   - url: https://api-neutralclone.iotiliti.cloud
@@ -272,7 +272,7 @@ paths:
           application/json:
             schema:
               type: object
-              description: Request body structure unknown — may be empty or contain action parameters
+              description: Request body structure unknown, may be empty or contain action parameters
       responses:
         "200":
           description: Lock command sent
@@ -303,9 +303,9 @@ paths:
                 action:
                   type: string
                   description: |
-                    Action to perform. Exact values unknown — likely includes
+                    Action to perform. Exact values unknown, likely includes
                     "lock", "unlock", and device-type-specific actions.
-              description: Speculative schema — actual fields unknown
+              description: Speculative schema, actual fields unknown
       responses:
         "200":
           description: Action sent
@@ -409,11 +409,11 @@ paths:
       description: |
         Add a new access method to the device. The type field determines
         what kind of access is created:
-        - `pin` — numeric keypad code
-        - `tag` — RFID/NFC tag
-        - `otp` — one-time password
-        - `digitalKey` — app-based digital key
-        - `finger` — fingerprint
+        - `pin`: numeric keypad code
+        - `tag`: RFID/NFC tag
+        - `otp`: one-time password
+        - `digitalKey`: app-based digital key
+        - `finger`: fingerprint
 
         The command is sent to the lock via the gateway. For PIN codes,
         the gateway handles the ZigBee timing to the sleepy end device.
@@ -509,7 +509,7 @@ paths:
                   type: string
                   format: uuid
                   description: User ID associated with the access entry
-              description: Speculative — exact fields required for deletion are unknown
+              description: Speculative, exact fields required for deletion are unknown
       responses:
         "200":
           description: Access entry deleted
@@ -733,7 +733,7 @@ paths:
         schema:
           type: string
         description: |
-          Device type to discover. Exact values unknown — likely matches
+          Device type to discover. Exact values unknown, likely matches
           DoorlockType enum or a broader device category.
     get:
       operationId: getNewDevices
@@ -780,7 +780,7 @@ paths:
             application/json:
               schema:
                 type: object
-                description: Structure unknown — likely grouped by device type or room
+                description: Structure unknown, likely grouped by device type or room
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -861,7 +861,7 @@ paths:
             application/json:
               schema:
                 type: object
-                description: Key details — structure unknown
+                description: Key details, structure unknown
         "401":
           $ref: "#/components/responses/Unauthorized"
 
@@ -890,7 +890,7 @@ paths:
             application/json:
               schema:
                 type: object
-                description: Token details — structure unknown
+                description: Token details, structure unknown
         "401":
           $ref: "#/components/responses/Unauthorized"
 
@@ -913,7 +913,7 @@ paths:
             application/json:
               schema:
                 type: object
-                description: Key material — structure unknown
+                description: Key material, structure unknown
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -1110,7 +1110,7 @@ components:
           items:
             type: string
           nullable: true
-          description: User roles — exact role names unknown
+          description: User roles, exact role names unknown
         active:
           type: boolean
           default: true

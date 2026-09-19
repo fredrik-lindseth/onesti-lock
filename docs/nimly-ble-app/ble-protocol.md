@@ -1,8 +1,10 @@
 # Nimly BLE protocol reference
 
-Decompiled from `easyaccess.ekey.app` v1.5.1 (native Android/Kotlin). All
-communication happens over a single BLE characteristic. The integration does
-not use BLE today; the protocol is documented as a possible future channel.
+Decompiled with `jadx` from `easyaccess.ekey.app` v1.5.2 (versionCode 13,
+native Android/Kotlin; the sources sit in `reversing/nimly-ble-decompiled/`,
+local and gitignored). All communication happens over a single BLE
+characteristic. The integration does not use BLE today; the protocol is
+documented as a possible future channel.
 
 ## BLE UUIDs
 
@@ -112,12 +114,23 @@ Example: set "8832" on slot 803:
   └─────────────────────── slot 803 (little-endian: 0x0323)
 ```
 
-Over BLE, slot 0 is the master PIN and slots 800-899 are regular user PINs.
+The app refuses to send a slot outside these ranges (checked client-side in
+each command class, `VerifyExtensions.verifyRange`):
+
+| Credential  | BLE slots | Commands                          |
+| ----------- | --------- | --------------------------------- |
+| PIN         | 800-899   | PinCodeSet, PinCodeClear          |
+| Fingerprint | 150-199   | FingerprintScan, FingerprintClear |
+| RFID        | 900-999   | ScanRfidCode, RfidCodeClear       |
+
 Zigbee ZCL uses slots 0-999 with the master slots first (see
 [slot-numbering.md](../slot-numbering.md)), so the two channels number
-differently.
+differently. Whether the lock itself would accept a BLE PinCodeSet outside
+800-899 has not been tested, and how the master PIN is managed over BLE (the
+"Master PIN" feature flag in the model table below) was not traced.
 
-The command needs firmware ≥ 4.7.90 and a PIN of 4-8 digits (0-9).
+The command needs firmware ≥ 4.7.90 and a PIN of 4-8 digits (0-9)
+(`PincodeMinLength`/`PincodeMaxLength` in the app's `Constants`).
 
 ## Encryption
 

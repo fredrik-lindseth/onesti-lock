@@ -11,17 +11,19 @@ with user identification, and lock/unlock via cloud as backup.
 ### 1. Decompiled the Nimly Connect app
 
 APK `com.easyaccess.connect` v1.27.84, a React Native app with Hermes
-bytecode that decompiled to 3.1M lines of JS. Found all API endpoints, the
-auth flow and the CAS protocol. The full spec is in
-`docs/nimly-connect-app/iotiliti-api-spec.yaml`.
+bytecode that decompiled to 3.2M lines of JS. Found all API endpoints and the
+auth flow. The full spec is in `docs/nimly-connect-app/iotiliti-api-spec.yaml`.
+The "CAS protocol" the first pass thought it had found was the bundled Ezviz
+camera SDK's error table, not a lock protocol (see the reversing notes).
 
-### 2. Decompiled all 7 white-label apps
+### 2. Decompiled the seven other white-label apps
 
 Keyfree, Salus, Forebygg, Homely, Copiax, Tekam and iotiliti all use an
 identical codebase, only config varies. Found the new prod URL
 `api.customer.prod-neutralclone.onesti.aws.neurosys.pro`, a Developer Options
 menu, and LF's separate Keycloak realm. Full overview in
-`docs/nimly-connect-app/reversing-notes.md`.
+`docs/nimly-connect-app/reversing-notes.md`. Those seven decompilations were
+not kept; only the Nimly Connect and Nimly BLE ones are in `reversing/`.
 
 ### 3. Wireshark capture of the Connect Bridge (hub)
 
@@ -53,8 +55,10 @@ location.
 Tested with a fresh OAuth2 token, both location IDs (HusA and Hus), the old
 URL (`api-neutralclone.iotiliti.cloud`), the new URL
 (`api.customer.prod-neutralclone.onesti.aws.neurosys.pro`), and with and
-without the `X-Company-Id` header. All return `[]`. The app uses the exact
-same endpoint, verified in decompiled code.
+without an `X-Company-Id` header. All return `[]`. The app uses the exact
+same endpoint, verified in decompiled code. The header was a guess: the
+decompiled app sends no such header, it only uses the company id client-side
+to filter locations, so its absence is not the explanation.
 
 Possible causes:
 

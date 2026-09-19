@@ -38,3 +38,6 @@ jadx-output/
 apktool-out/
 apktool-output/
 tests/ble/java/out/
+
+# Agent worktrees created by Claude Code
+.claude/worktrees/

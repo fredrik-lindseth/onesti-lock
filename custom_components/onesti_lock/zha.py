@@ -145,19 +145,24 @@ def find_lock_entity_id(hass: HomeAssistant, ieee: str) -> str | None:
     """Entity id of ZHA's own lock entity for this device, or None.
 
     ZHA registers its devices with a zigbee connection holding str(EUI64),
-    which zigpy renders in lowercase. The lock entity is then the one entity
-    on that device in the lock domain from the zha platform, so no unique_id
-    format has to be parsed. Disabled entities are skipped: HA would refuse
-    the service call anyway.
+    which zigpy renders in lowercase. The device is looked up among the
+    devices of ZHA's own config entries: from HA 2026.9 a connection is
+    only unique within one config entry, and async_get_device, which
+    searched them all, is deprecated. The lock entity is then the one
+    entity on that device in the lock domain from the zha platform, so no
+    unique_id format has to be parsed. Disabled entities are skipped: HA
+    would refuse the service call anyway.
     """
-    device = dr.async_get(hass).async_get_device(
-        connections={(dr.CONNECTION_ZIGBEE, ieee.lower())}
-    )
-    if device is None:
-        return None
-    for entity in er.async_entries_for_device(er.async_get(hass), device.id):
-        if entity.domain == "lock" and entity.platform == ZHA_DOMAIN:
-            return entity.entity_id
+    connection = (dr.CONNECTION_ZIGBEE, ieee.lower())
+    device_registry = dr.async_get(hass)
+    entity_registry = er.async_get(hass)
+    for zha_entry in hass.config_entries.async_entries(ZHA_DOMAIN):
+        for device in dr.async_entries_for_config_entry(device_registry, zha_entry.entry_id):
+            if connection not in device.connections:
+                continue
+            for entity in er.async_entries_for_device(entity_registry, device.id):
+                if entity.domain == "lock" and entity.platform == ZHA_DOMAIN:
+                    return entity.entity_id
     return None
 
 

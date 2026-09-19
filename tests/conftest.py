@@ -177,7 +177,17 @@ def _device_registry_async_get(hass):
     return hass.device_registry
 
 
+def _device_registry_entries_for_config_entry(registry, config_entry_id):
+    """Like HA's: the devices that belong to one config entry."""
+    return [
+        device
+        for device in registry.devices
+        if config_entry_id in getattr(device, "config_entries", ())
+    ]
+
+
 device_registry.async_get = _device_registry_async_get
+device_registry.async_entries_for_config_entry = _device_registry_entries_for_config_entry
 # zha.py finds the ZHA device behind a lock by this connection type.
 device_registry.CONNECTION_ZIGBEE = "zigbee"
 

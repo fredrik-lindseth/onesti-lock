@@ -54,6 +54,9 @@ class FakeConfigEntries:
         self.written.append(json.loads(json.dumps(options)))
         return True
 
+    def async_entries(self, domain):
+        return []
+
 
 class FakeServices:
     def __init__(self, fail=False):

@@ -1,14 +1,20 @@
 """Run the test suite the way CI sees it.
 
 CI installs only ruff and pytest, so a test that imports homeassistant or
-voluptuous passes locally and fails there. This blocks those modules through
-an import hook and runs the suite, which is the only way to catch that
-before pushing.
+voluptuous passes locally and fails there. This runs the same ruff check as
+CI, then blocks those modules through an import hook and runs the suite,
+which is the only way to catch a stray import before pushing.
 
     python3 scripts/ci_sim.py
 """
+import subprocess
 import sys
+from pathlib import Path
 
+import pytest
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+RUFF_PATHS = ["custom_components/onesti_lock/", "tests/", "scripts/"]
 BLOCKED = {"voluptuous", "homeassistant", "pytest_asyncio", "hypothesis"}
 
 
@@ -20,10 +26,16 @@ class Blocker:
         return None
 
 
+try:
+    lint = subprocess.run(["ruff", "check", *RUFF_PATHS], cwd=REPO_ROOT)
+except FileNotFoundError:
+    sys.exit("ruff is not installed; CI runs it, so install it with `pip install ruff`.")
+if lint.returncode != 0:
+    sys.exit(lint.returncode)
+
 for mod in list(sys.modules):
     if mod.split(".")[0] in BLOCKED:
         del sys.modules[mod]
 sys.meta_path.insert(0, Blocker())
 
-import pytest
 sys.exit(pytest.main(["tests/", "-q", "-p", "no:asyncio", "-p", "no:hypothesis", "-p", "no:cacheprovider"]))

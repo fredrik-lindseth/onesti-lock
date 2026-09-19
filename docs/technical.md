@@ -52,6 +52,8 @@ ZHADeviceProxy (depth 0, no endpoints)
     → CustomDeviceV2 (depth 2, clusters here)
 ```
 
+All knowledge of that layout lives in `zha.py`. `find_door_lock_cluster()` finds the device among ZHA's device proxies and walks the `.device` chain, and the config flow's `has_door_lock_cluster()` uses the same walk to decide which devices to offer.
+
 ## Nimly response quirk
 
 PIN commands get a malformed ZCL response back, and zigpy raises `IndexError: tuple index out of range` on it. The command reaches the lock, and only the response parsing fails. The integration catches the error and treats the command as sent. It logs the quirk at debug level only, so it stays out of the log unless debug logging is on.
@@ -82,11 +84,11 @@ Sensor states and options-flow labels are built in Python and never pass through
 
 ## Auto-wake mechanism
 
-Battery-powered Zigbee EndDevices sleep most of the time, and ZCL commands like `set_pin_code` time out while the radio is asleep. `_send_cluster_command()` in the coordinator wakes the lock and retries:
+Battery-powered Zigbee EndDevices sleep most of the time, and ZCL commands like `set_pin_code` time out while the radio is asleep. `ZhaLockTransport.send()` in `zha.py` wakes the lock and retries:
 
 1. The first attempt sends the ZCL command via `zha.issue_zigbee_cluster_command`.
-2. On `TimeoutError` it calls `_wake_lock()` and retries the original command once.
-3. `_wake_lock()` sends a `lock.lock` service call to the ZHA lock entity.
+2. On `TimeoutError` it calls `wake()` and retries the original command once.
+3. `wake()` sends a `lock.lock` service call to the ZHA lock entity.
 4. After a 1-second pause for the radio to settle, the original command is retried.
 
 `lock.lock` is used because it works, while attribute reads through the integration's own cluster path time out. Why it works is not established. ZHA's lock entity wraps the command in longer timeouts and retries for sleepy devices, which is the likely reason, but at the radio level a read and a write are queued the same way.
@@ -95,7 +97,7 @@ The wake has a side effect, since it is a real lock command and not a read. An u
 
 Nothing sent over the air wakes a sleeping EndDevice, since its radio is off. All the coordinator can do is queue a unicast at the parent router and hope the lock polls within the 7.68-second window; once one frame gets through, the lock fast-polls and drains the rest, which is what looks like waking. At that level a `read_attributes` is queued exactly like a lock command, so if `lock.lock` works better than a plain read (`read_lock_capabilities` just times out against a sleeping lock), the difference is the retry and extended-timeout envelope ZHA gives its lock entity, not the fact that it writes. That is why `homeassistant.update_entity` on the ZHA lock entity, which goes through the same entity path, is the candidate for a bolt-free wake, with "only wake when the cached state is already locked" as the fallback.
 
-To find the ZHA lock entity, `_wake_lock()` scans the entity registry for an entity where `platform == "zha"`, the `unique_id` contains the device's IEEE address, and the `unique_id` ends with `"257"` (the Door Lock cluster id 0x0101 in decimal, which ZHA puts last in its `ieee-endpoint-cluster` unique ids).
+To find the ZHA lock entity, `find_lock_entity_id()` in `zha.py` scans the entity registry for an entity where `platform == "zha"`, the `unique_id` contains the device's IEEE address, and the `unique_id` ends with `"257"` (the Door Lock cluster id 0x0101 in decimal, which ZHA puts last in its `ieee-endpoint-cluster` unique ids).
 
 Commands go through `zha.issue_zigbee_cluster_command` instead of touching the cluster directly, so ZHA's service layer handles ZCL framing and transport.
 

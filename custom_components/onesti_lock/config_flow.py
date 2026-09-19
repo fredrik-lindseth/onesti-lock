@@ -19,42 +19,20 @@ from .const import (
     CONF_IEEE,
     CONF_RESERVED_SLOTS,
     DOMAIN,
-    DOORLOCK_CLUSTER_ID,
     MANUFACTURER,
     MAX_SLOTS,
     NUM_USER_SLOTS,
     RESERVED_SLOTS_MAX,
     RESERVED_SLOTS_MIN,
     SUPPORTED_MODELS,
-    ZHA_DOMAIN,
 )
 from .localize import async_get_strings, format_reserved_slot_row
+from .zha import device_metadata, has_door_lock_cluster, is_zha_loaded, iter_device_proxies
 
 if TYPE_CHECKING:
     from .coordinator import NimlyCoordinator
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _has_door_lock_cluster(proxy) -> bool:
-    """Whether the ZHA device exposes the Door Lock cluster.
-
-    Same chain walk as NimlyCoordinator._get_cluster: clusters live on the
-    deepest zigpy device object, not on the ZHA wrapper layers.
-    """
-    obj = proxy
-    for _ in range(4):
-        if hasattr(obj, "endpoints"):
-            for ep_id, ep in obj.endpoints.items():
-                if ep_id == 0:
-                    continue
-                if DOORLOCK_CLUSTER_ID in getattr(ep, "in_clusters", {}):
-                    return True
-        if hasattr(obj, "device"):
-            obj = obj.device
-        else:
-            break
-    return False
 
 
 class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -69,11 +47,7 @@ class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, user_input=None) -> ConfigFlowResult:
         """Handle user step: select a Nimly lock from ZHA."""
-        if ZHA_DOMAIN not in self.hass.data:
-            return self.async_abort(reason="zha_not_found")
-
-        zha_data = self.hass.data[ZHA_DOMAIN]
-        if not hasattr(zha_data, "gateway_proxy") or zha_data.gateway_proxy is None:
+        if not is_zha_loaded(self.hass):
             return self.async_abort(reason="zha_not_found")
 
         devices = {}
@@ -81,16 +55,14 @@ class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
             entry.data.get(CONF_IEEE)
             for entry in self._async_current_entries()
         }
-        for ieee, proxy in zha_data.gateway_proxy.device_proxies.items():
-            device = proxy.device if hasattr(proxy, "device") else proxy
-            manufacturer = getattr(device, "manufacturer", "")
-            model = getattr(device, "model", "")
+        for ieee, proxy in iter_device_proxies(self.hass):
+            manufacturer, model = device_metadata(proxy)
             # The model string is informational, not a gate. All Onesti
             # locks share hardware and the ZMNC010 Zigbee module, and a
             # module can report a sibling model name (issue #5: a CodePRO
             # presenting as Twist), so any Onesti device with a Door Lock
             # cluster is offered.
-            if manufacturer != MANUFACTURER or not _has_door_lock_cluster(proxy):
+            if manufacturer != MANUFACTURER or not has_door_lock_cluster(proxy):
                 continue
             if model not in SUPPORTED_MODELS:
                 _LOGGER.warning(

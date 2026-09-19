@@ -17,6 +17,7 @@ import types
 from .conftest import load_component_module
 
 config_flow = load_component_module("config_flow")
+zha = load_component_module("zha")
 
 DOORLOCK_CLUSTER_ID = 0x0101
 
@@ -67,16 +68,16 @@ def _offered_devices(result):
 class TestHasDoorLockCluster:
     def test_found_two_levels_down(self):
         proxy = FakeProxy(FakeZigpyDevice("Onesti Products AS", "NimlyPRO"))
-        assert config_flow._has_door_lock_cluster(proxy)
+        assert zha.has_door_lock_cluster(proxy)
 
     def test_absent(self):
         proxy = FakeProxy(
             FakeZigpyDevice("Onesti Products AS", "NimlyPRO", cluster_ids=(0x0006,))
         )
-        assert not config_flow._has_door_lock_cluster(proxy)
+        assert not zha.has_door_lock_cluster(proxy)
 
     def test_no_endpoints_anywhere(self):
-        assert not config_flow._has_door_lock_cluster(object())
+        assert not zha.has_door_lock_cluster(object())
 
 
 class TestDiscovery:

@@ -8,7 +8,7 @@ only into raw numbers.
 
 1. The domain is `onesti_lock`, NOT `nimly_pro`. Classes still use the `Nimly` prefix (the brand name).
 2. Credentials, API keys and secrets do NOT go in git. They belong in `secrets.md` (gitignored). Docs hold API URLs and technical references only, never secrets.
-3. The lock is a battery-powered Zigbee EndDevice that sleeps. Every ZCL command must handle timeouts and go through the auto-wake mechanism in `coordinator.py`.
+3. The lock is a battery-powered Zigbee EndDevice that sleeps. Every ZCL command must handle timeouts and go through `ZhaLockTransport.send()` in `zha.py`, which handles the timeout and the auto-wake.
 4. The Nimly response quirk (`IndexError` in zigpy) is expected. The command reaches the lock despite the error. Do not "fix" it.
 5. The repo is public and written in English: code, comments, docs and commit messages. Work is tracked outside the repo, so no tracker ids or tracker names in files or commits. GitHub issue numbers (#6) are fine.
 6. Vendor manuals are the source for slot rules and lock behaviour. Run `python3 scripts/fetch_manuals.py` once, then read the `.txt` extracts in `docs/manuals/`. The files are gitignored, and `docs/manuals/README.md` lists what exists and where it came from.
@@ -18,14 +18,20 @@ only into raw numbers.
 ```
 NimlyCoordinator (one per lock)
   ├── Slot data (config entry options, persisted in .storage)
-  ├── ZHA cluster access (_get_cluster walks ZHADeviceProxy → Device → CustomDeviceV2)
-  ├── Auto-wake (_wake_lock physically locks the door via the ZHA lock entity;
-  │   why that works and a plain read does not is unverified; retries once)
-  ├── PIN operations (set_pin, clear_pin, clear_slot via ZHA issue_zigbee_cluster_command)
+  ├── PIN operations (set_pin, clear_pin, clear_slot through self.transport)
+  ├── Lock capabilities (read_lock_capabilities stores transport.read_capabilities())
   └── Activity sensor registration
 
+ZhaLockTransport (zha.py, injected into the coordinator; tests pass a fake)
+  ├── cluster(): find_door_lock_cluster walks ZHADeviceProxy → Device → CustomDeviceV2
+  ├── send(): ZHA issue_zigbee_cluster_command, on timeout wake() and retry once
+  ├── wake(): physically locks the door via the ZHA lock entity;
+  │   why that works and a plain read does not is unverified
+  └── read_capabilities(): ZCL 0x0012/0x0017/0x0018 as a dict, {} on any failure
+
 Event listener (in __init__.py)
-  ├── cluster.on_event("attribute_report"), catches custom attrid 0x0100
+  ├── cluster.on_event("attribute_report") on coordinator.transport.cluster(),
+  │   catches custom attrid 0x0100
   ├── Decodes bitmap32: bits 0-15 user_slot (uint16 LE), bits 16-23 action, bits 24-31 source
   ├── Updates activity sensor (skips system-initiated locking, see gotcha 4)
   └── Fires onesti_lock_activity HA event (always, including auto-lock)
@@ -51,7 +57,8 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 | File                                           | Purpose                                                                    |
 | ---------------------------------------------- | -------------------------------------------------------------------------- |
 | `custom_components/onesti_lock/__init__.py`    | Setup, event listener, operation event decoding                            |
-| `custom_components/onesti_lock/coordinator.py` | Slot storage, ZHA cluster wrapper, auto-wake, PIN operations               |
+| `custom_components/onesti_lock/coordinator.py` | Slot storage, PIN operations, lock capabilities                            |
+| `custom_components/onesti_lock/zha.py`         | All ZHA/zigpy internals: device lookup, chain walk, `ZhaLockTransport`     |
 | `custom_components/onesti_lock/config_flow.py` | Config flow (device selection) + Options flow (PIN management UI)          |
 | `custom_components/onesti_lock/sensor.py`      | Slot sensors (3-12) + Activity sensor                                      |
 | `custom_components/onesti_lock/services.py`    | set_pin, clear_pin, set_name, clear_slot services                          |
@@ -61,7 +68,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 
 ## Gotchas
 
-1. **ZHA device chain depth**: clusters live on the depth-2 object (CustomDeviceV2), not on the ZHADeviceProxy. `_get_cluster()` walks the `.device` chain up to 4 levels.
+1. **ZHA device chain depth**: clusters live on the depth-2 object (CustomDeviceV2), not on the ZHADeviceProxy. `zha.py` walks the `.device` chain up to 4 levels, in one place used by both the coordinator and the config flow.
 2. **Slot numbering**: Zigbee ZCL uses 0-999. Slot 0 is master on every model. Slots 1-2 are master on Touch Pro, PRO and Code but user slots on Code Pro, and the model string cannot tell them apart (#5). Details in `pin_rules.py` and `docs/slot-numbering.md`.
    - The per-lock option `reserved_slots` (1-3, default 3, `pin_rules.first_user_slot`) is the floor for set_pin/clear_pin/clear_slot. The coordinator itself enforces it, and slot 0 is never written.
    - Every slot 0-999 can be named.

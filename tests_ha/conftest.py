@@ -51,7 +51,9 @@ from __future__ import annotations
 
 import enum
 import importlib.util
+import inspect
 import sys
+import time
 import types
 from collections.abc import Callable
 from pathlib import Path
@@ -60,6 +62,9 @@ from typing import Any
 
 import homeassistant.components
 import pytest
+from bleak.backends.device import BLEDevice
+from bleak.backends.scanner import AdvertisementData
+from homeassistant.components import bluetooth
 
 # The repo root on sys.path, so both `import custom_components.onesti_lock`
 # and the Home Assistant loader's own `import custom_components` find the
@@ -325,3 +330,56 @@ def zha_commands(mock_zha) -> list[dict]:
     command with success unless a test scripts its command_effects.
     """
     return lock_cluster(mock_zha).commands
+
+
+# --- Bluetooth -------------------------------------------------------------------
+#
+# Home Assistant's own tests put an advertisement into the Bluetooth manager
+# with inject_bluetooth_service_info from tests/components/bluetooth, which
+# pytest-homeassistant-custom-component does not ship. This does the same
+# the same way: build the BLEDevice, AdvertisementData and
+# BluetoothServiceInfoBleak a scanner would, and hand them to the manager
+# through its public advertisement callback. The plugin's enable_bluetooth
+# fixture sets the manager up first.
+
+
+def inject_bluetooth_service_info(
+    hass,
+    *,
+    address: str,
+    service_data: dict[str, bytes],
+    name: str = "NIMLY",
+    rssi: int = -60,
+    connectable: bool = True,
+) -> None:
+    """One advertisement from the local adapter, as the Bluetooth manager receives it."""
+    # bleak 1.0 dropped rssi from BLEDevice; 0.22, which HA 2025.6 ships,
+    # still requires it.
+    device_kwargs: dict[str, Any] = {"address": address, "name": name, "details": {}}
+    if "rssi" in inspect.signature(BLEDevice).parameters:
+        device_kwargs["rssi"] = rssi
+    advertisement = AdvertisementData(
+        local_name=name,
+        manufacturer_data={},
+        service_data=service_data,
+        service_uuids=list(service_data),
+        tx_power=None,
+        rssi=rssi,
+        platform_data=(),
+    )
+    bluetooth.async_get_advertisement_callback(hass)(
+        bluetooth.BluetoothServiceInfoBleak(
+            name=name,
+            address=address,
+            rssi=rssi,
+            manufacturer_data={},
+            service_data=service_data,
+            service_uuids=list(service_data),
+            source=bluetooth.SOURCE_LOCAL,
+            device=BLEDevice(**device_kwargs),
+            advertisement=advertisement,
+            connectable=connectable,
+            time=time.monotonic(),
+            tx_power=None,
+        )
+    )

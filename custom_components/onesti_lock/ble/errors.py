@@ -21,7 +21,9 @@ library as a whole. Below it, the class says whose fault the failure is:
   caller catch, say, BleSecurityError without inspecting a field.
 - BleTimeoutError, BleDisconnectedError: the link. BleTimeoutError is also a
   TimeoutError.
-- BleFirmwareTooOldError: the lock's firmware is below what an operation needs.
+- BleFirmwareTooOldError: the lock's firmware is below what the app connects to.
+- BleFeatureUnavailableError: a command the app would not send to this lock,
+  for its firmware or its model (protocol/features.py). Nothing was sent.
 
 client/enrollment.py adds BleEnrollmentError, which carries the partial
 enrollment and so lives next to it. An exception from the caller's own
@@ -35,7 +37,15 @@ from __future__ import annotations
 
 from typing import ClassVar, Final
 
-from .protocol.const import CommandId, FirmwareVersion, ResponseId, ResponseStatusId
+from .protocol.const import (
+    MIN_FIRMWARE_ADMIN,
+    CommandId,
+    DeviceFeature,
+    FirmwareVersion,
+    LockModelId,
+    ResponseId,
+    ResponseStatusId,
+)
 
 
 class BleError(Exception):
@@ -74,12 +84,43 @@ class BleDisconnectedError(BleError):
 
 
 class BleFirmwareTooOldError(BleError):
-    """The lock's firmware is below what an operation needs."""
+    """The lock's firmware is below 4.6.0, the floor the app connects to.
+
+    A command gated on a newer firmware raises BleFeatureUnavailableError.
+    """
 
     def __init__(self, firmware: FirmwareVersion, required: FirmwareVersion) -> None:
         self.firmware = firmware
         self.required = required
         super().__init__(f"Lock firmware {_version(firmware)} is below the required {_version(required)}")
+
+
+class BleFeatureUnavailableError(BleError):
+    """The app would not send this command to this lock, so the session did not.
+
+    feature is what the app's feature() answers (protocol/features.py):
+    UNAVAILABLE_VERSION or UNAVAILABLE_UNKNOWN below firmware 4.7.90,
+    UNAVAILABLE when the model lacks it. firmware and model are what the
+    session read; model is None below 4.7.90. Session.send(...,
+    skip_app_gates=True) sends the command anyway, for testing a lock.
+    """
+
+    def __init__(
+        self,
+        command: CommandId,
+        feature: DeviceFeature,
+        firmware: FirmwareVersion,
+        model: LockModelId | None,
+    ) -> None:
+        self.command = command
+        self.feature = feature
+        self.firmware = firmware
+        self.model = model
+        if feature is DeviceFeature.UNAVAILABLE:
+            why = f"the app does not offer it on model {_model_name(model)}"
+        else:
+            why = f"the app offers it from firmware {_version(MIN_FIRMWARE_ADMIN)}, and this lock has {_version(firmware)}"
+        super().__init__(f"{_name(command, 'Command')} is not available on this lock ({feature.name}): {why}")
 
 
 class BleOperationError(BleError):
@@ -182,3 +223,7 @@ def _name(value: object, unknown: str) -> str:
 
 def _version(version: FirmwareVersion) -> str:
     return ".".join(str(part) for part in version)
+
+
+def _model_name(model: LockModelId | None) -> str:
+    return "not read" if model is None else f"{model.name} ({model.value})"

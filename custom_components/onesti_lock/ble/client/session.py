@@ -14,6 +14,12 @@ PayloadStream do together, over a Transport instead of Android's GATT:
 4. On firmware 4.7.90 and up, ask for the lock model (DeviceModelGet), as the
    app does before it reports the lock connected.
 
+send() refuses what the app would not send to this lock, before anything goes
+out: admin commands below firmware 4.7.90, and fingerprint, keypad enable and
+master PIN on models without them (protocol/features.py has the rules). It
+raises BleFeatureUnavailableError. skip_app_gates=True sends the command
+anyway, with a warning in the log, for finding out what a lock does with it.
+
 After that, send() and request() run one command at a time: the next command
 waits for the answer to the last one, or its timeout, plus the app's 320 ms
 pause. An answer is matched on its CommandRef, as CommandStream matches it,
@@ -61,6 +67,7 @@ from ..crypto import KeyPair, LinkKeys, derive_link_keys, generate_key_pair
 from ..errors import (
     BleDisconnectedError,
     BleError,
+    BleFeatureUnavailableError,
     BleFirmwareTooOldError,
     BleProtocolError,
     BleSessionStateError,
@@ -68,7 +75,16 @@ from ..errors import (
 )
 from ..protocol.command import CommandPayload, CommandRefCounter
 from ..protocol.commands import device_model_get, exchange_key_pub_m
-from ..protocol.const import DEFAULT_MTU, MIN_FIRMWARE_ADMIN, CommandId, FirmwareVersion, LockModelId, ResponseId
+from ..protocol.const import (
+    DEFAULT_MTU,
+    MIN_FIRMWARE_ADMIN,
+    CommandId,
+    DeviceFeature,
+    FirmwareVersion,
+    LockModelId,
+    ResponseId,
+)
+from ..protocol.features import availability
 from ..protocol.packet import PacketStream, ReceivedPayload
 from ..protocol.response import Response, expected_response_id
 from ..protocol.responses import LockStatus, UserAdded, parse_device_model, parse_event, parse_exchange_key_pub_l
@@ -246,21 +262,42 @@ class Session:
 
     # --- Commands --------------------------------------------------------------
 
-    async def send(self, command: CommandPayload) -> Response:
-        """Send a command and return its answer once the status says SUCCESS.
+    def availability(self, command: CommandPayload) -> DeviceFeature:
+        """Whether the app would send this command to this lock, as its feature() says.
 
-        Raises the BleOperationError subclass for a failed status,
-        BleProtocolError for an answer of the wrong kind, BleTimeoutError
-        when none comes in time, and BleDisconnectedError when the link
-        drops first.
+        A caller can ask before offering an operation, as the app does before
+        it shows one.
         """
         if self._state is not _State.CONNECTED:
             raise self._not_connected()
+        return availability(command, self.firmware, self._model)
+
+    async def send(self, command: CommandPayload, *, skip_app_gates: bool = False) -> Response:
+        """Send a command and return its answer once the status says SUCCESS.
+
+        Raises BleFeatureUnavailableError, without sending, for a command the
+        app would not send to this lock (see availability), unless
+        skip_app_gates is set. Raises the BleOperationError subclass for a
+        failed status, BleProtocolError for an answer of the wrong kind,
+        BleTimeoutError when none comes in time, and BleDisconnectedError
+        when the link drops first.
+        """
+        feature = self.availability(command)
+        if not feature.available:
+            if not skip_app_gates:
+                raise BleFeatureUnavailableError(command.command_id, feature, self.firmware, self._model)
+            _LOGGER.warning(
+                "Sending %s past the app's gate (%s); the app would not send it to this lock",
+                command.command_id.name,
+                feature.name,
+            )
         return await self._exchange(command)
 
-    async def request[T](self, command: CommandPayload, parse: Callable[[Response], T]) -> T:
+    async def request[T](
+        self, command: CommandPayload, parse: Callable[[Response], T], *, skip_app_gates: bool = False
+    ) -> T:
         """Send a command and read its answer with one of the parsers in protocol/responses.py."""
-        return parse(await self.send(command))
+        return parse(await self.send(command, skip_app_gates=skip_app_gates))
 
     def add_event_listener(self, listener: EventListener) -> Callable[[], None]:
         """Call listener with every LockStatus and UserAdded event; returns the remover.

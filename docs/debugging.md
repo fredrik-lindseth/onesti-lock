@@ -164,15 +164,22 @@ What to try:
 
 PIN commands (`set_pin_code`, `clear_pin_code`) get a malformed ZCL response back, and zigpy's parser crashes on it with `IndexError: tuple index out of range`. The command reached the lock and was carried out. Only the response parsing fails.
 
-The integration catches the error and treats it as success:
+The integration catches the error, logs it at debug level and treats it as success (`_send_cluster_command` in `coordinator.py`):
 
 ```python
 except IndexError:
     # Nimly quirk: command was sent and received, but response
     # format is unexpected causing "tuple index out of range"
     # in zigpy response parsing. Command still reached the lock.
+    _LOGGER.debug(
+        "Nimly response quirk (IndexError) for command 0x%04x, "
+        "command was sent successfully",
+        command,
+    )
     return True
 ```
+
+With debug logging off, nothing about it shows up in the log.
 
 Nothing confirms that the PIN was actually set, so you **must** test the code on the keypad.
 
@@ -270,20 +277,20 @@ The raw value is a bitmap32: `0x02020003` → source=0x02 (keypad), action=0x02 
 **Auto-wake sequence:**
 
 ```
-Timeout on attempt 1 for command 0x0005 — waking lock and retrying
+Timeout on attempt 1 for command 0x0005, waking lock and retrying
 Waking lock via lock.onesti_lock_nimly_pro_...
 ```
 
 **Failed command:**
 
 ```
-Timeout sending command 0x0005 to f4:ce:36:... after wake+retry — lock may be unreachable
+Timeout sending command 0x0005 to f4:ce:36:... after wake+retry; lock may be unreachable
 ```
 
 **Nimly response quirk:**
 
 ```
-Nimly response quirk (IndexError) for command 0x0005 — command was sent successfully
+Nimly response quirk (IndexError) for command 0x0005, command was sent successfully
 ```
 
 **Event listener not registered:**

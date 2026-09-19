@@ -323,3 +323,155 @@ class FakeTransport:
             return
         slots.discard(slot)
         self._answer(received)
+
+
+# --- The same lock behind bleak's BleakClient ----------------------------------------
+
+
+class FakeCharacteristic:
+    """What bleak hands out for a characteristic: its UUID and properties."""
+
+    def __init__(self, uuid: str, properties: list[str]) -> None:
+        self.uuid = uuid
+        self.properties = properties
+
+    def __repr__(self) -> str:
+        return f"FakeCharacteristic({self.uuid})"
+
+
+class FakeServices:
+    """BleakGATTServiceCollection, as far as get_characteristic goes."""
+
+    def __init__(self, characteristics: list[FakeCharacteristic]) -> None:
+        self._by_uuid = {c.uuid: c for c in characteristics}
+
+    def get_characteristic(self, uuid: object) -> FakeCharacteristic | None:
+        return self._by_uuid.get(str(uuid).lower())
+
+
+class FakeBleakClient:
+    """A bleak.BleakClient whose far end is a FakeLock.
+
+    Built like BleakClient, with a FakeLock in place of the BLEDevice, so it
+    can stand in for the client class a caller connects with. The lock side
+    is one FakeTransport (link), which frames, decrypts and answers exactly
+    as it does for tests that use it directly; this class only gives it
+    bleak's shape: the characteristic handed to the notification callback,
+    bytearrays, the response flag on writes, and the disconnected callback
+    called with the client, also on our own disconnect(), as bleak does.
+
+    bleak is imported only when a method has to raise one of its errors, so
+    this module still loads where bleak is not installed.
+    """
+
+    def __init__(
+        self,
+        lock: FakeLock,
+        disconnected_callback: Callable[[FakeBleakClient], None] | None = None,
+        *,
+        timeout: float = 10.0,
+        properties: tuple[str, ...] = ("read", "write", "notify"),
+        mtu_size: int = 23,
+        connected: bool = False,
+        **link_kwargs: object,
+    ) -> None:
+        self.lock = lock
+        self.timeout = timeout
+        self.link = lock.connect(**link_kwargs)
+        self._disconnected_callback = disconnected_callback
+        self.communication = FakeCharacteristic(client_const.COMMUNICATION_CHARACTERISTIC_UUID, list(properties))
+        self.software_revision = FakeCharacteristic(client_const.SOFTWARE_REVISION_CHARACTERISTIC_UUID, ["read"])
+        self.services = FakeServices([self.communication, self.software_revision])
+        self.mtu_size = mtu_size
+        self.is_connected = connected
+        # What the client was asked to do, in order.
+        self.write_calls: list[tuple[bytes, bool | None]] = []
+        self.notifying: FakeCharacteristic | None = None
+        self.stop_notify_calls = 0
+        self.disconnect_calls = 0
+        # Raised by the next call of that name, once.
+        self.errors: dict[str, BaseException] = {}
+
+    def _raise_if_set(self, name: str) -> None:
+        error = self.errors.pop(name, None)
+        if error is not None:
+            raise error
+
+    def _require_connection(self) -> None:
+        if not self.is_connected:
+            from bleak.exc import BleakError
+
+            raise BleakError("Not connected")
+
+    def _resolve(self, specifier: object) -> FakeCharacteristic:
+        if isinstance(specifier, FakeCharacteristic):
+            return specifier
+        characteristic = self.services.get_characteristic(specifier)
+        if characteristic is None:
+            from bleak.exc import BleakCharacteristicNotFoundError
+
+            raise BleakCharacteristicNotFoundError(str(specifier))
+        return characteristic
+
+    async def connect(self, **kwargs: object) -> None:
+        self._raise_if_set("connect")
+        self.is_connected = True
+
+    async def disconnect(self) -> None:
+        self.disconnect_calls += 1
+        self._raise_if_set("disconnect")
+        if self.is_connected:
+            self._lose_link()
+
+    async def read_gatt_char(self, specifier: object, **kwargs: object) -> bytearray:
+        self._require_connection()
+        self._raise_if_set("read_gatt_char")
+        if self._resolve(specifier) is not self.software_revision:
+            raise AssertionError("The transport should read only the software revision")
+        return bytearray(self.lock.firmware)
+
+    async def start_notify(self, specifier: object, callback: Callable[..., None], **kwargs: object) -> None:
+        self._require_connection()
+        self._raise_if_set("start_notify")
+        characteristic = self._resolve(specifier)
+        self.notifying = characteristic
+
+        def deliver(data: bytes) -> None:
+            # A notification that was already queued when the link dropped
+            # is not delivered, as on a real stack.
+            if self.is_connected and self.notifying is characteristic:
+                callback(characteristic, bytearray(data))
+
+        await self.link.start_notify(deliver, self._lose_link)
+
+    async def stop_notify(self, specifier: object) -> None:
+        self.stop_notify_calls += 1
+        self._require_connection()
+        self._raise_if_set("stop_notify")
+        self._resolve(specifier)
+        self.notifying = None
+
+    async def write_gatt_char(self, specifier: object, data: bytes, response: bool | None = None) -> None:
+        self._require_connection()
+        self._raise_if_set("write_gatt_char")
+        characteristic = self._resolve(specifier)
+        wanted = "write" if response else "write-without-response"
+        if wanted not in characteristic.properties:
+            from bleak.exc import BleakError
+
+            raise BleakError(f"{characteristic.uuid} does not allow {wanted}")
+        self.write_calls.append((bytes(data), response))
+        await self.link.write(bytes(data))
+
+    # --- Test controls -------------------------------------------------------------
+
+    def drop_link(self) -> None:
+        """The radio link breaks: the lock is gone and bleak reports it."""
+        self._lose_link()
+
+    def _lose_link(self) -> None:
+        self.is_connected = False
+        self.link.closed = True
+        self.notifying = None
+        if self._disconnected_callback is not None:
+            self._disconnected_callback(self)

@@ -26,7 +26,7 @@ class TestConstants:
         assert c["DOMAIN"] == "onesti_lock"
 
     def test_slot_first_user(self):
-        """User slots start at 3 (0-2 reserved for master codes)."""
+        """Default first user slot is 3 (reserved_slots overrides it per lock)."""
         c = _load_const()
         assert c["SLOT_FIRST_USER"] == 3
 

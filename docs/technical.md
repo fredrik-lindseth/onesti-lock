@@ -78,9 +78,25 @@ The event listener depends on three things that are not public API: the gateway,
 
 Without the listener nothing reports who unlocked, though PIN writes may still work when ZHA itself runs. The issue is deleted when the listener registers and when the entry unloads. What the user does about it is in [debugging.md](debugging.md#repair-issue-lock-events-are-not-being-received).
 
-## Nimly response quirk
+## Sending commands
 
-PIN commands get a malformed ZCL response back, and zigpy raises `IndexError: tuple index out of range` on it. The command reaches the lock, and only the response parsing fails. The integration catches the error and treats the command as sent. It logs the quirk at debug level only, so it stays out of the log unless debug logging is on.
+`ZhaLockTransport.send()` calls the command on the lock's zigpy Door Lock cluster directly, `cluster.command(command_id, **params)`, on the cluster `find_door_lock_cluster()` returns. The cluster belongs to its endpoint, so the command goes out from wherever ZHA found it. This is the call ZHA's `issue_zigbee_cluster_command` service ends in (`Device.issue_cluster_command` in the zha library), and `send()` does what that method does around it:
+
+- zigpy's default reply timeout, which ZHA does not change.
+- No manufacturer code. The service only fills one in for manufacturer clusters (0xFC00 and up), and it never passes it on to the cluster call anyway.
+- A `None` answer is success. An exception handed back as the answer is a failure. Otherwise the answer's `status` field decides, if it has one: anything but `SUCCESS` is a failure. The answer is either a Default Response or the command's own response, such as Set PIN Code Response, and both name the field `status`. An answer without one counts as success, as in ZHA.
+
+Where the service raised `ZHAException` for a failure status, `send()` returns `False` with a warning naming the status. The lock answered, so it is awake, and nothing is woken.
+
+The service is not used because Home Assistant fires a `call_service` event with the full service data for every service call, and the recorder stores those events. Through the service, every PIN the integration set, from the options flow as well, was written to the recorder database in clear text. `tests_ha/test_pin_canary.py` checks that no `call_service` event carries the code. The same bypass keeps the parameters out of the debug line ZHA's service logs for each command.
+
+`tests_ha/test_zha_contract.py` fails when Home Assistant moves to a zha library release whose `issue_cluster_command` has not been read against `send()`. zha 0.0.59 (HA 2025.6) and 2.2.2 (HA 2026.9) have been.
+
+Not verified on a real lock: that the direct call behaves like the service did against an Onesti lock. The frame on the air should be the same, since both end in the same zigpy call with the same arguments, but no PIN has been set this way on hardware yet. The status check is also new for HA 2025.x: the answer's status was never read there (see below), so a lock that answers a delivered PIN with a failure status now gets `False` where it used to get `True`.
+
+### Nimly response quirk
+
+PIN commands used to fail with `IndexError: tuple index out of range` even though the command reached the lock. The most likely source is ZHA, not the lock: zha 0.0.x, which HA 2025.6 ships, read the status as `response[1]`, and Set PIN Code Response and Clear PIN Code Response have one field, so index 1 does not exist. zha 2.x reads `response.status` instead. `send()` reads the status by name as well, so it should not see the error at all. It still catches `IndexError` and treats the command as sent, logged at debug level only, in case the lock's answer itself trips zigpy's parser.
 
 ## Coordinator pattern
 
@@ -149,7 +165,7 @@ Sensor states and options-flow labels are built in Python and never pass through
 
 Battery-powered Zigbee EndDevices sleep most of the time, and ZCL commands like `set_pin_code` fail while the radio is asleep. `ZhaLockTransport.send()` in `zha.py` wakes the lock and retries:
 
-1. The first attempt sends the ZCL command via `zha.issue_zigbee_cluster_command`.
+1. The first attempt sends the ZCL command to the zigpy cluster (see Sending commands).
 2. On `TimeoutError` or zigpy's `DeliveryError`, it calls `wake()` and retries the command once.
 3. `wake()` sends a `lock.lock` service call to ZHA's lock entity, then waits 1 second for the radio to settle.
 4. The command is sent again. A second failure returns `False`.
@@ -164,8 +180,6 @@ The wake has a side effect, since it is a real lock command and not a read. An u
 
 Nothing sent over the air wakes a sleeping EndDevice, since its radio is off. All the coordinator can do is queue a unicast at the parent router and hope the lock polls within the 7.68-second window; once one frame gets through, the lock fast-polls and drains the rest, which is what looks like waking. At that level a `read_attributes` is queued exactly like a lock command, so if `lock.lock` works better than a plain read (`read_capabilities` usually goes unanswered against a sleeping lock), the difference is the retry and extended-timeout envelope ZHA gives its lock entity, not the fact that it writes. That is why `homeassistant.update_entity` on the ZHA lock entity, which goes through the same entity path, is the candidate for a bolt-free wake, with "only wake when the cached state is already locked" as the fallback.
 
-Commands go through `zha.issue_zigbee_cluster_command` instead of touching the cluster directly, so ZHA's service layer handles ZCL framing and transport.
-
 ### Wake echo
 
 The lock reports the wake's `lock.lock` as an ordinary Zigbee lock (source `zigbee`, no user slot), which would replace the last activity every time a PIN is set on a sleeping lock. `wake()` stamps the time just before the service call, because the report can arrive while the call is still waiting, and `wake_echo_pending()` is true for `WAKE_ECHO_WINDOW_S` (30 seconds, `const.py`) after that. If the service call fails, the stamp goes back to what it was before, so a failed wake opens no window. Asking does not reset it, since the lock may report the wake more than once. Inside the window, a Zigbee lock without a user slot counts as a system lock: the event still fires, and the activity sensor stays as it was.
@@ -176,7 +190,7 @@ The trade-off is deliberate. A real lock from a dashboard within 30 seconds of t
 
 ## Logging and PIN codes
 
-Parameters for `set_pin_code` hold the PIN, and exception messages on the send path are not ours to shape: a voluptuous error from ZHA's service schema quotes the params, and a zigpy error may echo the frame. `send()` therefore never logs a traceback, and every exception message goes through `redact_digits()` in `redact.py` first. It replaces every run of four or more digits with a fixed `****`, so the mask does not reveal the code's length either. Shorter runs stay readable, since command ids, slot numbers and ZCL status codes are what make an error message useful.
+Parameters for `set_pin_code` hold the PIN, and exception messages on the send path are not ours to shape: an error from building the frame may quote the params, and a zigpy error may echo the frame. `send()` therefore never logs a traceback, and every exception message goes through `redact_digits()` in `redact.py` first. It replaces every run of four or more digits with a fixed `****`, so the mask does not reveal the code's length either. Shorter runs stay readable, since command ids, slot numbers and ZCL status codes are what make an error message useful.
 
 The mask covers every PIN the integration accepts only because `pin_rules` never accepts a code shorter than 4 (`PIN_LENGTH_SANE_MIN`, which `redact.py` imports). Lowering one without the other puts codes in the log.
 

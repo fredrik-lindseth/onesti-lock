@@ -13,6 +13,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
+from homeassistant.const import EVENT_CALL_SERVICE
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
@@ -20,7 +21,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.onesti_lock.const import CONF_IEEE, DOMAIN
 from custom_components.onesti_lock.zha import ZhaLockTransport
-from tests_ha.conftest import LOCK_IEEE, FakeDoorLockCluster, make_lock_proxy
+from tests_ha.conftest import LOCK_IEEE, FakeDoorLockCluster, lock_cluster, make_lock_proxy
 
 OTHER_IEEE = "00:0d:6f:00:55:66:77:88"
 
@@ -68,37 +69,29 @@ def lock_service_calls(hass: HomeAssistant) -> list[str]:
     return calls
 
 
-def _scripted_zha_command(hass: HomeAssistant, effects: list[BaseException | None]) -> list[dict]:
-    """ZHA's cluster command service; each call consumes one effect."""
-    calls: list[dict] = []
-
-    async def _issue(call: ServiceCall) -> None:
-        calls.append(dict(call.data))
-        effect = effects.pop(0) if effects else None
-        if effect is not None:
-            raise effect
-
-    hass.services.async_register("zha", "issue_zigbee_cluster_command", _issue)
-    return calls
+def _scripted_cluster(mock_zha, effects: list) -> FakeDoorLockCluster:
+    """Our lock's cluster; each command consumes one effect."""
+    cluster = lock_cluster(mock_zha)
+    cluster.command_effects = effects
+    return cluster
 
 
 async def test_timeout_wakes_our_lock_through_the_registries(
-    hass: HomeAssistant, lock_entities, lock_service_calls
+    hass: HomeAssistant, mock_zha, lock_entities, lock_service_calls
 ) -> None:
-    commands = _scripted_zha_command(hass, [TimeoutError(), None])
+    cluster = _scripted_cluster(mock_zha, [TimeoutError(), None])
     transport = ZhaLockTransport(hass, LOCK_IEEE)
 
     assert await transport.send(0x0007, {"user_id": 5}) is True
 
     assert lock_service_calls == [lock_entities[LOCK_IEEE]]
-    assert len(commands) == 2
+    assert len(cluster.commands) == 2
     assert transport.wake_echo_pending() is True
 
 
 async def test_uppercase_ieee_in_the_entry_still_finds_the_lock(
     hass: HomeAssistant, lock_entities, lock_service_calls
 ) -> None:
-    _scripted_zha_command(hass, [TimeoutError(), None])
     transport = ZhaLockTransport(hass, LOCK_IEEE.upper())
 
     await transport.wake()
@@ -152,13 +145,27 @@ async def test_disabled_lock_entity_is_not_actuated(hass: HomeAssistant, lock_en
     assert transport.wake_echo_pending() is False
 
 
-async def test_endpoint_is_read_from_the_cluster(hass: HomeAssistant, mock_zha) -> None:
-    mock_zha.device_proxies = {LOCK_IEEE: make_lock_proxy(cluster=FakeDoorLockCluster(endpoint_id=1))}
-    commands = _scripted_zha_command(hass, [])
+async def test_command_goes_to_the_cluster_on_its_own_endpoint(hass: HomeAssistant, mock_zha) -> None:
+    # The cluster is looked up on every endpoint but 0, and a zigpy cluster
+    # sends from the endpoint it belongs to.
+    cluster = FakeDoorLockCluster(endpoint_id=1)
+    mock_zha.device_proxies = {LOCK_IEEE: make_lock_proxy(cluster=cluster)}
 
     assert await ZhaLockTransport(hass, LOCK_IEEE).send(0x0007, {"user_id": 5}) is True
 
-    assert commands[0]["endpoint_id"] == 1
+    assert cluster.commands == [{"command": 0x0007, "params": {"user_id": 5}}]
+
+
+async def test_no_zha_service_is_called_and_no_event_carries_the_params(hass: HomeAssistant, mock_zha) -> None:
+    fired: list = []
+    hass.bus.async_listen(EVENT_CALL_SERVICE, fired.append)
+    params = {"user_id": 5, "user_status": 1, "user_type": 0, "pin_code": "83729164"}
+
+    assert await ZhaLockTransport(hass, LOCK_IEEE).send(0x0005, params) is True
+    await hass.async_block_till_done()
+
+    assert lock_cluster(mock_zha).commands == [{"command": 0x0005, "params": params}]
+    assert fired == []
 
 
 # -- Capabilities --

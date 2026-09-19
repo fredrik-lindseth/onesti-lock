@@ -1,4 +1,4 @@
-"""The installed ZHA still has the gateway lookup that conftest.py stands in for.
+"""The installed ZHA still matches what conftest.py and zha.py assume of it.
 
 tests_ha cannot import homeassistant.components.zha.helpers, since it needs
 the zha library, so conftest.py puts a stand-in for get_zha_gateway_proxy in
@@ -19,6 +19,7 @@ import __future__
 import ast
 import collections
 import dataclasses
+import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -101,3 +102,26 @@ def test_zha_never_set_up_raises_value_error(real, stand_in) -> None:
         real[CONTRACT](SimpleNamespace(data={}))
     with pytest.raises(ValueError):
         stand_in(SimpleNamespace(data={}))
+
+
+# The zha library releases whose Device.issue_cluster_command was read when
+# ZhaLockTransport.send started calling the zigpy cluster directly, mapped
+# to the zigpy each one pins. send mirrors what that method does: the
+# command called on the cluster by id with zigpy's default timeout and no
+# manufacturer code, a None answer is success, an exception handed back is
+# a failure, and a status field other than SUCCESS is a failure. When a
+# target moves to a zha release not listed here, read its
+# issue_cluster_command and zigpy's DoorLock set_pin_code/clear_pin_code
+# field names again, then add it.
+READ_ZHA_RELEASES = {"0.0.59": "0.80.1", "2.2.2": "2.2.0"}
+
+
+def test_zha_release_is_one_whose_command_path_was_read() -> None:
+    manifest = Path(homeassistant.components.__path__[0]) / "zha" / "manifest.json"
+    requirements = json.loads(manifest.read_text())["requirements"]
+    zha_pins = [r.split("==", 1)[1] for r in requirements if r.startswith("zha==")]
+
+    assert len(zha_pins) == 1, requirements
+    assert zha_pins[0] in READ_ZHA_RELEASES, (
+        f"HA now ships zha {zha_pins[0]}; re-read its issue_cluster_command against ZhaLockTransport.send"
+    )

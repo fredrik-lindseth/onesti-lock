@@ -4,10 +4,10 @@ tests/test_no_pin_exposure.py guards by name: it looks for pin_code and
 code in the source. That misses a renamed attribute or a whole params dict
 handed to a log call. This file guards by value instead. A known PIN goes
 in through the service and the options flow, the real coordinator and the
-real ZhaLockTransport carry it to ZHA's cluster command service, and ZHA
-answers with success, the Nimly IndexError, a timeout, a failed delivery,
-or a ValueError that quotes the params. Afterwards the canary must not be
-found in:
+real ZhaLockTransport carry it to the lock's zigpy Door Lock cluster, and
+the cluster answers with success, a failure status, the Nimly IndexError,
+a timeout, a failed delivery, or a ValueError that quotes the params.
+Afterwards the canary must not be found in:
 
 - any log record, from any logger, at DEBUG and up, tracebacks included,
 - the config entry, options included, which is what .storage persists,
@@ -16,13 +16,14 @@ found in:
 - any repair issue,
 - the exception that reaches whoever called.
 
-Two things carry the code by design and are left out of the event check.
-The call_service event for onesti_lock.set_pin is the caller's own input,
-which Home Assistant fires for every service call. The call_service event
-for ZHA's issue_zigbee_cluster_command is ours, and it is a leak:
-test_zha_command_event_carries_the_pin below states it.
+One thing carries the code by design and is left out of the event check:
+the call_service event for onesti_lock.set_pin is the caller's own input,
+which Home Assistant fires for every service call. The transport sends to
+the cluster directly and calls no service, so no call_service event of
+ours carries it; test_no_call_service_event_carries_the_pin states that on
+its own, without the exception for onesti_lock.set_pin.
 
-The ZHA errors above all come back through the real transport, which
+The cluster errors above all come back through the real transport, which
 catches them. test_a_transport_that_raises_does_not_leak covers what
 happens when a write raises past it anyway.
 
@@ -42,7 +43,7 @@ from typing import Any
 
 import pytest
 from homeassistant.const import EVENT_CALL_SERVICE, MATCH_ALL
-from homeassistant.core import Event, HomeAssistant, ServiceCall, callback
+from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import issue_registry as ir
@@ -50,7 +51,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from zigpy.exceptions import DeliveryError
 
 from custom_components.onesti_lock.const import CONF_IEEE, DOMAIN
-from tests_ha.conftest import DOORLOCK_CLUSTER_ID, LOCK_IEEE
+from tests_ha.conftest import DOORLOCK_CLUSTER_ID, LOCK_IEEE, ZclStatus, lock_cluster
 
 CANARY = "83729164"
 # One digit too many for every lock, so it is refused with invalid_pin.
@@ -68,10 +69,11 @@ def _raising(kind: type[BaseException], text: str) -> Callable[[dict], BaseExcep
     return lambda params: kind(text.format(params=params))
 
 
-# What ZHA's cluster command service does with each call, in order. Each
-# message quotes the params, the worst case for anything that logs it.
-SCENARIOS: dict[str, tuple[list[Callable[[dict], BaseException]], bool]] = {
+# What the lock's cluster does with each command, in order. Each message
+# quotes the params, the worst case for anything that logs it.
+SCENARIOS: dict[str, tuple[list[Callable[[dict], Any]], bool]] = {
     "success": ([], True),
+    "failure_status": ([lambda params: SimpleNamespace(status=ZclStatus.FAILURE)], False),
     "index_error": ([_raising(IndexError, "tuple index out of range parsing {params}")], True),
     "timeout": ([_raising(TimeoutError, "no answer to {params}")] * 2, False),
     "delivery_error": ([_raising(DeliveryError, "failed to deliver {params}")] * 2, False),
@@ -98,17 +100,14 @@ def bus_events(hass: HomeAssistant) -> list[Event]:
 
 
 @pytest.fixture
-def zha_service(hass: HomeAssistant, mock_zha) -> SimpleNamespace:
-    """ZHA's issue_zigbee_cluster_command, following a scripted list of effects."""
-    state = SimpleNamespace(effects=[], calls=[])
+def zha_service(mock_zha) -> SimpleNamespace:
+    """The lock's Door Lock cluster, following a scripted list of effects.
 
-    async def _issue(call: ServiceCall) -> None:
-        state.calls.append(dict(call.data))
-        if state.effects:
-            raise state.effects.pop(0)(call.data["params"])
-
-    hass.services.async_register("zha", "issue_zigbee_cluster_command", _issue)
-    return state
+    `effects` is what the cluster does with each command, `calls` what it
+    was sent, as {"command": id, "params": {...}}.
+    """
+    cluster = lock_cluster(mock_zha)
+    return SimpleNamespace(effects=cluster.command_effects, calls=cluster.commands)
 
 
 @pytest.fixture
@@ -156,11 +155,8 @@ def _exception_texts(error: BaseException | None) -> list[str]:
 
 
 def _is_known_carrier(event: Event) -> bool:
-    """call_service events that carry the code, see the module docstring."""
-    return event.event_type == EVENT_CALL_SERVICE and (
-        event.data.get("domain") == DOMAIN
-        or (event.data.get("domain"), event.data.get("service")) == ("zha", "issue_zigbee_cluster_command")
-    )
+    """The call_service event for our own service, see the module docstring."""
+    return event.event_type == EVENT_CALL_SERVICE and event.data.get("domain") == DOMAIN
 
 
 def _places(
@@ -248,7 +244,7 @@ def _pin_sent(zha_service) -> bool:
 @pytest.mark.parametrize("scenario", SCENARIOS)
 async def test_service_set_pin(hass, entry, mock_zha, zha_service, bus_events, caplog, scenario) -> None:
     effects, delivered = SCENARIOS[scenario]
-    zha_service.effects = list(effects)
+    zha_service.effects[:] = effects
 
     raised = await _service_set_pin(hass, CANARY)
     await _after_the_write(hass, mock_zha)
@@ -264,7 +260,7 @@ async def test_service_set_pin(hass, entry, mock_zha, zha_service, bus_events, c
 @pytest.mark.parametrize("scenario", SCENARIOS)
 async def test_options_flow_set_pin(hass, entry, mock_zha, zha_service, bus_events, caplog, scenario) -> None:
     effects, delivered = SCENARIOS[scenario]
-    zha_service.effects = list(effects)
+    zha_service.effects[:] = effects
 
     result = await _flow_set_pin(hass, entry, CANARY)
     await _after_the_write(hass, mock_zha)
@@ -299,26 +295,17 @@ async def test_options_flow_refuses_a_code_too_long_without_logging_it(
     assert_no_canary(hass, entry, caplog, bus_events, canary=TOO_LONG)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "The transport sends through hass.services.async_call, and Home "
-        "Assistant fires a call_service event with the full service data, "
-        "pin_code included, for every call. The recorder stores that event, "
-        "so a PIN set from the options flow, which never passes the code "
-        "through a service of ours, still lands in the database."
-    ),
-)
-async def test_zha_command_event_carries_the_pin(hass, entry, zha_service, bus_events) -> None:
-    await _flow_set_pin(hass, entry, CANARY)
+async def test_no_call_service_event_carries_the_pin(hass, entry, zha_service, bus_events) -> None:
+    # The recorder stores every call_service event with its full service
+    # data. The transport once sent through ZHA's issue_zigbee_cluster_command
+    # service, so a PIN set from the options flow, which passes the code
+    # through no service of ours, still landed in the database.
+    result = await _flow_set_pin(hass, entry, CANARY)
 
-    zha_events = [
-        e
-        for e in bus_events
-        if e.event_type == EVENT_CALL_SERVICE and e.data.get("domain") == "zha"
-    ]
-    assert zha_events
-    assert not any(CANARY in repr(dict(e.data)) for e in zha_events)
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert _pin_sent(zha_service)
+    call_service_events = [e for e in bus_events if e.event_type == EVENT_CALL_SERVICE]
+    assert not [e for e in call_service_events if CANARY in repr(dict(e.data))]
 
 
 @pytest.mark.parametrize("path", ["options_flow", "service"])

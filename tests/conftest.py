@@ -17,6 +17,7 @@ are in place however the test files are ordered or selected.
 """
 from __future__ import annotations
 
+import enum
 import importlib.util
 import os
 import sys
@@ -230,6 +231,21 @@ class DeliveryError(ZigbeeException):
 
 zigpy_exceptions.ZigbeeException = ZigbeeException
 zigpy_exceptions.DeliveryError = DeliveryError
+
+# zha.py reads the status in the lock's answer against zigpy's ZCL Status.
+_module("zigpy.zcl", package=True)
+zigpy_foundation = _module("zigpy.zcl.foundation")
+
+
+class Status(enum.IntEnum):
+    """The part of zigpy.zcl.foundation.Status the tests use."""
+
+    SUCCESS = 0x00
+    FAILURE = 0x01
+    NOT_AUTHORIZED = 0x7E
+
+
+zigpy_foundation.Status = Status
 
 
 # --- voluptuous --------------------------------------------------------------

@@ -423,22 +423,16 @@ def lock_entity(hass: HomeAssistant, mock_zha) -> str:
 
 
 @pytest.fixture
-def sleeping_lock(hass: HomeAssistant, lock_entity: str) -> list[str]:
-    """ZHA answering the first cluster command with a timeout, as for a
-    sleeping lock, and a lock.lock service. Returns the woken entity ids."""
-    effects: list[BaseException | None] = [TimeoutError()]
-
-    async def _issue(call: ServiceCall) -> None:
-        effect = effects.pop(0) if effects else None
-        if effect is not None:
-            raise effect
+def sleeping_lock(hass: HomeAssistant, mock_zha, lock_entity: str) -> list[str]:
+    """The lock's cluster answering the first command with a timeout, as a
+    sleeping lock does, and a lock.lock service. Returns the woken entity ids."""
+    _cluster(mock_zha).command_effects = [TimeoutError()]
 
     woken: list[str] = []
 
     async def _lock(call: ServiceCall) -> None:
         woken.append(call.data["entity_id"])
 
-    hass.services.async_register("zha", "issue_zigbee_cluster_command", _issue)
     hass.services.async_register("lock", "lock", _lock)
     return woken
 

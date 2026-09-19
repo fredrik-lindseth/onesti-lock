@@ -2,7 +2,7 @@
 
 Pure logic with no Home Assistant imports, so the pytest-only CI can
 execute this module directly. PIN length rules are planned to land here
-too (see docs/plans/2026-08-23-vurdering-setpin.md).
+too.
 """
 from __future__ import annotations
 

@@ -134,6 +134,30 @@ class TestFormatActivity:
         assert localize.format_activity({}, "unlock", "keypad", "Kari")
 
 
+class TestFormatSlotLabel:
+    """format_slot_label renders every slot label in the options flow."""
+
+    @pytest.mark.parametrize(
+        ("language", "expected"),
+        [
+            ("en", "Slot 3: Kari"),
+            ("nb", "Slot 3: Kari"),
+            ("sv", "Plats 3: Kari"),
+            ("da", "Plads 3: Kari"),
+        ],
+    )
+    def test_each_language(self, language, expected):
+        strings = localize.load_strings(language)
+        assert localize.format_slot_label(strings, 3, "Kari") == expected
+
+    def test_name_is_inserted_verbatim(self):
+        strings = localize.load_strings("en")
+        assert localize.format_slot_label(strings, 12, "**Kari**") == "Slot 12: **Kari**"
+
+    def test_falls_back_without_strings(self):
+        assert localize.format_slot_label({}, 0, "Master") == "Slot 0: Master"
+
+
 class TestFormatReservedSlotRow:
     """Reserved master rows in view slots never repeat the slot number."""
 

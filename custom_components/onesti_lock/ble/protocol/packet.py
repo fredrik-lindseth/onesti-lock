@@ -21,7 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Final, Protocol
 
-from ..errors import BleProtocolError
+from ..errors import BleProtocolError, BleValidationError
 from .blob import BLOB_LENGTH_MAX, BlobAssembler, BlobHeader
 from .const import (
     ATT_OVERHEAD,
@@ -54,7 +54,7 @@ class Packet:
 
     def to_bytes(self) -> bytes:
         if len(self.payload) > PACKET_PAYLOAD_MAX:
-            raise ValueError(f"Packet payload of {len(self.payload)} bytes exceeds {PACKET_PAYLOAD_MAX}")
+            raise BleValidationError(f"Packet payload of {len(self.payload)} bytes exceeds {PACKET_PAYLOAD_MAX}")
         return (
             ByteWriter()
             .write_uint8(self.packet_type)
@@ -96,7 +96,7 @@ def _packet_room(mtu: int) -> int:
     and never meets the cap; it would fail on a larger MTU where this splits.
     """
     if mtu < MTU_MIN:
-        raise ValueError(f"MTU {mtu} is too small; the protocol needs at least {MTU_MIN}")
+        raise BleValidationError(f"MTU {mtu} is too small; the protocol needs at least {MTU_MIN}")
     return min(mtu - ATT_OVERHEAD - PACKET_HEADER_SIZE, PACKET_PAYLOAD_MAX)
 
 
@@ -111,7 +111,7 @@ def packetize(payload: bytes, *, encrypted: bool, mtu: int = DEFAULT_MTU) -> lis
     for each payload.
     """
     if not payload:
-        raise ValueError("Cannot send an empty payload")
+        raise BleValidationError("Cannot send an empty payload")
     room = _packet_room(mtu)
     sequence = FIRST_SEQUENCE_NUMBER
 
@@ -120,7 +120,7 @@ def packetize(payload: bytes, *, encrypted: bool, mtu: int = DEFAULT_MTU) -> lis
         return [Packet(single, sequence, payload)]
 
     if len(payload) > BLOB_LENGTH_MAX:
-        raise ValueError(f"Payload of {len(payload)} bytes exceeds the blob limit of {BLOB_LENGTH_MAX}")
+        raise BleValidationError(f"Payload of {len(payload)} bytes exceeds the blob limit of {BLOB_LENGTH_MAX}")
     first = room - BLOB_HEADER_SIZE
     header = BlobHeader.for_payload(len(payload), encrypted=encrypted)
     packets = [Packet(PacketTypeId.BLOB_START, sequence, header.to_bytes() + payload[:first])]

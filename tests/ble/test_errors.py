@@ -16,6 +16,7 @@ class TestHierarchy:
         "cls",
         [
             "BleValidationError",
+            "BleSessionStateError",
             "BleProtocolError",
             "BleTimeoutError",
             "BleDisconnectedError",
@@ -29,6 +30,11 @@ class TestHierarchy:
     def test_validation_is_a_value_error(self):
         # Callers that already catch ValueError for bad input keep working.
         assert issubclass(errors.BleValidationError, ValueError)
+
+    def test_session_state_is_a_runtime_error(self):
+        # Misuse of a Session is a bug in the caller, like any RuntimeError.
+        assert issubclass(errors.BleSessionStateError, RuntimeError)
+        assert not issubclass(errors.BleSessionStateError, errors.BleDisconnectedError)
 
     def test_timeout_is_a_timeout_error(self):
         # asyncio.timeout raises TimeoutError; one except clause catches both.
@@ -62,7 +68,7 @@ class TestStatusMapping:
         assert "0x42" in str(error)
 
     def test_success_is_not_an_error(self):
-        with pytest.raises(ValueError, match="SUCCESS"):
+        with pytest.raises(errors.BleValidationError, match="SUCCESS"):
             errors.error_for_status(0)
 
 

@@ -127,7 +127,7 @@ class TestStatusOnly:
             responses.check_status_only(parse(vectors.PIN_CODE_SET_SUCCESS_REF_1_RESPONSE), ResponseId.PIN_CODE_CLEAR)
 
     def test_payload_responses_are_refused(self):
-        with pytest.raises(ValueError, match="BATT_INFO_GET carries a payload"):
+        with pytest.raises(errors.BleValidationError, match="BATT_INFO_GET carries a payload"):
             responses.check_status_only(parse(vectors.BATT_INFO_GET_REF_1_RESPONSE), ResponseId.BATT_INFO_GET)
 
     def test_the_set_matches_the_app(self):

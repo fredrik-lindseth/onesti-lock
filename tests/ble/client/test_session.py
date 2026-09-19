@@ -192,7 +192,7 @@ class TestConnect:
         async def scenario():
             session = new_session(open_transport())
             await session.connect()
-            with pytest.raises(RuntimeError, match="connects once"):
+            with pytest.raises(errors.BleSessionStateError, match="connects once"):
                 await session.connect()
             await session.close()
 
@@ -202,11 +202,11 @@ class TestConnect:
         session = new_session(open_transport())
         assert not session.connected
         assert session.model is None
-        with pytest.raises(RuntimeError, match="connect"):
+        with pytest.raises(errors.BleSessionStateError, match="connect"):
             session.firmware  # noqa: B018
-        with pytest.raises(RuntimeError, match="connect"):
+        with pytest.raises(errors.BleSessionStateError, match="connect"):
             session.link_keys  # noqa: B018
-        with pytest.raises(RuntimeError, match="connect"):
+        with pytest.raises(errors.BleSessionStateError, match="connect"):
             run(session.send(commands.batt_info_get()))
         assert "NEW" in repr(session)
 
@@ -225,7 +225,7 @@ class TestConnect:
 
             session = new_session(lock.connect(require_login=False), key_pair_factory=factory)
             async with session:
-                with pytest.raises(RuntimeError, match="still connecting"):
+                with pytest.raises(errors.BleSessionStateError, match="still connecting"):
                     await early[0]
 
         run(scenario())

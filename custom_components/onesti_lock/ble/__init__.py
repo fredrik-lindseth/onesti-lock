@@ -61,6 +61,7 @@ from .errors import (
     BleParameterError,
     BleProtocolError,
     BleSecurityError,
+    BleSessionStateError,
     BleTimeoutError,
     BleValidationError,
 )
@@ -109,6 +110,7 @@ __all__ = [
     "BleParameterError",
     "BleProtocolError",
     "BleSecurityError",
+    "BleSessionStateError",
     "BleTimeoutError",
     "BleValidationError",
     "DisconnectCallback",

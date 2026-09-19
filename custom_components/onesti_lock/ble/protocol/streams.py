@@ -33,7 +33,7 @@ class ByteReader:
 
     def _take(self, count: int) -> bytes:
         if count < 0:
-            raise ValueError("Cannot read a negative number of bytes")
+            raise BleValidationError("Cannot read a negative number of bytes")
         if count > self.remaining:
             raise BleProtocolError(f"Tried to read {count} byte(s), but only {self.remaining} remain")
         start = self._pos

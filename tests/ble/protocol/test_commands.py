@@ -148,9 +148,9 @@ class TestSlotRanges:
         assert commands.scan_rfid_code(900).command_id == 0x56
         assert commands.fingerprint_scan(150).command_id == 0x57
         assert commands.fingerprint_clear(150).command_id == 0x58
-        with pytest.raises(ValueError):
+        with pytest.raises(errors.BleValidationError):
             commands.fingerprint_scan(900)
-        with pytest.raises(ValueError):
+        with pytest.raises(errors.BleValidationError):
             commands.scan_rfid_code(150)
 
     def test_ignore_slot_check(self):
@@ -223,7 +223,7 @@ class TestLengthChecks:
 
     def test_device_name(self):
         assert commands.device_name_set("12345678").data == b"12345678\x00"
-        with pytest.raises(ValueError):
+        with pytest.raises(errors.BleValidationError):
             commands.device_name_set("123456789")
 
     @pytest.mark.parametrize(
@@ -241,9 +241,10 @@ class TestLengthChecks:
             call()
 
     def test_enum_arguments_must_be_members(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(errors.BleValidationError, match="9 is not a EkeyOperationId") as info:
             commands.ekey_operate(9)
-        with pytest.raises(ValueError):
+        assert info.value.__suppress_context__
+        with pytest.raises(errors.BleValidationError, match="3 is not a LockVolumeId"):
             commands.volume_set(3)
 
 

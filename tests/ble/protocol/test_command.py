@@ -40,7 +40,7 @@ class TestCommand:
 
     @pytest.mark.parametrize("ref", [0, 255, -1])
     def test_ref_range(self, ref):
-        with pytest.raises(ValueError, match="CommandRef"):
+        with pytest.raises(errors.BleValidationError, match="CommandRef"):
             command.Command(const.CommandId.BATT_INFO_GET, ref).to_bytes()
 
     def test_ref_bounds_are_accepted(self):
@@ -48,7 +48,7 @@ class TestCommand:
         assert command.Command(const.CommandId.BATT_INFO_GET, 254).to_bytes()[2] == 254
 
     def test_payload_limit(self):
-        with pytest.raises(ValueError, match="exceeds 255"):
+        with pytest.raises(errors.BleValidationError, match="exceeds 255"):
             command.Command(const.CommandId.EXCHANGE_KEY_PUB_M, 1, bytes(256)).to_bytes()
 
     @pytest.mark.parametrize(

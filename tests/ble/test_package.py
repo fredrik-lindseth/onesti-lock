@@ -122,6 +122,28 @@ def test_subpackages_load_nothing_on_import(path):
     assert not imports, f"{_name(path)} imports at package level"
 
 
+# Calls whose result is raised and that return a BleError themselves.
+BLE_ERROR_FACTORIES = {"error_for_status", "_not_connected"}
+
+
+@pytest.mark.parametrize("path", MODULES, ids=_name)
+def test_raises_only_ble_errors(path):
+    """Everything the library raises is a BleError, so one except clause catches it all.
+
+    A bare `raise` re-raises what was caught and is fine. Anything else must
+    construct a Ble* class or call one of the factories that return one.
+    """
+    wrong = []
+    for node in ast.walk(ast.parse(path.read_text())):
+        if not isinstance(node, ast.Raise) or node.exc is None:
+            continue
+        call = node.exc.func if isinstance(node.exc, ast.Call) else node.exc
+        name = call.attr if isinstance(call, ast.Attribute) else getattr(call, "id", None)
+        if not (name and (name.startswith("Ble") or name in BLE_ERROR_FACTORIES)):
+            wrong.append(f"line {node.lineno}: {ast.unparse(node.exc)}")
+    assert not wrong, f"{_name(path)} raises outside BleError: {wrong}"
+
+
 def test_marked_as_typed():
     assert (BLE_DIR / "py.typed").is_file()
 

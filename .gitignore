@@ -23,3 +23,7 @@ secrets.md
 
 # Issue-sporing skjer i dcat, ikke beads
 .beads/
+
+# Produsentmanualer er Nimlys opphavsrett og lagres bare lokalt; README.md lenker til kildene
+docs/manuals/*
+!docs/manuals/README.md

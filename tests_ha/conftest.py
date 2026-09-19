@@ -124,3 +124,20 @@ def mock_zha(hass, zha_dependency) -> SimpleNamespace:
     gateway_proxy = SimpleNamespace(device_proxies={LOCK_IEEE: make_lock_proxy()})
     hass.data["zha"] = SimpleNamespace(gateway_proxy=gateway_proxy)
     return gateway_proxy
+
+
+@pytest.fixture
+def zha_commands(hass, mock_zha) -> list[dict]:
+    """ZHA's issue_zigbee_cluster_command service, answering like a lock that got the command.
+
+    The integration sends every ZCL command through this service, so
+    registering it lets the real ZhaLockTransport and coordinator run end to
+    end. Returns the list of service data the integration sent, in order.
+    """
+    calls: list[dict] = []
+
+    async def _issue(call) -> None:
+        calls.append(dict(call.data))
+
+    hass.services.async_register("zha", "issue_zigbee_cluster_command", _issue)
+    return calls

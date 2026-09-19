@@ -106,35 +106,11 @@ class _FlowResultsMixin:
     def async_show_menu(self, *, step_id, menu_options, **kwargs):
         return {"type": "menu", "step_id": step_id, "menu_options": menu_options, **kwargs}
 
-    def async_show_progress(self, *, step_id=None, progress_action, progress_task=None, **kwargs):
-        return {
-            "type": "progress",
-            "step_id": step_id,
-            "progress_action": progress_action,
-            "progress_task": progress_task,
-            **kwargs,
-        }
-
-    def async_show_progress_done(self, *, next_step_id):
-        return {"type": "progress_done", "next_step_id": next_step_id}
-
     def async_create_entry(self, *, data, title="", **kwargs):
         return {"type": "create_entry", "title": title, "data": data, **kwargs}
 
     def async_abort(self, *, reason, **kwargs):
         return {"type": "abort", "reason": reason, **kwargs}
-
-    def add_suggested_values_to_schema(self, data_schema, suggested_values):
-        """HA copies the schema with suggested values attached; the stub records them."""
-        return SuggestedSchema(data_schema, dict(suggested_values or {}))
-
-
-class SuggestedSchema:
-    """What add_suggested_values_to_schema returns: the schema plus the values."""
-
-    def __init__(self, schema, suggested_values):
-        self.schema = schema
-        self.suggested_values = suggested_values
 
 
 class ConfigFlow(_FlowResultsMixin):
@@ -205,29 +181,8 @@ device_registry.async_get = _device_registry_async_get
 # zha.py finds the ZHA device behind a lock by this connection type.
 device_registry.CONNECTION_ZIGBEE = "zigbee"
 
-entity_platform = _module("homeassistant.helpers.entity_platform")
-entity_platform.AddEntitiesCallback = object
-
 
 _module("homeassistant.components", package=True)
-
-sensor = _module("homeassistant.components.sensor")
-
-
-class SensorEntity:
-    """Counts state writes so tests can assert an entity pushed its state."""
-
-    hass = None
-    entity_id: str | None = None
-    # The += in async_write_ha_state shadows this with a per-instance count.
-    ha_state_writes = 0
-
-    def async_write_ha_state(self):
-        self.ha_state_writes += 1
-
-
-sensor.SensorEntity = SensorEntity
-
 
 # zha.py reaches ZHA's gateway proxy through ZHA's own helper. The stub reads
 # it the way the real one does, from hass.data["zha"].gateway_proxy, and

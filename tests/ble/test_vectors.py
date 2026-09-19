@@ -32,6 +32,18 @@ RESPONSES = {
     "DEVICE_MODEL_GET_NIMLY_PRO_REF_1_RESPONSE": (const.ResponseId.DEVICE_MODEL_GET, const.ResponseStatusId.SUCCESS),
     "DEVICE_LOG_GET_REF_1_RESPONSE": (const.ResponseId.DEVICE_LOG_GET, const.ResponseStatusId.SUCCESS),
     "LOCK_STATUS_SLOT_803_UNLOCKED_PANEL_RESPONSE": (const.ResponseId.LOCK_STATUS, const.ResponseStatusId.SUCCESS),
+    "USER_ADDED_SLOT_151_FINGERPRINT_RESPONSE": (const.ResponseId.USER_ADDED, const.ResponseStatusId.SUCCESS),
+    "USER_AUTH_FINALIZE_REF_2_RESPONSE": (const.ResponseId.USER_AUTH_FINALIZE, const.ResponseStatusId.SUCCESS),
+    "USER_AUTH_UPDATE_REF_3_RESPONSE": (const.ResponseId.USER_AUTH_UPDATE, const.ResponseStatusId.SUCCESS),
+    "EXCHANGE_KEY_PUB_L_REF_1_RESPONSE": (const.ResponseId.EXCHANGE_KEY_PUB_L, const.ResponseStatusId.SUCCESS),
+    "SERVER_KEY_UPDATE_REF_4_RESPONSE": (const.ResponseId.SERVER_KEY_UPDATE, const.ResponseStatusId.SUCCESS),
+    "CURRENT_TIME_GET_REF_5_RESPONSE": (const.ResponseId.CURRENT_TIME_GET, const.ResponseStatusId.SUCCESS),
+    "FINGERPRINT_SCAN_SLOT_150_NO_SPACE_REF_6_RESPONSE": (
+        const.ResponseId.FINGERPRINT_SCAN,
+        const.ResponseStatusId.SUCCESS,
+    ),
+    "DEVICE_NAME_GET_DOOR_REF_7_RESPONSE": (const.ResponseId.DEVICE_NAME_GET, const.ResponseStatusId.SUCCESS),
+    "DEVICE_ID_GET_REF_8_RESPONSE": (const.ResponseId.DEVICE_ID_GET, const.ResponseStatusId.SUCCESS),
 }
 
 
@@ -119,6 +131,16 @@ class TestPacketVectors:
         assert body == command
 
 
+    def test_encrypted_blob(self):
+        packets = vectors.ENCRYPTED_16_BYTES_BLOB_PACKETS_MTU_23
+        assert [p[0] for p in packets] == [const.PacketTypeId.BLOB_START, const.PacketTypeId.BLOB_COMPLETE]
+        start = packets[0][const.PACKET_HEADER_SIZE :]
+        assert start[0] & const.BLOB_FLAG_ENCRYPTED
+        assert int.from_bytes(start[1:3], "little") == const.AES_BLOCK_SIZE
+        body = start[const.BLOB_HEADER_SIZE :] + packets[1][const.PACKET_HEADER_SIZE :]
+        assert body == vectors.ENCRYPTED_16_BYTES
+
+
 class TestResponseVectors:
     @pytest.mark.parametrize("name", RESPONSES)
     def test_header(self, name):
@@ -141,3 +163,7 @@ class TestResponseVectors:
         assert int.from_bytes(status[0:2], "little") == 803
         assert status[2] == const.LockStateId.UNLOCKED
         assert status[3] == const.DoorlockMethodId.PANEL
+
+    def test_events_use_the_event_ref(self):
+        for name in ("LOCK_STATUS_SLOT_803_UNLOCKED_PANEL_RESPONSE", "USER_ADDED_SLOT_151_FINGERPRINT_RESPONSE"):
+            assert getattr(vectors, name)[2] == 0x80

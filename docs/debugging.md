@@ -129,6 +129,12 @@ To fix it:
 2. If that fails, wait hours or days for the bindings to come back on their own.
 3. As a last resort, remove and re-pair the lock in ZHA.
 
+Reconfigure can restore lock/unlock reporting (`lock_state`) while the operation events (`0x0100`, who and how) still stay silent for a while. Observed after a re-pair: `lock_state` and capability reads came back at once, but keypad lock and unlock produced no `0x0100` report for some time. Give the bindings time, or reconfigure again with the lock awake. The `set_pin`/`clear_pin` path works before the events do, since it does not depend on reporting.
+
+### The lock says it locked, but the bolt does not move
+
+A `lock` command can return success while the bolt stays put. In the log the lock answers `lock_door_response(status=SUCCESS)`, and Home Assistant shows the lock as locked, but nothing moves physically. The firmware acknowledged the command; the motor or the mechanics did not carry it out. This is a hardware or mounting problem, not the integration: the lock is usually not fully seated in the mortise, the door is not aligned, or the lock needs to relearn its direction after a reset. Try the thumbturn by hand, and check that the lock body is seated and screwed down.
+
 ### Reconfigure in ZHA
 
 Reconfigure (Settings → Devices → [lock] → "Reconfigure device") sets up bindings and reporting again. On a sleepy device it often fails, because the device falls asleep halfway through. This raises the odds:

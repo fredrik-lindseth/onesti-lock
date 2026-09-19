@@ -36,8 +36,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: NimlyConfigEntry) -> boo
         entry.async_on_unload(unsub)
 
     # Read lock capabilities in the background. The lock may be sleeping and
-    # we don't want to block setup on a slow/missing response
-    hass.async_create_task(coordinator.read_lock_capabilities())
+    # we don't want to block setup on a slow/missing response. A no-op once
+    # the lock has answered, since the answer is kept in the entry options.
+    hass.async_create_task(coordinator.async_refresh_capabilities())
 
     return True
 

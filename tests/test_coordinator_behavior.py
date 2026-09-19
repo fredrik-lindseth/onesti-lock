@@ -24,6 +24,17 @@ class FakeConfigEntry:
     def __init__(self, options=None):
         self.data = {"ieee": "00:11:22:33:44:55:66:77"}
         self.options = dict(options or {})
+        self.background_tasks = []
+
+    def async_create_background_task(self, hass, target, name):
+        """Record the name and close the coroutine unrun.
+
+        A delivered PIN command schedules a capability read here. These
+        tests are about slot state, and the read has its own tests in
+        test_coordinator_commands.py.
+        """
+        self.background_tasks.append(name)
+        target.close()
 
 
 class FakeConfigEntries:
@@ -53,10 +64,21 @@ class FakeServices:
             raise TimeoutError
 
 
+class NoDevices:
+    """A device registry without the lock, so the auto-wake finds nothing."""
+
+    def async_get_device(self, identifiers=None, connections=None):
+        return None
+
+
 class FakeHass:
     def __init__(self, fail_services=False):
         self.config_entries = FakeConfigEntries()
         self.services = FakeServices(fail=fail_services)
+        # No ZHA gateway and no ZHA device: the real transport sends with
+        # the fallback endpoint and its wake is a logged no-op.
+        self.data = {}
+        self.device_registry = NoDevices()
 
 
 def _make_coordinator(options=None, fail_services=False, transport=None):
@@ -190,3 +212,4 @@ class TestSlotNameFallback:
     def test_english_default_without_loaded_strings(self):
         _hass, _entry, coord = _make_coordinator({"slots": {}})
         assert coord.get_slot_name(0) == "Master"
+

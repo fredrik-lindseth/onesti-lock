@@ -12,6 +12,11 @@ RESERVED_SLOTS_MAX = 3
 # Zigbee
 DOORLOCK_CLUSTER_ID = 0x0101
 ZHA_DOMAIN = "zha"
+# The auto-wake locks the door through ZHA, and the lock then reports that as
+# an ordinary Zigbee lock event. A Zigbee lock event this many seconds after a
+# wake is taken to be that echo rather than someone locking from a dashboard.
+# Generous on purpose: the report can trail the command on a sleepy device.
+WAKE_ECHO_WINDOW_S = 30
 
 # Onesti hardware: all known whitelabel models
 MAX_SLOTS = 1000  # ZCL slots 0-999 (per Nimly manual)

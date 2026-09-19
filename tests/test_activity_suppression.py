@@ -50,12 +50,16 @@ class FakeCoordinator:
     def __init__(self, cluster):
         self.transport = FakeTransport(cluster)
         self.activity_calls = []
+        self.capability_refreshes = 0
 
     def get_slot_name(self, slot):
         return f"User {slot}"
 
     def update_activity(self, user_slot, action, source):
         self.activity_calls.append((user_slot, action, source))
+
+    def schedule_capability_refresh(self):
+        self.capability_refreshes += 1
 
 
 class FakeEvent:
@@ -136,3 +140,17 @@ class TestEventAlwaysFires:
         callback(FakeEvent(0x0042, 123))
         assert hass.bus.fired == []
         assert coordinator.activity_calls == []
+
+
+class TestCapabilityRefreshOnReport:
+    """A report proves the radio is awake, so the listener asks for a read."""
+
+    @pytest.mark.parametrize(
+        "event",
+        [_event(0x02, 0x02, 3), FakeEvent(0x0042, 123)],
+        ids=["operation_event", "other_attribute"],
+    )
+    def test_every_report_schedules_a_refresh(self, event):
+        _hass, coordinator, callback = _make_listener()
+        callback(event)
+        assert coordinator.capability_refreshes == 1

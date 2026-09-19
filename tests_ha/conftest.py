@@ -16,15 +16,22 @@ not install, and adding it would mean a new package. Two things stand in
 for it instead:
 
 1. `zha` is marked as already set up in `hass.config.components`. Home
-   Assistant then treats the dependency as satisfied and never imports
+   Assistant then treats the dependency as satisfied and never sets up
    homeassistant.components.zha.
 2. `hass.data["zha"]` gets a fake object with a `gateway_proxy`. That is
    the only entry point the integration uses to reach ZHA: every lookup in
-   custom_components/onesti_lock/zha.py goes through `_gateway_proxy()`,
-   which reads `hass.data["zha"].gateway_proxy`. Mocking at that level
-   leaves zha.py's own device iteration and cluster chain walk under test,
-   and it keeps working if zha.py is reshaped, as long as it still reads
-   ZHA's object layout.
+   custom_components/onesti_lock/zha.py goes through ZHA's own
+   `get_zha_gateway_proxy()`, which reads `hass.data["zha"].gateway_proxy`.
+   Mocking at that level leaves zha.py's own device iteration and cluster
+   chain walk under test, and it keeps working if zha.py is reshaped, as
+   long as it still reads ZHA's object layout.
+
+zha.py imports `get_zha_gateway_proxy` from homeassistant.components.zha
+and two exception classes from zigpy. Neither imports without the `zha`
+library, so `_stub_zha_imports()` below puts stand-ins in sys.modules. The
+helper stand-in does what the real one does in both pinned releases, and
+the ZHA package keeps its real path, so any other submodule would still
+load from Home Assistant itself.
 
 The fake proxy mirrors the real chain: ZHADeviceProxy -> Device (with
 manufacturer and model) -> zigpy device (with endpoints and clusters).
@@ -32,12 +39,15 @@ manufacturer and model) -> zigpy device (with endpoints and clusters).
 
 from __future__ import annotations
 
+import importlib.util
 import sys
+import types
 from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import homeassistant.components
 import pytest
 
 # The repo root on sys.path, so both `import custom_components.onesti_lock`
@@ -46,6 +56,46 @@ import pytest
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
+
+
+
+def _stub_zha_imports() -> None:
+    """Stand in for the zha library's imports, where it is not installed."""
+    if importlib.util.find_spec("zha") is None:
+        zha_package = types.ModuleType("homeassistant.components.zha")
+        zha_package.__path__ = [str(Path(homeassistant.components.__path__[0]) / "zha")]
+        helpers = types.ModuleType("homeassistant.components.zha.helpers")
+
+        def get_zha_gateway_proxy(hass):
+            gateway_proxy = getattr(hass.data.get("zha"), "gateway_proxy", None)
+            if gateway_proxy is None:
+                raise ValueError("No gateway object exists")
+            return gateway_proxy
+
+        helpers.get_zha_gateway_proxy = get_zha_gateway_proxy
+        zha_package.helpers = helpers
+        sys.modules["homeassistant.components.zha"] = zha_package
+        sys.modules["homeassistant.components.zha.helpers"] = helpers
+
+    if importlib.util.find_spec("zigpy") is None:
+        zigpy = types.ModuleType("zigpy")
+        zigpy.__path__ = []
+        exceptions = types.ModuleType("zigpy.exceptions")
+
+        class ZigbeeException(Exception):
+            pass
+
+        class DeliveryError(ZigbeeException):
+            pass
+
+        exceptions.ZigbeeException = ZigbeeException
+        exceptions.DeliveryError = DeliveryError
+        zigpy.exceptions = exceptions
+        sys.modules["zigpy"] = zigpy
+        sys.modules["zigpy.exceptions"] = exceptions
+
+
+_stub_zha_imports()
 
 LOCK_IEEE = "00:0d:6f:00:11:22:33:44"
 LOCK_MANUFACTURER = "Onesti Products AS"
@@ -75,7 +125,9 @@ class FakeDoorLockCluster:
 
     cluster_id = DOORLOCK_CLUSTER_ID
 
-    def __init__(self) -> None:
+    def __init__(self, endpoint_id: int = 11) -> None:
+        # zigpy clusters know their endpoint; the transport sends to it.
+        self.endpoint = SimpleNamespace(endpoint_id=endpoint_id)
         self._event_listeners: dict[str, list[Callable]] = {}
         self.capabilities: dict[int, int] = {0x0012: 50, 0x0017: 8, 0x0018: 4}
 

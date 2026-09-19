@@ -19,7 +19,10 @@ Afterwards the canary must not be found in:
 
 One thing carries the code by design and is left out of the event check:
 the call_service event for onesti_lock.set_pin is the caller's own input,
-which Home Assistant fires for every service call. The transport sends to
+which Home Assistant fires for every service call. The same event reaches
+the log too, because homeassistant.core logs every bus event at DEBUG, and
+pytest-homeassistant-custom-component turns DEBUG on whenever pytest runs
+verbose (the -v in addopts). That one record is left out of the log check. The transport sends to
 the cluster directly and calls no service, so no call_service event of
 ours carries it; test_no_call_service_event_carries_the_pin states that on
 its own, without the exception for onesti_lock.set_pin.
@@ -133,10 +136,28 @@ async def entry(hass: HomeAssistant, zha_service) -> MockConfigEntry:
 # -- Where the canary must not be --
 
 
+def _is_known_carrier_record(record: logging.LogRecord) -> bool:
+    """homeassistant.core's DEBUG line for the known carrier event."""
+    return (
+        record.name == "homeassistant.core"
+        and record.levelno == logging.DEBUG
+        and record.getMessage().startswith(f"Bus:Handling <Event {EVENT_CALL_SERVICE}[")
+        and f"domain={DOMAIN}," in record.getMessage()
+    )
+
+
 def _log_texts(caplog) -> list[str]:
+    """Every log record, formatted and raw, except the known carrier.
+
+    Built from the records rather than caplog.text, which holds the same
+    records but cannot drop the carrier line on its own.
+    """
     formatter = logging.Formatter()
-    texts = [caplog.text]
+    texts = []
     for record in caplog.records:
+        if _is_known_carrier_record(record):
+            continue
+        texts.append(formatter.format(record))
         texts.append(record.getMessage())
         if record.exc_info:
             texts.append(formatter.formatException(record.exc_info))

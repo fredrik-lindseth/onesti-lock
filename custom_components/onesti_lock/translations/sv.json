@@ -23,12 +23,13 @@
           "set_pin": "Ställ in PIN-kod",
           "clear_pin": "Ta bort PIN-kod",
           "name_slot": "Namnge användare",
-          "view_slots": "Visa användarplatser"
+          "view_slots": "Visa användarplatser",
+          "settings": "Inställningar"
         }
       },
       "set_pin": {
         "title": "Ställ in PIN-kod",
-        "description": "Välj plats, ange namn och PIN-kod (4-8 siffror). Platsnumren motsvarar låsets interna användarplatser (ZCL DoorLock). Plats 0-2 är reserverade för masterkoder. Obs: om låset sover får första försöket timeout och integrationen väcker låset genom att skicka ett låskommando. En olåst dörr blir fysiskt låst, så stäng dörren innan du börjar.",
+        "description": "Välj plats, ange namn och PIN-kod (4-8 siffror). Platsnumren motsvarar låsets interna användarplatser (ZCL DoorLock). Listan börjar efter masterplatserna som anges under Inställningar. Obs: om låset sover får första försöket timeout och integrationen väcker låset genom att skicka ett låskommando. En olåst dörr blir fysiskt låst, så stäng dörren innan du börjar.",
         "data": {
           "slot": "Användarplats",
           "name": "Namn",
@@ -44,7 +45,7 @@
       },
       "name_slot": {
         "title": "Namnge användare",
-        "description": "Koppla ett namn till ett platsnummer. Används för RFID-taggar, fingeravtryck eller andra åtkomstmetoder som inte ställs in via PIN-menyn.",
+        "description": "Koppla ett namn till ett platsnummer (0-999). Används för RFID-taggar, fingeravtryck, masterkoden på plats 0-2 eller andra åtkomstmetoder som inte ställs in via PIN-menyn. Lämna namnet tomt för att ta bort det.",
         "data": {
           "slot": "Platsnummer",
           "name": "Namn"
@@ -53,6 +54,13 @@
       "view_slots": {
         "title": "Användarplatser",
         "description": "{slot_status}"
+      },
+      "settings": {
+        "title": "Inställningar",
+        "description": "Nimly PRO, Touch Pro och Code reserverar plats 0-2 för masterkoder (3). Nimly Code Pro reserverar bara plats 0 (1). Plats 0 kan aldrig skrivas från Home Assistant.",
+        "data": {
+          "reserved_slots": "Reserverade masterplatser"
+        }
       }
     },
     "progress": {
@@ -61,7 +69,7 @@
     },
     "error": {
       "invalid_pin": "PIN-koden måste vara 4-8 siffror",
-      "invalid_slot": "Platsnumret måste vara mellan 3 och 999",
+      "invalid_slot": "Platsnumret måste vara mellan 0 och 999",
       "lock_unreachable": "Kunde inte nå låset. Tryck på knappsatsen och försök igen.",
       "unknown": "Ett oväntat fel uppstod. Kontrollera loggarna."
     },
@@ -100,9 +108,11 @@
     "unknown_user": "Okänd",
     "slot_vacant": "Ledig",
     "slot_fallback_name": "Plats {slot}",
+    "slot_fallback_master": "Master",
     "slot_label": "Plats {slot}: {name}",
     "slot_status_pin_active": "(PIN aktiv)",
     "slot_status_no_pin": "(ingen PIN)",
+    "slot_status_master": "(master)",
     "lock_keypad": "{name} låste med kod",
     "unlock_keypad": "{name} låste upp med kod",
     "lock_fingerprint": "{name} låste med fingeravtryck",

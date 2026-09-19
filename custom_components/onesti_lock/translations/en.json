@@ -23,12 +23,13 @@
           "set_pin": "Set PIN code",
           "clear_pin": "Clear PIN code",
           "name_slot": "Name a user slot",
-          "view_slots": "View user slots"
+          "view_slots": "View user slots",
+          "settings": "Settings"
         }
       },
       "set_pin": {
         "title": "Set PIN code",
-        "description": "Select slot, enter name and PIN code (4-8 digits). Slot numbers correspond to the lock's internal user slots (ZCL DoorLock). Slots 0-2 are reserved for master codes. Note: if the lock is asleep, the first attempt times out and the integration wakes the lock by sending a lock command. An unlocked door will be physically locked, so close the door before you start.",
+        "description": "Select slot, enter name and PIN code (4-8 digits). Slot numbers correspond to the lock's internal user slots (ZCL DoorLock). The list starts after the master slots set under Settings. Note: if the lock is asleep, the first attempt times out and the integration wakes the lock by sending a lock command. An unlocked door will be physically locked, so close the door before you start.",
         "data": {
           "slot": "User slot",
           "name": "Name",
@@ -44,7 +45,7 @@
       },
       "name_slot": {
         "title": "Name a user slot",
-        "description": "Assign a name to a slot number. Used for RFID tags, fingerprints, or other access methods not set via the PIN menu.",
+        "description": "Assign a name to a slot number (0-999). Used for RFID tags, fingerprints, the master code on slots 0-2, or other access methods not set via the PIN menu. Leave the name empty to remove it.",
         "data": {
           "slot": "Slot number",
           "name": "Name"
@@ -53,6 +54,13 @@
       "view_slots": {
         "title": "User slots",
         "description": "{slot_status}"
+      },
+      "settings": {
+        "title": "Settings",
+        "description": "Nimly PRO, Touch Pro and Code reserve slots 0-2 for master codes (3). Nimly Code Pro reserves only slot 0 (1). Slot 0 can never be written from Home Assistant.",
+        "data": {
+          "reserved_slots": "Reserved master slots"
+        }
       }
     },
     "progress": {
@@ -61,7 +69,7 @@
     },
     "error": {
       "invalid_pin": "PIN code must be 4-8 digits",
-      "invalid_slot": "Slot number must be between 3 and 999",
+      "invalid_slot": "Slot number must be between 0 and 999",
       "lock_unreachable": "Could not reach the lock. Press the keypad and try again.",
       "unknown": "An unexpected error occurred. Check the logs."
     },
@@ -100,9 +108,11 @@
     "unknown_user": "Unknown",
     "slot_vacant": "Vacant",
     "slot_fallback_name": "Slot {slot}",
+    "slot_fallback_master": "Master",
     "slot_label": "Slot {slot}: {name}",
     "slot_status_pin_active": "(PIN active)",
     "slot_status_no_pin": "(no PIN)",
+    "slot_status_master": "(master)",
     "lock_keypad": "{name} locked with code",
     "unlock_keypad": "{name} unlocked with code",
     "lock_fingerprint": "{name} locked with fingerprint",

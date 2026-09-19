@@ -54,7 +54,7 @@ ZHADeviceProxy (depth 0, no endpoints)
 
 ## Nimly response quirk
 
-PIN commands get a malformed ZCL response back, and zigpy raises `IndexError: tuple index out of range` on it. The command reaches the lock, and only the response parsing fails. This integration catches the error silently.
+PIN commands get a malformed ZCL response back, and zigpy raises `IndexError: tuple index out of range` on it. The command reaches the lock, and only the response parsing fails. The integration catches the error and treats the command as sent. It logs the quirk at debug level only, so it stays out of the log unless debug logging is on.
 
 ## Coordinator pattern
 
@@ -86,10 +86,12 @@ Battery-powered Zigbee EndDevices sleep most of the time, and ZCL commands like 
 
 1. The first attempt sends the ZCL command via `zha.issue_zigbee_cluster_command`.
 2. On `TimeoutError` it calls `_wake_lock()` and retries the original command once.
-3. `_wake_lock()` sends a `lock.lock` service call to the ZHA lock entity. ZHA's lock entity uses extended timeout for sleepy devices, which reliably wakes the radio.
+3. `_wake_lock()` sends a `lock.lock` service call to the ZHA lock entity.
 4. After a 1-second pause for the radio to settle, the original command is retried.
 
-The wake has a side effect, since it is a real lock command and not a read. An unlocked door gets physically locked, and an open door drives the bolt out into the air. The README limitations and the options flow texts both say so. Replacing it with a wake that does not move the bolt needs hardware testing first, and is tracked as a separate issue.
+`lock.lock` is used because it works, while attribute reads through the integration's own cluster path time out. Why it works is not established. ZHA's lock entity wraps the command in longer timeouts and retries for sleepy devices, which is the likely reason, but at the radio level a read and a write are queued the same way.
+
+The wake has a side effect, since it is a real lock command and not a read. An unlocked door gets physically locked, and an open door drives the bolt out into the air. The README limitations and the options flow texts both say so. A wake that does not move the bolt is not solved yet, and replacing the mechanism needs testing on real hardware first.
 
 To find the ZHA lock entity, `_wake_lock()` scans the entity registry for an entity where `platform == "zha"`, the `unique_id` contains the device's IEEE address, and the `unique_id` ends with `"257"` (the DoorLock cluster endpoint identifier).
 

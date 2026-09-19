@@ -9,17 +9,30 @@ numbered slots, and the numbering differs between access methods.
 
 Where master slots end and user slots begin depends on the model. According to the manuals:
 
-| Slot range | Touch Pro, PRO, Code                | Code Pro                            | Source                                                                  |
+| Slot range | Every other model with a manual     | Code Pro                            | Source                                                                  |
 | ---------- | ----------------------------------- | ----------------------------------- | ----------------------------------------------------------------------- |
 | 0          | Master PIN (factory: 123)           | Master PIN (factory: 123)           | All manuals. Verified: `attrid 0x0100` reports `user_slot=0` on unlock  |
 | 1-2        | Additional master codes             | User codes                          | Manuals, see quotes below                                               |
 | 3-999      | User codes, RFID tags, fingerprints | User codes, RFID tags, fingerprints | Manuals. Slots 3-4 verified via `attrid 0x0100` events                  |
 
-What the manuals say, quoted from the English PDFs on nimly.se:
+"Every other model" means Touch Pro, Touch, Code, Indoor, EasyCodeTouch and EasyFingerTouch. Key tags are an exception on several of them, see the quotes. The manuals, with dates and source URLs, are listed in [manuals/README.md](manuals/README.md). What they say:
 
 - [Touch Pro manual](https://nimly.se/wp-content/uploads/2024/09/EN-Touch-Pro-Installation-Manual-150324.pdf) (dated 15.03.2024): "User slot 000 is reserved for your first master code", "User slot 001 and 002 are reservered for more master codes", "User slot 003 to 999 are reservered user codes". The master finger is 000 with 001-002 for more master fingers, user fingers are 003-199, key tags 003-999. "Master codes cannot be deleted, only overwritten to new master codes."
 - [Code installation guide](https://nimly.se/wp-content/uploads/2023/11/EN-Code-Installation-Guide-130922.pdf) (dated 13.09.2022): "User slot 000, 001 and 002 are reserved for the master code(s)", user codes from 003, "Key tags can be added to user slots 000 to 999."
 - [Code Pro product guide](https://nimly.se/wp-content/uploads/2026/04/EN-Code-Pro-Product-Guide-120126.pdf) (dated 12.01.2026): "000 Master codes, 001-999 user codes", "User codes can be added to user slot 001 to 999", "Master codes can not be removed, only overwritten." The master code unlocks by default, but the Code Pro can be set to use it for programming only.
+- Touch installation manual (dated 15.09.2025): "User slot 000 is reserved for your first master code", "User slot 001 and 002 are reservered for more master codes", "User slot 003 to 999 are reservered user codes". Key tags are 003-999 as well.
+- Indoor installation guide (dated 05.10.2022): "Create master code – used for access and programming", "User slot 000, 001 and 002 are reserved for the master code(s)", "User codes can be added to user slots from 003 to 999", "Key tags can be added to user slots 000 to 999."
+- EasyCodeTouch manual (Norwegian, undated): "Masterkodene legges inn på tallene 000 - 001 og 002", "Brukerkodene legges på brukernummer mellom 003-999", key tags on "individuelle tall mellom 000-999", and "Masterkodene kan IKKE slettes, men kun endres til nye masterkoder."
+- EasyFingerTouch manual (Norwegian, undated): codes and key tags as on the EasyCodeTouch, plus fingerprints in a series of their own, "alle fingeravtrykk legges inn på tallene 000 til 199", with master fingers on "000 – 001 – 002" and user fingers on 003-199.
+
+#### Fingerprints have their own numbering
+
+On the EasyFingerTouch, fingerprints run 000-199 next to the 000-999 range for codes and key tags, and the Touch Pro manual gives fingers the same 000-002 and 003-199 split. On the EasyFingerTouch, fingerprint 5 and code 5 can therefore be two different credentials that share the number 5, and the slot number alone does not say which one was used.
+
+For the integration this means:
+
+- Events still tell them apart. `attrid 0x0100` carries a source byte next to the slot, so slot plus source identifies the credential, and the `onesti_lock_activity` event includes both.
+- Names do not. The integration stores one name per slot number and looks it up by slot alone, whatever the source, so a code and a fingerprint on the same number share that name.
 
 The model string cannot pick the right column, since a Code Pro has reported itself as NimlyTwist ([#5](https://github.com/fredrik-lindseth/onesti-lock/issues/5)). The integration leaves the choice to the user, see [Current implementation](#current-implementation).
 

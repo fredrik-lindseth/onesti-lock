@@ -34,6 +34,14 @@ unit = [
     # one HA sets. This is the release HA current pins (2026.9.3); HA 2025.6.0
     # pins 45.0.1, and crypto.py uses only API both have.
     "cryptography==48.0.1",
+    { include-group = "ble" },
+]
+# bleak for the BLE library's bleak transport (ble/client/bleak_transport.py),
+# which tests/ runs against a fake BleakClient. Not in manifest.json: Home
+# Assistant brings its own bleak through the bluetooth integration, and HA
+# 2025.6 runs 0.22.3, so the transport uses only API both releases have.
+ble = [
+    "bleak==3.0.2",
 ]
 # Real Home Assistant for tests_ha/. tests/ stubs homeassistant in
 # sys.modules and must never share an environment with these groups, so no

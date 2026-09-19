@@ -1,8 +1,9 @@
 # Zigbee captures and protocol reference
 
-Raw Zigbee captures from NimlyPRO (f4:ce:36:25:5a:2c:72:87).
+Raw Zigbee captures from a NimlyPRO (f4:ce:36:25:5a:2c:72:87), and the protocol
+values decoded from them.
 
-## DoorLock Cluster (0x0101, endpoint 11)
+## DoorLock cluster (0x0101, endpoint 11)
 
 ### Attribute 0x0000: Lock State (standard ZCL)
 
@@ -28,7 +29,7 @@ Raw ZCL frame (lock):
 
 Type: bitmap32
 
-Sent on every lock/unlock. Little-endian byte order:
+Sent on every lock and unlock, in little-endian byte order:
 
 ```
 Bytes 0-1: user_slot  (uint16 LE) 0 = master credential when the source is
@@ -50,14 +51,14 @@ Add the capture to the table below once observed.
 
 Final mapping used in the integration (verified against Z2M converter and raw captures):
 
-| Byte | Source        | Status                                            |
-| ---- | ------------- | ------------------------------------------------- |
-| 0x00 | Zigbee (RF)   | Inferred                                          |
-| 0x02 | Keypad        | Verified (multiple captures)                      |
-| 0x03 | Fingerprint   | From Z2M converter                                |
-| 0x04 | RFID          | From Z2M converter                                |
-| 0x05 | Unattributed  | Reported for NimlyCodePRO fw 4.8 (see below)      |
-| 0x0A | Auto-lock     | Verified (multiple captures)                      |
+| Byte | Source       | Status                                       |
+| ---- | ------------ | -------------------------------------------- |
+| 0x00 | Zigbee (RF)  | Inferred                                     |
+| 0x02 | Keypad       | Verified (multiple captures)                 |
+| 0x03 | Fingerprint  | From Z2M converter                           |
+| 0x04 | RFID         | From Z2M converter                           |
+| 0x05 | Unattributed | Reported for NimlyCodePRO fw 4.8 (see below) |
+| 0x0A | Auto-lock    | Verified (multiple captures)                 |
 
 Source encoding varies per model/firmware. NimlyCodePRO (fw 4.8.02, reported by
 supersej in [zha-device-handlers#4881](https://github.com/zigpy/zha-device-handlers/pull/4881))
@@ -124,16 +125,16 @@ Value in seconds. 0 = disabled.
 When someone enters PIN + # on the keypad, the lock sends this sequence:
 
 ```
-1. attrid=0x0101 (PIN code)     — b"\x54\x78" (BCD: "5478")
-2. attrid=0x0000 (lock state)   — 0x02 (unlocked)
-3. attrid=0x0100 (operation)    — 0x02020003 (slot 3, unlock, keypad)
+1. attrid=0x0101 (PIN code)     b"\x54\x78" (BCD: "5478")
+2. attrid=0x0000 (lock state)   0x02 (unlocked)
+3. attrid=0x0100 (operation)    0x02020003 (slot 3, unlock, keypad)
 ```
 
 For auto-lock:
 
 ```
-1. attrid=0x0000 (lock state)   — 0x01 (locked)
-2. attrid=0x0100 (operation)    — 0x0A010000 (system, lock, auto)
+1. attrid=0x0000 (lock state)   0x01 (locked)
+2. attrid=0x0100 (operation)    0x0A010000 (system, lock, auto)
 ```
 
 ## All observed raw values
@@ -156,7 +157,7 @@ For auto-lock:
 | 29.03 11:33:08 | 0x0100 | 33685504 (0x02020000)  | slot 0, unlock, keypad |
 | 29.03 11:33:34 | 0x0100 | 167837696 (0x0A010000) | system, lock, auto     |
 
-## Node Descriptor
+## Node descriptor
 
 ```json
 {
@@ -170,18 +171,18 @@ For auto-lock:
 }
 ```
 
-## Endpoint 11 Clusters
+## Endpoint 11 clusters
 
 ```
 Input clusters (server):
-  0x0000 — Basic
-  0x0001 — Power Configuration
-  0x0003 — Identify
-  0x0004 — Groups
-  0x0005 — Scenes
-  0x0101 — Door Lock ← main cluster
-  0xFEA2 — Manufacturer Specific (unknown)
+  0x0000  Basic
+  0x0001  Power Configuration
+  0x0003  Identify
+  0x0004  Groups
+  0x0005  Scenes
+  0x0101  Door Lock ← main cluster
+  0xFEA2  Manufacturer Specific (unknown)
 
 Output clusters (client):
-  0x0019 — OTA Upgrade
+  0x0019  OTA Upgrade
 ```

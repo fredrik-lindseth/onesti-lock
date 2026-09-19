@@ -42,7 +42,7 @@ The lock was removed from ZHA and paired with the Connect Bridge. The app can
 lock and unlock and shows the gateway plus the Touch Pro. PIN codes survive
 re-pairing, since they are stored locally on the lock.
 
-## What does NOT work
+## What does not work
 
 ### group-devices returns `[]`
 
@@ -56,11 +56,13 @@ URL (`api-neutralclone.iotiliti.cloud`), the new URL
 without the `X-Company-Id` header. All return `[]`. The app uses the exact
 same endpoint, verified in decompiled code.
 
-Possible causes: server-side access control we don't understand; a claim or
-scope our token is missing that the app's token has; something the app sets up
-during onboarding that grants device access; devices tied to the gateway ID
-rather than the location ID; or a race condition where devices appear only
-after a polling cycle.
+Possible causes:
+
+- server-side access control we don't understand
+- a claim or scope the app's token has and ours lacks
+- something the app sets up during onboarding that grants device access
+- devices tied to the gateway ID rather than the location ID
+- a race condition where devices appear only after a polling cycle
 
 ### MITM of the app failed
 
@@ -87,23 +89,24 @@ Choose one of these approaches.
 with Google APIs (**not** a Play Store image), which has root via `adb root`.
 Install the mitmproxy CA as a system cert
 (`adb push cert.pem /system/etc/security/cacerts/`), install the Nimly Connect
-APK, set the proxy and capture all traffic. Easiest, no patching needed.
+APK, set the proxy and capture all traffic. This is the easiest route and needs
+no patching.
 
 **B) Frida gadget injection.** Download `frida-gadget` for arm64 from GitHub
 releases and use `objection patchapk` (needs an x64 machine for apktool, or
 Docker). Pass `--skip-resources --ignore-nativelibs` to avoid the NinePatch
-crash, then hook `OkHttp3` or `fetch` to log all requests. Works on a real
-device and sees request plus response.
+crash, then hook `OkHttp3` or `fetch` to log all requests. It works on a real
+device and sees both request and response.
 
 **C) Manual smali patching.** `apktool d` only the base APK (not the split
 APKs), add a `networkSecurityConfig` that trusts user CAs, and **do not** patch
 OkHttp or other classes. `apktool b`, sign, and install together with the
-unmodified split APKs. Avoids apk-mitm's destructive changes.
+unmodified split APKs, which keeps clear of apk-mitm's destructive changes.
 
 **D) Contact Onesti directly.** Email Onesti (contact info at
 onestiproducts.io), ask about API documentation for integration partners, and
-mention that we are building an open-source HA integration. Official support,
-no reversing needed.
+mention that we are building an open-source HA integration. That would give
+official support with no reversing needed.
 
 ### To build cloud API integration in HA
 

@@ -1,4 +1,4 @@
-# Nimly BLE Protocol Reference
+# Nimly BLE protocol reference
 
 Decompiled from `easyaccess.ekey.app` v1.5.1 (native Android/Kotlin). All
 communication happens over a single BLE characteristic. The integration does
@@ -6,14 +6,14 @@ not use BLE today; the protocol is documented as a possible future channel.
 
 ## BLE UUIDs
 
-| Purpose                        | UUID                                   |
-| ------------------------------ | -------------------------------------- |
-| **Service**                    | `ba4bfd00-c447-19bf-f38d-4890b3a824c8` |
-| **Communication** (r/w/notify) | `ba4bfd03-c447-19bf-f38d-4890b3a824c8` |
-| **Advertising** (16-bit)       | `0xFD00`                               |
-| CCCD                           | `00002902-0000-1000-8000-00805f9b34fb` |
-| Device Info Service            | `0000180a-0000-1000-8000-00805f9b34fb` |
-| Software Revision              | `00002a28-0000-1000-8000-00805f9b34fb` |
+| Purpose                    | UUID                                   |
+| -------------------------- | -------------------------------------- |
+| Service                    | `ba4bfd00-c447-19bf-f38d-4890b3a824c8` |
+| Communication (r/w/notify) | `ba4bfd03-c447-19bf-f38d-4890b3a824c8` |
+| Advertising (16-bit)       | `0xFD00`                               |
+| CCCD                       | `00002902-0000-1000-8000-00805f9b34fb` |
+| Device Info Service        | `0000180a-0000-1000-8000-00805f9b34fb` |
+| Software Revision          | `00002a28-0000-1000-8000-00805f9b34fb` |
 
 ## Packet format
 
@@ -66,39 +66,39 @@ ResponseStatus:
 
 ## All BLE commands
 
-| CommandId          | Hex      | Command                  | Payload                                                 |
-| ------------------ | -------- | ------------------------ | ------------------------------------------------------- |
-| ExchangeKeyPubM    | 0x01     | ECDH key exchange        | 64B public key                                          |
-| EkeyUserAuth       | 0x17     | Ekey authentication      | userId(1B) + deviceId(6B) + pubKey(64B) + encToken(32B) |
-| EkeyOperate        | 0x18     | Lock/unlock              | operationType(1B): 1=unlock, 2=lock, 3=invalidate       |
-| EkeyUserAdd        | 0x1B     | Add ekey user            | userName(12B) + publicKey                               |
-| EkeyUserRemove     | 0x1C     | Remove ekey user         | userId                                                  |
-| EkeyUsersList      | 0x1D     | List ekey users          | -                                                       |
-| EkeyDeviceInfoGet  | 0x1F     | Get device info          | -                                                       |
-| EkeyDeviceInfoSet  | 0x20     | Set device info          | -                                                       |
-| UserAuthBegin      | 0x22     | Start user auth          | userId(1B) + deviceId(6B)                               |
-| UserAuthFinalize   | 0x23     | Finalize user auth       | encryptedInvertedChallenge(16B)                         |
-| UserAuthUpdate     | 0x24     | Update user auth         | -                                                       |
-| DeviceIdSet        | 0x30     | Set device ID            | -                                                       |
-| DeviceIdGet        | 0x31     | Get device ID            | -                                                       |
-| DeviceNameSet      | 0x32     | Set device name          | -                                                       |
-| DeviceNameGet      | 0x33     | Get device name          | -                                                       |
-| CurrentTimeGet     | 0x40     | Get time                 | -                                                       |
-| CurrentTimeSet     | 0x41     | Set time                 | -                                                       |
-| ServerKeyUpdate    | 0x42     | Update server key        | -                                                       |
-| DeviceLogGet       | 0x44     | Get device log           | -                                                       |
-| **PinCodeSet**     | **0x52** | **Set PIN code**         | **slotNumber(2B LE) + pinLength(1B) + pincode(ASCII)**  |
-| **PinCodeClear**   | **0x53** | **Clear PIN code**       | **slotNumber(2B LE)**                                   |
-| RfidCodeClear      | 0x55     | Clear RFID code          | slotNumber                                              |
-| ScanRfidCode       | 0x56     | Scan RFID                | -                                                       |
-| FingerprintScan    | 0x57     | Scan fingerprint         | -                                                       |
-| FingerprintClear   | 0x58     | Clear fingerprint        | -                                                       |
-| VolumeSet          | 0x5A     | Set sound volume         | volume(1B)                                              |
-| AutoLockSet        | 0x5B     | Set auto-lock            | enabled(1B)                                             |
-| KeypadEnableSet    | 0x5C     | Enable/disable keypad    | enabled(1B)                                             |
-| BattInfoGet        | 0x5D     | Get battery info         | -                                                       |
-| DeviceModelGet     | 0x62     | Get model                | -                                                       |
-| FactoryResetModule | 0x70     | Factory reset module     | -                                                       |
+| CommandId          | Hex      | Command               | Payload                                                 |
+| ------------------ | -------- | --------------------- | ------------------------------------------------------- |
+| ExchangeKeyPubM    | 0x01     | ECDH key exchange     | 64B public key                                          |
+| EkeyUserAuth       | 0x17     | Ekey authentication   | userId(1B) + deviceId(6B) + pubKey(64B) + encToken(32B) |
+| EkeyOperate        | 0x18     | Lock/unlock           | operationType(1B): 1=unlock, 2=lock, 3=invalidate       |
+| EkeyUserAdd        | 0x1B     | Add ekey user         | userName(12B) + publicKey                               |
+| EkeyUserRemove     | 0x1C     | Remove ekey user      | userId                                                  |
+| EkeyUsersList      | 0x1D     | List ekey users       | -                                                       |
+| EkeyDeviceInfoGet  | 0x1F     | Get device info       | -                                                       |
+| EkeyDeviceInfoSet  | 0x20     | Set device info       | -                                                       |
+| UserAuthBegin      | 0x22     | Start user auth       | userId(1B) + deviceId(6B)                               |
+| UserAuthFinalize   | 0x23     | Finalize user auth    | encryptedInvertedChallenge(16B)                         |
+| UserAuthUpdate     | 0x24     | Update user auth      | -                                                       |
+| DeviceIdSet        | 0x30     | Set device ID         | -                                                       |
+| DeviceIdGet        | 0x31     | Get device ID         | -                                                       |
+| DeviceNameSet      | 0x32     | Set device name       | -                                                       |
+| DeviceNameGet      | 0x33     | Get device name       | -                                                       |
+| CurrentTimeGet     | 0x40     | Get time              | -                                                       |
+| CurrentTimeSet     | 0x41     | Set time              | -                                                       |
+| ServerKeyUpdate    | 0x42     | Update server key     | -                                                       |
+| DeviceLogGet       | 0x44     | Get device log        | -                                                       |
+| **PinCodeSet**     | **0x52** | **Set PIN code**      | **slotNumber(2B LE) + pinLength(1B) + pincode(ASCII)**  |
+| **PinCodeClear**   | **0x53** | **Clear PIN code**    | **slotNumber(2B LE)**                                   |
+| RfidCodeClear      | 0x55     | Clear RFID code       | slotNumber                                              |
+| ScanRfidCode       | 0x56     | Scan RFID             | -                                                       |
+| FingerprintScan    | 0x57     | Scan fingerprint      | -                                                       |
+| FingerprintClear   | 0x58     | Clear fingerprint     | -                                                       |
+| VolumeSet          | 0x5A     | Set sound volume      | volume(1B)                                              |
+| AutoLockSet        | 0x5B     | Set auto-lock         | enabled(1B)                                             |
+| KeypadEnableSet    | 0x5C     | Enable/disable keypad | enabled(1B)                                             |
+| BattInfoGet        | 0x5D     | Get battery info      | -                                                       |
+| DeviceModelGet     | 0x62     | Get model             | -                                                       |
+| FactoryResetModule | 0x70     | Factory reset module  | -                                                       |
 
 ## PIN code setting (0x52)
 
@@ -112,17 +112,18 @@ Example: set "8832" on slot 803:
   └─────────────────────── slot 803 (little-endian: 0x0323)
 ```
 
-**Slot numbering (BLE):** slot 0 is the master PIN, slots 800-899 are regular
-user PINs. Zigbee ZCL uses slots 0-999 (master slots first, see
-[slot-numbering.md](../slot-numbering.md)), so the two channels number differently.
+Over BLE, slot 0 is the master PIN and slots 800-899 are regular user PINs.
+Zigbee ZCL uses slots 0-999 with the master slots first (see
+[slot-numbering.md](../slot-numbering.md)), so the two channels number
+differently.
 
-**Requirements:** firmware ≥ 4.7.90, PIN 4-8 digits (0-9).
+The command needs firmware ≥ 4.7.90 and a PIN of 4-8 digits (0-9).
 
 ## Encryption
 
 ### Transport (ECDH + AES-128-CBC)
 
-Each BLE connection:
+Every BLE connection sets up its own link key:
 
 1. App generates **secp256r1 (NIST P-256)** key pair
 2. App sends public key (64B) via `ExchangeKeyPubM` (0x01)
@@ -136,7 +137,7 @@ Default keys (before key exchange): `0x11 × 16` / `0x22 × 16`
 
 ### Ekey authentication (token-based)
 
-For ekey users (guests etc.):
+Used by ekey users, such as guests:
 
 1. App has userId, deviceId(6B), token(32B) and sessionPublicKey(64B) from the cloud API
 2. App generates new ECDH pair
@@ -146,7 +147,7 @@ For ekey users (guests etc.):
 
 ### Owner authentication (challenge-response)
 
-For the lock owner:
+Used by the lock owner:
 
 1. App sends `UserAuthBegin` (0x22): userId(1B) + deviceId(6B)
 2. Lock responds with 16-byte encrypted challenge
@@ -178,14 +179,14 @@ Minimum firmware: 4.6.0 (connection), 4.7.90 (model detection, PIN, keypad, mast
 
 ## BLE API (nimly ekey cloud)
 
-Separate API from the Connect app:
+This is a separate API from the one the Connect app uses.
 
 | Base URL                        | Environment |
 | ------------------------------- | ----------- |
 | `https://api.ekey.nimly.io`     | Production  |
 | `https://dev.api.ekey.nimly.io` | Development |
 
-Auth: `POST /User/Login` (OAuth2 password grant)
+Login is `POST /User/Login` (OAuth2 password grant).
 
 | Method  | Path                                                      | Purpose            |
 | ------- | --------------------------------------------------------- | ------------------ |

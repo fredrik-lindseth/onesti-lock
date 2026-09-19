@@ -1,33 +1,34 @@
-# Nimly Connect App: Reverse Engineering
+# Nimly Connect app: reverse engineering
 
-APK: `com.easyaccess.connect` v1.27.84 (171 MB)
-Framework: React Native with Hermes bytecode
-Decompiled with: `jadx` + `hermes-dec` → 3.1M lines of JavaScript
+APK `com.easyaccess.connect` v1.27.84 (171 MB), a React Native app with Hermes
+bytecode. Decompiled with `jadx` + `hermes-dec` into 3.1M lines of JavaScript.
 
 ## Architecture
 
-The app **never communicates directly with the lock**. The communication path is:
+The app never talks directly to the lock. Everything goes through the cloud and
+the gateway:
 
 ```
 Phone → Cloud API (iotiliti.cloud) → ZigBee Gateway (Connect Bridge) → Lock
          ↕ OAuth2/Cognito              ↕ CAS protocol (AES-encrypted)
 ```
 
-No BLE communication found in this app (that is a separate app: `nimly BLE`).
+There is no BLE code in this app. BLE lives in a separate app, `nimly BLE`.
 
 ## White-label platform
 
-The app is a white-label from **iotiliti** (formerly NeutrAlClone). The same codebase is used by:
+The app is a white-label of iotiliti (formerly NeutrAlClone), and the same
+codebase is used by:
 
-| Brand                | API URL                                                                                                   |
-| -------------------- | --------------------------------------------------------------------------------------------------------- |
+| Brand                | API URL                                                                                                    |
+| -------------------- | ---------------------------------------------------------------------------------------------------------- |
 | **Nimly/EasyAccess** | `api-neutralclone.iotiliti.cloud` (older) / `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` (new) |
-| Keyfree              | `api.customer.keyfree.iotiliti.cloud`                                                                     |
-| Salus                | `api-salus.iotiliti.cloud`                                                                                |
-| Forebygg             | `api.customer.forebygg.iotiliti.cloud`                                                                    |
-| Homely               | `api.homely.no`                                                                                           |
+| Keyfree              | `api.customer.keyfree.iotiliti.cloud`                                                                      |
+| Salus                | `api-salus.iotiliti.cloud`                                                                                 |
+| Forebygg             | `api.customer.forebygg.iotiliti.cloud`                                                                     |
+| Homely               | `api.homely.no`                                                                                            |
 
-Company IDs in `secrets.md` (gitignored).
+Company IDs are in `secrets.md` (gitignored).
 
 ## Authentication
 
@@ -68,27 +69,27 @@ Authorization: Bearer <access_token>
 
 ## REST API: door lock endpoints
 
-| Method | Path                                      | Function                 |
-| ------ | ----------------------------------------- | ------------------------ |
-| POST   | `/devices/{id}/lock`                      | Lock the door            |
-| POST   | `/devices/{id}/action`                    | General action           |
-| PATCH  | `/devices/{id}/settings`                  | Change settings          |
-| GET    | `/devices/{id}/access`                    | Get all users/codes      |
-| POST   | `/devices/{id}/access`                    | **Create new PIN/code**  |
-| PATCH  | `/devices/{id}/access`                    | Update access            |
-| DELETE | `/devices/{id}/access`                    | Delete access            |
-| GET    | `/devices/{id}/event-history`             | Event log                |
-| POST   | `/devices`                                | Add device               |
-| DELETE | `/devices/{id}`                           | Remove device            |
-| PATCH  | `/devices/{id}`                           | Update device            |
-| POST   | `/devices/{id}/keychain-lock`             | Lock via keychain        |
-| PATCH  | `/devices/{id}/alarm-reaction`            | Change alarm reaction    |
-| PATCH  | `/devices/{id}/alarm-profile`             | Change alarm profile     |
-| POST   | `/devices/{id}/access/scan-tag`           | Scan RFID tag            |
-| GET    | `/devices/{id}/features-history`          | Feature history          |
-| PATCH  | `/devices/{id}/input-actions/{actionId}`  | Update input actions     |
-| PATCH  | `/devices/{id}/output-actions/{actionId}` | Update output actions    |
-| GET    | `/devices/{id}/demand`                    | Consumption values       |
+| Method | Path                                      | Function                |
+| ------ | ----------------------------------------- | ----------------------- |
+| POST   | `/devices/{id}/lock`                      | Lock the door           |
+| POST   | `/devices/{id}/action`                    | General action          |
+| PATCH  | `/devices/{id}/settings`                  | Change settings         |
+| GET    | `/devices/{id}/access`                    | Get all users/codes     |
+| POST   | `/devices/{id}/access`                    | **Create new PIN/code** |
+| PATCH  | `/devices/{id}/access`                    | Update access           |
+| DELETE | `/devices/{id}/access`                    | Delete access           |
+| GET    | `/devices/{id}/event-history`             | Event log               |
+| POST   | `/devices`                                | Add device              |
+| DELETE | `/devices/{id}`                           | Remove device           |
+| PATCH  | `/devices/{id}`                           | Update device           |
+| POST   | `/devices/{id}/keychain-lock`             | Lock via keychain       |
+| PATCH  | `/devices/{id}/alarm-reaction`            | Change alarm reaction   |
+| PATCH  | `/devices/{id}/alarm-profile`             | Change alarm profile    |
+| POST   | `/devices/{id}/access/scan-tag`           | Scan RFID tag           |
+| GET    | `/devices/{id}/features-history`          | Feature history         |
+| PATCH  | `/devices/{id}/input-actions/{actionId}`  | Update input actions    |
+| PATCH  | `/devices/{id}/output-actions/{actionId}` | Update output actions   |
+| GET    | `/devices/{id}/demand`                    | Consumption values      |
 
 ### Keybox (crypto keys)
 
@@ -159,24 +160,24 @@ DoorLockEventFeatureState = {
 
 The `doorlock-*` cloud event types are listed with the full cloud event system in [app-architecture.md](app-architecture.md#event-system).
 
-## CAS Protocol (Gateway ↔ Lock)
+## CAS protocol (gateway ↔ lock)
 
-The gateway uses the "CAS" (Command and Status?) protocol with **AES encryption**:
+The gateway uses a protocol called "CAS" (possibly Command and Status) with AES
+encryption. The main error codes:
 
-Key error codes:
-| Code | Name | Meaning |
-|------|------|---------|
-| 380000 | CAS*MSG_NO_ERROR | OK |
-| 380001 | CAS_MSG_UNKNOW_ERROR | Unknown error |
-| 380006 | CAS_MSG_COMMAND_UNKNOW | Unknown command |
-| 380041 | CAS_MSG_PU_BUSY | Device busy |
-| 380042 | CAS_MSG_OPERATION_FAILED | Operation failed |
-| 380043 | CAS_PU_NO_CRYPTO_FOUND | Crypto key missing |
-| 380047 | CAS_SYSTEM_COMMAND_PU_COMMAND_UNSUPPORTED | Command not supported |
-| 380048 | CAS_SYSTEM_COMMAND_PU_NO_RIGHTS_TO_DO_COMMAND | Insufficient rights |
-| 380106-380111 | CAS_PU_PASSWORD_UPDATE*\* | Password error |
-| 380125 | CAS_PU_REFUSE_CLIENT_CONNECTION | Connection refused |
-| 380126 | CAS_PLATFORM_CLIENT_VERIFY_AUTH_ERROR | Auth error |
+| Code          | Name                                            | Meaning               |
+| ------------- | ----------------------------------------------- | --------------------- |
+| 380000        | `CAS_MSG_NO_ERROR`                              | OK                    |
+| 380001        | `CAS_MSG_UNKNOW_ERROR`                          | Unknown error         |
+| 380006        | `CAS_MSG_COMMAND_UNKNOW`                        | Unknown command       |
+| 380041        | `CAS_MSG_PU_BUSY`                               | Device busy           |
+| 380042        | `CAS_MSG_OPERATION_FAILED`                      | Operation failed      |
+| 380043        | `CAS_PU_NO_CRYPTO_FOUND`                        | Crypto key missing    |
+| 380047        | `CAS_SYSTEM_COMMAND_PU_COMMAND_UNSUPPORTED`     | Command not supported |
+| 380048        | `CAS_SYSTEM_COMMAND_PU_NO_RIGHTS_TO_DO_COMMAND` | Insufficient rights   |
+| 380106-380111 | `CAS_PU_PASSWORD_UPDATE_*`                      | Password error        |
+| 380125        | `CAS_PU_REFUSE_CLIENT_CONNECTION`               | Connection refused    |
+| 380126        | `CAS_PLATFORM_CLIENT_VERIFY_AUTH_ERROR`         | Auth error            |
 
 ## Configuration (Nimly-specific)
 
@@ -195,7 +196,7 @@ Key error codes:
 
 ### PIN setting via cloud API
 
-Instead of struggling with Zigbee sleepy device timeouts, we can potentially set PINs via REST API:
+The REST API could set PINs without the Zigbee sleepy device timeouts:
 
 ```
 POST https://api-neutralclone.iotiliti.cloud/devices/{deviceId}/access
@@ -207,7 +208,7 @@ Authorization: Bearer <token>
 }
 ```
 
-This bypasses Zigbee entirely, the gateway handles timing.
+This bypasses Zigbee entirely. The gateway handles the timing.
 
 ### Event history
 
@@ -215,7 +216,8 @@ This bypasses Zigbee entirely, the gateway handles timing.
 GET /devices/{deviceId}/event-history
 ```
 
-Can provide complete event log with user info, better than Zigbee attribute reports.
+This could give a complete event log with user info, which is more than the
+Zigbee attribute reports carry.
 
 ### Prerequisites
 
@@ -241,8 +243,9 @@ Can provide complete event log with user info, better than Zigbee attribute repo
 
 ## White-label decompilation (2026-03-30)
 
-Decompiled all 7 white-label apps in the iotiliti ecosystem via `apkeep` + `hbc-decompiler`.
-All use identical codebase (React Native/Hermes), only the config block varies.
+All 7 white-label apps in the iotiliti ecosystem were decompiled with `apkeep` +
+`hbc-decompiler`. They share one codebase (React Native/Hermes), and only the
+config block differs.
 
 ### All API instances (prod)
 
@@ -261,18 +264,19 @@ All use identical codebase (React Native/Hermes), only the config block varies.
 | **Salus**      | `com.salusprotekt.immunity`     | `api-salus.iotiliti.cloud`                               |
 | **LF**         | _(in iotiliti app)_             | `api-lf.iotiliti.cloud`                                  |
 
-Client secrets, company IDs, and test credentials in `secrets.md` (gitignored).
+Client secrets, company IDs and test credentials are in `secrets.md` (gitignored).
 
 ### API URL migration
 
 Nimly Connect v1.27.84 (our version) uses `api-neutralclone.iotiliti.cloud`.
 Newer versions (from the iotiliti app) have migrated to `api.customer.prod-neutralclone.onesti.aws.neurosys.pro`.
-Both URLs point to the same database, tested with a fresh token, identical responses.
+Both URLs point to the same database: a fresh token gave identical responses
+from each.
 
 ### Internal test API
 
-`https://test-api-neurosys.iotiliti.cloud`: Neurosys (Poland) internal test instance.
-Client secret in `secrets.md`.
+`https://test-api-neurosys.iotiliti.cloud` is the internal test instance at
+Neurosys (Poland). Its client secret is in `secrets.md`.
 
 ### Hidden Developer Options
 
@@ -286,9 +290,11 @@ All apps have a hidden "Developer Options" menu:
 
 ### LF instance (separate auth)
 
-The LF brand uses its own Keycloak realm: `realms/lftt-kong-oidc/protocol/openid-connect/token`.
-External auth: `https://test-auth.lfhub.net`. Credentials in secrets.md.
-Username login (not email), no password change, no account deletion.
+The LF brand uses its own Keycloak realm,
+`realms/lftt-kong-oidc/protocol/openid-connect/token`, with external auth at
+`https://test-auth.lfhub.net`. Credentials are in `secrets.md`. Users log in
+with a username rather than an email, and cannot change their password or
+delete their account.
 
 ### Finding: group-devices empty on all APIs
 
@@ -298,5 +304,5 @@ Tested `GET /locations/{id}/group-devices` with a fresh token against:
 - `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` → `[]`
 
 The app shows devices (gateway + touch pro), but the API returns an empty list.
-Possible causes: server-side access control, caching, or the devices
-are registered via a mechanism we have not reproduced via API.
+Possible causes are server-side access control, caching, or devices registered
+through a mechanism we have not reproduced over the API.

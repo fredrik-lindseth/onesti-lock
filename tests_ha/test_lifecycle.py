@@ -27,7 +27,13 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry, async_
 
 from custom_components.onesti_lock.const import CONF_IEEE, CONF_RESERVED_SLOTS, DOMAIN
 from custom_components.onesti_lock.events import ATTR_OPERATION_EVENT
-from tests_ha.conftest import DOORLOCK_CLUSTER_ID, LOCK_IEEE, FakeDoorLockCluster, make_lock_proxy
+from tests_ha.conftest import (
+    DOORLOCK_CLUSTER_ID,
+    LISTENER_PATHS,
+    LOCK_IEEE,
+    FakeDoorLockCluster,
+    make_lock_proxy,
+)
 
 ACTIVITY_ENTITY_ID = "sensor.onesti_lock_last_activity"
 
@@ -65,8 +71,13 @@ def _zha_issue(hass: HomeAssistant, entry: MockConfigEntry):
     return ir.async_get(hass).async_get_issue(DOMAIN, f"zha_internals_{entry.entry_id}")
 
 
-class ClusterWithoutOnEvent:
-    """A Door Lock cluster from a zigpy that dropped on_event."""
+class ClusterWithoutAnyHook:
+    """A Door Lock cluster from a zigpy with neither listener hook.
+
+    No zigpy release looks like this: 0.80.1 has add_listener without
+    on_event, 0.91 and newer have both. It stands for a future one that
+    drops them, which is the only case still worth a repair issue.
+    """
 
     endpoint = SimpleNamespace(endpoint_id=11)
 
@@ -74,8 +85,8 @@ class ClusterWithoutOnEvent:
         return {}, {}
 
 
-def _without_on_event(mock_zha) -> None:
-    mock_zha.device_proxies = {LOCK_IEEE: make_lock_proxy(cluster=ClusterWithoutOnEvent())}
+def _without_any_hook(mock_zha) -> None:
+    mock_zha.device_proxies = {LOCK_IEEE: make_lock_proxy(cluster=ClusterWithoutAnyHook())}
 
 
 async def _retry_setup(hass: HomeAssistant) -> None:
@@ -85,10 +96,8 @@ async def _retry_setup(hass: HomeAssistant) -> None:
 
 
 async def _report(hass: HomeAssistant, cluster: FakeDoorLockCluster, raw_value: int) -> None:
-    """Deliver an operation event the way zigpy's cluster.emit() does."""
-    event = SimpleNamespace(attribute_id=ATTR_OPERATION_EVENT, raw_value=raw_value)
-    for listener in list(cluster._event_listeners["attribute_report"]):
-        listener(event)
+    """Deliver an operation event the way the installed zigpy does."""
+    cluster.deliver(ATTR_OPERATION_EVENT, raw_value)
     await hass.async_block_till_done()
 
 
@@ -136,17 +145,20 @@ async def test_entry_from_a_newer_major_version_is_refused(hass: HomeAssistant, 
 # -- Repair issue for missing ZHA internals --
 
 
+@pytest.mark.parametrize("cluster_class", LISTENER_PATHS, indirect=True)
 async def test_listener_registered_leaves_no_issue(hass: HomeAssistant, mock_zha) -> None:
+    """Either hook is enough: no repair issue, and someone is listening."""
     entry = await _setup(hass)
 
     assert entry.state is ConfigEntryState.LOADED
     assert _zha_issue(hass, entry) is None
+    assert _cluster(mock_zha).listener_count == 1
 
 
-async def test_missing_on_event_raises_a_repair_issue(
+async def test_no_listener_hook_at_all_raises_a_repair_issue(
     hass: HomeAssistant, mock_zha, caplog: pytest.LogCaptureFixture
 ) -> None:
-    _without_on_event(mock_zha)
+    _without_any_hook(mock_zha)
 
     entry = await _setup(hass)
 
@@ -157,8 +169,10 @@ async def test_missing_on_event_raises_a_repair_issue(
     assert issue.translation_key == "zha_internals"
     assert issue.severity is ir.IssueSeverity.ERROR
     assert issue.is_fixable is False
-    assert issue.translation_placeholders == {"detail": "ClusterWithoutOnEvent.on_event"}
-    assert "ClusterWithoutOnEvent.on_event" in caplog.text
+    detail = issue.translation_placeholders["detail"]
+    assert "ClusterWithoutAnyHook.on_event" in detail
+    assert "add_listener" in detail
+    assert detail in caplog.text
     assert any(r.levelname == "ERROR" and "ZHA internals missing" in r.message for r in caplog.records)
 
 
@@ -209,7 +223,7 @@ async def test_lock_back_in_zha_is_set_up_on_retry(hass: HomeAssistant, mock_zha
 
     assert entry.state is ConfigEntryState.LOADED
     assert entry.runtime_data.listened_cluster is _cluster(mock_zha)
-    assert len(_cluster(mock_zha)._event_listeners["attribute_report"]) == 1
+    assert _cluster(mock_zha).listener_count == 1
     assert _zha_issue(hass, entry) is None
 
 
@@ -261,7 +275,7 @@ async def test_loaded_zha_without_gateway_names_the_gateway(hass: HomeAssistant,
 
 
 async def test_unload_removes_the_issue(hass: HomeAssistant, mock_zha) -> None:
-    _without_on_event(mock_zha)
+    _without_any_hook(mock_zha)
     entry = await _setup(hass)
     assert _zha_issue(hass, entry) is not None
 
@@ -307,7 +321,7 @@ async def test_zha_reload_with_new_cluster_moves_the_listener(
     old_cluster = _cluster(mock_zha)
     entry = await _setup(hass)
     first_coordinator = entry.runtime_data
-    assert len(old_cluster._event_listeners["attribute_report"]) == 1
+    assert old_cluster.listener_count == 1
 
     new_cluster = FakeDoorLockCluster()
     mock_zha.device_proxies = {LOCK_IEEE: make_lock_proxy(cluster=new_cluster)}
@@ -316,8 +330,8 @@ async def test_zha_reload_with_new_cluster_moves_the_listener(
     assert entry.state is ConfigEntryState.LOADED
     assert entry.runtime_data is not first_coordinator
     assert entry.runtime_data.listened_cluster is new_cluster
-    assert old_cluster._event_listeners["attribute_report"] == []
-    assert len(new_cluster._event_listeners["attribute_report"]) == 1
+    assert old_cluster.listener_count == 0
+    assert new_cluster.listener_count == 1
 
 
 async def test_zha_reload_with_same_cluster_does_not_reload(
@@ -329,14 +343,14 @@ async def test_zha_reload_with_same_cluster_does_not_reload(
     await _reload_zha(hass, zha_entry)
 
     assert entry.runtime_data is coordinator
-    assert len(_cluster(mock_zha)._event_listeners["attribute_report"]) == 1
+    assert _cluster(mock_zha).listener_count == 1
 
 
-async def test_zha_coming_back_with_on_event_clears_the_issue(
+async def test_zha_coming_back_with_a_listener_hook_clears_the_issue(
     hass: HomeAssistant, mock_zha, zha_entry: MockConfigEntry
 ) -> None:
     lock_proxy = mock_zha.device_proxies[LOCK_IEEE]
-    _without_on_event(mock_zha)
+    _without_any_hook(mock_zha)
     entry = await _setup(hass)
     assert _zha_issue(hass, entry) is not None
 
@@ -345,7 +359,7 @@ async def test_zha_coming_back_with_on_event_clears_the_issue(
 
     assert entry.state is ConfigEntryState.LOADED
     assert _zha_issue(hass, entry) is None
-    assert len(_cluster(mock_zha)._event_listeners["attribute_report"]) == 1
+    assert _cluster(mock_zha).listener_count == 1
 
 
 async def test_zha_in_setup_retry_then_loaded_starts_the_listener(
@@ -367,7 +381,7 @@ async def test_zha_in_setup_retry_then_loaded_starts_the_listener(
 
     assert entry.state is ConfigEntryState.LOADED
     assert entry.runtime_data.listened_cluster is cluster
-    assert len(cluster._event_listeners["attribute_report"]) == 1
+    assert cluster.listener_count == 1
     assert entry.runtime_data.capabilities_final
     assert _zha_issue(hass, entry) is None
     assert not [r for r in caplog.records if r.levelname == "ERROR"]

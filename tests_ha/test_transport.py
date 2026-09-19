@@ -10,8 +10,6 @@ background task that a delivered command schedules.
 
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import pytest
 from homeassistant.const import EVENT_CALL_SERVICE
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -234,9 +232,7 @@ async def test_capabilities_missed_at_startup_arrive_after_a_report(hass: HomeAs
     entry = await _setup_entry(hass)
 
     cluster.wake()
-    event = SimpleNamespace(attribute_id=0x0000, raw_value=1)
-    for listener in list(cluster._event_listeners["attribute_report"]):
-        listener(event)
+    cluster.deliver(0x0000, 1)
     await hass.async_block_till_done(wait_background_tasks=True)
 
     assert entry.runtime_data.lock_capabilities["num_pin_users"] == 50

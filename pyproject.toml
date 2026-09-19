@@ -36,16 +36,27 @@ unit = [
 #
 # Minimum is the version hacs.json promises: 0.13.251 pins
 # homeassistant==2025.6.0. tests/test_version_sync.py fails if they drift.
+#
+# zigpy is here for one reason: the Door Lock cluster the listener hangs on
+# is a zigpy object, and which hook it offers changed with the version. Each
+# group pins exactly the zigpy its own Home Assistant gets in production,
+# through zha: HA 2025.6 -> zha 0.0.59 -> zigpy 0.80.1, which has no
+# Cluster.on_event, and HA 2026.9 -> zha 2.2.2 -> zigpy 2.2.0, which has.
+# tests_ha/test_zigpy_listener.py builds a real cluster from it and proves
+# both registration paths. The zha library itself is still not installed, so
+# tests_ha/conftest.py keeps standing in for it.
 ha-minimum = [
     "pytest-homeassistant-custom-component==0.13.251",
     # HA 2025.6 pins aiodns==3.4.0 but not pycares, and pycares 5 removed the
     # API aiodns 3.x calls, so setup dies on an AttributeError without this.
     "pycares<5",
+    "zigpy==0.80.1",
 ]
 # Current is the newest stable release at the time of pinning. Pinned, never
 # floating: 0.13.366 pins homeassistant==2026.9.3, which needs Python 3.14.
 ha-current = [
     "pytest-homeassistant-custom-component==0.13.366",
+    "zigpy==2.2.0",
 ]
 
 [tool.uv]

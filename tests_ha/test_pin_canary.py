@@ -219,9 +219,7 @@ def assert_no_canary(hass, entry, caplog, events, raised=None, canary: str = CAN
 
 async def _report(hass: HomeAssistant, mock_zha, attribute_id: int, raw_value: Any) -> None:
     cluster = mock_zha.device_proxies[LOCK_IEEE].device.device.endpoints[11].in_clusters[DOORLOCK_CLUSTER_ID]
-    event = SimpleNamespace(attribute_id=attribute_id, raw_value=raw_value)
-    for listener in list(cluster._event_listeners["attribute_report"]):
-        listener(event)
+    cluster.deliver(attribute_id, raw_value)
     await hass.async_block_till_done()
 
 

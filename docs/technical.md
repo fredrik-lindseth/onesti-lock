@@ -2,7 +2,7 @@
 
 ## How user identification works
 
-Onesti locks send a custom attribute report (`attrid 0x0100`) on the Door Lock cluster for every lock and unlock. The value is a bitmap32 holding user slot, action and source. ZHA's stock quirk and the Zigbee2MQTT converter both decode it into raw numbers; this integration is the one that turns it into named users and readable activity. It listens for the reports with `cluster.on_event("attribute_report", ...)` (`register_event_listener()` in `events.py`) and decodes the bitmap:
+Onesti locks send a custom attribute report (`attrid 0x0100`) on the Door Lock cluster for every lock and unlock. The value is a bitmap32 holding user slot, action and source. ZHA's stock quirk and the Zigbee2MQTT converter both decode it into raw numbers; this integration is the one that turns it into named users and readable activity. It listens for the reports on the zigpy Door Lock cluster (`register_event_listener()` in `events.py`, see [Listening for reports](#listening-for-reports) for which hook) and decodes the bitmap:
 
 ```
 Bits 0-15:  user_slot (uint16 LE; 0 = master or no user, see below)
@@ -25,18 +25,33 @@ Slot 0 means two things. With source keypad, fingerprint or rfid, a person used 
 
 `attrid 0x0101` holds the PIN code in BCD plaintext. The integration leaves it alone on purpose. Every state attribute ends up in the recorder, the logbook and diagnostics, which would put real access codes on disk (see zha-device-handlers#4881), and the slot number from 0x0100 already identifies the user.
 
-## Why standard ZHA approaches don't work
+## Listening for reports
 
-We tried 6 approaches before one worked. The lock sends the event data, but ZHA and zigpy don't expose it through the standard APIs:
+ZHA and zigpy expose the reports through nothing public, so `register_event_listener()` hangs off zigpy's own cluster object. Which hook it uses depends on the zigpy version, because `Cluster.on_event` only exists from zigpy 0.91.0, where `Cluster` started inheriting `EventBase`. Home Assistant pins zigpy through zha:
 
-| Approach                                   | Result                                                                          |
-| ------------------------------------------ | ------------------------------------------------------------------------------- |
-| ZHA `last_action_user` sensor              | Never updates on keypad use, stale from last HA command                         |
-| `zha_event` bus events                     | `operation_event_notification` (0x0020) never received                          |
-| `add_listener` + `attribute_updated`       | Suppressed by zigpy for unknown attributes (`_suppress_attribute_update_event`) |
-| `add_listener` + `handle_cluster_request`  | Only for cluster commands, not general commands like Report_Attributes          |
-| `add_listener` + `general_command`         | Not dispatched to listeners for Report_Attributes                               |
-| **`cluster.on_event("attribute_report")`** | **Works, catches all attribute reports including custom 0x0100**                |
+| Home Assistant | zigpy  | Hook used      |
+| -------------- | ------ | -------------- |
+| 2025.6         | 0.80.1 | `add_listener` |
+| 2025.8         | 0.82.2 | `add_listener` |
+| 2026.1         | 0.90.0 | `add_listener` |
+| 2026.2         | 0.91.5 | `on_event`     |
+| 2026.9         | 2.2.0  | `on_event`     |
+
+- **`cluster.on_event("attribute_report", ...)`** is tried first. zigpy emits it for every `Report_Attributes` frame, unknown attributes and unchanged values included.
+- **`cluster.add_listener(obj)`** with `obj.attribute_updated(attrid, value, timestamp)` is the fallback where `on_event` is missing, unsubscribed with `cluster.remove_listener(obj)`. `handle_cluster_general_request` calls `_update_attribute` for every attribute in the frame, unknown attrids included, and that fires `attribute_updated` unconditionally. It also fires for the integration's own attribute reads, which the attrid filter drops.
+
+Both hooks run the same handler, so decoding, the system-lock rule and the HA event have one implementation. `tests_ha/test_zigpy_listener.py` drives a real zigpy `DoorLock` cluster with a real frame on both, with zigpy pinned per test environment to the version that Home Assistant ships.
+
+Earlier versions of this document said the `add_listener` path was "suppressed by zigpy for unknown attributes". That was checked against the source on 2026-09-19 and is wrong for every zigpy from 0.80.1 to 0.90.0; only the `on_event` path was ever measured.
+
+What genuinely does not work:
+
+| Approach                                  | Result                                                                 |
+| ----------------------------------------- | ---------------------------------------------------------------------- |
+| ZHA `last_action_user` sensor             | Never updates on keypad use, stale from last HA command                |
+| `zha_event` bus events                    | `operation_event_notification` (0x0020) never received                 |
+| `add_listener` + `handle_cluster_request` | Only for cluster commands, not general commands like Report_Attributes |
+| `add_listener` + `general_command`        | Not dispatched to listeners for Report_Attributes                      |
 
 ## Reaching the lock through ZHA
 
@@ -70,13 +85,15 @@ The ZHA entry is often still in `SETUP_RETRY` when this entry sets up, typically
 
 A lock that is missing from ZHA altogether, removed or replaced by a Connect Module with a new IEEE, is not a repair issue: `async_setup_entry` raises `ConfigEntryNotReady` before anything is set up, and Home Assistant retries with backoff until the lock is back. Nothing in ZHA is broken in that case.
 
-The event listener depends on three things that are not public API: the gateway, the Door Lock cluster under the device, and `cluster.on_event`. If one is missing at setup while ZHA is running (a gateway exists or a ZHA entry is `LOADED`), `register_event_listener()` raises `ZhaInternalsMissing`, and `__init__.py` logs an error and creates the repair issue `zha_internals_<entry_id>` (severity error, not fixable). Its `detail` placeholder names the missing piece:
+The event listener depends on three things that are not public API: the gateway, the Door Lock cluster under the device, and a listener hook on that cluster. If one is missing at setup while ZHA is running (a gateway exists or a ZHA entry is `LOADED`), `register_event_listener()` raises `ZhaInternalsMissing`, and `__init__.py` logs an error and creates the repair issue `zha_internals_<entry_id>` (severity error, not fixable). Its `detail` placeholder names the missing piece:
 
-| `detail`                              | Meaning                                         |
-| ------------------------------------- | ----------------------------------------------- |
-| `ZHA gateway (get_zha_gateway_proxy)` | ZHA is `LOADED` but has no gateway              |
-| `Door Lock cluster for <ieee>`        | ZHA lists the lock, but no Door Lock cluster    |
-| `<ClusterClass>.on_event`             | The cluster has no `on_event`                   |
+| `detail`                                                             | Meaning                                      |
+| -------------------------------------------------------------------- | -------------------------------------------- |
+| `ZHA gateway (get_zha_gateway_proxy)`                                | ZHA is `LOADED` but has no gateway           |
+| `Door Lock cluster for <ieee>`                                       | ZHA lists the lock, but no Door Lock cluster |
+| `<ClusterClass>.on_event, and no add_listener/remove_listener either` | Neither listener hook is on the cluster      |
+
+No zigpy release looks like the last row: every version has at least one of the two hooks. It stands for a future one that drops both.
 
 Without the listener nothing reports who unlocked, though PIN writes may still work when ZHA itself runs. The issue is deleted when the listener registers and when the entry unloads. What the user does about it is in [debugging.md](debugging.md#repair-issue-lock-events-are-not-being-received).
 

@@ -54,3 +54,21 @@ coverage-gate:
         coverage combine --data-file=.coverage .coverage.unit .coverage.ha
     UV_PROJECT_ENVIRONMENT=.venv-unit uv run --frozen --python 3.14 --group unit \
         coverage report --data-file=.coverage --show-missing --fail-under=95
+
+# The same core .github/workflows/release.yml runs, that is
+# scripts/release_publish.py. None of the recipes below write anything on
+# GitHub; publishing happens in the workflow, where the attestation is made.
+
+# Build the ZIP HACS installs, from the git objects at a commit, and print its
+# sha256. Two runs on the same commit give a byte-identical file.
+release-zip sha="HEAD":
+    python3 scripts/release_publish.py build --sha {{sha}} --output dist/onesti_lock.zip
+
+# What would the release flow do with this commit? Reads GitHub, writes nothing.
+release-plan sha="HEAD":
+    python3 scripts/release_publish.py plan --sha {{sha}}
+
+# Check a release that is already out: do the tag, the ZIP and the attestation
+# point at the same artifact?
+release-verify tag:
+    python3 scripts/release_publish.py verify --sha {{tag}}

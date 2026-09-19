@@ -23,6 +23,10 @@ requires-python = ">=3.13.2"
 unit = [
     "pytest==9.0.3",
     "pytest-cov==7.1.0",
+    # Only tests read YAML: the workflow files and quality_scale.yaml. Without
+    # it those tests skip (pytest.importorskip), and the release flow would
+    # have no check that release.yml still attests before it publishes.
+    "pyyaml==6.0.3",
 ]
 # Real Home Assistant for tests_ha/. tests/ stubs homeassistant in
 # sys.modules and must never share an environment with these groups, so no

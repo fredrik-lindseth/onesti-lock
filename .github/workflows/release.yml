@@ -1,12 +1,40 @@
 name: Release
 
+# The release gate. Everything that has to be green for the candidate SHA runs
+# as part of this graph (`needs: ci`), not as separate workflows we hope have
+# finished.
+#
+# The candidate is `github.sha`, the commit this run belongs to. Both CI and the
+# release step check out exactly that, so there is no window where main can move
+# between testing, building and tagging.
+#
+# The flow itself lives in scripts/release_publish.py, which is testable and
+# resumable. The draft is published as the last call; if anything fails before
+# that there is no half release to clean up, and a new run on the same SHA picks
+# up where it stopped.
+
 on:
   push:
     branches: [ main ]
+  # Resuming: "Re-run failed jobs" keeps the SHA, or run the workflow by hand on
+  # the tag. The candidate always follows from the ref, never from a free text
+  # field, so it cannot be set to something CI has not seen.
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Run the flow without writing anything (reads only)"
+        type: boolean
+        default: false
+      trial_release:
+        description: "Trial release from a branch. Requires manifest version 0.0.0"
+        type: boolean
+        default: false
 
-# ci.yml has no push trigger, so this is where main gets its CI run. The
-# release job waits for the whole graph, release gate included, for this
-# commit, and does not tag a version CI has not passed.
+# One publish at a time. cancel-in-progress is off on purpose: cancelling a run
+# mid-upload is exactly the halfway state the gate exists to prevent.
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
 
 permissions: {}
 
@@ -19,118 +47,91 @@ jobs:
     secrets: inherit
 
   release:
+    name: Publish
+    # The ref guard. Without it, workflow_dispatch can run from any branch and
+    # publish something that has never been on main. A trial release is the
+    # deliberate exception, and the guard in the release script only lets it
+    # through for manifest version 0.0.0, so ticking the box on the wrong branch
+    # cannot ship a real version. The same guard checks the candidate against
+    # GitHub's own default branch, so it applies when the flow is run by hand too.
+    if: >-
+      github.ref == 'refs/heads/main'
+      || startsWith(github.ref, 'refs/tags/v')
+      || inputs.trial_release
+    # `needs` on a `uses:` job waits for *every* job in ci.yml, that is test,
+    # both HA targets, coverage, hacs, hassfest and the release gate, all for
+    # this run's `github.sha`. GitHub holds that guarantee, so the script does
+    # not repeat it.
     needs: [ ci ]
     runs-on: ubuntu-latest
+    # Keeps the concurrency lock from being held for hours if an API call hangs.
+    timeout-minutes: 30
     permissions:
       contents: write
+      id-token: write
+      attestations: write
 
     steps:
-      - name: Checkout
+      - name: Checkout the candidate SHA
         uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
+          # The ZIP is built from the git objects, and existing tags have to be
+          # dereferenceable, so the whole history and the tags must be here.
           fetch-depth: 0
+          fetch-tags: true
 
-      - name: Get version from manifest
-        id: version
-        run: |
-          VERSION=$(jq -r '.version' custom_components/onesti_lock/manifest.json)
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Check if release exists
-        id: check_release
+      # Reads the state on GitHub and says whether the version is already out.
+      # Writes nothing. If it is published, it is proved against its own tag and
+      # the rest of the job is skipped; if the tag is on another commit, we stop
+      # here.
+      - name: Read the state
+        id: plan
         env:
           GH_TOKEN: ${{ github.token }}
+          TRIAL_RELEASE: ${{ inputs.trial_release }}
         run: |
-          if gh release view "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Release v${{ steps.version.outputs.version }} already exists"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "Creating new release v${{ steps.version.outputs.version }}"
+          command=(python3 scripts/release_publish.py plan --sha "$GITHUB_SHA" --repo "$GITHUB_REPOSITORY")
+          if [ "$TRIAL_RELEASE" = "true" ]; then
+            command+=(--trial-release)
           fi
+          "${command[@]}"
 
-      - name: Get commit messages since last tag
-        id: changelog
-        if: steps.check_release.outputs.exists == 'false'
+      - name: Build the deterministic ZIP
+        if: steps.plan.outputs.outcome == 'ready'
+        id: build
         run: |
-          CURRENT_VERSION="v${{ steps.version.outputs.version }}"
-          PREV_TAG=$(git tag --sort=-version:refname | grep -v "$CURRENT_VERSION" | head -n 1)
+          DIGEST=$(python3 scripts/release_publish.py build --sha "$GITHUB_SHA" --output dist/onesti_lock.zip)
+          echo "sha256=$DIGEST" >> "$GITHUB_OUTPUT"
+          echo "ZIP for ${GITHUB_SHA:0:12}: $DIGEST"
 
-          echo "prev_tag=${PREV_TAG}" >> "$GITHUB_OUTPUT"
-
-          if [ -z "$PREV_TAG" ]; then
-            RANGE=""
-            RANGE_DESC="first release"
-          else
-            RANGE="${PREV_TAG}..HEAD"
-            RANGE_DESC="since ${PREV_TAG}"
-          fi
-
-          # Group commits by conventional commit prefix
-          declare -A sections=(
-            ["feat"]="### Features"
-            ["fix"]="### Bug fixes"
-            ["docs"]="### Documentation"
-            ["chore"]="### Chores"
-            ["refactor"]="### Refactoring"
-            ["test"]="### Tests"
-            ["ci"]="### CI/CD"
-          )
-          order=("feat" "fix" "docs" "refactor" "test" "ci" "chore")
-
-          body=""
-          for prefix in "${order[@]}"; do
-            if [ -z "$PREV_TAG" ]; then
-              commits=$(git log --pretty=format:"%s" --no-merges -20 | grep -E "^${prefix}(\(.+\))?!?:" || true)
-            else
-              commits=$(git log "${RANGE}" --pretty=format:"%s" --no-merges | grep -E "^${prefix}(\(.+\))?!?:" || true)
-            fi
-            if [ -n "$commits" ]; then
-              body="${body}${sections[$prefix]}"$'\n\n'
-              while IFS= read -r line; do
-                # Strip "prefix: " or "prefix(scope): " from the start
-                clean=$(echo "$line" | sed -E "s/^${prefix}(\(.+\))?!?:\s*//")
-                body="${body}- ${clean}"$'\n'
-              done <<< "$commits"
-              body="${body}"$'\n'
-            fi
-          done
-
-          # Fallback: any commits that didn't match known prefixes
-          if [ -z "$PREV_TAG" ]; then
-            other=$(git log --pretty=format:"%s" --no-merges -20 | grep -vE "^(feat|fix|docs|chore|refactor|test|ci)(\(.+\))?!?:" || true)
-          else
-            other=$(git log "${RANGE}" --pretty=format:"%s" --no-merges | grep -vE "^(feat|fix|docs|chore|refactor|test|ci)(\(.+\))?!?:" || true)
-          fi
-          if [ -n "$other" ]; then
-            body="${body}### Other"$'\n\n'
-            while IFS= read -r line; do
-              body="${body}- ${line}"$'\n'
-            done <<< "$other"
-          fi
-
-          if [ -z "$body" ]; then
-            body="No commits ${RANGE_DESC}."
-          fi
-
-          {
-            echo "body<<EOF"
-            echo "$body"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Create Release
-        if: steps.check_release.outputs.exists == 'false'
-        uses: softprops/action-gh-release@v2
+      # The attestation is made before anything is put out, and is verified by
+      # the publish step below. Then no version can become public with an
+      # attestation pointing at another commit or another file.
+      - name: Attest the build
+        if: steps.plan.outputs.outcome == 'ready'
+        uses: actions/attest-build-provenance@v4
         with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: v${{ steps.version.outputs.version }}
-          body: |
-            ${{ steps.changelog.outputs.body }}
+          subject-path: dist/onesti_lock.zip
 
-            ---
-
-            **Full changelog**: https://github.com/fredrik-lindseth/onesti-lock/compare/${{ steps.changelog.outputs.prev_tag }}...v${{ steps.version.outputs.version }}
-          draft: false
-          prerelease: false
+      - name: Verify and publish
+        if: steps.plan.outputs.outcome == 'ready'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # Empty on push, "true" only when someone asked for it in the form.
+          DRY_RUN: ${{ inputs.dry_run }}
+          TRIAL_RELEASE: ${{ inputs.trial_release }}
+        run: |
+          command=(
+            python3 scripts/release_publish.py publish
+            --sha "$GITHUB_SHA"
+            --repo "$GITHUB_REPOSITORY"
+            --zip dist/onesti_lock.zip
+          )
+          if [ "$DRY_RUN" = "true" ]; then
+            command+=(--dry-run)
+          fi
+          if [ "$TRIAL_RELEASE" = "true" ]; then
+            command+=(--trial-release)
+          fi
+          "${command[@]}"

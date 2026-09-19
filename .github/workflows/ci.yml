@@ -158,6 +158,18 @@ jobs:
           fi
           echo "Version format is valid"
 
+      # The release body is the short CHANGELOG note, built by the same script
+      # the release flow imports. A missing section, a relative link pointing at
+      # nothing, or a section with no bullet marked for the short note has to
+      # fail here, inside the graph the release gate waits for. In the publish
+      # step it would fail after the tag had been decided, and the flow would
+      # stop with a version that CI had already called green.
+      - name: Check the release note for the manifest version
+        run: |
+          VERSION=$(jq -r '.version' custom_components/onesti_lock/manifest.json)
+          python3 scripts/release_notes.py "$VERSION" --short > /dev/null
+          echo "CHANGELOG.md has a release note for $VERSION"
+
   test-ha:
     name: Real Home Assistant (${{ matrix.target }})
     runs-on: ubuntu-latest

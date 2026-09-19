@@ -60,18 +60,40 @@ ble = [
 # tests_ha/test_zigpy_listener.py builds a real cluster from it and proves
 # both registration paths. The zha library itself is still not installed, so
 # tests_ha/conftest.py keeps standing in for it.
+#
+# The Bluetooth stack is pinned the same way, to exactly the requirements of
+# that Home Assistant's own components/bluetooth/manifest.json, because
+# custom_components/onesti_lock/bluetooth.py runs on whatever HA ships and
+# the API of bleak (0.22 against 3.0) and habluetooth (3.x against 6.x)
+# moved between the two. Left to the resolver, both groups got the newest
+# release of each, which neither Home Assistant runs. Move these with the HA
+# pin, read off that release's bluetooth manifest.
 ha-minimum = [
     "pytest-homeassistant-custom-component==0.13.251",
     # HA 2025.6 pins aiodns==3.4.0 but not pycares, and pycares 5 removed the
     # API aiodns 3.x calls, so setup dies on an AttributeError without this.
     "pycares<5",
     "zigpy==0.80.1",
+    "bleak==0.22.3",
+    "bleak-retry-connector==3.9.0",
+    "bluetooth-adapters==0.21.4",
+    "bluetooth-auto-recovery==1.5.2",
+    "bluetooth-data-tools==1.28.1",
+    "dbus-fast==2.43.0",
+    "habluetooth==3.49.0",
 ]
 # Current is the newest stable release at the time of pinning. Pinned, never
 # floating: 0.13.366 pins homeassistant==2026.9.3, which needs Python 3.14.
 ha-current = [
     "pytest-homeassistant-custom-component==0.13.366",
     "zigpy==2.2.0",
+    "bleak==3.0.2",
+    "bleak-retry-connector==4.7.0",
+    "bluetooth-adapters==2.4.0",
+    "bluetooth-auto-recovery==1.6.4",
+    "bluetooth-data-tools==1.29.24",
+    "dbus-fast==5.0.22",
+    "habluetooth==6.26.11",
 ]
 
 [tool.uv]
@@ -83,6 +105,9 @@ default-groups = []
 # each as a separate branch of uv.lock.
 conflicts = [
     [{ group = "unit" }, { group = "ha-minimum" }, { group = "ha-current" }],
+    # ble pins the bleak HA current ships, ha-minimum the older one HA 2025.6
+    # ships, so the two never share an environment either.
+    [{ group = "ble" }, { group = "ha-minimum" }],
 ]
 
 [tool.uv.dependency-groups]

@@ -16,6 +16,7 @@ import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.translation import async_get_translations
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -26,13 +27,16 @@ from tests_ha.conftest import LOCK_IEEE, make_lock_proxy
 SERVICES = {"set_pin", "clear_pin", "set_name", "clear_slot"}
 
 
-async def _setup_entry(hass: HomeAssistant) -> MockConfigEntry:
+SECOND_LOCK_IEEE = "00:0d:6f:00:55:66:77:88"
+
+
+async def _setup_entry(hass: HomeAssistant, ieee: str = LOCK_IEEE) -> MockConfigEntry:
     entry = MockConfigEntry(
         domain=DOMAIN,
         version=2,
-        unique_id=LOCK_IEEE,
-        title="Onesti Lock (11:22:33:44)",
-        data={CONF_IEEE: LOCK_IEEE},
+        unique_id=ieee,
+        title=f"Onesti Lock ({ieee[-11:]})",
+        data={CONF_IEEE: ieee},
         options={"slots": {}},
     )
     entry.add_to_hass(hass)
@@ -90,7 +94,7 @@ async def test_setup_and_unload_entry(hass: HomeAssistant, mock_zha) -> None:
 
     assert entry.state is ConfigEntryState.LOADED
     assert len(cluster._event_listeners["attribute_report"]) == 1
-    coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+    coordinator = entry.runtime_data
     assert coordinator.lock_capabilities.get("num_pin_users") == 50
 
     assert await hass.config_entries.async_unload(entry.entry_id)
@@ -99,6 +103,59 @@ async def test_setup_and_unload_entry(hass: HomeAssistant, mock_zha) -> None:
     assert entry.state is ConfigEntryState.NOT_LOADED
     assert cluster._event_listeners["attribute_report"] == []
     assert not hass.services.async_services().get(DOMAIN)
+
+
+async def test_unload_then_setup_again(hass: HomeAssistant, mock_zha) -> None:
+    cluster = mock_zha.device_proxies[LOCK_IEEE].device.device.endpoints[11].in_clusters[0x0101]
+    entry = await _setup_entry(hass)
+    first_coordinator = entry.runtime_data
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert not hasattr(entry, "runtime_data")
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.runtime_data is not first_coordinator
+    assert len(cluster._event_listeners["attribute_report"]) == 1
+    assert set(hass.services.async_services().get(DOMAIN, {})) == SERVICES
+
+
+async def test_services_stay_until_last_entry_unloads(hass: HomeAssistant, mock_zha) -> None:
+    mock_zha.device_proxies[SECOND_LOCK_IEEE] = make_lock_proxy()
+    first = await _setup_entry(hass)
+    second = await _setup_entry(hass, SECOND_LOCK_IEEE)
+
+    assert await hass.config_entries.async_unload(first.entry_id)
+    await hass.async_block_till_done()
+    assert set(hass.services.async_services().get(DOMAIN, {})) == SERVICES
+
+    assert await hass.config_entries.async_unload(second.entry_id)
+    await hass.async_block_till_done()
+    assert not hass.services.async_services().get(DOMAIN)
+
+
+async def test_services_find_only_loaded_locks(hass: HomeAssistant, mock_zha) -> None:
+    mock_zha.device_proxies[SECOND_LOCK_IEEE] = make_lock_proxy()
+    first = await _setup_entry(hass)
+    second = await _setup_entry(hass, SECOND_LOCK_IEEE)
+
+    await hass.services.async_call(
+        DOMAIN, "set_name", {"slot": 5, "name": "Kari", "ieee": SECOND_LOCK_IEEE.upper()}, blocking=True
+    )
+    assert second.options["slots"]["5"]["name"] == "Kari"
+    assert "5" not in first.options["slots"]
+
+    assert await hass.config_entries.async_unload(second.entry_id)
+    await hass.async_block_till_done()
+
+    with pytest.raises(HomeAssistantError) as excinfo:
+        await hass.services.async_call(
+            DOMAIN, "set_name", {"slot": 5, "name": "Ola", "ieee": SECOND_LOCK_IEEE}, blocking=True
+        )
+    assert excinfo.value.translation_key == "lock_not_found_ieee"
 
 
 async def test_entities_registered_with_expected_unique_ids(hass: HomeAssistant, mock_zha) -> None:

@@ -16,7 +16,7 @@ only into raw numbers.
 ## Architecture
 
 ```
-NimlyCoordinator (one per lock)
+NimlyCoordinator (one per lock, on entry.runtime_data; NimlyConfigEntry in coordinator.py)
   ├── Slot data (config entry options, persisted in .storage)
   ├── PIN operations (set_pin, clear_pin, clear_slot through self.transport)
   ├── Lock capabilities (read_lock_capabilities stores transport.read_capabilities())
@@ -29,7 +29,7 @@ ZhaLockTransport (zha.py, injected into the coordinator; tests pass a fake)
   │   why that works and a plain read does not is unverified
   └── read_capabilities(): ZCL 0x0012/0x0017/0x0018 as a dict, {} on any failure
 
-Event listener (events.py, registered from __init__.py; no HA imports at module level)
+Event listener (events.py, registered from __init__.py via entry.async_on_unload; no HA imports at module level)
   ├── cluster.on_event("attribute_report") on coordinator.transport.cluster(),
   │   catches custom attrid 0x0100
   ├── Decodes bitmap32: bits 0-15 user_slot (uint16 LE), bits 16-23 action, bits 24-31 source
@@ -62,7 +62,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 | `custom_components/onesti_lock/zha.py`         | All ZHA/zigpy internals: device lookup, chain walk, `ZhaLockTransport`     |
 | `custom_components/onesti_lock/config_flow.py` | Config flow (device selection) + Options flow (PIN management UI)          |
 | `custom_components/onesti_lock/sensor.py`      | Slot sensors (3-12) + Activity sensor                                      |
-| `custom_components/onesti_lock/services.py`    | set_pin, clear_pin, set_name, clear_slot services                          |
+| `custom_components/onesti_lock/services.py`    | set_pin, clear_pin, set_name, clear_slot; locks via async_loaded_entries   |
 | `custom_components/onesti_lock/pin_rules.py`   | Slot/PIN validation from reported capabilities (pure logic, no HA imports) |
 | `custom_components/onesti_lock/const.py`       | Constants, source/action enums, supported models, slot ranges              |
 | `custom_components/onesti_lock/localize.py`    | Runtime string lookup (reads the `runtime` section of translations/*.json) |

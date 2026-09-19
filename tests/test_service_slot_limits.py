@@ -60,9 +60,25 @@ class FakeServiceRegistry:
         self.handlers.pop(service, None)
 
 
+class FakeEntry:
+    """A loaded config entry: HA keeps the coordinator on runtime_data."""
+
+    def __init__(self, coordinator):
+        self.entry_id = "entry_id"
+        self.runtime_data = coordinator
+
+
+class FakeConfigEntries:
+    def __init__(self, entries):
+        self._entries = entries
+
+    def async_loaded_entries(self, domain):
+        return list(self._entries) if domain == "onesti_lock" else []
+
+
 class FakeHass:
     def __init__(self, coordinator):
-        self.data = {"onesti_lock": {"entry_id": {"coordinator": coordinator}}}
+        self.config_entries = FakeConfigEntries([FakeEntry(coordinator)])
         self.services = FakeServiceRegistry()
 
 

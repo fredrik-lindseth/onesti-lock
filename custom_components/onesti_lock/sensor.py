@@ -5,11 +5,11 @@ import logging
 from datetime import datetime
 
 from homeassistant.components.sensor import SensorEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN, NUM_USER_SLOTS, SLOT_FIRST_USER
+from .coordinator import NimlyConfigEntry
 from .localize import format_activity
 
 _LOGGER = logging.getLogger(__name__)
@@ -17,11 +17,11 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: NimlyConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Onesti Lock sensors."""
-    coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+    coordinator = entry.runtime_data
 
     entities: list[SensorEntity] = []
 
@@ -42,7 +42,7 @@ class NimlySlotSensor(SensorEntity):
     _attr_has_entity_name = True
     _attr_icon = "mdi:key-variant"
 
-    def __init__(self, coordinator, entry: ConfigEntry, slot: int) -> None:
+    def __init__(self, coordinator, entry: NimlyConfigEntry, slot: int) -> None:
         self._coordinator = coordinator
         self._slot = slot
         self._attr_unique_id = f"{coordinator.ieee}-slot-{slot}"
@@ -92,7 +92,7 @@ class NimlyActivitySensor(SensorEntity):
     _attr_has_entity_name = True
     _attr_icon = "mdi:door-closed-lock"
 
-    def __init__(self, coordinator, entry: ConfigEntry) -> None:
+    def __init__(self, coordinator, entry: NimlyConfigEntry) -> None:
         self._coordinator = coordinator
         self._attr_unique_id = f"{coordinator.ieee}-activity"
         self._attr_translation_key = "last_activity"

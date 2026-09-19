@@ -24,7 +24,7 @@ test-ha target="current" *args:
         *) echo "Unknown target '$target'. Use minimum or current." >&2; exit 2 ;;
     esac
     UV_PROJECT_ENVIRONMENT=".venv-ha-$target" uv run --frozen --python "$python" \
-        --group "ha-$target" pytest tests_ha -o asyncio_default_fixture_loop_scope=function {{args}}
+        --group "ha-$target" pytest tests_ha -o asyncio_mode=auto -o asyncio_default_fixture_loop_scope=function {{args}}
 
 # tests/ against the homeassistant stubs, in an environment without Home
 # Assistant (group unit). This is the suite CI's test job runs.

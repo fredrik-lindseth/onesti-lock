@@ -28,7 +28,12 @@ def _read(name: str) -> str:
 
 
 def _python_files() -> list[str]:
-    return sorted(f for f in os.listdir(_PKG) if f.endswith(".py"))
+    """Every module in the component, subpackages such as ble/ included."""
+    found = []
+    for root, dirs, files in os.walk(_PKG):
+        dirs[:] = [d for d in dirs if d != "__pycache__"]
+        found += [os.path.relpath(os.path.join(root, f), _PKG) for f in files if f.endswith(".py")]
+    return sorted(found)
 
 
 def _looks_secret(identifier: str) -> bool:

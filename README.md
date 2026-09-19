@@ -214,7 +214,9 @@ English, Norwegian (bokmål), Swedish and Danish. Sensor states, entity names, o
 
 6. **No OTA firmware updates over Zigbee**: the module lists the OTA Upgrade cluster, but no firmware image for it exists in the community zigbee-OTA index, so ZHA has nothing to offer.
 
-7. **ZHA internals**: ZHA has no public API for what this integration reads, so a Home Assistant update can break it. If that happens, a repair issue titled "Lock events are not being received" appears under Settings → System → Repairs. PIN codes may still work, but the activity sensor and the event go quiet. Open an issue with your Home Assistant version. When ZHA restarts with the lock, the integration reconnects by itself.
+7. **ZHA internals**: ZHA has no public API for what this integration reads, so a Home Assistant update can break it. If that happens, a repair issue titled "Lock events are not being received" appears under Settings → System → Repairs. PIN codes may still work, but the activity sensor and the event go quiet. Open an issue with your Home Assistant version. When ZHA restarts with the lock, the integration reconnects by itself, and a ZHA that is still starting when Home Assistant boots is simply waited for.
+
+8. **Dashboard locks right after a wake**: a lock from a dashboard within 30 seconds of the integration waking the lock looks the same as the wake itself, so the activity sensor does not show it. The `onesti_lock_activity` event still fires.
 
 ## Documentation
 

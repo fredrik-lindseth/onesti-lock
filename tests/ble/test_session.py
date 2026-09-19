@@ -497,7 +497,7 @@ class TestEvents:
         seen = []
 
         def broken(event):
-            raise RuntimeError("listener bug")
+            raise RuntimeError("listener bug near 8832")
 
         async def scenario():
             transport = open_transport()
@@ -509,7 +509,9 @@ class TestEvents:
 
         run(scenario())
         assert len(seen) == 1
-        assert "A lock event listener failed" in caplog.text
+        assert "A lock event listener failed with RuntimeError" in caplog.text
+        assert "8832" not in caplog.text
+        assert all(record.exc_info is None for record in caplog.records)
 
     def test_other_events_are_ignored(self, caplog):
         caplog.set_level(logging.DEBUG)

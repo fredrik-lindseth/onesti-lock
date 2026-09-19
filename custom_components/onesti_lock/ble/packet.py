@@ -141,8 +141,9 @@ class PayloadCipher(Protocol):
 
     encrypt pads to the cipher's block size; decrypt returns the padded
     plaintext, which Layer 2 and 3 tolerate since they read their own length
-    field. A cipher may keep state between calls (the command stream chains
-    CBC across payloads), so each payload goes through it exactly once.
+    field. Each payload goes through the cipher exactly once, as a whole: the
+    app's AES runs one CBC pass per payload from the link IV, so encrypting
+    packet by packet would give different bytes.
     """
 
     def encrypt(self, data: bytes) -> bytes: ...

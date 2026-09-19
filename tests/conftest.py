@@ -226,6 +226,84 @@ def _get_zha_gateway_proxy(hass):
 zha_helpers.get_zha_gateway_proxy = _get_zha_gateway_proxy
 
 
+# bluetooth.py reaches Home Assistant's Bluetooth integration through these
+# names from homeassistant.components.bluetooth. The stub hands every call to
+# hass.bluetooth, which a test sets to its own fake (tests/test_bluetooth.py
+# has one), the way the zha stub reads hass.data.
+bluetooth = _module("homeassistant.components.bluetooth")
+
+
+class BluetoothChange(enum.Enum):
+    ADVERTISEMENT = 1
+
+
+class BluetoothScanningMode(enum.Enum):
+    PASSIVE = "passive"
+    ACTIVE = "active"
+
+
+class BluetoothServiceInfoBleak:
+    """The fields of habluetooth's service info that bluetooth.py reads."""
+
+    def __init__(self, *, name, address, rssi, service_data, connectable=True):
+        self.name = name
+        self.address = address
+        self.rssi = rssi
+        self.service_data = service_data
+        self.connectable = connectable
+
+
+bluetooth.BluetoothChange = BluetoothChange
+bluetooth.BluetoothScanningMode = BluetoothScanningMode
+bluetooth.BluetoothServiceInfoBleak = BluetoothServiceInfoBleak
+# A TypedDict in Home Assistant, so a dict at runtime.
+bluetooth.BluetoothCallbackMatcher = dict
+bluetooth.async_discovered_service_info = lambda hass, connectable=True: hass.bluetooth.discovered(connectable)
+bluetooth.async_ble_device_from_address = lambda hass, address, connectable=True: hass.bluetooth.ble_device(
+    address, connectable
+)
+bluetooth.async_register_callback = lambda hass, callback, matcher, mode: hass.bluetooth.register(
+    callback, matcher, mode
+)
+
+
+# --- bleak-retry-connector ---------------------------------------------------
+
+# Home Assistant's Bluetooth integration ships it, and bluetooth.py connects
+# through it. The unit group has bleak itself (the BLE library's transport
+# needs it) but not this, so the stub derives its errors from the real
+# BleakError, as the package does. Without bleak there is nothing to derive
+# from, and tests/test_bluetooth.py skips.
+try:
+    from bleak.exc import BleakError as _BleakError
+except ImportError:
+    _BleakError = None
+
+if _BleakError is not None:
+    bleak_retry_connector = _module("bleak_retry_connector")
+
+    class BleakNotFoundError(_BleakError):
+        """The device was not found, or vanished while connecting."""
+
+    class BleakOutOfConnectionSlotsError(_BleakError):
+        """No adapter or proxy had a free connection slot."""
+
+    class BleakClientWithServiceCache:
+        """Only passed through to establish_connection, which tests replace."""
+
+    async def _establish_connection(*args, **kwargs):
+        raise AssertionError("tests replace establish_connection on the module under test")
+
+    async def _close_stale_connections_by_address(address, only_other_adapters=False):
+        return None
+
+    bleak_retry_connector.BleakNotFoundError = BleakNotFoundError
+    bleak_retry_connector.BleakOutOfConnectionSlotsError = BleakOutOfConnectionSlotsError
+    bleak_retry_connector.BleakClientWithServiceCache = BleakClientWithServiceCache
+    bleak_retry_connector.establish_connection = _establish_connection
+    bleak_retry_connector.close_stale_connections_by_address = _close_stale_connections_by_address
+
+
 # --- zigpy -------------------------------------------------------------------
 
 # ZHA ships zigpy, and zha.py tells a sleeping lock's errors apart by these

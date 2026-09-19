@@ -10,8 +10,8 @@
       }
     },
     "abort": {
-      "zha_not_found": "ZHA-integrasjon ikke funnet eller ikke konfigurert. Denne integrasjonen krever ZHA for å dekode egendefinerte Zigbee-attributtrapporter for brukeridentifikasjon. Zigbee2MQTT eksponerer ikke disse hendelsene på samme måte.",
-      "no_devices_found": "Ingen Onesti Lock-låser funnet i ZHA.",
+      "zha_not_found": "Fant ikke ZHA, eller ZHA er ikke satt opp. Integrasjonen trenger ZHA for å dekode låsens egne Zigbee-attributtrapporter, som forteller hvem som brukte låsen. Zigbee2MQTT gjør ikke disse hendelsene tilgjengelige på samme måte.",
+      "no_devices_found": "Fant ingen Onesti-låser i ZHA.",
       "already_configured": "Denne låsen er allerede konfigurert."
     }
   },
@@ -29,7 +29,7 @@
       },
       "set_pin": {
         "title": "Sett PIN-kode",
-        "description": "Velg slot, skriv navn og PIN-kode (4-8 siffer). Slot-numrene tilsvarer låsens interne brukerslots (ZCL DoorLock). Listen starter etter masterslotene som er satt under Innstillinger. Merk: hvis låsen sover, tidsavbrytes første forsøk og integrasjonen vekker låsen ved å sende en låsekommando. En ulåst dør blir fysisk låst, så lukk døren før du starter.",
+        "description": "Velg slot, og skriv inn navn og en PIN-kode på 4-8 siffer. Slot-numrene er låsens egne brukerslots (ZCL DoorLock), og listen starter etter masterslotene som er satt under Innstillinger. Sover låsen, går første forsøk ut på tid, og integrasjonen vekker den med en låsekommando. Da blir en ulåst dør låst fysisk, så lukk døren før du starter.",
         "data": {
           "slot": "Brukerslot",
           "name": "Navn",
@@ -38,14 +38,14 @@
       },
       "clear_pin": {
         "title": "Fjern PIN-kode",
-        "description": "Velg bruker å fjerne. Hvis låsen sover, vekker integrasjonen den ved å sende en låsekommando; en ulåst dør blir fysisk låst.",
+        "description": "Velg brukeren som skal fjernes. Sover låsen, vekker integrasjonen den med en låsekommando, og da blir en ulåst dør låst fysisk.",
         "data": {
           "slot": "Bruker"
         }
       },
       "name_slot": {
         "title": "Navngi bruker",
-        "description": "Knytt et navn til et slot-nummer (0-999). Brukes for RFID-brikker, fingeravtrykk, masterkodene eller andre tilgangsmetoder som ikke settes via PIN-menyen. La navnet stå tomt for å fjerne det.",
+        "description": "Gi et slot-nummer (0-999) et navn. Bruk det for RFID-brikker, fingeravtrykk, masterkodene og annet som ikke settes via PIN-menyen. La navnet stå tomt for å fjerne det.",
         "data": {
           "slot": "Slot-nummer",
           "name": "Navn"
@@ -70,7 +70,7 @@
     "error": {
       "invalid_pin": "PIN-kode må være 4-8 siffer",
       "invalid_slot": "Slot-nummer må være mellom 0 og 999",
-      "lock_unreachable": "Kunne ikke nå låsen. Trykk på keypadet og prøv igjen.",
+      "lock_unreachable": "Fikk ikke kontakt med låsen. Trykk på tastaturet og prøv igjen.",
       "unknown": "En uventet feil oppstod. Sjekk loggene."
     },
     "abort": {
@@ -89,7 +89,7 @@
   },
   "exceptions": {
     "lock_unreachable": {
-      "message": "Kunne ikke nå låsen. Trykk på en knapp på låsen for å vekke den og prøv igjen."
+      "message": "Fikk ikke kontakt med låsen. Trykk på en knapp på låsen for å vekke den, og prøv igjen."
     },
     "invalid_slot": {
       "message": "Slot må være mellom {min} og {max}"

@@ -98,3 +98,19 @@ def format_activity(
         # Unknown action byte from firmware we have not seen yet
         return strings.get("activity_unknown", "Unknown activity")
     return template.format(name=user_name)
+
+
+def format_reserved_slot_row(
+    strings: Mapping[str, str], slot: int, name: str
+) -> str:
+    """Render one reserved master slot row for the view-slots step.
+
+    A named slot reads "Slot 1: Kari (master)". An unnamed one reads
+    "Slot 1: Master" rather than falling back to the "Slot {slot}" name the
+    activity sensor uses, which would print the slot number twice.
+    """
+    label = strings.get("slot_label", "Slot {slot}: {name}")
+    if not name:
+        return label.format(slot=slot, name=strings.get("slot_fallback_master", "Master"))
+    master = strings.get("slot_status_master", "(master)")
+    return f"{label.format(slot=slot, name=name)} {master}"

@@ -29,7 +29,7 @@ class TestByteReader:
             reader.read_uint16()
 
     def test_negative_count_is_a_bug(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(errors.BleValidationError):
             streams.ByteReader(b"\x01").read_bytes(-1)
 
     def test_string_field(self):

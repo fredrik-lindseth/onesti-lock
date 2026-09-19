@@ -45,8 +45,10 @@ from typing import Self
 from ..crypto import KeyPair, LinkKeys, derive_link_keys, generate_key_pair
 from ..errors import (
     BleDisconnectedError,
+    BleError,
     BleFirmwareTooOldError,
     BleProtocolError,
+    BleSessionStateError,
     BleTimeoutError,
 )
 from ..protocol.command import CommandPayload, CommandRefCounter
@@ -159,7 +161,7 @@ class Session:
         from the link.
         """
         if self._state is not _State.NEW:
-            raise RuntimeError("A Session connects once; build a new one to reconnect")
+            raise BleSessionStateError("A Session connects once; build a new one to reconnect")
         self._state = _State.CONNECTING
         try:
             firmware = parse_software_revision(await self._transport.read_software_revision())
@@ -197,7 +199,7 @@ class Session:
     def firmware(self) -> FirmwareVersion:
         """The lock's firmware version, read when connecting."""
         if self._firmware is None:
-            raise RuntimeError("The firmware is read by connect()")
+            raise BleSessionStateError("The firmware is read by connect()")
         return self._firmware
 
     @property
@@ -209,7 +211,7 @@ class Session:
     def link_keys(self) -> LinkKeys:
         """This connection's AES key and IV. Owner authentication needs the IV."""
         if self._link_keys is None:
-            raise RuntimeError("The link keys exist once connect() has exchanged keys")
+            raise BleSessionStateError("The link keys exist once connect() has exchanged keys")
         return self._link_keys
 
     # --- Commands --------------------------------------------------------------
@@ -348,11 +350,11 @@ class Session:
         if pending is not None and not pending.future.done():
             pending.future.set_exception(BleDisconnectedError(message))
 
-    def _not_connected(self) -> Exception:
+    def _not_connected(self) -> BleError:
         if self._state is _State.NEW:
-            return RuntimeError("Call connect() before sending commands")
+            return BleSessionStateError("Call connect() before sending commands")
         if self._state is _State.CONNECTING:
-            return RuntimeError("The session is still connecting")
+            return BleSessionStateError("The session is still connecting")
         return BleDisconnectedError("The session is closed")
 
 

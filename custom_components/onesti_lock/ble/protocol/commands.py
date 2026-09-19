@@ -71,6 +71,13 @@ def _empty_command(command_id: CommandId) -> CommandPayload:
     return CommandPayload(command_id)
 
 
+def _member[E: (EkeyOperationId, LockVolumeId)](enum: type[E], value: int) -> E:
+    try:
+        return enum(value)
+    except ValueError:
+        raise BleValidationError(f"{value!r} is not a {enum.__name__}") from None
+
+
 # --- Link and owner authentication -------------------------------------------
 
 
@@ -200,12 +207,12 @@ def fingerprint_clear(slot: int) -> CommandPayload:
 
 def ekey_operate(operation: EkeyOperationId) -> CommandPayload:
     """EkeyOperate (0x18): unlock, lock or invalidate the ekey token."""
-    return CommandPayload(CommandId.EKEY_OPERATE, ByteWriter().write_uint8(EkeyOperationId(operation)).to_bytes())
+    return CommandPayload(CommandId.EKEY_OPERATE, ByteWriter().write_uint8(_member(EkeyOperationId, operation)).to_bytes())
 
 
 def volume_set(volume: LockVolumeId) -> CommandPayload:
     """VolumeSet (0x5A): the LockVolumeId byte."""
-    return CommandPayload(CommandId.VOLUME_SET, ByteWriter().write_uint8(LockVolumeId(volume)).to_bytes())
+    return CommandPayload(CommandId.VOLUME_SET, ByteWriter().write_uint8(_member(LockVolumeId, volume)).to_bytes())
 
 
 def auto_lock_set(enabled: bool) -> CommandPayload:

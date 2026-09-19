@@ -1,11 +1,32 @@
 """Exceptions raised by the BLE protocol library.
 
-Everything derives from BleError, so a caller can catch the library as a whole.
-A response whose status byte is not SUCCESS becomes a BleOperationError
-subclass, one per ResponseStatusId, through error_for_status. The app itself
-has a single NimlyEkeyBleOperationException carrying the status
-(exceptions/NimlyEkeyBleOperationException.java); separate classes let a caller
-catch, say, BleSecurityError without inspecting a field.
+Everything the library raises derives from BleError, so a caller can catch the
+library as a whole. Below it, the class says whose fault the failure is:
+
+- BleValidationError: an argument the caller passed, refused before anything
+  is sent. A slot outside its range, a key of the wrong length, a PIN that is
+  not 4-8 digits, but also a frame the length fields cannot carry or an MTU too
+  small to frame anything. It is also a ValueError.
+- BleSessionStateError: a Session used out of order, such as connecting twice
+  or sending before connect() has finished. It is also a RuntimeError. A
+  session whose link has gone raises BleDisconnectedError instead, since that
+  is the radio, not the caller.
+- BleProtocolError: bytes from the lock that do not parse as the protocol
+  says they should.
+- BleOperationError: the lock parsed the command and answered with a status
+  other than SUCCESS. There is one subclass per ResponseStatusId, through
+  error_for_status. The app itself has a single
+  NimlyEkeyBleOperationException carrying the status
+  (exceptions/NimlyEkeyBleOperationException.java); separate classes let a
+  caller catch, say, BleSecurityError without inspecting a field.
+- BleTimeoutError, BleDisconnectedError: the link. BleTimeoutError is also a
+  TimeoutError.
+- BleFirmwareTooOldError: the lock's firmware is below what an operation needs.
+
+client/enrollment.py adds BleEnrollmentError, which carries the partial
+enrollment and so lives next to it. An exception from the caller's own
+Transport passes through unchanged; client/transport.py asks implementations
+to raise BleError subclasses too.
 
 No message may carry a PIN. The builders validate a PIN without quoting it, and
 the messages here are built only from ids, statuses and lengths.
@@ -22,10 +43,21 @@ class BleError(Exception):
 
 
 class BleValidationError(BleError, ValueError):
-    """A command argument the lock would refuse, caught before sending.
+    """An argument the library refuses before anything is sent.
 
     Mirrors the app's client-side checks (VerifyExtensions): slot ranges, key
-    and id lengths, PIN length and digits.
+    and id lengths, PIN length and digits. The framing's own limits land here
+    too: a CommandRef outside 1-254, a payload longer than its length field,
+    an MTU that leaves no room for payload.
+    """
+
+
+class BleSessionStateError(BleError, RuntimeError):
+    """A Session used in a state that does not allow the call.
+
+    Connecting a session twice, sending before connect() has finished, or
+    asking for the firmware or link keys before the key exchange. These are
+    bugs in the caller, not conditions on the link.
     """
 
 
@@ -128,10 +160,10 @@ def error_for_status(status: int, command: CommandId | ResponseId | int | None =
     """The exception for a failed response's status byte.
 
     An unknown byte gets the BleOperationError base class. SUCCESS is not a
-    failure, and asking for its error is a bug in the caller.
+    failure, and asking for its error raises BleValidationError.
     """
     if status == ResponseStatusId.SUCCESS:
-        raise ValueError("SUCCESS is not an error status")
+        raise BleValidationError("SUCCESS is not an error status")
     try:
         known = ResponseStatusId(status)
     except ValueError:

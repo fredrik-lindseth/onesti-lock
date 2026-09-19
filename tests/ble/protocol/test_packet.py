@@ -71,7 +71,7 @@ class TestPacket:
 
     def test_payload_limit(self):
         packet.Packet(PacketTypeId.SINGLE, 1, bytes(255)).to_bytes()
-        with pytest.raises(ValueError, match="exceeds 255"):
+        with pytest.raises(errors.BleValidationError, match="exceeds 255"):
             packet.Packet(PacketTypeId.SINGLE, 1, bytes(256)).to_bytes()
 
     def test_repr_leaves_the_payload_out(self):
@@ -119,11 +119,11 @@ class TestPacketize:
         assert max(len(p.payload) for p in packets) == 255
 
     def test_limits(self):
-        with pytest.raises(ValueError, match="empty"):
+        with pytest.raises(errors.BleValidationError, match="empty"):
             packet.packetize(b"", encrypted=False)
-        with pytest.raises(ValueError, match="MTU 11 is too small"):
+        with pytest.raises(errors.BleValidationError, match="MTU 11 is too small"):
             packet.packetize(b"x", encrypted=False, mtu=11)
-        with pytest.raises(ValueError, match="blob limit"):
+        with pytest.raises(errors.BleValidationError, match="blob limit"):
             packet.packetize(bytes(0x10000), encrypted=False)
         assert packet.MTU_MIN == 12
 
@@ -219,7 +219,7 @@ class TestPacketStream:
             stream.receive(vectors.EXCHANGE_KEY_PUB_M_BLOB_PACKETS_MTU_23[1])
 
     def test_mtu_is_checked_up_front(self):
-        with pytest.raises(ValueError, match="too small"):
+        with pytest.raises(errors.BleValidationError, match="too small"):
             packet.PacketStream(mtu=7)
 
 

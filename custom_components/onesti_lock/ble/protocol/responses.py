@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Final
 
-from ..errors import BleProtocolError
+from ..errors import BleProtocolError, BleValidationError
 from .commands import from_lock_time
 from .const import (
     CHALLENGE_LENGTH,
@@ -83,7 +83,7 @@ def check_status_only(response: Response, expected: ResponseId) -> None:
     BleOperationError for a failed status.
     """
     if expected not in STATUS_ONLY_RESPONSES:
-        raise ValueError(f"{expected.name} carries a payload; use its parser")
+        raise BleValidationError(f"{expected.name} carries a payload; use its parser")
     _reader(response, expected)
 
 

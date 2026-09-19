@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from ..errors import BleProtocolError
+from ..errors import BleProtocolError, BleValidationError
 from .const import (
     COMMAND_HEADER_SIZE,
     COMMAND_REF_COUNTER_WRAP,
@@ -51,11 +51,11 @@ class Command:
 
     def to_bytes(self) -> bytes:
         if not COMMAND_REF_MIN <= self.command_ref <= COMMAND_REF_MAX:
-            raise ValueError(
+            raise BleValidationError(
                 f"CommandRef {self.command_ref} is outside {COMMAND_REF_MIN}-{COMMAND_REF_MAX}"
             )
         if len(self.payload) > PACKET_PAYLOAD_MAX:
-            raise ValueError(f"Command payload of {len(self.payload)} bytes exceeds {PACKET_PAYLOAD_MAX}")
+            raise BleValidationError(f"Command payload of {len(self.payload)} bytes exceeds {PACKET_PAYLOAD_MAX}")
         return (
             ByteWriter()
             .write_uint8(self.command_id)

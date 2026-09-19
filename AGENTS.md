@@ -70,6 +70,15 @@ Sensors (sensor.py)
   │   entries for slots that fell out of the row are removed on setup
   └── Activity: RestoreEntity with ExtraStoredData of the raw fields, so the last
       activity survives a restart; timestamp is UTC (dt_util.utcnow)
+
+BLE library (ble/, nothing outside it imports it yet; never run against a lock)
+  ├── __init__.py: the public API; layers import downwards only (gotcha 13)
+  ├── protocol/: wire format, no crypto, no I/O: Layer 1-3 framing, blobs,
+  │   one builder per command, one parser per answer, advertisement, enums
+  ├── crypto.py: secp256r1 ECDH and AES-128-CBC in the app's byte order
+  ├── client/: Transport protocol (a Bluetooth stack implements it), Session
+  │   (key exchange, one command at a time, events), owner login, enrollment
+  └── errors.py: BleError tree, used by all three layers
 ```
 
 ## Source map (byte 3 of attrid 0x0100)
@@ -104,6 +113,11 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 | `custom_components/onesti_lock/const.py`       | Constants, source/action enums, known models, slot ranges, wake echo window                                      |
 | `custom_components/onesti_lock/localize.py`    | Runtime string lookup (reads the `common` section of translations/*.json)                                        |
 | `custom_components/onesti_lock/strings.json`   | English source for every string; identical to `translations/en.json`                                             |
+| `custom_components/onesti_lock/ble/`           | BLE protocol library, unused by the integration so far; layers and API in `docs/nimly-ble-app/ble-library.md`    |
+| `ble/protocol/`                                | Wire format: `const`, `packet`, `blob`, `command`, `commands` (builders), `response`, `responses` (parsers), `advertisement` |
+| `ble/crypto.py`                                | Key exchange, link and owner keys, owner challenge answer, AES in the app's two modes                            |
+| `ble/client/`                                  | `transport` (the seam), `session`, `auth` (owner login), `enrollment` (factory-reset takeover, `Enrollment` storage form) |
+| `tests/ble/fake_lock.py`                       | A lock played in software behind `Transport`; lists what it assumes about the real lock                           |
 | `blueprints/automation/`                       | Blueprints users import by hand; HACS never updates imported copies                                              |
 | `scripts/release_publish.py`                   | The release state machine: deterministic ZIP, tag, draft, attestation check, publish (see Releasing)             |
 | `.github/workflows/release.yml`                | Runs CI for the candidate SHA, then builds, attests and publishes through `release_publish.py`                  |
@@ -129,6 +143,10 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 10. **Entry version**: config flow `VERSION = 2`, `MINOR_VERSION = 2`. A change to the stored shape bumps the minor version and gets a step in `async_migrate_entry`; an entry from a newer major version refuses to load.
 11. **Repair issue `zha_internals`**: raised when ZHA runs and lists the lock, but the gateway, the Door Lock cluster or both listener hooks are missing. A zigpy without `on_event` is not a fault: the `add_listener` fallback covers it, and no release has neither. PIN writes still work then, but no activity arrives. The issue is per entry and removed when the listener registers or the entry unloads. A lock entirely missing from ZHA is not a repair issue: setup raises `ConfigEntryNotReady` and Home Assistant retries until the lock is back.
 12. **Options writes trigger the update listener**: slot and capability writes go to `entry.options` too, so the listener compares the first user slot and reloads only when it moved. A listener that reloads on any change reloads after every PIN operation.
+13. **BLE library boundaries**: nothing in `ble/` imports `homeassistant`, `zigpy` or `voluptuous`, and no relative import leaves `ble/`, not even for `redact.py`. Inside, `protocol/` imports neither `crypto.py` nor `client/`, and `crypto.py` not `client/`. Everything raised is a `BleError`. `tests/ble/test_package.py` enforces all of it. A Home Assistant Bluetooth transport therefore lives outside `ble/`.
+    - No PIN, key, challenge or payload in an exception message, a `repr` or a log call, and no traceback in the log. Fields holding them are `repr=False`; `Enrollment.to_dict()` holds the owner key and must be stored and handled as a secret.
+    - `cryptography` comes with Home Assistant and is NOT in `manifest.json`, where a pin could fight HA's. The tests get it from the `unit` group in `pyproject.toml`; keep `crypto.py` to API that both HA ends of the supported range ship.
+    - Protocol values come from the decompiled app with the Java source named next to them. A value nobody could trace stays marked as a guess, and the vectors say where each one came from (`documented`, `derived`, `kat`, `executed`).
 
 ## Documentation map
 
@@ -142,6 +160,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 | `docs/nimly-connect-app/iotiliti-api-spec.yaml` | OpenAPI spec for iotiliti cloud (reverse-engineered)                                          |
 | `docs/nimly-ble-app/ble-protocol.md`            | BLE protocol from decompiled nimly BLE app (not used by integration)                          |
 | `docs/nimly-ble-app/ble-auth-provisioning.md`   | Owner enrollment over BLE: local ECDH owner key, factory-reset default cred, cloud only for guests |
+| `docs/nimly-ble-app/ble-library.md`             | The `ble/` library: layers, API, transports, Enrollment storage, errors, vector provenance, verified vs lock-only |
 | `docs/connect-bridge/hardware-gateway.md`       | Connect Bridge hardware, network stack, firmware                                              |
 | `docs/slot-numbering.md`                        | Slot numbering across Zigbee, BLE and cloud, verified and unverified                          |
 | `docs/manuals/README.md`                        | Index of vendor manuals per model and brand, fetched locally by `scripts/fetch_manuals.py`    |
@@ -156,16 +175,20 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 | `tests/`                     | Stubbed `homeassistant`/`voluptuous`/`zigpy` from `tests/conftest.py`                 | `pytest tests/ -q`, `python3 scripts/ci_sim.py` | Decoding, pin_rules, redact, coordinator, services, release flow, guards against PIN leaks and hardcoded language |
 | `tests_ha/`                  | Real HA from `pytest-homeassistant-custom-component`, ZHA mocked at the gateway proxy, real zigpy | `just test-ha minimum`, `just test-ha current`  | Setup, migration, repair issue, ZHA reload, options flow, sensors, restore, services, transport, both zigpy listener hooks |
 | `tests/test_version_sync.py` | `hacs.json`, `uv.lock`, prose in README/AGENTS/justfile/pyproject                     | part of `pytest tests/`                         | The minimum HA version agrees everywhere it is written                                              |
+| `tests/ble/`                 | The `ble/` package alone, with `tests/ble/fake_lock.py` as the lock; no HA stubs needed | part of `pytest tests/`, or `pytest tests/ble`  | Every builder and parser, framing, crypto against NIST and app-executed vectors, session, owner login, full enrollment, package boundary |
+| `tests/ble/java/`            | The app's decompiled crypto classes on a JDK (sources local only)                     | by hand, see `docs/nimly-ble-app/ble-library.md` | Prints the `executed` vectors in `tests/ble/crypto_vectors.py`; rerun when crypto code or vectors change |
 
 ```bash
-pytest tests/ -q            # Run all stubbed tests
+just test-unit              # tests/ in the unit group, as CI runs it
+pytest tests/ -q            # the same, if pytest and cryptography are installed
 pytest tests/ -q -k event   # Run event-related tests
 uv lock --check             # uv.lock matches pyproject.toml
 ```
 
 Tests mock ZHA entirely, so no hardware is needed. Home Assistant is not
-installed for `tests/`, and its CI job installs only `ruff` and `pytest`, so no
-test there may import `homeassistant` or `voluptuous` without stubbing them.
+installed for `tests/`: CI runs it through `just coverage-unit` in the uv group
+`unit` (pytest, pytest-cov, pyyaml and `cryptography` for the BLE library), so
+no test there may import `homeassistant` or `voluptuous` without stubbing them.
 `tests/conftest.py` holds the one shared stub set and `load_component_module()`,
 and `tests/test_coordinator_behavior.py` has the fake hass harness that runs
 real coordinator code on top of it. `python3 scripts/ci_sim.py` runs the same

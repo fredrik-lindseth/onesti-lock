@@ -60,15 +60,19 @@ The auto-wake calls `lock.lock` on ZHA's own lock entity, and `find_lock_entity_
 
 ### When ZHA is reloaded
 
-A ZHA reload or a re-pair builds new zigpy objects, and a listener left on the old cluster would stop receiving lock events without a word. `__init__.py` therefore subscribes to `ConfigEntry.async_on_state_change` on every ZHA config entry that exists at setup. When a ZHA entry reaches `LOADED` while this entry is loaded, and the cluster ZHA now holds is not the one the listener sits on (`coordinator.listened_cluster`, `None` if the listener never registered), the entry schedules its own reload. That is also how the integration recovers when it was set up before ZHA had the lock.
+A ZHA reload or a re-pair builds new zigpy objects, and a listener left on the old cluster would stop receiving lock events without a word. `__init__.py` therefore subscribes to `ConfigEntry.async_on_state_change` on every ZHA config entry that exists at setup, and on every ZHA entry added later (it listens for `ConfigEntryChange.ADDED` on `SIGNAL_CONFIG_ENTRY_CHANGED`), so a ZHA that is removed and added again is still followed. When a ZHA entry reaches `LOADED` while this entry is loaded, the entry schedules its own reload if nothing is listened to yet (`coordinator.listened_cluster` is `None`) or if the cluster ZHA now holds is another one. That is also how the integration recovers when it was set up before ZHA had the lock.
+
+### When ZHA starts after this integration
+
+The ZHA entry is often still in `SETUP_RETRY` when this entry sets up, typically because the coordinator's USB stick comes up late. That is not a fault. When ZHA has no gateway and no ZHA entry is `LOADED`, setup logs one info line, skips the listener and the capability read, and leaves the rest to the ZHA watch above: once ZHA reaches `LOADED`, the reload registers the listener, or raises the repair issue if something really is missing.
 
 ### Repair issue for missing ZHA internals
 
-The event listener depends on three things that are not public API: the gateway, the Door Lock cluster under the device, and `cluster.on_event`. If one is missing at setup, `register_event_listener()` raises `ZhaInternalsMissing`, and `__init__.py` logs an error and creates the repair issue `zha_internals_<entry_id>` (severity error, not fixable). Its `detail` placeholder names the missing piece:
+The event listener depends on three things that are not public API: the gateway, the Door Lock cluster under the device, and `cluster.on_event`. If one is missing at setup while ZHA is running (a gateway exists or a ZHA entry is `LOADED`), `register_event_listener()` raises `ZhaInternalsMissing`, and `__init__.py` logs an error and creates the repair issue `zha_internals_<entry_id>` (severity error, not fixable). Its `detail` placeholder names the missing piece:
 
 | `detail`                              | Meaning                                         |
 | ------------------------------------- | ----------------------------------------------- |
-| `ZHA gateway (get_zha_gateway_proxy)` | ZHA has no running gateway                      |
+| `ZHA gateway (get_zha_gateway_proxy)` | ZHA is `LOADED` but has no gateway              |
 | `Door Lock cluster for <ieee>`        | ZHA runs, but the lock or its cluster is absent |
 | `<ClusterClass>.on_event`             | The cluster has no `on_event`                   |
 
@@ -166,7 +170,9 @@ Commands go through `zha.issue_zigbee_cluster_command` instead of touching the c
 
 The lock reports the wake's `lock.lock` as an ordinary Zigbee lock (source `zigbee`, no user slot), which would replace the last activity every time a PIN is set on a sleeping lock. `wake()` stamps the time just before the service call, because the report can arrive while the call is still waiting, and `wake_echo_pending()` is true for `WAKE_ECHO_WINDOW_S` (30 seconds, `const.py`) after that. Asking does not reset it, since the lock may report the wake more than once. Inside the window, a Zigbee lock without a user slot counts as a system lock: the event still fires, and the activity sensor stays as it was.
 
-The 30 seconds are a generous guess. How long the report can trail the command on a real lock has not been measured. The cost of a long window is that a dashboard lock within 30 seconds of a wake is taken for the echo too.
+The 30 seconds are a generous guess. How long the report can trail the command on a real lock has not been measured.
+
+The trade-off is deliberate. A real lock from a dashboard within 30 seconds of the integration's own wake looks exactly like the echo (source `zigbee`, action lock, no user slot), so it is taken for the echo and the activity sensor does not change. The `onesti_lock_activity` event still fires for it. Unlocks, locks with a user slot, and anything from the keypad, fingerprint or RFID are never affected.
 
 ## Logging and PIN codes
 

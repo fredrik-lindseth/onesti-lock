@@ -617,7 +617,8 @@ def test_a_partial_enrollment_is_saved_before_the_error_and_resumes(run_cli, sta
     radio = FakeRadio(lock, [advert()], configure=fail_server_key)
     result = run_cli("enroll", ADDRESS, "--name", "Door", "--yes", "--seconds", "0", radio=radio)
     assert result.code == cli.EXIT_FAILED
-    assert result.out.index("Saved the partial enrollment") < result.out.index("Enrollment stopped")
+    assert result.out.index("clock: confirmed by the lock, saved to") < result.out.index("Enrollment stopped")
+    assert "The partial enrollment is saved in" in result.out
     assert "server_key" in result.out
     [path] = stored_files(state_dir)
     partial = json.loads(path.read_text())["enrollment"]
@@ -649,6 +650,177 @@ def test_an_enrollment_that_fails_at_the_owner_key_saves_nothing(run_cli, state_
     assert result.code == cli.EXIT_FAILED
     assert "no owner key to save" in result.out
     assert stored_files(state_dir) == []
+
+
+ENROLL_STEPS = ["owner_key", "device_id", "clock", "server_key", "name"]
+STEP_COMMANDS = {
+    "device_id": "DEVICE_ID_SET",
+    "clock": "CURRENT_TIME_SET",
+    "server_key": "SERVER_KEY_UPDATE",
+    "name": "DEVICE_NAME_SET",
+}
+
+
+def _interrupt_on(command_name):
+    """configure for FakeRadio: Ctrl-C the moment the lock has received command_name.
+
+    The lock acts on the command and its answer never comes, and SIGINT is
+    raised for real, so asyncio.run's own handler cancels the CLI's task in
+    the middle of the await, as a key press would.
+    """
+    import signal
+
+    command_id = fake_const.CommandId[command_name]
+
+    def configure(transport):
+        transport.lost_answers.add(command_id)
+        handle = transport._handle
+
+        def handle_then_interrupt(received):
+            handle(received)
+            if received.command_id is command_id:
+                signal.raise_signal(signal.SIGINT)
+
+        transport._handle = handle_then_interrupt
+
+    return configure
+
+
+def _state(path):
+    return json.loads(path.read_text())["enrollment"]
+
+
+@pytest.mark.parametrize("step", list(STEP_COMMANDS))
+def test_ctrl_c_mid_enrollment_leaves_a_state_file_that_resumes(run_cli, state_dir, step):
+    lock = FakeLock()
+    radio = FakeRadio(lock, [advert()], configure=_interrupt_on(STEP_COMMANDS[step]))
+    result = run_cli("enroll", ADDRESS, "--name", "Door", "--yes", "--seconds", "0", radio=radio)
+    assert result.code == 130, result.out + result.err
+    assert "interrupted" in result.err
+    [path] = stored_files(state_dir)
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    saved = _state(path)
+    assert saved["completed"] == ENROLL_STEPS[: ENROLL_STEPS.index(step)]
+    assert bytes.fromhex(saved["owner_key"]) == lock.owner_key
+    assert f"Interrupted. {path} holds every step the lock confirmed" in result.out
+    [interrupted] = [r for r in result.events("enroll") if r.get("step") == "interrupted"]
+    assert interrupted["saved"] is True
+    # No leftover temp file from the atomic write.
+    assert [p.name for p in state_dir.iterdir() if p.name.startswith(".")] == []
+
+    result = run_cli("enroll", ADDRESS, "--resume", "--yes", radio=FakeRadio(lock))
+    assert result.code == 0, result.out + result.err
+    assert _state(path)["completed"] == ENROLL_STEPS
+    assert lock.name == "Door"
+
+
+def test_ctrl_c_during_a_resume_keeps_what_the_resume_saved(run_cli, state_dir):
+    lock = FakeLock()
+    radio = FakeRadio(lock, [advert()], configure=_interrupt_on("CURRENT_TIME_SET"))
+    run_cli("enroll", ADDRESS, "--name", "Door", "--yes", "--seconds", "0", radio=radio)
+    [path] = stored_files(state_dir)
+
+    radio = FakeRadio(lock, configure=_interrupt_on("DEVICE_NAME_SET"))
+    result = run_cli("enroll", ADDRESS, "--resume", "--yes", radio=radio)
+    assert result.code == 130
+    assert _state(path)["completed"] == ["owner_key", "device_id", "clock", "server_key"]
+
+    result = run_cli("enroll", ADDRESS, "--resume", "--yes", radio=FakeRadio(lock))
+    assert result.code == 0, result.out + result.err
+    assert _state(path)["completed"] == ENROLL_STEPS
+
+
+def test_ctrl_c_before_the_owner_key_answer_says_what_is_unknown(run_cli, state_dir):
+    lock = FakeLock()
+    radio = FakeRadio(lock, [advert()], configure=_interrupt_on("USER_AUTH_UPDATE"))
+    result = run_cli("enroll", ADDRESS, "--name", "Door", "--yes", "--seconds", "0", radio=radio)
+    assert result.code == 130
+    assert stored_files(state_dir) == []
+    assert "Interrupted before the owner key existed" in result.out
+    assert f"login {ADDRESS} --factory" in result.out
+
+
+def test_a_crash_mid_enrollment_leaves_the_confirmed_steps_on_disk(run_cli, state_dir):
+    """Not a cancellation: an exception out of the radio stack, which asyncio.run lets through."""
+    lock = FakeLock()
+
+    def crash_on_server_key(transport):
+        handle = transport._handle
+
+        def handle_then_crash(received):
+            if received.command_id is fake_const.CommandId.SERVER_KEY_UPDATE:
+                raise RuntimeError("the Bluetooth daemon went away")
+            handle(received)
+
+        transport._handle = handle_then_crash
+
+    radio = FakeRadio(lock, [advert()], configure=crash_on_server_key)
+    result = run_cli("enroll", ADDRESS, "--name", "Door", "--yes", "--seconds", "0", radio=radio)
+    assert result.code == cli.EXIT_FAILED
+    assert "RuntimeError" in result.err
+    [path] = stored_files(state_dir)
+    assert _state(path)["completed"] == ["owner_key", "device_id", "clock"]
+
+
+def test_a_resume_from_elsewhere_that_fails_at_once_still_saves_to_the_state_dir(run_cli, state_dir, tmp_path):
+    """--state FILE outside the state dir, and the first remaining step fails, so the library saved nothing."""
+    lock = FakeLock()
+    radio = FakeRadio(lock, [advert()], configure=_interrupt_on("CURRENT_TIME_SET"))
+    run_cli("enroll", ADDRESS, "--name", "Door", "--yes", "--seconds", "0", radio=radio)
+    [path] = stored_files(state_dir)
+    backup = tmp_path / "backup.json"
+    path.rename(backup)
+
+    def fail_clock(transport):
+        transport.status_overrides[fake_const.CommandId.CURRENT_TIME_SET] = fake_const.ResponseStatusId.FAILED
+
+    result = run_cli("enroll", ADDRESS, "--resume", "--state", str(backup), "--yes", radio=FakeRadio(lock, configure=fail_clock))
+    assert result.code == cli.EXIT_FAILED
+    assert f"The partial enrollment is saved in {path}" in result.out
+    assert _state(path)["completed"] == ["owner_key", "device_id"]
+
+
+def _failing_saves(monkeypatch, *calls):
+    """StateStore.save raises OSError on the given calls (1-based), as a full disk would."""
+    save = cli.StateStore.save
+    count = iter(range(1, 1000))
+
+    def flaky(self, enrollment, address):
+        if next(count) in calls:
+            raise OSError(28, "No space left on device")
+        return save(self, enrollment, address)
+
+    monkeypatch.setattr(cli.StateStore, "save", flaky)
+
+
+def test_a_failed_save_stops_enrollment_and_is_retried(run_cli, state_dir, monkeypatch):
+    lock = FakeLock()
+    # Call 1 is after the owner key, call 2 after the device id; call 3 is the retry.
+    _failing_saves(monkeypatch, 2)
+    result = run_cli("enroll", ADDRESS, "--name", "Door", "--yes", "--seconds", "0", radio=FakeRadio(lock, [advert()]))
+    assert result.code == cli.EXIT_FAILED
+    assert "No space left on device" in result.out
+    assert "Saved it on the second try" in result.out
+    assert lock.commands[-1].command_id is fake_const.CommandId.DEVICE_ID_SET
+    [path] = stored_files(state_dir)
+    assert _state(path)["completed"] == ["owner_key", "device_id"]
+
+    result = run_cli("enroll", ADDRESS, "--resume", "--yes", radio=FakeRadio(lock))
+    assert result.code == 0, result.out + result.err
+
+
+def test_a_save_that_fails_twice_says_the_key_is_lost(run_cli, state_dir, monkeypatch):
+    lock = FakeLock()
+    _failing_saves(monkeypatch, 1, 2)
+    result = run_cli("enroll", ADDRESS, "--name", "Door", "--yes", "--seconds", "0", radio=FakeRadio(lock, [advert()]))
+    assert result.code == cli.EXIT_FAILED
+    assert "failed again" in result.out
+    assert "module reset" in result.out
+    assert lock.commands[-1].command_id is fake_const.CommandId.USER_AUTH_UPDATE
+    assert stored_files(state_dir) == []
+    [stopped] = [r for r in result.events("enroll") if r.get("step") == "stopped"]
+    assert stopped["saved"] is False
+    assert lock.owner_key.hex() not in result.out + result.err + result.trace_text
 
 
 # --- Secrets in the trace and the output ---------------------------------------------------

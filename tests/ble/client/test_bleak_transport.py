@@ -104,6 +104,7 @@ def test_enrollment_and_a_pin_end_to_end_through_bleak():
     lock = FakeLock()
     client_class = functools.partial(FakeBleakClient, properties=("read", "write", "notify"))
     tracer = Recorder()
+    saved = []
 
     async def scenario():
         transport = await BleakTransport.connect(lock, client_class=client_class)
@@ -111,6 +112,7 @@ def test_enrollment_and_a_pin_end_to_end_through_bleak():
             enrollment = await enrollment_mod.enroll(
                 session,
                 name="Door",
+                save=saved.append,
                 device_id=bytes.fromhex("5A 17 C3 09 E4 21"),
                 server_private_key=PHONE_SERVER_PRIVATE_KEY,
                 now=datetime(2026, 9, 19, 12, 0, tzinfo=UTC),
@@ -126,6 +128,7 @@ def test_enrollment_and_a_pin_end_to_end_through_bleak():
 
     enrollment, first, second = run(scenario())
     assert enrollment.complete
+    assert saved[-1] == enrollment
     assert lock.device_id == bytes.fromhex("5A 17 C3 09 E4 21")
     assert lock.pins == {803: "8832"}
     # Every packet went through bleak as a write with response, and both

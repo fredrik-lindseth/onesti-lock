@@ -47,6 +47,10 @@ def run(coro):
     return asyncio.run(coro)
 
 
+def save_nowhere(enrollment):
+    """For tests about something else; TestSaving checks what save gets."""
+
+
 def new_session(transport, *private_keys):
     keys = private_keys or (PHONE_LINK_PRIVATE_KEY,)
     return session_mod.Session(transport, command_delay=0, response_timeout=1.0, key_pair_factory=key_pairs(*keys))
@@ -58,15 +62,16 @@ async def enroll_fixed(lock, **kwargs):
     kwargs.setdefault("server_private_key", PHONE_SERVER_PRIVATE_KEY)
     kwargs.setdefault("now", NOW)
     kwargs.setdefault("key_pair_factory", key_pairs(PHONE_UPDATE_PRIVATE_KEY))
+    kwargs.setdefault("save", save_nowhere)
     transport = lock.connect()
     async with new_session(transport) as session:
         return await enrollment_mod.enroll(session, **kwargs), transport
 
 
-async def resume(lock, enrollment):
+async def resume(lock, enrollment, save=save_nowhere):
     transport = lock.connect()
     async with new_session(transport) as session:
-        return await enrollment_mod.resume_enrollment(session, enrollment, now=NOW), transport
+        return await enrollment_mod.resume_enrollment(session, enrollment, save=save, now=NOW), transport
 
 
 async def log_in(lock, credential):
@@ -169,7 +174,7 @@ class TestFullEnrollment:
         async def scenario():
             transport = lock.connect()
             async with session_mod.Session(transport, command_delay=0) as session:
-                return await enrollment_mod.enroll(session, name="Hall")
+                return await enrollment_mod.enroll(session, name="Hall", save=save_nowhere)
 
         enrollment = run(scenario())
         assert enrollment.complete
@@ -213,6 +218,7 @@ class TestEnrollmentStopsPartway:
                 return await enrollment_mod.enroll(
                     session,
                     name="Door",
+                    save=save_nowhere,
                     device_id=DEVICE_ID,
                     server_private_key=PHONE_SERVER_PRIVATE_KEY,
                     now=NOW,
@@ -255,6 +261,7 @@ class TestEnrollmentStopsPartway:
                 await enrollment_mod.enroll(
                     session,
                     name="Door",
+                    save=save_nowhere,
                     device_id=DEVICE_ID,
                     server_private_key=PHONE_SERVER_PRIVATE_KEY,
                     now=NOW,
@@ -321,7 +328,7 @@ class TestEnrollmentStopsPartway:
             transport = lock.connect()
             transport.status_overrides[CommandId.USER_AUTH_FINALIZE] = const.ResponseStatusId.FAILED
             async with new_session(transport) as session:
-                await enrollment_mod.resume_enrollment(session, partial, now=NOW)
+                await enrollment_mod.resume_enrollment(session, partial, save=save_nowhere, now=NOW)
 
         with pytest.raises(errors.BleFailedError):
             run(scenario())
@@ -335,7 +342,7 @@ class TestEnrollmentStopsPartway:
             transport = lock.connect()
             transport.status_overrides[CommandId.USER_AUTH_UPDATE] = const.ResponseStatusId.FAILED
             async with new_session(transport) as session:
-                await enrollment_mod.enroll(session, name="Door", key_pair_factory=key_pairs(PHONE_SERVER_PRIVATE_KEY, PHONE_UPDATE_PRIVATE_KEY))
+                await enrollment_mod.enroll(session, name="Door", save=save_nowhere, key_pair_factory=key_pairs(PHONE_SERVER_PRIVATE_KEY, PHONE_UPDATE_PRIVATE_KEY))
 
         with pytest.raises(enrollment_mod.BleEnrollmentError) as caught:
             run(scenario())
@@ -349,7 +356,7 @@ class TestEnrollmentStopsPartway:
             transport = FakeLock().connect()
             transport.payload_overrides[CommandId.USER_AUTH_UPDATE] = bytes(64)
             async with new_session(transport) as session:
-                await enrollment_mod.enroll(session, name="Door", key_pair_factory=key_pairs(PHONE_SERVER_PRIVATE_KEY, PHONE_UPDATE_PRIVATE_KEY))
+                await enrollment_mod.enroll(session, name="Door", save=save_nowhere, key_pair_factory=key_pairs(PHONE_SERVER_PRIVATE_KEY, PHONE_UPDATE_PRIVATE_KEY))
 
         with pytest.raises(enrollment_mod.BleEnrollmentError) as caught:
             run(scenario())
@@ -359,9 +366,202 @@ class TestEnrollmentStopsPartway:
     def test_resuming_a_complete_enrollment_sends_nothing(self):
         lock = FakeLock()
         enrollment, _ = run(enroll_fixed(lock))
-        again, transport = run(resume(lock, enrollment))
+        saved = []
+        again, transport = run(resume(lock, enrollment, save=saved.append))
         assert again is enrollment
         assert [c.command_id for c in transport.commands] == [CommandId.EXCHANGE_KEY_PUB_M, CommandId.DEVICE_MODEL_GET]
+        assert saved == []
+
+
+# --- Saving as it goes ------------------------------------------------------------------
+
+STEP_COMMANDS = TestEnrollmentStopsPartway.STEP_COMMANDS
+STEPS = list(Step)
+
+
+class SaveRecorder:
+    """A save that keeps what it got, and which command the lock had seen last by then.
+
+    With fail_on_call it raises on that call instead, as a full disk would.
+    """
+
+    def __init__(self, lock, *, fail_on_call=None):
+        self.lock = lock
+        self.fail_on_call = fail_on_call
+        self.calls = 0
+        self.saved = []
+        self.last_sent = []
+
+    def __call__(self, enrollment):
+        self.calls += 1
+        if self.calls == self.fail_on_call:
+            raise OSError(28, "No space left on device")
+        # Through the stored form, as a file would hold it.
+        self.saved.append(enrollment_mod.Enrollment.from_dict(enrollment.to_dict()))
+        self.last_sent.append(self.lock.commands[-1].command_id)
+
+
+async def _wait_until_sent(transport, command_id):
+    async def sent():
+        while command_id not in [c.command_id for c in transport.commands]:
+            await asyncio.sleep(0)
+
+    await asyncio.wait_for(sent(), timeout=1.0)
+
+
+def _enroll_cancelled_at(lock, command_id, save):
+    """Start enroll(), and cancel its task once command_id is out and unanswered.
+
+    The lock acts on the command but never answers (lost_answers), so the
+    task sits in the await for that answer, which is where Ctrl-C under
+    asyncio.run lands: the runner cancels the main task.
+    """
+
+    async def scenario():
+        transport = lock.connect()
+        transport.lost_answers.add(command_id)
+        async with new_session(transport) as session:
+            task = asyncio.create_task(
+                enrollment_mod.enroll(
+                    session,
+                    name="Door",
+                    save=save,
+                    device_id=DEVICE_ID,
+                    server_private_key=PHONE_SERVER_PRIVATE_KEY,
+                    now=NOW,
+                    key_pair_factory=key_pairs(PHONE_UPDATE_PRIVATE_KEY),
+                )
+            )
+            await _wait_until_sent(transport, command_id)
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+
+    run(scenario())
+
+
+class TestSaving:
+    def test_every_confirmed_step_is_saved_before_the_next_command(self):
+        lock = FakeLock()
+        recorder = SaveRecorder(lock)
+        enrollment, _ = run(enroll_fixed(lock, save=recorder))
+
+        assert [saved.completed for saved in recorder.saved] == [frozenset(STEPS[: i + 1]) for i in range(len(STEPS))]
+        assert recorder.last_sent == [
+            CommandId.USER_AUTH_UPDATE,
+            CommandId.DEVICE_ID_SET,
+            CommandId.CURRENT_TIME_SET,
+            CommandId.SERVER_KEY_UPDATE,
+            CommandId.DEVICE_NAME_SET,
+        ]
+        assert all(saved.owner_key == EXPECTED_OWNER_KEY for saved in recorder.saved)
+        assert recorder.saved[-1] == enrollment
+
+    @pytest.mark.parametrize("step", list(STEP_COMMANDS))
+    def test_a_cancel_mid_step_leaves_the_steps_before_it_saved_and_resumable(self, step):
+        lock = FakeLock()
+        recorder = SaveRecorder(lock)
+        _enroll_cancelled_at(lock, STEP_COMMANDS[step], recorder)
+
+        last = recorder.saved[-1]
+        assert last.completed == frozenset(STEPS[: STEPS.index(step)])
+        assert last.owner_key == lock.owner_key == EXPECTED_OWNER_KEY
+
+        # What was saved finishes the job on a new connection, even though
+        # the lock acted on the cancelled command.
+        finished, _ = run(resume(lock, last))
+        assert finished.complete
+        assert lock.device_id == DEVICE_ID
+        assert lock.name == "Door"
+        assert lock.server_public_key == public_key(PHONE_SERVER_PRIVATE_KEY)
+
+    def test_a_cancel_before_the_owner_key_answer_leaves_nothing_to_save(self):
+        """The one window save cannot cover: the owner key needs the lock's answer.
+
+        The fake takes the new key and the answer is lost, so this lock is
+        now out of reach, as BleEnrollmentError describes for a lost answer.
+        """
+        lock = FakeLock()
+        recorder = SaveRecorder(lock)
+        _enroll_cancelled_at(lock, CommandId.USER_AUTH_UPDATE, recorder)
+        assert recorder.saved == []
+        assert lock.owner_key == EXPECTED_OWNER_KEY
+
+    @pytest.mark.parametrize("call", range(1, len(STEPS) + 1))
+    def test_a_failing_save_stops_before_the_next_command(self, call):
+        lock = FakeLock()
+        recorder = SaveRecorder(lock, fail_on_call=call)
+        with pytest.raises(enrollment_mod.BleEnrollmentNotSavedError) as caught:
+            run(enroll_fixed(lock, save=recorder))
+
+        err = caught.value
+        step = STEPS[call - 1]
+        assert isinstance(err, enrollment_mod.BleEnrollmentError)
+        assert err.step is step
+        assert err.enrollment.completed == frozenset(STEPS[:call])
+        assert isinstance(err.__cause__, OSError)
+        assert "only copy of the owner key" in str(err)
+        assert EXPECTED_OWNER_KEY.hex() not in str(err)
+        expected_last = CommandId.USER_AUTH_UPDATE if step is Step.OWNER_KEY else STEP_COMMANDS[step]
+        assert lock.commands[-1].command_id is expected_last
+
+        if not err.enrollment.complete:
+            finished, _ = run(resume(lock, err.enrollment))
+            assert finished.complete
+
+    def _partial_with_the_device_id_on_the_lock(self, lock):
+        recorder = SaveRecorder(lock)
+        _enroll_cancelled_at(lock, CommandId.DEVICE_ID_SET, recorder)
+        return recorder.saved[-1]
+
+    def test_resume_saves_a_device_id_step_its_login_proved(self):
+        lock = FakeLock()
+        partial = self._partial_with_the_device_id_on_the_lock(lock)
+        assert Step.DEVICE_ID not in partial.completed
+
+        recorder = SaveRecorder(lock)
+        finished, _ = run(resume(lock, partial, save=recorder))
+        assert [saved.completed for saved in recorder.saved] == [frozenset(STEPS[: i + 1]) for i in range(1, len(STEPS))]
+        assert recorder.last_sent[0] is CommandId.USER_AUTH_FINALIZE
+        assert recorder.saved[-1] == finished
+
+    def test_resume_stops_when_saving_the_proved_device_id_fails(self):
+        lock = FakeLock()
+        partial = self._partial_with_the_device_id_on_the_lock(lock)
+
+        with pytest.raises(enrollment_mod.BleEnrollmentNotSavedError) as caught:
+            run(resume(lock, partial, save=SaveRecorder(lock, fail_on_call=1)))
+        assert caught.value.step is Step.DEVICE_ID
+        assert Step.DEVICE_ID in caught.value.enrollment.completed
+        assert lock.commands[-1].command_id is CommandId.USER_AUTH_FINALIZE
+
+    @pytest.mark.parametrize("step", list(STEP_COMMANDS))
+    def test_resume_cancelled_mid_step_keeps_what_it_saved(self, step):
+        """A resume is interrupted too, and the next resume picks up from its saves."""
+        lock = FakeLock()
+        # A first attempt that stopped right after the owner key, nothing else sent.
+        with pytest.raises(enrollment_mod.BleEnrollmentNotSavedError) as caught:
+            run(enroll_fixed(lock, save=SaveRecorder(lock, fail_on_call=1)))
+        partial = caught.value.enrollment
+        assert partial.completed == {Step.OWNER_KEY}
+        recorder = SaveRecorder(lock)
+
+        async def scenario():
+            transport = lock.connect()
+            transport.lost_answers.add(STEP_COMMANDS[step])
+            async with new_session(transport) as session:
+                task = asyncio.create_task(enrollment_mod.resume_enrollment(session, partial, save=recorder, now=NOW))
+                await _wait_until_sent(transport, STEP_COMMANDS[step])
+                task.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+
+        run(scenario())
+        last = recorder.saved[-1] if recorder.saved else partial
+        assert last.completed == frozenset(STEPS[: STEPS.index(step)])
+        finished, _ = run(resume(lock, last))
+        assert finished.complete
+        assert lock.name == "Door"
 
 
 class TestInputChecks:

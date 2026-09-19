@@ -189,25 +189,48 @@ class Enrollment:
         )
 
 
+SaveEnrollment = Callable[[Enrollment], None]
+"""Stores an Enrollment where it survives the process; see enroll()."""
+
+
 class BleEnrollmentError(BleError):
     """Enrollment stopped partway.
 
-    enrollment is what the lock has accepted so far. Store it: once the owner
-    key step is done the factory key no longer works, and resume_enrollment
-    finishes the job on a new session. enrollment is None when the owner key
-    step itself failed. The lock then usually still has its factory key, but
-    if it took the new key and only its answer was lost, nothing but a
-    factory reset recovers it.
+    enrollment is what the lock has accepted so far, and what save was last
+    called with. Store it: once the owner key step is done the factory key
+    no longer works, and resume_enrollment finishes the job on a new
+    session. enrollment is None when the owner key step itself failed. The
+    lock then usually still has its factory key, but if it took the new key
+    and only its answer was lost, nothing but a factory reset recovers it.
     """
 
-    def __init__(self, step: EnrollmentStep, enrollment: Enrollment | None) -> None:
+    def __init__(self, step: EnrollmentStep, enrollment: Enrollment | None, message: str | None = None) -> None:
         self.step = step
         self.enrollment = enrollment
-        if enrollment is None:
-            detail = "no owner key was saved"
-        else:
-            detail = "the owner key is set; store the enrollment and resume it"
-        super().__init__(f"Enrollment stopped at step {step.value}: {detail}")
+        if message is None:
+            if enrollment is None:
+                detail = "no owner key was saved"
+            else:
+                detail = "the owner key is set; store the enrollment and resume it"
+            message = f"Enrollment stopped at step {step.value}: {detail}"
+        super().__init__(message)
+
+
+class BleEnrollmentNotSavedError(BleEnrollmentError):
+    """save raised after the lock confirmed a step, so nothing more was sent.
+
+    step is the step that went through and enrollment includes it. It exists
+    nowhere else now: store it some other way, or the lock is lost to a
+    factory reset. The exception save raised is the cause.
+    """
+
+    def __init__(self, step: EnrollmentStep, enrollment: Enrollment) -> None:
+        super().__init__(
+            step,
+            enrollment,
+            f"Enrollment step {step.value} went through but saving it failed, so nothing more was sent. "
+            "This enrollment is the only copy of the owner key: store it some other way",
+        )
 
 
 def new_device_id() -> bytes:
@@ -222,6 +245,7 @@ async def enroll(
     session: Session,
     *,
     name: str,
+    save: SaveEnrollment,
     device_id: bytes | None = None,
     server_private_key: bytes | None = None,
     now: datetime | None = None,
@@ -233,6 +257,20 @@ async def enroll(
     device_id defaults to new_device_id(); server_private_key to a fresh
     key; now, for the lock's clock, to the current time. key_pair_factory
     makes the UserAuthUpdate key pair, and exists so tests can fix it.
+
+    save is required, and must have stored its argument durably when it
+    returns. It is called with the Enrollment as soon as the owner key
+    exists, and again after every step the lock confirms, each time before
+    the next command goes out. Without it the new owner key would live only
+    in this coroutine, and a KeyboardInterrupt, a cancelled task or a
+    crashed process before enroll() returned would leave a lock nobody has
+    the key to. It is a plain function, not a coroutine, so there is no
+    await between the lock's answer and the save where a cancellation could
+    land. A task cancelled anywhere in enroll() therefore leaves the last
+    confirmed state saved; the one exception is while UserAuthUpdate is
+    answered, since the owner key needs the answer (see BleEnrollmentError).
+    If save raises, enroll() sends nothing more and raises
+    BleEnrollmentNotSavedError carrying the unsaved Enrollment.
 
     Raises BleEnrollmentError when a step after the factory login fails, with
     the partial Enrollment on it. A failed factory login raises the session's
@@ -262,14 +300,20 @@ async def enroll(
         server_private_key=server_private_key,
         name=name,
     )
-    return await _run_remaining(session, enrollment, now)
+    _save(save, EnrollmentStep.OWNER_KEY, enrollment)
+    return await _run_remaining(session, enrollment, now, save)
 
 
-async def resume_enrollment(session: Session, enrollment: Enrollment, *, now: datetime | None = None) -> Enrollment:
+async def resume_enrollment(
+    session: Session, enrollment: Enrollment, *, save: SaveEnrollment, now: datetime | None = None
+) -> Enrollment:
     """Finish an enrollment a BleEnrollmentError left partway, on a new connected session.
 
     Logs in with enrollment.owner_credential first. Returns the enrollment
     unchanged, without touching the lock, when it is already complete.
+    save works as in enroll(): it gets the Enrollment after every step the
+    lock confirms, before the next command, and after the login below
+    shows that DeviceIdSet had gone through.
 
     Until the device id step is confirmed, that login names the factory
     device id. If DeviceIdSet reached the lock and only its answer was lost,
@@ -288,8 +332,10 @@ async def resume_enrollment(session: Session, enrollment: Enrollment, *, now: da
     """
     if enrollment.complete:
         return enrollment
-    enrollment = await _log_in_to_resume(session, enrollment)
-    return await _run_remaining(session, enrollment, now)
+    logged_in = await _log_in_to_resume(session, enrollment)
+    if logged_in is not enrollment:
+        _save(save, EnrollmentStep.DEVICE_ID, logged_in)
+    return await _run_remaining(session, logged_in, now, save)
 
 
 async def _log_in_to_resume(session: Session, enrollment: Enrollment) -> Enrollment:
@@ -309,13 +355,25 @@ async def _log_in_to_resume(session: Session, enrollment: Enrollment) -> Enrollm
     return enrollment
 
 
-async def _run_remaining(session: Session, enrollment: Enrollment, now: datetime | None) -> Enrollment:
+async def _run_remaining(
+    session: Session, enrollment: Enrollment, now: datetime | None, save: SaveEnrollment
+) -> Enrollment:
     for step in enrollment.remaining:
         try:
             enrollment = await _run_step(session, enrollment, step, now)
         except BleError as err:
             raise BleEnrollmentError(step, enrollment) from err
+        _save(save, step, enrollment)
     return enrollment
+
+
+def _save(save: SaveEnrollment, step: EnrollmentStep, enrollment: Enrollment) -> None:
+    # Any Exception, since save is the caller's code (a full disk, a
+    # permission, a bug). BaseException goes through untouched, as it should.
+    try:
+        save(enrollment)
+    except Exception as err:
+        raise BleEnrollmentNotSavedError(step, enrollment) from err
 
 
 async def _run_step(session: Session, enrollment: Enrollment, step: EnrollmentStep, now: datetime | None) -> Enrollment:

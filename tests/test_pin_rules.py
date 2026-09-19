@@ -160,6 +160,19 @@ class TestPinLengthRange:
         caps = {"min_pin_length": 0, "max_pin_length": 6}
         assert pin_rules.pin_length_range(caps) == (4, 6)
 
+    def test_reported_min_below_four_is_not_trusted(self):
+        """redact.py masks from 4 digits, so a shorter PIN would reach the log."""
+        for reported in (1, 2, 3):
+            caps = {"min_pin_length": reported, "max_pin_length": 6}
+            assert pin_rules.pin_length_range(caps) == (4, 6), reported
+
+    def test_the_sane_floor_itself_is_kept(self):
+        caps = {"min_pin_length": pin_rules.PIN_LENGTH_SANE_MIN, "max_pin_length": 6}
+        assert pin_rules.pin_length_range(caps) == (4, 6)
+
+    def test_reported_max_below_four_falls_back(self):
+        assert pin_rules.pin_length_range({"min_pin_length": 1, "max_pin_length": 3}) == (4, 8)
+
     def test_max_above_the_sane_ceiling_falls_back(self):
         caps = {"min_pin_length": 4, "max_pin_length": 255}
         assert pin_rules.pin_length_range(caps) == (4, 8)
@@ -200,6 +213,11 @@ class TestIsValidPin:
         assert pin_rules.is_valid_pin("123456", caps)
         assert pin_rules.is_valid_pin("1234567890", caps)
         assert not pin_rules.is_valid_pin("12345678901", caps)
+
+    def test_three_digit_pin_rejected_even_when_the_lock_allows_it(self):
+        caps = {"min_pin_length": 3, "max_pin_length": 8}
+        assert not pin_rules.is_valid_pin("123", caps)
+        assert pin_rules.is_valid_pin("1234", caps)
 
     def test_non_digits_are_rejected(self):
         for code in ("12a4", "12 34", "-1234", "1234\n", "12.34"):

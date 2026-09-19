@@ -20,6 +20,14 @@ from .const import (
 # MaxPINCodeLength. 4-8 is what NimlyPRO reports, and what the Nimly BLE app
 # enforces.
 PIN_LENGTH_FALLBACK = (4, 8)
+# Shortest PIN code accepted whatever the lock reports. redact.py masks digit
+# runs from this length up before an error message is logged, so a code
+# shorter than this would reach the log in clear text. The floor is the fix,
+# not a lower mask: a mask starting at 3 digits would also hide slot numbers
+# 100-999 and three-digit ZCL status codes, which are what make an error
+# message useful. 4 is what NimlyPRO reports and what the Nimly BLE app
+# enforces, and a 3-digit code is 1000 guesses from open anyway.
+PIN_LENGTH_SANE_MIN = 4
 # Anything longer is taken as a garbled read rather than a real limit. ZCL
 # allows up to 255, but no keypad lock in the Onesti range comes close.
 PIN_LENGTH_SANE_MAX = 20
@@ -75,7 +83,7 @@ def _reported_length(value: object) -> int | None:
     """A reported length attribute, or None when it is missing or not sane."""
     if isinstance(value, bool) or not isinstance(value, int):
         return None
-    if not 1 <= value <= PIN_LENGTH_SANE_MAX:
+    if not PIN_LENGTH_SANE_MIN <= value <= PIN_LENGTH_SANE_MAX:
         return None
     return value
 
@@ -85,7 +93,9 @@ def pin_length_range(capabilities: Mapping[str, object] | None) -> tuple[int, in
 
     Read from min_pin_length and max_pin_length (ZCL 0x0018 and 0x0017).
     Each bound falls back on its own to PIN_LENGTH_FALLBACK when it is
-    missing, not an int, below 1 or above PIN_LENGTH_SANE_MAX. If the two
+    missing, not an int, below PIN_LENGTH_SANE_MIN or above
+    PIN_LENGTH_SANE_MAX. A lock reporting a 3-digit minimum therefore still
+    gets 4, the shortest code the log masking covers. If the two
     left over contradict each other (min above max), neither is trusted and
     the whole fallback range applies.
     """

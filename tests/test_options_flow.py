@@ -257,6 +257,19 @@ class TestReservedSlotsFloor:
         assert "first_user_slot()" in body
         assert "slot_status_master" in body
 
+    def test_view_slots_names_reserved_slots_like_the_activity_sensor(self):
+        """Slot 0 always holds a master code, so it is never shown as Vacant.
+
+        The reserved rows take their name from get_slot_name, which is what
+        the activity sensor shows ("Master" for an unnamed slot 0).
+        """
+        body = _step_source("async_step_view_slots")
+        reserved_loop = body.split("for i in range(first):", 1)[1].split(
+            "for i in range(first, ", 1
+        )[0]
+        assert "get_slot_name(i)" in reserved_loop
+        assert "vacant" not in reserved_loop
+
 
 class TestSettingsStep:
     """The settings step stores reserved_slots next to the slot data."""

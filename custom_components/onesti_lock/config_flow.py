@@ -363,8 +363,9 @@ class NimlyProOptionsFlow(OptionsFlow):
                 errors["slot"] = "invalid_slot"
                 suggested = user_input
             else:
-                # An empty name removes it. That is the only way to unname a
-                # reserved slot, since clear_slot refuses those.
+                # An empty name removes it, and a slot left with neither name
+                # nor PIN is dropped from storage. That is the only way to
+                # unname a reserved slot, since clear_slot refuses those.
                 await self._coordinator().set_slot_name(slot, user_input.get("name", "").strip())
                 return self.async_create_entry(data=self.config_entry.options)
 
@@ -394,13 +395,15 @@ class NimlyProOptionsFlow(OptionsFlow):
         master = strings.get("slot_status_master", "(master)")
         vacant = strings.get("slot_vacant", "Vacant")
         slots = self.config_entry.options.get("slots", {})
-        first = self._coordinator().first_user_slot()
+        coordinator = self._coordinator()
+        first = coordinator.first_user_slot()
         lines = []
         # Reserved master slots first: they cannot be written from here, but
-        # a name on them is what events show for the master user.
+        # a name on them is what events show for the master user. They hold
+        # a master code, so they are never "Vacant"; the name is the one the
+        # activity sensor uses for the same slot.
         for i in range(first):
-            name = slots.get(str(i), {}).get("name", "")
-            line = label_template.format(slot=i, name=name or vacant)
+            line = label_template.format(slot=i, name=coordinator.get_slot_name(i))
             lines.append(f"{line} {master}")
         for i in range(first, first + NUM_USER_SLOTS):
             slot_data = slots.get(str(i), {})

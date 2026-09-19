@@ -81,7 +81,7 @@ NUM_USER_SLOTS = 10       # Slots shown in the options flow lists
 ```
 
 - **Reserved slots setting**: per lock, under Configure > Settings, 1-3 with default 3. `pin_rules.first_user_slot()` reads it and clamps it to 1-3, so slot 0 is never written even if the stored value is wrong. Touch Pro, PRO and Code users keep 3; Code Pro users can set 1.
-- **Write and clear floor**: `set_pin`, `clear_pin` and `clear_slot` refuse slots below the setting, from both the services and the options flow. The Set PIN list starts at the first user slot, and the Clear PIN list leaves the reserved slots out.
+- **Write and clear floor**: `set_pin`, `clear_pin` and `clear_slot` refuse slots below the setting, from both the services and the options flow, and the coordinator refuses them too as the last guard for any other caller. The Set PIN list starts at the first user slot, and the Clear PIN list leaves the reserved slots out.
 - **Naming**: every slot 0-999 can be named, through `set_name` and the options flow. Names are stored in Home Assistant only. An empty name in the options flow removes it, which is the only way to unname a reserved slot.
 - **View slots**: lists the reserved slots, marked as master, followed by the first ten user slots.
 - **set_pin capacity check**: when the lock has reported `NumberOfPINUsersSupported` (50 on both NimlyPRO and NimlyCodePRO), `set_pin` rejects slots at or above it (`pin_rules.py`). Before the attribute has been read (sleepy lock at setup, or a variant without the attribute) 999 is the ceiling. Whether slots >= 50 actually work on real hardware is still unverified; see the capacity test below.
@@ -92,5 +92,5 @@ NUM_USER_SLOTS = 10       # Slots shown in the options flow lists
 
 1. **BLE/Zigbee cross-test:** Set PIN via BLE on slot 800. Unlock. Check whether `attrid 0x0100` reports slot 3 or slot 800.
 2. **Cloud/Zigbee cross-test:** Set PIN via Nimly Connect app. Unlock. Check which slot `attrid 0x0100` reports.
-3. **Slot 1-2 test and outside locking with slot 0:** Try `set_pin_code` on slots 1 and 2 via ZCL on each model. Does the lock accept or reject? Also lock from the outside (palm on the keypad, or `#`) and capture `attrid 0x0100`. It is unverified whether that reports `0x02010000` (slot 0, lock, keypad). If it does, the integration shows it as the master user locking, and the slot 0 attribution must be narrowed to unlock (tracked in dcat issues-5dko16f).
+3. **Slot 1-2 test and outside locking with slot 0:** Try `set_pin_code` on slots 1 and 2 via ZCL on each model. Does the lock accept or reject? Also lock from the outside (palm on the keypad, or `#`) and capture `attrid 0x0100`. It is unverified whether that reports `0x02010000` (slot 0, lock, keypad). If it does, the integration shows it as the master user locking, and the slot 0 attribution must be narrowed to unlock. This check on a real lock is still outstanding.
 4. **Capacity test:** Set PINs on slot 3 and slot 800 via ZCL. Are both valid?

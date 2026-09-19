@@ -177,7 +177,7 @@ def _keys_used_in_code():
     the `{action}_{source}` keys format_activity builds at runtime.
     """
     keys = set()
-    for module in ("sensor.py", "config_flow.py", "coordinator.py", "services.py"):
+    for module in ("sensor.py", "config_flow.py", "coordinator.py", "services.py", "localize.py"):
         with open(_component_path(module)) as f:
             tree = ast.parse(f.read())
         for node in ast.walk(tree):

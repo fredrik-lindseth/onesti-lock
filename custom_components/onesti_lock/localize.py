@@ -100,6 +100,15 @@ def format_activity(
     return template.format(name=user_name)
 
 
+def format_slot_label(strings: Mapping[str, str], slot: int, name: str) -> str:
+    """Render "Slot {slot}: {name}" in the server language.
+
+    Every options-flow label for a slot goes through here, so the English
+    fallback for a missing template lives in one place.
+    """
+    return strings.get("slot_label", "Slot {slot}: {name}").format(slot=slot, name=name)
+
+
 def format_reserved_slot_row(
     strings: Mapping[str, str], slot: int, name: str
 ) -> str:
@@ -109,8 +118,7 @@ def format_reserved_slot_row(
     "Slot 1: Master" rather than falling back to the "Slot {slot}" name the
     activity sensor uses, which would print the slot number twice.
     """
-    label = strings.get("slot_label", "Slot {slot}: {name}")
     if not name:
-        return label.format(slot=slot, name=strings.get("slot_fallback_master", "Master"))
+        return format_slot_label(strings, slot, strings.get("slot_fallback_master", "Master"))
     master = strings.get("slot_status_master", "(master)")
-    return f"{label.format(slot=slot, name=name)} {master}"
+    return f"{format_slot_label(strings, slot, name)} {master}"

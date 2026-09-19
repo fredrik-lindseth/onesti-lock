@@ -26,7 +26,7 @@ from .const import (
     RESERVED_SLOTS_MIN,
     SUPPORTED_MODELS,
 )
-from .localize import async_get_strings, format_reserved_slot_row
+from .localize import async_get_strings, format_reserved_slot_row, format_slot_label
 from .zha import device_metadata, has_door_lock_cluster, is_zha_loaded, iter_device_proxies
 
 if TYPE_CHECKING:
@@ -116,13 +116,12 @@ class NimlyProOptionsFlow(OptionsFlow):
     ) -> vol.Schema:
         """Build set_pin form schema, optionally pre-filling values."""
         slots = self.config_entry.options.get("slots", {})
-        label_template = strings.get("slot_label", "Slot {slot}: {name}")
         vacant = strings.get("slot_vacant", "Vacant")
         first = self._coordinator().first_user_slot()
         slot_options = {}
         for i in range(first, first + NUM_USER_SLOTS):
             name = slots.get(str(i), {}).get("name", "")
-            slot_options[str(i)] = label_template.format(slot=i, name=name or vacant)
+            slot_options[str(i)] = format_slot_label(strings, i, name or vacant)
 
         schema = vol.Schema(
             {
@@ -239,7 +238,6 @@ class NimlyProOptionsFlow(OptionsFlow):
 
         # Build schema first to check for active slots
         strings = await async_get_strings(self.hass, self.hass.config.language)
-        label_template = strings.get("slot_label", "Slot {slot}: {name}")
         fallback_template = strings.get("slot_fallback_name", "Slot {slot}")
         slots = self.config_entry.options.get("slots", {})
         # Reserved master slots are never offered: clear_slot refuses them,
@@ -251,7 +249,7 @@ class NimlyProOptionsFlow(OptionsFlow):
             if slot_data.get("has_pin") or slot_data.get("name"):
                 name = slot_data.get("name", "")
                 if name:
-                    active_slots[str(i)] = label_template.format(slot=i, name=name)
+                    active_slots[str(i)] = format_slot_label(strings, i, name)
                 else:
                     active_slots[str(i)] = fallback_template.format(slot=i)
 
@@ -361,7 +359,6 @@ class NimlyProOptionsFlow(OptionsFlow):
     async def async_step_view_slots(self, user_input=None) -> ConfigFlowResult:
         """View current slot status, shown as description text."""
         strings = await async_get_strings(self.hass, self.hass.config.language)
-        label_template = strings.get("slot_label", "Slot {slot}: {name}")
         pin_active = strings.get("slot_status_pin_active", "(PIN active)")
         no_pin = strings.get("slot_status_no_pin", "(no PIN)")
         vacant = strings.get("slot_vacant", "Vacant")
@@ -379,13 +376,13 @@ class NimlyProOptionsFlow(OptionsFlow):
             name = slot_data.get("name", "")
             has_pin = slot_data.get("has_pin", False)
             if name and has_pin:
-                line = label_template.format(slot=i, name=f"**{name}**")
+                line = format_slot_label(strings, i, f"**{name}**")
                 lines.append(f"{line} {pin_active}")
             elif name:
-                line = label_template.format(slot=i, name=name)
+                line = format_slot_label(strings, i, name)
                 lines.append(f"{line} {no_pin}")
             else:
-                lines.append(label_template.format(slot=i, name=vacant))
+                lines.append(format_slot_label(strings, i, vacant))
 
         # Return to menu
         if user_input is not None:

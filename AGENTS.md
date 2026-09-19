@@ -19,15 +19,18 @@ only into raw numbers.
 NimlyCoordinator (one per lock, on entry.runtime_data; NimlyConfigEntry in coordinator.py)
   ├── Slot data (config entry options, persisted in .storage)
   ├── PIN operations (set_pin, clear_pin, clear_slot through self.transport)
-  ├── Lock capabilities (read_lock_capabilities stores transport.read_capabilities())
+  ├── Lock capabilities (async_refresh_capabilities reads until the lock answers once,
+  │   then keeps the answer in entry.options["capabilities"])
   └── Activity sensor registration
 
 ZhaLockTransport (zha.py, injected into the coordinator; tests pass a fake)
   ├── cluster(): find_door_lock_cluster walks ZHADeviceProxy → Device → CustomDeviceV2
-  ├── send(): ZHA issue_zigbee_cluster_command, on timeout wake() and retry once
+  ├── send(): ZHA issue_zigbee_cluster_command, on TimeoutError or zigpy
+  │   DeliveryError wake() and retry once; messages pass through redact.py
   ├── wake(): physically locks the door via the ZHA lock entity;
   │   why that works and a plain read does not is unverified
-  └── read_capabilities(): ZCL 0x0012/0x0017/0x0018 as a dict, {} on any failure
+  └── read_capabilities(): ZCL 0x0012/0x0017/0x0018 as a dict, None when the lock
+      was not reached (so the read is repeated), {} when it answered without them
 
 Event listener (events.py, registered from __init__.py via entry.async_on_unload; no HA imports at module level)
   ├── cluster.on_event("attribute_report") on coordinator.transport.cluster(),
@@ -64,6 +67,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 | `custom_components/onesti_lock/sensor.py`      | Slot sensors (3-12) + Activity sensor                                      |
 | `custom_components/onesti_lock/services.py`    | set_pin, clear_pin, set_name, clear_slot; locks via async_loaded_entries   |
 | `custom_components/onesti_lock/pin_rules.py`   | Slot/PIN validation from reported capabilities (pure logic, no HA imports) |
+| `custom_components/onesti_lock/redact.py`      | Masks digit runs in error text before it is logged (pure logic, no HA imports) |
 | `custom_components/onesti_lock/const.py`       | Constants, source/action enums, supported models, slot ranges              |
 | `custom_components/onesti_lock/localize.py`    | Runtime string lookup (reads the `runtime` section of translations/*.json) |
 

@@ -15,6 +15,12 @@ import os
 import re
 
 _PKG = os.path.join(os.path.dirname(__file__), "..", "custom_components", "onesti_lock")
+# The BLE validation tool. It prints to a terminal and writes a trace file,
+# so its output calls get the same check as the integration's log calls.
+_BLE_CLI = os.path.join(os.path.dirname(__file__), "..", "scripts", "ble_cli.py")
+# Calls in the CLI whose arguments end up on screen or in the trace: print,
+# the Context's say and warn, the module's _warn, and the tracer's note.
+_CLI_OUTPUT_CALLS = {"print", "say", "warn", "_warn", "note"}
 
 # Identifier parts that must never carry a value into a log call. Matching on
 # whole snake_case/camelCase parts, not substrings, keeps "decoded" and
@@ -61,6 +67,41 @@ class TestPinChainRemoved:
         assert "last_pin_code" not in _read("sensor.py")
 
 
+def _secret_names(call: ast.Call) -> list[str]:
+    """The PIN-shaped identifiers among a call's arguments."""
+    found = []
+    for arg in list(call.args) + [kw.value for kw in call.keywords]:
+        for sub in ast.walk(arg):
+            name = None
+            if isinstance(sub, ast.Name):
+                name = sub.id
+            elif isinstance(sub, ast.Attribute):
+                name = sub.attr
+            elif isinstance(sub, ast.Subscript) and isinstance(sub.slice, ast.Constant):
+                # Dict lookups such as slot_data["code"]. Bare string
+                # constants are format strings, and naming PIN in a message
+                # is fine.
+                key = sub.slice.value
+                name = key if isinstance(key, str) else None
+            if name and _looks_secret(name):
+                found.append(name)
+    return found
+
+
+def _is_logger_call(node: ast.Call) -> bool:
+    func = node.func
+    return isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id == "_LOGGER"
+
+
+def _call_name(node: ast.Call) -> str | None:
+    func = node.func
+    if isinstance(func, ast.Name):
+        return func.id
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    return None
+
+
 class TestNoPinInLogs:
     def test_loggers_never_log_codes(self):
         """No _LOGGER call may pass a PIN-shaped value.
@@ -71,32 +112,35 @@ class TestNoPinInLogs:
         for filename in _python_files():
             tree = ast.parse(_read(filename))
             for node in ast.walk(tree):
-                if not isinstance(node, ast.Call):
-                    continue
-                func = node.func
-                if not (isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name)):
-                    continue
-                if func.value.id != "_LOGGER":
-                    continue
-                args = list(node.args) + [kw.value for kw in node.keywords]
-                for arg in args:
-                    for sub in ast.walk(arg):
-                        name = None
-                        if isinstance(sub, ast.Name):
-                            name = sub.id
-                        elif isinstance(sub, ast.Attribute):
-                            name = sub.attr
-                        elif isinstance(sub, ast.Subscript) and isinstance(
-                            sub.slice, ast.Constant
-                        ):
-                            # Dict lookups such as slot_data["code"]. Bare
-                            # string constants are format strings, and naming
-                            # PIN in a message is fine.
-                            key = sub.slice.value
-                            name = key if isinstance(key, str) else None
-                        if name and _looks_secret(name):
-                            offenders.append(f"{filename}:{node.lineno} passes {name}")
+                if isinstance(node, ast.Call) and _is_logger_call(node):
+                    offenders += [f"{filename}:{node.lineno} passes {name}" for name in _secret_names(node)]
         assert not offenders, "Logging a PIN-shaped value: " + "; ".join(offenders)
+
+    def test_ble_cli_never_prints_or_traces_codes(self):
+        """scripts/ble_cli.py takes a PIN for PinCodeSet; no output call may pass it on.
+
+        tests/test_ble_cli.py checks the same at run time, against the trace
+        file and the output of a real PinCodeSet.
+        """
+        with open(_BLE_CLI) as f:
+            tree = ast.parse(f.read())
+        offenders: list[str] = []
+        output_calls = 0
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            if _call_name(node) in _CLI_OUTPUT_CALLS or _is_logger_call(node):
+                output_calls += 1
+                offenders += [f"ble_cli.py:{node.lineno} passes {name}" for name in _secret_names(node)]
+        # Guards the guard: renamed output helpers would leave nothing to check.
+        assert output_calls > 20, "the CLI's output calls were not found; were its helpers renamed?"
+        assert not offenders, "Printing a PIN-shaped value: " + "; ".join(offenders)
+
+    def test_ble_cli_check_sees_a_printed_pin(self):
+        """The CLI check fires on the shapes the CLI would use to leak a PIN."""
+        leak = ast.parse('ctx.say(f"PIN {pin}")\nprint(args.pin_code)\ntracer.note("x", value=new_pin)')
+        calls = [node for node in ast.walk(leak) if isinstance(node, ast.Call) and _call_name(node) in _CLI_OUTPUT_CALLS]
+        assert [name for call in calls for name in _secret_names(call)] == ["pin", "pin_code", "new_pin"]
 
     def test_secret_matcher_ignores_lookalikes(self):
         """The matcher must not fire on decoded/command and must fire on PINs."""

@@ -54,7 +54,7 @@ if a: print("  attrs:",json.dumps(a,ensure_ascii=False))
   logs)
     pat="${1:-.}"; secs="${2:-30}"
     ssh_ha "timeout $secs ha core logs -f 2>/dev/null | grep -iE '$pat' | grep -ivE 'ezsp_counters|em_poller|cluster_poller|polling for updated' | head -40"
-    echo "(fulgte $secs s)"
+    echo "(followed for $secs s)"
     ;;
   grep)
     pat="${1:-.}"; n="${2:-40}"

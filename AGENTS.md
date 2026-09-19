@@ -103,6 +103,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 | `custom_components/onesti_lock/__init__.py`    | Services registered in async_setup, migration, entry setup/unload, repair issue, ZHA watch, update listener      |
 | `custom_components/onesti_lock/coordinator.py` | Slot storage, PIN operations, reserved-slot guard, lock capabilities                                             |
 | `custom_components/onesti_lock/zha.py`         | All ZHA/zigpy internals: gateway lookup, chain walk, `ZhaLockTransport` (send, wake, wake echo, capability read) |
+| `custom_components/onesti_lock/bluetooth.py`   | Home Assistant Bluetooth and bleak-retry-connector: find the lock by its 0xFD00 advertisement, connect, open a `ble` Session; unused so far |
 | `custom_components/onesti_lock/events.py`      | Operation event decoding, system-lock rule, event listener (no HA imports)                                       |
 | `custom_components/onesti_lock/config_flow.py` | Config flow (device selection) + Options flow (PIN management UI, reserved-slots setting)                        |
 | `custom_components/onesti_lock/sensor.py`      | Slot sensor row that follows `reserved_slots` + restored Activity sensor                                         |
@@ -147,6 +148,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 13. **BLE library boundaries**: nothing in `ble/` imports `homeassistant`, `zigpy` or `voluptuous`, and no relative import leaves `ble/`, not even for `redact.py`. Inside, `protocol/` imports neither `crypto.py` nor `client/`, and `crypto.py` not `client/`. Everything raised is a `BleError`. `tests/ble/test_package.py` enforces all of it. A Home Assistant Bluetooth transport therefore lives outside `ble/`.
     - No PIN, key, challenge or payload in an exception message, a `repr` or a log call, and no traceback in the log. Fields holding them are `repr=False`; `Enrollment.to_dict()` holds the owner key and must be stored and handled as a secret.
     - `cryptography` comes with Home Assistant and is NOT in `manifest.json`, where a pin could fight HA's. The tests get it from the `unit` group in `pyproject.toml`; keep `crypto.py` to API that both HA ends of the supported range ship.
+    - `bluetooth.py` reads `bleak_retry_connector.BleakClientWithServiceCache` at call time: habluetooth swaps in its own wrapper, which routes through adapters and proxies, once Bluetooth is set up. The manifest depends on `bluetooth_adapters` and has no `bluetooth` matcher yet. Each HA group in `pyproject.toml` pins the Bluetooth stack of that release's bluetooth manifest, like zigpy.
     - Protocol values come from the decompiled app with the Java source named next to them. A value nobody could trace stays marked as a guess, and the vectors say where each one came from (`documented`, `derived`, `kat`, `executed`).
 
 ## Documentation map

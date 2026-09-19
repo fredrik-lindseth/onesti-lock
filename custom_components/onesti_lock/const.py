@@ -18,6 +18,14 @@ ZHA_DOMAIN = "zha"
 # Generous on purpose: the report can trail the command on a sleepy device.
 WAKE_ECHO_WINDOW_S = 30
 
+# Bluetooth
+BLUETOOTH_DOMAIN = "bluetooth"
+# How long bluetooth.py waits for the lock to advertise when Home Assistant
+# has not heard it already. A guess: whether the Connect Module advertises
+# all the time or only after a key press, and how often, has not been
+# measured on hardware.
+BLE_ADVERTISEMENT_TIMEOUT_S = 30.0
+
 # Onesti hardware: all known whitelabel models
 MAX_SLOTS = 1000  # ZCL slots 0-999 (per Nimly manual)
 # Default first user slot, i.e. the default for CONF_RESERVED_SLOTS. The

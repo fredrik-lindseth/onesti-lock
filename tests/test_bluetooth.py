@@ -20,11 +20,13 @@ pytest.importorskip("bleak", reason="bluetooth.py needs bleak, which the unit gr
 
 from bleak.exc import BleakError  # noqa: E402
 
-from .ble.fake_lock import FakeLock  # noqa: E402
+from .ble.fake_lock import FakeBleakClient, FakeLock  # noqa: E402
 from .conftest import load_component_module  # noqa: E402
 
 bluetooth = load_component_module("bluetooth")
+ble_api = load_component_module("ble")
 errors = load_component_module("ble.errors")
+protocol_const = load_component_module("ble.protocol.const")
 client_const = load_component_module("ble.client.const")
 ha_bluetooth = sys.modules["homeassistant.components.bluetooth"]
 retry_connector = sys.modules["bleak_retry_connector"]
@@ -218,33 +220,27 @@ class TestBluetoothNotSetUp:
 # --- Connecting ----------------------------------------------------------------------
 
 
-class FakeClient:
-    """A connected bleak client with nothing behind it."""
+def lock_client(lock: FakeLock | None = None, **kwargs):
+    """What establish_connection returns: a connected client, a FakeLock behind it."""
 
-    def __init__(self, disconnected_callback=None, mtu_size: int = 185) -> None:
-        self.disconnected_callback = disconnected_callback
-        self.is_connected = True
-        self.mtu_size = mtu_size
-        self.disconnect_calls = 0
-        communication = SimpleNamespace(uuid=client_const.COMMUNICATION_CHARACTERISTIC_UUID, properties=["write"])
-        self.services = SimpleNamespace(get_characteristic=lambda uuid: communication)
+    def make(disconnected_callback):
+        return FakeBleakClient(lock or FakeLock(), disconnected_callback, connected=True, **kwargs)
 
-    async def start_notify(self, characteristic, callback) -> None:
-        pass
-
-    async def disconnect(self) -> None:
-        self.disconnect_calls += 1
-        self.is_connected = False
+    return make
 
 
 class Connector:
     """Stands in for bleak_retry_connector's two calls, and records them."""
 
-    def __init__(self, make_client=FakeClient, error: BaseException | None = None) -> None:
-        self.make_client = make_client
+    def __init__(self, make_client=None, error: BaseException | None = None) -> None:
+        self.make_client = make_client or lock_client(mtu_size=185)
         self.error = error
         self.calls: list[tuple] = []
-        self.client = None
+        self.clients: list[FakeBleakClient] = []
+
+    @property
+    def client(self) -> FakeBleakClient:
+        return self.clients[-1]
 
     async def close_stale(self, address, only_other_adapters=False):
         self.calls.append(("close_stale", address))
@@ -253,16 +249,18 @@ class Connector:
         self.calls.append(("establish", client_class, device, name, disconnected_callback, ble_device_callback))
         if self.error is not None:
             raise self.error
-        self.client = self.make_client(disconnected_callback)
+        self.clients.append(self.make_client(disconnected_callback))
         return self.client
+
+    def install(self, monkeypatch) -> Connector:
+        monkeypatch.setattr(bluetooth, "close_stale_connections_by_address", self.close_stale)
+        monkeypatch.setattr(bluetooth, "establish_connection", self.establish)
+        return self
 
 
 @pytest.fixture
 def connector(monkeypatch) -> Connector:
-    connector = Connector()
-    monkeypatch.setattr(bluetooth, "close_stale_connections_by_address", connector.close_stale)
-    monkeypatch.setattr(bluetooth, "establish_connection", connector.establish)
-    return connector
+    return Connector().install(monkeypatch)
 
 
 def found_lock(address: str = ADDRESS):
@@ -304,26 +302,30 @@ class TestConnect:
 
     def test_a_drop_reaches_the_session_through_the_transport(self, hass, connector):
         hass.bluetooth.devices[ADDRESS] = object()
-        transport = run(bluetooth.async_connect(hass, found_lock()))
         dropped = []
 
-        # start_notify is where the session hands over its callback.
-        run(transport.start_notify(lambda data: None, lambda: dropped.append(True)))
-        connector.client.disconnected_callback(connector.client)
+        async def scenario():
+            transport = await bluetooth.async_connect(hass, found_lock())
+            # start_notify is where the session hands over its callback.
+            await transport.start_notify(lambda data: None, lambda: dropped.append(True))
+            connector.client.drop_link()
+
+        run(scenario())
         assert dropped == [True]
 
-    def test_a_drop_before_the_transport_exists_is_ignored(self, hass, monkeypatch):
+    def test_a_drop_before_the_transport_exists_is_refused(self, hass, monkeypatch):
         def make_client(disconnected_callback):
-            # establish_connection has returned the client, bluetooth.py has
-            # not wrapped it yet.
-            disconnected_callback(None)
-            return FakeClient(disconnected_callback)
+            # The link drops after establish_connection connected and before
+            # bluetooth.py wrapped the client. Nobody is told yet, and
+            # BleakTransport refuses a client that is no longer connected.
+            client = lock_client()(disconnected_callback)
+            client.drop_link()
+            return client
 
-        connector = Connector(make_client)
-        monkeypatch.setattr(bluetooth, "close_stale_connections_by_address", connector.close_stale)
-        monkeypatch.setattr(bluetooth, "establish_connection", connector.establish)
+        Connector(make_client).install(monkeypatch)
         hass.bluetooth.devices[ADDRESS] = object()
-        run(bluetooth.async_connect(hass, found_lock()))
+        with pytest.raises(errors.BleDisconnectedError):
+            run(bluetooth.async_connect(hass, found_lock()))
 
     def test_no_adapter_or_proxy_in_reach(self, hass, connector):
         with pytest.raises(errors.BleError, match=f"No Bluetooth adapter or proxy .* reach the lock at {ADDRESS}"):
@@ -352,9 +354,7 @@ class TestConnect:
         ],
     )
     def test_failures_become_ble_errors(self, hass, monkeypatch, error, kind, message):
-        connector = Connector(error=error)
-        monkeypatch.setattr(bluetooth, "close_stale_connections_by_address", connector.close_stale)
-        monkeypatch.setattr(bluetooth, "establish_connection", connector.establish)
+        Connector(error=error).install(monkeypatch)
         hass.bluetooth.devices[ADDRESS] = object()
         with pytest.raises(kind, match=message) as caught:
             run(bluetooth.async_connect(hass, found_lock()))
@@ -364,51 +364,16 @@ class TestConnect:
 # --- A whole session -------------------------------------------------------------------
 
 
-class LockClient:
-    """A bleak client whose far end is a FakeLock: its FakeTransport in bleak's shape."""
-
-    def __init__(self, lock: FakeLock, disconnected_callback) -> None:
-        self.link = lock.connect(require_login=False)
-        self.disconnected_callback = disconnected_callback
-        self.is_connected = True
-        self.mtu_size = 23
-        self.communication = SimpleNamespace(uuid=client_const.COMMUNICATION_CHARACTERISTIC_UUID, properties=["write", "notify"])
-        self.services = SimpleNamespace(
-            get_characteristic=lambda uuid: self.communication if uuid == self.communication.uuid else None
-        )
-        self.disconnect_calls = 0
-
-    async def read_gatt_char(self, uuid):
-        assert uuid == client_const.SOFTWARE_REVISION_CHARACTERISTIC_UUID
-        return bytearray(await self.link.read_software_revision())
-
-    async def start_notify(self, characteristic, callback):
-        await self.link.start_notify(lambda data: callback(characteristic, bytearray(data)), lambda: None)
-
-    async def stop_notify(self, characteristic):
-        pass
-
-    async def write_gatt_char(self, characteristic, data, response):
-        assert response is True
-        await self.link.write(bytes(data))
-
-    async def disconnect(self):
-        self.disconnect_calls += 1
-        self.is_connected = False
-        await self.link.close()
-        self.disconnected_callback(self)
-
-
 class TestOpenSession:
     @pytest.fixture
-    def lock_connector(self, hass, monkeypatch) -> Connector:
-        lock = FakeLock()
-        connector = Connector(lambda disconnected_callback: LockClient(lock, disconnected_callback))
-        monkeypatch.setattr(bluetooth, "close_stale_connections_by_address", connector.close_stale)
-        monkeypatch.setattr(bluetooth, "establish_connection", connector.establish)
+    def lock(self) -> FakeLock:
+        return FakeLock()
+
+    @pytest.fixture
+    def lock_connector(self, hass, monkeypatch, lock) -> Connector:
         hass.bluetooth.service_infos = [service_info(data=factory_data())]
         hass.bluetooth.devices[ADDRESS] = object()
-        return connector
+        return Connector(lock_client(lock)).install(monkeypatch)
 
     def test_finds_connects_exchanges_keys_and_lets_go(self, hass, lock_connector):
         async def scenario():
@@ -420,7 +385,29 @@ class TestOpenSession:
 
         session = run(scenario())
         assert not session.connected
+        assert not lock_connector.client.is_connected
         assert lock_connector.client.disconnect_calls == 1
+
+    def test_enrolls_then_finds_the_lock_again_by_its_device_id(self, hass, lock_connector, lock):
+        """The whole protocol through bluetooth.py: enrollment, then a login and a PIN."""
+
+        async def enrol():
+            async with bluetooth.async_open_session(hass, command_delay=0) as session:
+                return await ble_api.enroll(session, name="Door")
+
+        enrollment = run(enrol())
+        # Enrolled, the lock advertises a seed and a hash of its new device id.
+        hass.bluetooth.service_infos = [service_info(data=enrolled_data(enrollment.device_id))]
+        assert bluetooth.async_discovered_locks(hass) == []
+
+        async def set_pin():
+            async with bluetooth.async_open_session(hass, device_id=enrollment.device_id, command_delay=0) as session:
+                await ble_api.authenticate_owner(session, enrollment.owner_credential)
+                await session.send(ble_api.commands.pin_code_set(803, "8832"))
+
+        run(set_pin())
+        assert lock.pins == {803: "8832"}
+        assert [client.disconnect_calls for client in lock_connector.clients] == [1, 1]
 
     def test_lets_go_when_the_block_raises(self, hass, lock_connector):
         async def scenario():
@@ -431,17 +418,17 @@ class TestOpenSession:
             run(scenario())
         assert lock_connector.client.disconnect_calls == 1
 
-    def test_lets_go_when_the_key_exchange_fails(self, hass, lock_connector, monkeypatch):
+    def test_lets_go_when_the_key_exchange_fails(self, hass, lock_connector):
         async def scenario():
             async with bluetooth.async_open_session(hass, command_delay=0, response_timeout=0.01):
                 raise AssertionError("never entered")
 
-        # The lock never answers the key exchange.
-        original = lock_connector.make_client
+        make_client = lock_connector.make_client
 
         def silent_client(disconnected_callback):
-            client = original(disconnected_callback)
-            client.link.silent.update(set(load_component_module("ble.protocol.const").CommandId))
+            client = make_client(disconnected_callback)
+            # The lock never answers the key exchange.
+            client.link.silent.update(set(protocol_const.CommandId))
             return client
 
         lock_connector.make_client = silent_client

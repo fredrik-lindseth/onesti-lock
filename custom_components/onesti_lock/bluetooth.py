@@ -200,7 +200,8 @@ class _DisconnectRelay:
 
     establish_connection builds the client, and bleak wants the callback at
     construction, before BleakTransport can exist. A drop in that gap has
-    nobody to tell: the transport's first call then fails on its own.
+    nobody to tell, and is not lost: BleakTransport refuses a client that is
+    no longer connected.
     """
 
     def __init__(self) -> None:

@@ -18,7 +18,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Onesti Lock — PIN Management",
+        "title": "Onesti Lock: PIN management",
         "menu_options": {
           "set_pin": "Set PIN code",
           "clear_pin": "Clear PIN code",
@@ -57,7 +57,7 @@
       },
       "settings": {
         "title": "Settings",
-        "description": "Nimly PRO, Touch Pro and Code reserve slots 0-2 for master codes (3). Nimly Code Pro reserves only slot 0 (1). Slot 0 can never be written from Home Assistant.",
+        "description": "Nimly PRO, Touch Pro and Code reserve slots 0-2 for master codes: set 3. Nimly Code Pro reserves only slot 0: set 1. Slot 0 is never written from Home Assistant.",
         "data": {
           "reserved_slots": "Reserved master slots"
         }

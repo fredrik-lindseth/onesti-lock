@@ -18,7 +18,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Onesti Lock — PIN-hantering",
+        "title": "Onesti Lock: PIN-hantering",
         "menu_options": {
           "set_pin": "Ställ in PIN-kod",
           "clear_pin": "Ta bort PIN-kod",
@@ -57,7 +57,7 @@
       },
       "settings": {
         "title": "Inställningar",
-        "description": "Nimly PRO, Touch Pro och Code reserverar plats 0-2 för masterkoder (3). Nimly Code Pro reserverar bara plats 0 (1). Plats 0 kan aldrig skrivas från Home Assistant.",
+        "description": "Nimly PRO, Touch Pro och Code reserverar plats 0-2 för masterkoder, så välj 3. Nimly Code Pro reserverar bara plats 0, så välj 1. Plats 0 skrivs aldrig från Home Assistant.",
         "data": {
           "reserved_slots": "Reserverade masterplatser"
         }

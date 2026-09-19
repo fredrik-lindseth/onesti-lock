@@ -148,9 +148,21 @@ class TestRuntimeSection:
 
     @pytest.mark.parametrize("filename", FILES)
     def test_no_em_dash(self, filename):
-        """New user-facing strings use a colon or parentheses, not an em-dash."""
-        for key, value in _load(filename)["runtime"].items():
-            assert EM_DASH not in value, f"{filename} runtime.{key} contains an em-dash"
+        """User-facing strings use a colon or parentheses, not an em-dash.
+
+        Covers every section (config, options, entity, services, runtime),
+        not only runtime, since all of it reaches the user.
+        """
+
+        def walk(node, path):
+            if isinstance(node, dict):
+                for key, value in node.items():
+                    yield from walk(value, f"{path}.{key}" if path else key)
+            elif isinstance(node, str):
+                yield path, node
+
+        for path, value in walk(_load(filename), ""):
+            assert EM_DASH not in value, f"{filename} {path} contains an em-dash"
 
     @pytest.mark.parametrize("filename", FILES)
     def test_no_empty_values(self, filename):

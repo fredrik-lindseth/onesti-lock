@@ -1,42 +1,42 @@
-# EasyAccess Connect Bridge: Hardware & Network Reference
+# EasyAccess Connect Bridge: hardware and network reference
 
 Gateway for Nimly/EasyAccess locks, bridging Zigbee devices to iotiliti.cloud.
 Documented so nobody needs to buy the hub to understand the system.
 
 ## Brand hierarchy (white-label)
 
-The same hardware is sold under multiple brands. The label on the hardware
-says "EasyAccess Easy Living", the Connect Module in the lock says "E-Life
-3.0", and the app is called "Nimly Connect". All the same system.
+The same hardware is sold under several brands, so one system goes by three
+names: the label on the hub says "EasyAccess Easy Living", the Connect Module
+in the lock says "E-Life 3.0", and the app is called "Nimly Connect".
 
-| Level           | Entity                                                            | Role                                |
-| --------------- | ----------------------------------------------------------------- | ----------------------------------- |
-| **Chipmaker**   | Develco Products / Onics A/S                                      | HW manufacturer (Aarhus, Denmark)   |
-| **Platform**    | Squid.Link 2B                                                     | Gateway platform (MGW211)           |
-| **Cloud**       | iotiliti (Safe4 Security Group)                                   | IoT platform, MQTT broker, REST API |
-| **White-label** | EasyAccess / E-Life / Nimly / Keyfree / Salus / Forebygg / Homely | End-user brands                     |
+| Level       | Entity                                                            | Role                                |
+| ----------- | ----------------------------------------------------------------- | ----------------------------------- |
+| Chipmaker   | Develco Products / Onics A/S                                      | HW manufacturer (Aarhus, Denmark)   |
+| Platform    | Squid.Link 2B                                                     | Gateway platform (MGW211)           |
+| Cloud       | iotiliti (Safe4 Security Group)                                   | IoT platform, MQTT broker, REST API |
+| White-label | EasyAccess / E-Life / Nimly / Keyfree / Salus / Forebygg / Homely | End-user brands                     |
 
 ## Hardware identification
 
-| Field                 | Value                                          |
-| --------------------- | ---------------------------------------------- |
-| **Brand**             | EasyAccess (Easy Living)                       |
-| **Manufacturer**      | Develco Products / Onics A/S (Aarhus, Denmark) |
-| **Model**             | MGW211-EAS2                                    |
-| **Platform**          | Squid.Link 2B                                  |
-| **PN**                | F0080Z0186                                     |
-| **HW**                | 4.1.0                                          |
-| **S/N**               | 0200 0001 3000 4433                            |
-| **DHCP Vendor Class** | `HomeGate AIO`                                 |
-| **mDNS Hostname**     | `gw-4433` (last 4 digits of S/N)               |
+| Field             | Value                                          |
+| ----------------- | ---------------------------------------------- |
+| Brand             | EasyAccess (Easy Living)                       |
+| Manufacturer      | Develco Products / Onics A/S (Aarhus, Denmark) |
+| Model             | MGW211-EAS2                                    |
+| Platform          | Squid.Link 2B                                  |
+| PN                | F0080Z0186                                     |
+| HW                | 4.1.0                                          |
+| S/N               | 0200 0001 3000 4433                            |
+| DHCP Vendor Class | `HomeGate AIO`                                 |
+| mDNS Hostname     | `gw-4433` (last 4 digits of S/N)               |
 
 ### Connect Module (in the lock)
 
-| Field       | Value                                    |
-| ----------- | ---------------------------------------- |
-| **Brand**   | E-Life                                   |
-| **Version** | 3.0                                      |
-| **Role**    | Zigbee radio in the lock, pairs with hub |
+| Field   | Value                                    |
+| ------- | ---------------------------------------- |
+| Brand   | E-Life                                   |
+| Version | 3.0                                      |
+| Role    | Zigbee radio in the lock, pairs with hub |
 
 ## Network addresses
 
@@ -57,17 +57,18 @@ The hub is Zigbee 3.0 certified, but the Nimly lock (easyCodeTouch) is not.
 
 ## Power supply (PSU)
 
-| Field              | Value                                   |
-| ------------------ | --------------------------------------- |
-| **Model**          | YS16-0902000E                           |
-| **Input**          | 100-240V~ 50/60Hz 0.5A                  |
-| **Output**         | 9V DC 2A                                |
-| **Connector**      | Barrel jack, center-positive, 5.5x2.1mm |
-| **Insulation**     | Class II (double insulated)             |
-| **Certifications** | CE, GS (TÜV Rheinland)                  |
-| **Manufactured**   | China, July 2021                        |
+| Field          | Value                                   |
+| -------------- | --------------------------------------- |
+| Model          | YS16-0902000E                           |
+| Input          | 100-240V~ 50/60Hz 0.5A                  |
+| Output         | 9V DC 2A                                |
+| Connector      | Barrel jack, center-positive, 5.5x2.1mm |
+| Insulation     | Class II (double insulated)             |
+| Certifications | CE, GS (TÜV Rheinland)                  |
+| Manufactured   | China, July 2021                        |
 
-**Replacement:** any 9V/2A DC barrel jack adapter with center-positive polarity and 5.5x2.1mm plug.
+Any 9V/2A DC barrel jack adapter with center-positive polarity and a 5.5x2.1mm
+plug will do as a replacement.
 
 ## Physical
 
@@ -82,20 +83,20 @@ The hub is Zigbee 3.0 certified, but the Nimly lock (easyCodeTouch) is not.
 
 ## Software stack (from network analysis)
 
-| Component     | Version/Detail                                                 |
-| ------------- | -------------------------------------------------------------- |
-| **OS**        | Embedded Linux ("HomeGate AIO"), likely Yocto/Buildroot        |
-| **SSH**       | Dropbear 2020.81 (ED25519 host key, publickey-only auth)       |
-| **TLS**       | OpenSSL 1.1.1+ or 3.x (supports TLS 1.0–1.3, 31 cipher suites) |
-| **NTP**       | NTPv4 (syncs from 0-3.pool.ntp.org)                            |
-| **mDNS**      | Advertises `gw-{SERIAL}._ssh._tcp.local`                       |
-| **Webserver** | None (port 80/443 closed)                                      |
+| Component | Version/Detail                                                 |
+| --------- | -------------------------------------------------------------- |
+| OS        | Embedded Linux ("HomeGate AIO"), likely Yocto/Buildroot        |
+| SSH       | Dropbear 2020.81 (ED25519 host key, publickey-only auth)       |
+| TLS       | OpenSSL 1.1.1+ or 3.x (supports TLS 1.0–1.3, 31 cipher suites) |
+| NTP       | NTPv4 (syncs from 0-3.pool.ntp.org)                            |
+| mDNS      | Advertises `gw-{SERIAL}._ssh._tcp.local`                       |
+| Webserver | None (port 80/443 closed)                                      |
 
 ### SSH access
 
-SSH is open during boot (~60 sec) but closes after the firmware is loaded.
-Publickey auth only, no password login, ED25519 host key. Practically
-inaccessible without adding your own key.
+SSH is open for about 60 seconds during boot and closes once the firmware is
+loaded. It takes public keys only (no password login, ED25519 host key), so it
+is practically inaccessible unless you can add your own key.
 
 ## Network communication
 
@@ -114,42 +115,42 @@ Total time from power to MQTT connection: ~50 seconds.
 
 #### Boot/provisioning
 
-| Field         | Detail                                                                        |
-| ------------- | ----------------------------------------------------------------------------- |
-| **Hostname**  | `boot-v2.onesti.io`                                                           |
-| **IPs**       | `3.127.252.118`, `52.29.36.20`, `63.179.222.106` (AWS eu-central-1, rotating) |
-| **Protocol**  | HTTPS (TLS 1.3, AES-128-GCM)                                                  |
-| **TLS cert**  | `CN=*.onesti.io`, issuer: Amazon RSA 2048 M04, valid until 2027-03-04         |
-| **HTTP**      | HTTP/2                                                                        |
-| **`/health`** | `200 OK` → `{}` (Hapi/NestJS style)                                           |
-| **All other** | `404`, likely requires gateway ID/token in path or headers                    |
+| Field     | Detail                                                                        |
+| --------- | ----------------------------------------------------------------------------- |
+| Hostname  | `boot-v2.onesti.io`                                                           |
+| IPs       | `3.127.252.118`, `52.29.36.20`, `63.179.222.106` (AWS eu-central-1, rotating) |
+| Protocol  | HTTPS (TLS 1.3, AES-128-GCM)                                                  |
+| TLS cert  | `CN=*.onesti.io`, issuer: Amazon RSA 2048 M04, valid until 2027-03-04         |
+| HTTP      | HTTP/2                                                                        |
+| `/health` | `200 OK` → `{}` (Hapi/NestJS style)                                           |
+| All other | `404`, likely requires gateway ID/token in path or headers                    |
 
 #### MQTT broker (persistent cloud connection)
 
-| Field                | Value                                                                |
-| -------------------- | -------------------------------------------------------------------- |
-| **IP**               | `3.75.35.23` (AWS eu-central-1)                                      |
-| **Port**             | 8883 (MQTT over TLS)                                                 |
-| **Protocol**         | TLS 1.3, AES-128-GCM                                                 |
-| **TLS cert Subject** | `CN=onesti.iotiliti.cloud`                                           |
-| **TLS cert Issuer**  | `C=PL, ST=Some-State, O=Internet Widgits Pty Ltd` **(self-signed!)** |
-| **Cert validity**    | 2024-11-26 to 2034-11-24 (10 years)                                  |
-| **rDNS**             | `ec2-3-75-35-23.eu-central-1.compute.amazonaws.com`                  |
+| Field            | Value                                                                |
+| ---------------- | -------------------------------------------------------------------- |
+| IP               | `3.75.35.23` (AWS eu-central-1)                                      |
+| Port             | 8883 (MQTT over TLS)                                                 |
+| Protocol         | TLS 1.3, AES-128-GCM                                                 |
+| TLS cert Subject | `CN=onesti.iotiliti.cloud`                                           |
+| TLS cert Issuer  | `C=PL, ST=Some-State, O=Internet Widgits Pty Ltd` **(self-signed!)** |
+| Cert validity    | 2024-11-26 to 2034-11-24 (10 years)                                  |
+| rDNS             | `ec2-3-75-35-23.eu-central-1.compute.amazonaws.com`                  |
 
-**Security note:** the MQTT certificate is self-signed with OpenSSL defaults
-from Poland. The hub has the CA certificate hardcoded and does not validate
-against public CAs, so MITM of MQTT traffic is possible if the CA on the hub
-is replaced.
+The MQTT certificate is self-signed, with OpenSSL's default subject fields and
+the country set to Poland. The hub has the CA certificate hardcoded and does not
+validate against public CAs, so MITM of MQTT traffic is possible if the CA on
+the hub is replaced.
 
 #### REST API (used by the app, not the hub directly)
 
-| Brand                | API URL                           |
-| -------------------- | --------------------------------- |
-| **Nimly/EasyAccess** | `api-neutralclone.iotiliti.cloud` |
-| Keyfree              | `api-keyfree.iotiliti.cloud`      |
-| Salus                | `api-salus.iotiliti.cloud`        |
-| Forebygg             | `api-forebygg.iotiliti.cloud`     |
-| Homely               | `api.homely.no`                   |
+| Brand            | API URL                           |
+| ---------------- | --------------------------------- |
+| Nimly/EasyAccess | `api-neutralclone.iotiliti.cloud` |
+| Keyfree          | `api-keyfree.iotiliti.cloud`      |
+| Salus            | `api-salus.iotiliti.cloud`        |
+| Forebygg         | `api-forebygg.iotiliti.cloud`     |
+| Homely           | `api.homely.no`                   |
 
 See `docs/nimly-connect-app/reversing-notes.md` for the API documentation and
 `docs/nimly-connect-app/app-architecture.md` for the white-label overview.
@@ -209,8 +210,8 @@ a Faraday cage. Place the hub as close to the lock as possible during pairing.
 
 ## Relevance for the HA integration
 
-The hub is **not required** for the HA integration, ZHA/zigbee2mqtt talks
-directly to the lock. It is only needed for:
+The HA integration does not need the hub, since ZHA or zigbee2mqtt talks
+directly to the lock. The hub is only needed for:
 
 - The Nimly Connect app
 - Cloud API access (iotiliti REST API)

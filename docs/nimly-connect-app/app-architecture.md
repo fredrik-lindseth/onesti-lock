@@ -1,4 +1,4 @@
-# Nimly/iotiliti: System Architecture
+# Nimly/iotiliti: system architecture
 
 Based on reverse engineering of `com.easyaccess.connect` v1.27.84.
 
@@ -47,34 +47,32 @@ Based on reverse engineering of `com.easyaccess.connect` v1.27.84.
 
 ### nimly connect (`com.easyaccess.connect`)
 
-- **Framework:** React Native (Hermes bytecode)
-- **Purpose:** Full lock administration via cloud
-- **Communication:** Phone → iotiliti cloud → Gateway → Lock
-- **Auth:** OAuth2 password grant OR AWS Cognito
-- **No direct BLE** to the lock
+A React Native app (Hermes bytecode) for full lock administration through the
+cloud. Commands go phone → iotiliti cloud → gateway → lock, and the app never
+talks BLE to the lock. It authenticates with either an OAuth2 password grant or
+AWS Cognito.
 
 ### nimly BLE (`easyaccess.ekey.app`)
 
-- **Purpose:** Direct BLE communication with the lock
-- **Communication:** Phone → BLE → Lock (no cloud)
-- **Used for:** Basic lock/unlock, setup
-- **Not yet decompiled:** APK unavailable via automated tools
+Talks BLE directly to the lock, with no cloud in the path (phone → BLE → lock).
+It is used for basic lock/unlock and setup. Not yet decompiled, since the APK
+was unavailable through automated tools.
 
 ## White-label configuration
 
 Same codebase, different branding and API URL:
 
-| Config key                | Nimly             | Keyfree | Salus | Homely        | Forebygg | Tryg Smart |
-| ------------------------- | ----------------- | ------- | ----- | ------------- | -------- | ---------- |
-| Prod API URL              | prod-neutralclone | keyfree | salus | api.homely.no | forebygg | tryg       |
-| Font                      | Stabil Grotesk    | -       | -     | Gilroy        | Futura   | 27Sans     |
-| AMS                       | Yes               | Yes     | No    | No            | No       | No         |
-| ARC (alarm center)        | No                | No      | No    | No            | Yes      | No         |
-| Keychain                  | Yes               | Yes     | -     | -             | -        | -          |
-| Safe Unlock               | Yes               | Yes     | Yes   | -             | -        | -          |
-| Fingerprint events visible | No               | -       | -     | -             | -        | -          |
-| Safe Living (health)      | No                | No      | No    | No            | No       | No         |
-| Certified mode            | No                | No      | No    | No            | No       | No         |
+| Config key                 | Nimly             | Keyfree | Salus | Homely        | Forebygg | Tryg Smart |
+| -------------------------- | ----------------- | ------- | ----- | ------------- | -------- | ---------- |
+| Prod API URL               | prod-neutralclone | keyfree | salus | api.homely.no | forebygg | tryg       |
+| Font                       | Stabil Grotesk    | -       | -     | Gilroy        | Futura   | 27Sans     |
+| AMS                        | Yes               | Yes     | No    | No            | No       | No         |
+| ARC (alarm center)         | No                | No      | No    | No            | Yes      | No         |
+| Keychain                   | Yes               | Yes     | -     | -             | -        | -          |
+| Safe Unlock                | Yes               | Yes     | Yes   | -             | -        | -          |
+| Fingerprint events visible | No                | -       | -     | -             | -        | -          |
+| Safe Living (health)       | No                | No      | No    | No            | No       | No         |
+| Certified mode             | No                | No      | No    | No            | No       | No         |
 
 > Complete API URL and client_secret overview: docs/nimly-connect-app/reversing-notes.md
 
@@ -96,13 +94,13 @@ DoorlockTypes = {
 
 ## Access types
 
-| Type         | Description          | Zigbee source      |
-| ------------ | -------------------- | ------------------ |
-| `pin`        | PIN code on keypad   | 0x02 (keypad)      |
-| `finger`     | Fingerprint          | 0x03 (fingerprint) |
-| `tag`        | RFID/NFC tag         | 0x04 (rfid)        |
-| `digitalKey` | Digital key in app   | 0x00 (zigbee)      |
-| `otp`        | One-time code        | -                  |
+| Type         | Description        | Zigbee source      |
+| ------------ | ------------------ | ------------------ |
+| `pin`        | PIN code on keypad | 0x02 (keypad)      |
+| `finger`     | Fingerprint        | 0x03 (fingerprint) |
+| `tag`        | RFID/NFC tag       | 0x04 (rfid)        |
+| `digitalKey` | Digital key in app | 0x00 (zigbee)      |
+| `otp`        | One-time code      | -                  |
 
 ## API flow for PIN setting
 
@@ -118,13 +116,13 @@ DoorlockTypes = {
 8. Lock confirms → Gateway → Cloud → App
 ```
 
-**Key insight:** steps 6-7 handle timing and wake automatically. The gateway waits until the lock polls, then delivers the command, so the app never hits the timeouts that direct ZHA calls from HA do.
+Steps 6 and 7 are why the app has no timeout problems. The gateway handles
+timing and wake by itself: it waits until the lock polls and then delivers the
+command, so the app never hits the timeouts that direct ZHA calls from HA do.
 
-## CAS Protocol
+## CAS protocol
 
-Internal protocol between cloud and gateway. AES-encrypted.
-
-Error code prefixes:
+An internal, AES-encrypted protocol between cloud and gateway. Its error codes:
 
 - `380xxx`: CAS system errors
 - `380000`: OK
@@ -136,11 +134,11 @@ Error code prefixes:
 
 ## Event system
 
-Doorlock events are reported via:
+Door lock events are reported three ways:
 
-1. **Zigbee attribute reports** (0x0100): directly from lock to coordinator
-2. **Cloud event history**: `GET /devices/{id}/event-history`
-3. **Cloud event stream**: `/v1/apps/{id}/eventstream` (real-time)
+1. Zigbee attribute reports (0x0100), directly from lock to coordinator
+2. Cloud event history: `GET /devices/{id}/event-history`
+3. Cloud event stream: `/v1/apps/{id}/eventstream` (real-time)
 
 Event types:
 

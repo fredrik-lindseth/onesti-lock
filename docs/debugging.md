@@ -206,11 +206,13 @@ After setting a PIN:
 
 ### attribute_report (attrid 0x0100) not received
 
-The activity sensor depends on the lock sending attribute reports with attrid `0x0100` (Onesti's custom operation event). If the sensor never updates, start with the event listener. If it could not be registered, Home Assistant shows the repair issue below under Settings → Repairs. With debug logging on (section 4), a working setup logs this at startup, with the cluster's class name at the end:
+The activity sensor depends on the lock sending attribute reports with attrid `0x0100` (Onesti's custom operation event). If the sensor never updates, start with the event listener. If it could not be registered, Home Assistant shows the repair issue below under Settings → Repairs. With debug logging on (section 4), a working setup logs this at startup, with the cluster's class name and the hook it listens through:
 
 ```
-Event listener registered on DoorLock
+Event listener registered on DoorLock via add_listener
 ```
+
+`via on_event` instead of `via add_listener` is equally fine: which one is used depends on the Zigbee library version in your Home Assistant, and both deliver the same events.
 
 Next, check that attribute reports actually arrive. Set the integration's logger to `info` or `debug` (see section 4) and unlock the door. You should see:
 
@@ -226,7 +228,7 @@ The integration could not find a part of ZHA it listens through. Setting PIN cod
 
 - **ZHA gateway (get_zha_gateway_proxy)**: ZHA was not running when the integration started. Check that ZHA is loaded under Settings → Devices & services. When ZHA comes up with the lock, the integration reloads by itself and the issue goes away. If ZHA runs normally and the issue stays, a Home Assistant update has most likely changed ZHA's internals.
 - **Door Lock cluster for (address)**: ZHA runs, but the lock is not among its devices, or it has no Door Lock cluster. Check the device in ZHA, re-interview it if the cluster is missing (see "Lock not offered when adding the integration"), then reload Onesti Lock.
-- **(class).on_event**: the Zigbee library no longer offers the hook the integration listens on. Nothing on your side fixes this.
+- **(class).on_event, and no add_listener/remove_listener either**: the Zigbee library offers neither of the two hooks the integration can listen on. No zigpy release in use does this, so it means a Home Assistant update changed the library. Nothing on your side fixes it.
 
 For the first case when ZHA is running, and for the last case, open an issue on [GitHub](https://github.com/fredrik-lindseth/onesti-lock/issues) with your Home Assistant version and the text of the repair issue. The log has the same text on an error line starting `Lock events for`.
 

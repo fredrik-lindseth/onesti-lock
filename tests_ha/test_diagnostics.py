@@ -8,7 +8,6 @@ output is in test_pin_canary.py.
 from __future__ import annotations
 
 import json
-from types import SimpleNamespace
 
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -47,10 +46,7 @@ async def _setup(hass: HomeAssistant, options: dict | None = None) -> MockConfig
 
 
 async def _report(hass: HomeAssistant, mock_zha, value: int) -> None:
-    cluster = lock_cluster(mock_zha)
-    event = SimpleNamespace(attribute_id=ATTR_OPERATION_EVENT, raw_value=value)
-    for listener in list(cluster._event_listeners["attribute_report"]):
-        listener(event)
+    lock_cluster(mock_zha).deliver(ATTR_OPERATION_EVENT, value)
     await hass.async_block_till_done(wait_background_tasks=True)
 
 

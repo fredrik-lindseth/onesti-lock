@@ -55,8 +55,11 @@ ZhaLockTransport (zha.py, injected into the coordinator; tests pass a fake)
       was not reached (so the read is repeated), {} when it answered without them
 
 Event listener (events.py, no HA imports at module level)
-  ├── cluster.on_event("attribute_report") on coordinator.transport.cluster(),
-  │   catches custom attrid 0x0100; raises ZhaInternalsMissing without on_event
+  ├── Two hooks on coordinator.transport.cluster(), one handler behind both:
+  │   cluster.on_event("attribute_report") where zigpy has it (0.91 and up),
+  │   else a listener object via cluster.add_listener whose attribute_updated
+  │   zigpy calls (HA 2025.6-2026.1 ship zigpy 0.80.1-0.90.0, no on_event);
+  │   catches custom attrid 0x0100; ZhaInternalsMissing only without both
   ├── Decodes bitmap32: bits 0-15 user_slot (uint16 LE), bits 16-23 action, bits 24-31 source
   ├── Slot 0 from keypad/fingerprint/rfid is the master user, otherwise no user (None)
   ├── Updates activity sensor unless is_system_lock(decoded, wake_echo_pending) (gotcha 4)
@@ -124,7 +127,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 8. **PIN length floor**: `pin_rules.PIN_LENGTH_SANE_MIN` (4) is the shortest PIN accepted, whatever the lock reports, because `redact.py` masks digit runs of that length and up. Lowering either one alone lets a PIN reach the log in clear text. Anything that logs an exception on the send path uses `redact_digits` and no `exc_info`: an error from zigpy or from building the frame can quote `pin_code`.
 9. **Services live for the whole HA run**: they are registered in `async_setup` (hence `CONFIG_SCHEMA = cv.config_entry_only_config_schema`) and never removed on unload. Each call looks the lock up among loaded entries, by `device_id` (our own device, not the ZHA one), then `ieee`, and only falls back to the single lock when there is exactly one.
 10. **Entry version**: config flow `VERSION = 2`, `MINOR_VERSION = 2`. A change to the stored shape bumps the minor version and gets a step in `async_migrate_entry`; an entry from a newer major version refuses to load.
-11. **Repair issue `zha_internals`**: raised when ZHA runs and lists the lock, but the gateway, the Door Lock cluster or `on_event` is missing. PIN writes still work then, but no activity arrives. The issue is per entry and removed when the listener registers or the entry unloads. A lock entirely missing from ZHA is not a repair issue: setup raises `ConfigEntryNotReady` and Home Assistant retries until the lock is back.
+11. **Repair issue `zha_internals`**: raised when ZHA runs and lists the lock, but the gateway, the Door Lock cluster or both listener hooks are missing. A zigpy without `on_event` is not a fault: the `add_listener` fallback covers it, and no release has neither. PIN writes still work then, but no activity arrives. The issue is per entry and removed when the listener registers or the entry unloads. A lock entirely missing from ZHA is not a repair issue: setup raises `ConfigEntryNotReady` and Home Assistant retries until the lock is back.
 12. **Options writes trigger the update listener**: slot and capability writes go to `entry.options` too, so the listener compares the first user slot and reloads only when it moved. A listener that reloads on any change reloads after every PIN operation.
 
 ## Documentation map
@@ -150,7 +153,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 | Suite                        | Runs against                                                                          | Command                                         | Covers                                                                                              |
 | ---------------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | `tests/`                     | Stubbed `homeassistant`/`voluptuous`/`zigpy` from `tests/conftest.py`                 | `pytest tests/ -q`, `python3 scripts/ci_sim.py` | Decoding, pin_rules, redact, coordinator, services, release flow, guards against PIN leaks and hardcoded language |
-| `tests_ha/`                  | Real HA from `pytest-homeassistant-custom-component`, ZHA mocked at the gateway proxy | `just test-ha minimum`, `just test-ha current`  | Setup, migration, repair issue, ZHA reload, options flow, sensors, restore, services, transport     |
+| `tests_ha/`                  | Real HA from `pytest-homeassistant-custom-component`, ZHA mocked at the gateway proxy, real zigpy | `just test-ha minimum`, `just test-ha current`  | Setup, migration, repair issue, ZHA reload, options flow, sensors, restore, services, transport, both zigpy listener hooks |
 | `tests/test_version_sync.py` | `hacs.json`, `uv.lock`, prose in README/AGENTS/justfile/pyproject                     | part of `pytest tests/`                         | The minimum HA version agrees everywhere it is written                                              |
 
 ```bash
@@ -182,7 +185,13 @@ just test-ha current   # newest pinned HA (Python 3.14)
 Each target has its own venv (`.venv-ha-minimum`, `.venv-ha-current`) and
 its own dependency group in `pyproject.toml`, locked in `uv.lock`. The two
 trees never share an environment: the stubs in `tests/conftest.py` would
-collide with the real package. To move a target, change the plugin pin in
+collide with the real package. Each group also pins `zigpy` to exactly the
+version that target's Home Assistant gets through `zha` (0.80.1 on minimum,
+2.2.0 on current), because which listener hook a Door Lock cluster offers
+changed with the version; `tests_ha/test_zigpy_listener.py` builds a real
+cluster from it. Move the zigpy pin whenever the HA pin moves, and read the
+new one out of that Home Assistant's `components/zha/manifest.json` and the
+zha release's own dependencies. To move a target, change the plugin pin in
 `pyproject.toml` (each plugin release pins one exact HA version), run `uv
 lock`, and update `hacs.json` when the minimum moves. CI runs both targets.
 `tests/test_version_sync.py` fails when `hacs.json`, the HA version the

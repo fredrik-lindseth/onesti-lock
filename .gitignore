@@ -25,3 +25,16 @@ docs/manuals/*
 .coverage
 .coverage.*
 coverage*.xml
+
+# Reverse-engineering artefacts: APKs, their decompiled output and compiled
+# Java test harness classes stay local, whether or not they sit under reversing/
+*.apk
+*.xapk
+*.apks
+*.dex
+*.smali
+jadx-out/
+jadx-output/
+apktool-out/
+apktool-output/
+tests/ble/java/out/

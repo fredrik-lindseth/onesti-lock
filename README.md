@@ -258,6 +258,10 @@ English, Norwegian (bokmål), Swedish and Danish. Sensor states, entity names, o
 
 9. **Going back to an older version is untested.** From 1.4.0 on, HACS installs the ZIP attached to the release instead of the tag's source tree. The ZIPs on the 1.0.0 to 1.3.0 releases hold the same flat layout, so picking one of them in HACS should land the right files, but nobody has tried it. If a downgrade leaves Home Assistant without the integration, delete `config/custom_components/onesti_lock`, install the version you want again and restart. Releases before 1.0.0 are the old `nimly_pro` integration and are not a rollback target at all. Upgrading is not affected.
 
+## If you're buying a new lock
+
+Short version: no lock on the market meets the full list of local, Home-Assistant-native, with per-user attribution for code, tag and fingerprint, on a Scandinavian door. These locks come closest, and with this integration they are the only one that does all three credential types locally, but the firmware has real flaws worth knowing before you buy. The honest case for and against, a table of every lock we checked, and what owners report is in [docs/buying-a-lock.md](docs/buying-a-lock.md).
+
 ## Troubleshooting
 
 The [debugging guide](docs/debugging.md) describes each problem with its symptom, cause and fix. The ones people run into most:
@@ -284,6 +288,7 @@ ZHA's device and its lock entity are not touched, so you can still lock and unlo
 
 | Document                                                   | Content                                                          |
 | ---------------------------------------------------------- | ---------------------------------------------------------------- |
+| [Buying a lock](docs/buying-a-lock.md)                     | Honest case for and against, and every alternative we checked    |
 | [Debugging guide](docs/debugging.md)                       | Pairing, LED indicators, troubleshooting, debug logging          |
 | [Technical details](docs/technical.md)                     | Event decoding, coordinator, auto-wake, automation examples      |
 | [Slot numbering](docs/slot-numbering.md)                   | Zigbee vs BLE vs cloud slot mapping                              |

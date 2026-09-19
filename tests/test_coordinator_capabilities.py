@@ -1,7 +1,8 @@
 """Tests for lock capabilities read at setup.
 
-Verifies that the coordinator exposes num_pin_users, max_pin_length,
-min_pin_length as attributes when the lock reports them.
+Checks that the coordinator has the capability store and reader. That the
+activity sensor exposes num_pin_users, max_pin_length and min_pin_length as
+attributes is tested against real Home Assistant in tests_ha/test_sensor.py.
 """
 from __future__ import annotations
 
@@ -33,27 +34,3 @@ class TestLockCapabilities:
                 break
         assert found, "read_lock_capabilities must exist as async method"
 
-
-class TestActivitySensorAttributes:
-    def test_no_pin_code_in_sensor(self):
-        """PIN must never reach state attributes.
-
-        Attrid 0x0101 is the PIN itself in plaintext, so the sensor must not
-        store or expose it. See tests/test_no_pin_exposure.py.
-        """
-        sensor_path = os.path.join(
-            os.path.dirname(__file__), "..", "custom_components", "onesti_lock", "sensor.py"
-        )
-        with open(sensor_path) as f:
-            source = f.read()
-        assert "last_pin_code" not in source
-        assert "update_last_pin_code" not in source
-
-    def test_capabilities_exposed_in_attributes(self):
-        """Activity sensor should expose lock_capabilities in state attributes."""
-        sensor_path = os.path.join(
-            os.path.dirname(__file__), "..", "custom_components", "onesti_lock", "sensor.py"
-        )
-        with open(sensor_path) as f:
-            source = f.read()
-        assert "lock_capabilities" in source

@@ -1,14 +1,12 @@
-"""Tests for coordinator slot operations.
+"""Tests for the slot dict pattern the coordinator relies on.
 
-Exercises slot data methods without importing homeassistant by loading
-coordinator.py source and testing the slot logic in isolation.
+Exercises DEFAULT_SLOT from const.py without importing homeassistant. That
+set_slot_name, set_pin and clear_pin create unused slots instead of raising
+KeyError is tested end to end in tests_ha/test_sensor.py.
 """
 from __future__ import annotations
 
-import ast
 import os
-
-import pytest
 
 
 def _component_path(*parts):
@@ -22,56 +20,6 @@ def _load_const():
     with open(_component_path("const.py")) as f:
         exec(f.read(), namespace)
     return namespace
-
-
-class TestSlotSetdefault:
-    """Verify coordinator uses setdefault to avoid KeyError on new slots."""
-
-    def _get_coordinator_source(self):
-        with open(_component_path("coordinator.py")) as f:
-            return f.read()
-
-    def test_set_slot_name_uses_setdefault(self):
-        """set_slot_name must use setdefault: slot may not exist in _slots."""
-        source = self._get_coordinator_source()
-        tree = ast.parse(source)
-
-        for node in ast.walk(tree):
-            if isinstance(node, ast.AsyncFunctionDef) and node.name == "set_slot_name":
-                body_source = ast.get_source_segment(source, node)
-                assert "setdefault" in body_source, (
-                    "set_slot_name must use setdefault to avoid KeyError on new slots"
-                )
-                return
-        pytest.fail("set_slot_name method not found in coordinator.py")
-
-    def test_set_pin_uses_setdefault(self):
-        """set_pin must use setdefault: slot may not exist in _slots."""
-        source = self._get_coordinator_source()
-        tree = ast.parse(source)
-
-        for node in ast.walk(tree):
-            if isinstance(node, ast.AsyncFunctionDef) and node.name == "set_pin":
-                body_source = ast.get_source_segment(source, node)
-                assert "setdefault" in body_source, (
-                    "set_pin must use setdefault to avoid KeyError on new slots"
-                )
-                return
-        pytest.fail("set_pin method not found in coordinator.py")
-
-    def test_clear_pin_uses_setdefault(self):
-        """clear_pin must use setdefault: slot may not exist in _slots."""
-        source = self._get_coordinator_source()
-        tree = ast.parse(source)
-
-        for node in ast.walk(tree):
-            if isinstance(node, ast.AsyncFunctionDef) and node.name == "clear_pin":
-                body_source = ast.get_source_segment(source, node)
-                assert "setdefault" in body_source, (
-                    "clear_pin must use setdefault to avoid KeyError on new slots"
-                )
-                return
-        pytest.fail("clear_pin method not found in coordinator.py")
 
 
 class TestSlotLogic:

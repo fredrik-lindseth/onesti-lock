@@ -1,4 +1,4 @@
-"""Services for Onesti Lock — PIN code management."""
+"""Services for Onesti Lock: PIN code management."""
 from __future__ import annotations
 
 import logging

@@ -88,7 +88,7 @@ class TestEventDecoding:
         assert result["source"] == "keypad"
 
     def test_auto_lock(self):
-        """Auto-lock after timeout — no user."""
+        """Auto-lock after timeout, no user."""
         # Raw: 0x0A010000 → bytes LE: [00, 00, 01, 0A]
         result = _decode(167837696)
         assert result["user_slot"] is None
@@ -97,7 +97,7 @@ class TestEventDecoding:
 
     def test_fingerprint_unlock(self):
         """Unlock via fingerprint sensor."""
-        # bytes LE: [05, 00, 02, 03] — slot 5, unlock, fingerprint
+        # bytes LE: [05, 00, 02, 03]: slot 5, unlock, fingerprint
         result = _decode(0x03020005)
         assert result["user_slot"] == 5
         assert result["action"] == "unlock"
@@ -105,7 +105,7 @@ class TestEventDecoding:
 
     def test_rfid_unlock(self):
         """Unlock via RFID/NFC tag."""
-        # bytes LE: [06, 00, 02, 04] — slot 6, unlock, rfid
+        # bytes LE: [06, 00, 02, 04]: slot 6, unlock, rfid
         result = _decode(0x04020006)
         assert result["user_slot"] == 6
         assert result["action"] == "unlock"
@@ -129,7 +129,7 @@ class TestEventDecoding:
 
     def test_unknown_action(self):
         """Unknown action byte."""
-        # bytes LE: [03, 00, 05, 02] — action 5 is unknown
+        # bytes LE: [03, 00, 05, 02]: action 5 is unknown
         result = _decode(0x02050003)
         assert result["user_slot"] == 3
         assert result["action"] == "unknown"
@@ -137,14 +137,14 @@ class TestEventDecoding:
 
     def test_unknown_source(self):
         """Unknown source byte."""
-        # bytes LE: [03, 00, 02, 07] — source 7 is unknown
+        # bytes LE: [03, 00, 02, 07]: source 7 is unknown
         result = _decode(0x07020003)
         assert result["user_slot"] == 3
         assert result["action"] == "unlock"
         assert result["source"] == "unknown"
 
     def test_zero_value(self):
-        """All zeros — zigbee command with no user."""
+        """All zeros: zigbee command with no user."""
         result = _decode(0)
         assert result["user_slot"] is None
         assert result["action"] == "unknown"
@@ -152,15 +152,15 @@ class TestEventDecoding:
 
     def test_high_slot_number(self):
         """User slot 199 (max)."""
-        # bytes LE: [C7, 00, 02, 02] — slot 199
+        # bytes LE: [C7, 00, 02, 02]: slot 199
         result = _decode(0x020200C7)
         assert result["user_slot"] == 199
         assert result["action"] == "unlock"
         assert result["source"] == "keypad"
 
     def test_slot_300_keypad_unlock(self):
-        """Regression issues-4c287z: byte-0 read decoded slot 300 as 44."""
-        # bytes LE: [2C, 01, 02, 02] — slot 300, unlock, keypad
+        """Regression: byte-0 read decoded slot 300 as 44."""
+        # bytes LE: [2C, 01, 02, 02]: slot 300, unlock, keypad
         result = _decode(0x0202012C)
         assert result["user_slot"] == 300
         assert result["action"] == "unlock"
@@ -168,19 +168,19 @@ class TestEventDecoding:
 
     def test_slot_256_boundary(self):
         """Slot 256 has byte 0 == 0x00; byte-0 read decoded it as system."""
-        # bytes LE: [00, 01, 02, 02] — slot 256, unlock, keypad
+        # bytes LE: [00, 01, 02, 02]: slot 256, unlock, keypad
         result = _decode(0x02020100)
         assert result["user_slot"] == 256
 
     def test_slot_255_boundary(self):
         """Slot 255 decodes identically before and after the 16-bit fix."""
-        # bytes LE: [FF, 00, 02, 02] — slot 255, unlock, keypad
+        # bytes LE: [FF, 00, 02, 02]: slot 255, unlock, keypad
         result = _decode(0x020200FF)
         assert result["user_slot"] == 255
 
     def test_slot_999_max(self):
         """Max slot per the Nimly manual (MAX_SLOTS - 1)."""
-        # bytes LE: [E7, 03, 02, 02] — slot 999, unlock, keypad
+        # bytes LE: [E7, 03, 02, 02]: slot 999, unlock, keypad
         result = _decode(0x020203E7)
         assert result["user_slot"] == 999
 

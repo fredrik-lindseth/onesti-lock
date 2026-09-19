@@ -32,7 +32,7 @@ class TestSlotSetdefault:
             return f.read()
 
     def test_set_slot_name_uses_setdefault(self):
-        """set_slot_name must use setdefault — slot may not exist in _slots."""
+        """set_slot_name must use setdefault: slot may not exist in _slots."""
         source = self._get_coordinator_source()
         tree = ast.parse(source)
 
@@ -46,7 +46,7 @@ class TestSlotSetdefault:
         pytest.fail("set_slot_name method not found in coordinator.py")
 
     def test_set_pin_uses_setdefault(self):
-        """set_pin must use setdefault — slot may not exist in _slots."""
+        """set_pin must use setdefault: slot may not exist in _slots."""
         source = self._get_coordinator_source()
         tree = ast.parse(source)
 
@@ -60,7 +60,7 @@ class TestSlotSetdefault:
         pytest.fail("set_pin method not found in coordinator.py")
 
     def test_clear_pin_uses_setdefault(self):
-        """clear_pin must use setdefault — slot may not exist in _slots."""
+        """clear_pin must use setdefault: slot may not exist in _slots."""
         source = self._get_coordinator_source()
         tree = ast.parse(source)
 

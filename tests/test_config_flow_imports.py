@@ -33,7 +33,7 @@ class TestConfigFlowImports:
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module:
                 assert "data_entry_flow" not in node.module, (
-                    f"Found import from {node.module} — "
+                    f"Found import from {node.module}; "
                     "use ConfigFlowResult/OptionsFlowResult from "
                     "homeassistant.config_entries instead"
                 )
@@ -45,7 +45,7 @@ class TestConfigFlowImports:
         assert "ConfigFlowResult" in source
 
     def test_no_options_flow_result(self):
-        """Must not use OptionsFlowResult — it doesn't exist in HA.
+        """Must not use OptionsFlowResult. It doesn't exist in HA.
 
         Options flow methods should use ConfigFlowResult instead.
         """
@@ -67,7 +67,7 @@ class TestConfigFlowImports:
                         # __init__ should not have config_entry parameter
                         args = [a.arg for a in item.args.args if a.arg != "self"]
                         assert "config_entry" not in args, (
-                            "OptionsFlow should not take config_entry in __init__ — "
+                            "OptionsFlow should not take config_entry in __init__; "
                             "use self.config_entry (auto-populated by HA)"
                         )
 

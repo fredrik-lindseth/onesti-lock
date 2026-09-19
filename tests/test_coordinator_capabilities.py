@@ -55,7 +55,7 @@ class TestLockCapabilities:
         assert '0x0018: "min_pin_length"' in source
 
     def test_handles_missing_capabilities_silently(self):
-        """Must not crash if lock doesn't expose capabilities — some variants don't."""
+        """Must not crash if lock doesn't expose capabilities. Some variants don't."""
         source = _source()
         # Find read_lock_capabilities and verify it has try/except
         tree = ast.parse(source)
@@ -69,7 +69,7 @@ class TestLockCapabilities:
 
 class TestActivitySensorAttributes:
     def test_no_pin_code_in_sensor(self):
-        """PIN must never reach state attributes (issues-1vnbvu).
+        """PIN must never reach state attributes.
 
         Attrid 0x0101 is the PIN itself in plaintext, so the sensor must not
         store or expose it. See tests/test_no_pin_exposure.py.

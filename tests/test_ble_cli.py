@@ -19,8 +19,8 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import importlib
 import importlib.util
-import inspect
 import io
 import json
 import stat
@@ -29,7 +29,7 @@ from pathlib import Path
 
 import pytest
 
-from .ble.fake_lock import CHALLENGE, FakeLock
+from .ble.fake_lock import CHALLENGE, FakeBleakClient, FakeLock
 from .conftest import COMPONENT_DIR, load_component_module
 
 CLI_PATH = Path(__file__).resolve().parent.parent / "scripts" / "ble_cli.py"
@@ -60,11 +60,7 @@ def _load_cli():
 cli = _load_cli()
 ble = sys.modules["ble"]
 ble_const = sys.modules["ble.protocol.const"]
-
-# Whether Session takes a tracer yet. Until it does, the tests feed the
-# tracer the packets through a wrapping transport, and the checks that need
-# commands and responses in the trace are skipped.
-SESSION_TRACES = "tracer" in inspect.signature(ble.Session).parameters
+BleakTransport = importlib.import_module("ble.client.bleak_transport").BleakTransport
 
 ADDRESS = "5F0C2B1A-0000-4000-8000-00000000A0CE"
 PIN = "80418822"
@@ -75,49 +71,29 @@ LOCK_UUID = client_const.ADVERTISING_UUID
 # --- Doubles -------------------------------------------------------------------------
 
 
-class _TracingTransport:
-    """Feeds the tracer Layer 1 packets for a Session that cannot take a tracer yet."""
-
-    def __init__(self, transport, tracer):
-        self._transport = transport
-        self._tracer = tracer
-
-    async def read_software_revision(self):
-        return await self._transport.read_software_revision()
-
-    async def start_notify(self, on_notification, on_disconnect):
-        def notified(data):
-            self._tracer.packet_in(data)
-            on_notification(data)
-
-        await self._transport.start_notify(notified, on_disconnect)
-
-    async def write(self, data):
-        self._tracer.packet_out(data)
-        await self._transport.write(data)
-
-    async def close(self):
-        await self._transport.close()
-
-
 def _session(transport, tracer, response_timeout):
+    # The CLI's own Session, minus the app's pauses, which only slow the tests.
     kwargs = {"command_delay": 0, "late_answer_grace": 0}
     if response_timeout is not None:
         kwargs["response_timeout"] = response_timeout
-    if SESSION_TRACES:
-        return ble.Session(transport, tracer=tracer, **kwargs)
-    return ble.Session(_TracingTransport(transport, tracer), **kwargs)
+    return ble.Session(transport, tracer=tracer, **kwargs)
 
 
 class FakeRadio:
-    """Advertisements to report, and a FakeLock to connect to."""
+    """Advertisements to report, and a FakeLock to connect to.
+
+    open() goes through the real BleakTransport.connect, with FakeBleakClient
+    as the client class, so the CLI runs on the transport it uses on a Mac.
+    configure gets each connection's lock side (a FakeTransport) to set
+    status overrides, silences and lost answers on.
+    """
 
     def __init__(self, lock=None, adverts=(), configure=None):
         self.lock = lock
         self.adverts = list(adverts)
         self.configure = configure
         self.connects: list[str] = []
-        self.transports = []
+        self.clients = []
         self.scans = 0
 
     async def scan(self, seconds, on_seen):
@@ -128,18 +104,25 @@ class FakeRadio:
             on_seen(seen)
         await asyncio.sleep(seconds)
 
-    async def connect(self, address, timeout):
+    async def open(self, address, timeout):
         self.connects.append(address)
         if self.lock is None:
             raise cli.CliError(f"{address} was not seen")
-        transport = self.lock.connect()
-        if self.configure is not None:
-            self.configure(transport)
-        self.transports.append(transport)
-        return transport
+
+        def client_class(device, **kwargs):
+            client = FakeBleakClient(device, **kwargs)
+            if self.configure is not None:
+                self.configure(client.link)
+            self.clients.append(client)
+            return client
+
+        return await BleakTransport.connect(self.lock, timeout=timeout, client_class=client_class)
+
+    async def connect(self, address, timeout):
+        raise AssertionError("only info inspects GATT; its tests use _GattRadio")
 
     async def disconnect(self, client):
-        await client.close()
+        raise AssertionError("only info inspects GATT; its tests use _GattRadio")
 
 
 FACTORY_IDENTIFIER = bytes.fromhex("0a0b0c0d0e0f")
@@ -206,7 +189,6 @@ def run_cli(state_dir, tmp_path):
         options += ["--trace", str(trace_path)] if trace else ["--no-trace"]
         deps = cli.Deps(
             radio=radio,
-            transport_factory=lambda client: client,
             session_factory=_session,
             stdin=io.StringIO(stdin),
             out=out,
@@ -422,8 +404,16 @@ def test_info_lists_gatt_without_protocol_frames(run_cli):
 
 def test_handshake_reports_firmware_and_model(run_cli):
     lock = FakeLock()
-    result = run_cli("handshake", ADDRESS, radio=FakeRadio(lock))
+    radio = FakeRadio(lock)
+    result = run_cli("handshake", ADDRESS, radio=radio)
     assert result.code == 0, result.err
+    assert "connected, MTU 23" in result.out
+    [client] = radio.clients
+    assert not client.is_connected and client.disconnect_calls == 1
+    [exchange] = [r for r in result.events("command") if r["id"] == "EXCHANGE_KEY_PUB_M"]
+    assert exchange["len"] == 64 and len(exchange["payload"]) == 128
+    [model] = [r for r in result.events("response") if r["id"] == "DEVICE_MODEL_GET"]
+    assert model["status"] == "SUCCESS" and model["payload"] == "21"
     assert "firmware 4.8.0, CommandRef counter 1-127" in result.out
     assert "model NIMLY_PRO_24" in result.out
     assert [c.command_id for c in lock.commands] == [
@@ -518,8 +508,23 @@ def test_pin_set_refuses_old_firmware_before_login(run_cli):
     lock = FakeLock(firmware=b"4.7.10")
     result = run_cli("pin", "set", ADDRESS, "803", "--factory", "--pin-stdin", "--yes", radio=FakeRadio(lock), stdin=PIN)
     assert result.code == cli.EXIT_REFUSED
-    assert "4.7.90" in result.err
+    assert "UNAVAILABLE_VERSION" in result.err and "4.7.90" in result.err
     assert fake_const.CommandId.USER_AUTH_BEGIN not in [c.command_id for c in lock.commands]
+
+
+def test_fingerprint_is_refused_on_a_model_without_a_reader(run_cli):
+    lock = FakeLock(model=fake_const.LockModelId.NIMLY_CODE_2)
+    result = run_cli("fingerprint", "scan", ADDRESS, "150", "--factory", "--yes", radio=FakeRadio(lock))
+    assert result.code == cli.EXIT_REFUSED
+    assert "NIMLY_CODE_2" in result.err
+    assert fake_const.CommandId.FINGERPRINT_SCAN not in [c.command_id for c in lock.commands]
+
+
+def test_read_on_old_firmware_skips_what_the_app_does_not_offer(run_cli):
+    lock = FakeLock(firmware=b"4.7.10")
+    result = run_cli("read", ADDRESS, "--factory", radio=FakeRadio(lock))
+    assert "BattInfoGet: not sent, the app does not offer it on this lock (UNAVAILABLE_VERSION)" in result.out
+    assert fake_const.CommandId.BATT_INFO_GET not in [c.command_id for c in lock.commands]
 
 
 def test_rfid_and_fingerprint_scans(run_cli):
@@ -667,14 +672,12 @@ def test_no_secret_reaches_the_trace_or_the_output(run_cli, state_dir):
         assert value not in result.trace_text, f"{label} in the trace"
         assert value not in result.out + result.err, f"{label} in the output"
     assert result.events("link_keys") == []
-    if SESSION_TRACES:
-        [pin_set] = [r for r in result.events("command") if r["id"] == "PIN_CODE_SET"]
-        assert pin_set["len"] == 11 and "payload" not in pin_set
-        [begin] = [r for r in result.events("response") if r["id"] == "USER_AUTH_BEGIN"]
-        assert begin["len"] == 16 and "payload" not in begin
+    [pin_set] = [r for r in result.events("command") if r["id"] == "PIN_CODE_SET"]
+    assert pin_set["len"] == 11 and "payload" not in pin_set
+    [begin] = [r for r in result.events("response") if r["id"] == "USER_AUTH_BEGIN"]
+    assert begin["len"] == 16 and "payload" not in begin
 
 
-@pytest.mark.skipif(not SESSION_TRACES, reason="Session takes no tracer yet")
 def test_trace_secrets_writes_them(run_cli, state_dir):
     lock = FakeLock()
     enroll_lock(run_cli, lock)
@@ -772,7 +775,7 @@ def test_the_default_trace_goes_into_a_private_directory(state_dir):
     radio = FakeRadio(FakeLock())
     err = io.StringIO()
     deps = cli.Deps(
-        radio=radio, transport_factory=lambda client: client, session_factory=_session, out=io.StringIO(), err=err
+        radio=radio, session_factory=_session, out=io.StringIO(), err=err
     )
     assert cli.main(["--state-dir", str(state_dir), "handshake", ADDRESS], deps) == 0
     [trace] = list((state_dir / "traces").glob("*-handshake.jsonl"))

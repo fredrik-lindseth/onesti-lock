@@ -86,6 +86,7 @@ from ble import (  # noqa: E402
     Advertisement,
     BleEnrollmentError,
     BleError,
+    BleFeatureUnavailableError,
     BleOperationError,
     BleTimeoutError,
     EkeyOperationId,
@@ -520,11 +521,14 @@ class Radio(Protocol):
     async def scan(self, seconds: float, on_seen: Callable[[Seen], None]) -> None:
         """Report every advertisement seen during seconds."""
 
+    async def open(self, address: str, timeout: float) -> Transport:
+        """A connected Transport to the lock at address, its disconnects wired to the session."""
+
     async def connect(self, address: str, timeout: float) -> Any:
-        """A connected BleakClient (or a stand-in) for address."""
+        """A connected BleakClient for GATT inspection only (info); no Transport on it."""
 
     async def disconnect(self, client: Any) -> None:
-        """Let go of a client connect() returned, when no transport owns it."""
+        """Let go of a client connect() returned."""
 
 
 class BleakRadio:
@@ -546,8 +550,25 @@ class BleakRadio:
         async with BleakScanner(detection_callback=detected):
             await asyncio.sleep(seconds)
 
+    async def open(self, address: str, timeout: float) -> Transport:
+        from ble.client.bleak_transport import BleakTransport
+
+        return await BleakTransport.connect(await self._find(address, timeout), timeout=timeout)
+
     async def connect(self, address: str, timeout: float) -> Any:
-        from bleak import BleakClient, BleakScanner
+        from bleak import BleakClient
+
+        client = BleakClient(await self._find(address, timeout), timeout=timeout)
+        await client.connect()
+        return client
+
+    async def disconnect(self, client: Any) -> None:
+        await client.disconnect()
+
+    async def _find(self, address: str, timeout: float) -> Any:
+        # A scan first: on macOS bleak can connect only to a device
+        # CoreBluetooth has seen, and a clear "not seen" beats a connect timeout.
+        from bleak import BleakScanner
 
         device = await BleakScanner.find_device_by_address(address, timeout=timeout)
         if device is None:
@@ -555,19 +576,7 @@ class BleakRadio:
                 f"{address} was not seen within {timeout:g} s. Is the lock in range and awake? "
                 "Touching the keypad may wake it."
             )
-        client = BleakClient(device, timeout=timeout)
-        await client.connect()
-        return client
-
-    async def disconnect(self, client: Any) -> None:
-        await client.disconnect()
-
-
-def bleak_transport(client: Any) -> Transport:
-    from ble.client.bleak_transport import BleakTransport
-
-    transport: Transport = BleakTransport(client)
-    return transport
+        return device
 
 
 def default_session(transport: Transport, tracer: RedactingTracer, response_timeout: float | None) -> Session:
@@ -584,7 +593,6 @@ class Deps:
     """What main() runs against. Tests replace the radio and, if they must, the rest."""
 
     radio: Radio = field(default_factory=BleakRadio)
-    transport_factory: Callable[[Any], Transport] = bleak_transport
     session_factory: Callable[[Transport, RedactingTracer, float | None], Session] = default_session
     stdin: TextIO | None = None
     out: TextIO | None = None
@@ -635,12 +643,7 @@ def _now_iso() -> str:
 async def open_session(ctx: Context, address: str) -> AsyncIterator[Session]:
     """Connect, run the key exchange and yield the session; always let go afterwards."""
     ctx.say(f"Connecting to {address} ...")
-    client = await ctx.deps.radio.connect(address, ctx.args.connect_timeout)
-    try:
-        transport = ctx.deps.transport_factory(client)
-    except BaseException:
-        await ctx.deps.radio.disconnect(client)
-        raise
+    transport = await ctx.deps.radio.open(address, ctx.args.connect_timeout)
     mtu = getattr(transport, "mtu_size", None)
     ctx.say(f"  connected, MTU {mtu} (the session frames for 23 regardless)")
     ctx.trace.note("connected", address=address, mtu=mtu)
@@ -666,11 +669,8 @@ async def open_session(ctx: Context, address: str) -> AsyncIterator[Session]:
         finally:
             remove()
     finally:
+        # Closes the transport too, which disconnects.
         await session.close()
-        # Session.close closes the transport; this covers a transport whose
-        # close is not what disconnects the client.
-        with contextlib.suppress(Exception):
-            await transport.close()
         ctx.trace.note("closed")
 
 
@@ -770,12 +770,15 @@ async def log_in(ctx: Context, session: Session, address: str, login: Login) -> 
         ctx.store.set_address(login.stored, address)
 
 
-def require_admin_firmware(session: Session, what: str) -> None:
-    if session.firmware < MIN_FIRMWARE_ADMIN:
-        firmware = ".".join(map(str, session.firmware))
-        raise CliError(
-            f"{what} needs firmware 4.7.90 or newer, as in the app; this lock runs {firmware}", EXIT_REFUSED
-        )
+def check_available(session: Session, payload: CommandPayload) -> None:
+    """Refuse, before the login, a command the app would not send to this lock.
+
+    Session.send refuses it too, but only after the login has been spent.
+    """
+    feature = session.availability(payload)
+    if not feature.available:
+        error = BleFeatureUnavailableError(payload.command_id, feature, session.firmware, session.model)
+        raise CliError(str(error), EXIT_REFUSED)
 
 
 # --- Commands: no session -------------------------------------------------------------
@@ -973,12 +976,15 @@ async def cmd_read(ctx: Context) -> int:
     failed = False
     async with open_session(ctx, address) as session:
         _describe_session(ctx, session)
-        if session.firmware < MIN_FIRMWARE_ADMIN:
-            ctx.warn("Below firmware 4.7.90 the app does not offer these reads; sending them anyway to see the answer.")
         await log_in(ctx, session, address, login)
         for label, build, parse in READS:
+            payload = build()
+            feature = session.availability(payload)
+            if not feature.available:
+                ctx.say(f"{label}: not sent, the app does not offer it on this lock ({feature.name})")
+                continue
             try:
-                result = parse(await _send(session, build()))
+                result = parse(await _send(session, payload))
             except BleOperationError as err:
                 ctx.say(f"{label}: refused, {err}")
                 failed = True
@@ -1035,7 +1041,7 @@ def confirm(ctx: Context, address: str, login: Login | None, steps: list[str]) -
     return True
 
 
-async def run_write(ctx: Context, write: Write, *, gate: Callable[[Session], None] | None = None) -> int:
+async def run_write(ctx: Context, write: Write) -> int:
     address = ctx.args.address
     login = resolve_login(ctx, address)
     if not confirm(ctx, address, login, [write.description]):
@@ -1043,8 +1049,7 @@ async def run_write(ctx: Context, write: Write, *, gate: Callable[[Session], Non
     check_login_budget(ctx, address)
     async with open_session(ctx, address) as session:
         _describe_session(ctx, session)
-        if gate is not None:
-            gate(session)
+        check_available(session, write.payload)
         await log_in(ctx, session, address, login)
         if write.interactive:
             ctx.say(write.interactive)
@@ -1099,7 +1104,7 @@ async def cmd_pin(ctx: Context) -> int:
     slot = ctx.args.slot
     if ctx.args.action == "clear":
         payload = _validated(lambda: commands.pin_code_clear(slot))
-        return await run_write(ctx, Write(payload, f"send PinCodeClear for slot {slot}"), gate=_admin_gate("PinCodeClear"))
+        return await run_write(ctx, Write(payload, f"send PinCodeClear for slot {slot}"))
     # Refuse a bad slot before asking for a PIN.
     _validated(lambda: commands.pin_code_clear(slot))
     if not ctx.args.yes:
@@ -1110,23 +1115,14 @@ async def cmd_pin(ctx: Context) -> int:
     payload = _validated(lambda: commands.pin_code_set(slot, pin))
     digits = len(pin)
     what = f"send PinCodeSet for slot {slot}, a PIN of {digits} digits. Check it on the keypad afterwards."
-    return await run_write(ctx, Write(payload, what), gate=_admin_gate("PinCodeSet"))
-
-
-def _admin_gate(what: str, *, fingerprint: bool = False) -> Callable[[Session], None]:
-    def gate(session: Session) -> None:
-        require_admin_firmware(session, what)
-        if fingerprint and session.model is not None and not session.model.features.fingerprint:
-            raise CliError(f"The app offers {what} only on models with a fingerprint reader, not {session.model.name}", EXIT_REFUSED)
-
-    return gate
+    return await run_write(ctx, Write(payload, what))
 
 
 async def cmd_rfid(ctx: Context) -> int:
     slot = ctx.args.slot
     if ctx.args.action == "clear":
         payload = _validated(lambda: commands.rfid_code_clear(slot))
-        return await run_write(ctx, Write(payload, f"send RfidCodeClear for slot {slot}"), gate=_admin_gate("RfidCodeClear"))
+        return await run_write(ctx, Write(payload, f"send RfidCodeClear for slot {slot}"))
     payload = _validated(lambda: commands.scan_rfid_code(slot))
     write = Write(
         payload,
@@ -1134,15 +1130,14 @@ async def cmd_rfid(ctx: Context) -> int:
         parse=responses.parse_scan_rfid_code,
         interactive=f"Hold the tag to the lock within {_answer_window(ctx):g} s.",
     )
-    return await run_write(ctx, write, gate=_admin_gate("ScanRfidCode"))
+    return await run_write(ctx, write)
 
 
 async def cmd_fingerprint(ctx: Context) -> int:
     slot = ctx.args.slot
     if ctx.args.action == "clear":
         payload = _validated(lambda: commands.fingerprint_clear(slot))
-        gate = _admin_gate("FingerprintClear", fingerprint=True)
-        return await run_write(ctx, Write(payload, f"send FingerprintClear for slot {slot}"), gate=gate)
+        return await run_write(ctx, Write(payload, f"send FingerprintClear for slot {slot}"))
     payload = _validated(lambda: commands.fingerprint_scan(slot))
     write = Write(
         payload,
@@ -1150,7 +1145,7 @@ async def cmd_fingerprint(ctx: Context) -> int:
         parse=responses.parse_fingerprint_scan,
         interactive=f"Put the finger on the reader within {_answer_window(ctx):g} s, as often as the lock asks.",
     )
-    return await run_write(ctx, write, gate=_admin_gate("FingerprintScan", fingerprint=True))
+    return await run_write(ctx, write)
 
 
 def _answer_window(ctx: Context) -> float:

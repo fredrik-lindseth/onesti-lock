@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from homeassistant.config_entries import ConfigEntryState
@@ -156,7 +157,26 @@ async def test_lock_missing_from_zha_names_the_lock(hass: HomeAssistant, mock_zh
     assert LOCK_IEEE in issue.translation_placeholders["detail"]
 
 
-async def test_missing_gateway_names_the_gateway(hass: HomeAssistant, zha_dependency) -> None:
+async def test_zha_not_loaded_yet_is_not_an_internals_issue(
+    hass: HomeAssistant, zha_dependency, caplog: pytest.LogCaptureFixture
+) -> None:
+    """ZHA still starting (no gateway, entry not LOADED) is normal, not broken."""
+    MockConfigEntry(domain="zha", state=ConfigEntryState.SETUP_RETRY).add_to_hass(hass)
+    hass.data["zha"] = SimpleNamespace(gateway_proxy=None)
+
+    entry = await _setup(hass)
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert _zha_issue(hass, entry) is None
+    assert not [r for r in caplog.records if r.levelname == "ERROR"]
+    assert any(
+        r.levelname == "INFO" and "ZHA is not loaded yet" in r.getMessage()
+        for r in caplog.records
+    )
+
+
+async def test_loaded_zha_without_gateway_names_the_gateway(hass: HomeAssistant, zha_dependency) -> None:
+    MockConfigEntry(domain="zha", state=ConfigEntryState.LOADED).add_to_hass(hass)
     hass.data["zha"] = SimpleNamespace(gateway_proxy=None)
 
     entry = await _setup(hass)
@@ -251,6 +271,52 @@ async def test_zha_coming_up_late_clears_the_issue(
     assert entry.state is ConfigEntryState.LOADED
     assert _zha_issue(hass, entry) is None
     assert len(_cluster(mock_zha)._event_listeners["attribute_report"]) == 1
+
+
+async def test_zha_in_setup_retry_then_loaded_starts_the_listener(
+    hass: HomeAssistant, zha_dependency, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The coordinator stick comes up late: ZHA retries, we wait, then follow it."""
+    zha_entry = MockConfigEntry(domain="zha", state=ConfigEntryState.SETUP_RETRY)
+    zha_entry.add_to_hass(hass)
+    hass.data["zha"] = SimpleNamespace(gateway_proxy=None)
+    entry = await _setup(hass)
+    assert entry.runtime_data.listened_cluster is None
+
+    cluster = FakeDoorLockCluster()
+    hass.data["zha"] = SimpleNamespace(
+        gateway_proxy=SimpleNamespace(device_proxies={LOCK_IEEE: make_lock_proxy(cluster=cluster)})
+    )
+    zha_entry.mock_state(hass, ConfigEntryState.LOADED)
+    await hass.async_block_till_done(wait_background_tasks=True)
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.runtime_data.listened_cluster is cluster
+    assert len(cluster._event_listeners["attribute_report"]) == 1
+    assert entry.runtime_data.capabilities_final
+    assert _zha_issue(hass, entry) is None
+    assert not [r for r in caplog.records if r.levelname == "ERROR"]
+
+
+async def test_zha_added_again_with_a_new_entry_is_followed(
+    hass: HomeAssistant, mock_zha, zha_entry: MockConfigEntry
+) -> None:
+    entry = await _setup(hass)
+    await hass.config_entries.async_remove(zha_entry.entry_id)
+    await hass.async_block_till_done()
+
+    new_cluster = FakeDoorLockCluster()
+    mock_zha.device_proxies = {LOCK_IEEE: make_lock_proxy(cluster=new_cluster)}
+    new_zha_entry = MockConfigEntry(domain="zha", state=ConfigEntryState.NOT_LOADED)
+    # async_add, not add_to_hass, so HA announces the new entry the way a
+    # user adding ZHA does. Its setup is skipped: ZHA itself cannot run here.
+    with patch.object(hass.config_entries, "async_setup", AsyncMock(return_value=True)):
+        await hass.config_entries.async_add(new_zha_entry)
+    new_zha_entry.mock_state(hass, ConfigEntryState.LOADED)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.runtime_data.listened_cluster is new_cluster
 
 
 async def test_zha_state_listener_is_removed_on_unload(

@@ -91,6 +91,16 @@ async with Session(transport) as session:
 timing: 20 s to answer, then 320 ms before the next. A session connects once;
 after a disconnect, build a new `Session` on a new transport.
 
+Below firmware 4.7.90 every command carries CommandRef 16, so an answer that
+turns up after its command timed out looks like the answer to the next one.
+The app lives with that. The session narrows it without changing the wire:
+after a timeout under the static ref, the next command holds back for
+`late_answer_grace` (20 s by default) and drops whatever arrives meanwhile,
+and an answer under ref 16 whose id belongs to another command is ignored as
+late. A late answer to a command with the same id, after the grace period,
+still completes the next one; nothing on the wire tells them apart. The
+session docstring has the details.
+
 ### Enrolling a factory-reset lock
 
 `enroll` does what the app's `AddLockFragment.finishSetup` does, with local

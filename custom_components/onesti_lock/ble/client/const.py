@@ -35,6 +35,12 @@ DEFAULT_RESPONSE_TIMEOUT_S: Final = 20.0
 # Pause after a matched response before the next command is released
 # (CommandStream.CommandResponseDelay, 320 ms).
 COMMAND_RESPONSE_DELAY_S: Final = 0.32
+# Ours, not the app's: after a timeout under the static CommandRef (firmware
+# below 4.7.90), how long the next command holds back, so an answer that was
+# only late is dropped instead of completing that command. The app sends the
+# next command at once. Set to the response timeout: an answer later than
+# twice the app's own timeout is beyond anything the app can cope with either.
+LATE_ANSWER_GRACE_S: Final = DEFAULT_RESPONSE_TIMEOUT_S
 
 # --- Firmware (settings/Constants.java) ---------------------------------------
 

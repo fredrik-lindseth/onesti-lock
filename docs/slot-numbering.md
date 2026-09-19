@@ -11,7 +11,7 @@ The split between master and user slots differs per model. The manuals:
 
 | Slot range | Touch Pro, PRO, Code                | Code Pro                            | Source                                                                  |
 | ---------- | ----------------------------------- | ----------------------------------- | ----------------------------------------------------------------------- |
-| 0          | Master PIN (factory: 123)           | Master PIN (factory: 123)           | All manuals. Verified: `attrid 0x0100` reports `user_slot=0` on unlock |
+| 0          | Master PIN (factory: 123)           | Master PIN (factory: 123)           | All manuals. Verified: `attrid 0x0100` reports `user_slot=0` on unlock  |
 | 1-2        | Additional master codes             | User codes                          | Manuals, see quotes below                                               |
 | 3-999      | User codes, RFID tags, fingerprints | User codes, RFID tags, fingerprints | Manuals. Slots 3-4 verified via `attrid 0x0100` events                  |
 

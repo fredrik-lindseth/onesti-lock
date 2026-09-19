@@ -45,7 +45,7 @@
       },
       "name_slot": {
         "title": "Namnge användare",
-        "description": "Koppla ett namn till ett platsnummer (0-999). Används för RFID-taggar, fingeravtryck, masterkoden på plats 0-2 eller andra åtkomstmetoder som inte ställs in via PIN-menyn. Lämna namnet tomt för att ta bort det.",
+        "description": "Koppla ett namn till ett platsnummer (0-999). Används för RFID-taggar, fingeravtryck, masterkoderna eller andra åtkomstmetoder som inte ställs in via PIN-menyn. Lämna namnet tomt för att ta bort det.",
         "data": {
           "slot": "Platsnummer",
           "name": "Namn"

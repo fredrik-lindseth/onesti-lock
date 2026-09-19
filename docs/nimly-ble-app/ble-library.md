@@ -531,6 +531,129 @@ for line. It was last run on OpenJDK 27. The app runs on Android, whose
 `Cipher` comes from Conscrypt rather than the JDK's SunJCE. Both follow the
 same contract, but only a lock can settle it.
 
+## Running it against a lock
+
+`scripts/ble_cli.py` runs the library against a real lock from a computer,
+over bleak, one step per command. It is the tool that settles the "Lock only"
+rows in the table below. Run it through `just`, which uses the `unit`
+environment (bleak and `cryptography`); options go before or after the
+command:
+
+```bash
+just ble scan
+just ble handshake <ADDR>
+just ble pin set <ADDR> 803 --factory --yes
+```
+
+The commands, in the order to run them on a lock, from safe to risky:
+
+| Command                           | Sends                                                           | Settles                                                               |
+| --------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `scan [--watch S]`                | Nothing                                                         | Seed (`0000` is factory state), identifier, whether a stored lock matches, whether the lock advertises all the time |
+| `info ADDR`                       | GATT reads only                                                 | Services, the communication characteristic's properties (write type), MTU, 0x2A28 |
+| `handshake ADDR`                  | Key exchange, DeviceModelGet                                    | Public key byte order, CBC from the link IV, the CommandRef rule      |
+| `login ADDR`                      | UserAuthBegin, UserAuthFinalize                                 | The factory key, the challenge, which status a wrong key gets         |
+| `read ADDR`                       | DeviceModelGet, BattInfoGet, DeviceLogGet, DeviceNameGet, CurrentTimeGet | That the encrypted channel holds over several messages      |
+| `operate ADDR lock\|unlock`       | EkeyOperate; the bolt moves                                     | That the lock obeys; stand at the door                                |
+| `pin set\|clear ADDR SLOT`        | PinCodeSet / PinCodeClear, 800-899                              | End-to-end PIN write; try the code on the keypad                      |
+| `rfid scan\|clear ADDR SLOT`      | ScanRfidCode / RfidCodeClear, 900-999                           | Interactive tag enrollment, UserAdded before the answer               |
+| `fingerprint scan\|clear ADDR SLOT` | FingerprintScan / FingerprintClear, 150-199                   | The same for a finger                                                 |
+| `enroll ADDR --name NAME`         | The whole `enroll()`                                            | Enrollment order, ServerKeyUpdate, device id binding, the seed after |
+| `enroll ADDR --resume`            | `resume_enrollment()`                                           | Finishing an enrollment that stopped partway                          |
+
+`login`, `read` and the writes log in with `--factory`, with `--state FILE`,
+or by default with the stored enrollment last seen at that address.
+
+What it refuses to do:
+
+- Anything that changes the lock or moves the bolt (`operate`, `pin`, `rfid`,
+  `fingerprint`, `enroll`) prints the steps it would send and stops, unless
+  `--yes` is given. Slots, the PIN and the name are validated before it
+  connects.
+- It has no FactoryResetModule command, and sends DeviceIdSet,
+  UserAuthUpdate and ServerKeyUpdate only through `enroll()` and
+  `resume_enrollment()`. Its own send path refuses those four ids, and a
+  test fails if the script names their builders, the master PIN builder or
+  `ignore_slot_check`.
+- A PIN never goes on the command line, where the shell history and the
+  process list keep it. `pin set` asks for it twice at a prompt that does not
+  echo, or reads one line from stdin with `--pin-stdin`.
+- `enroll` listens for the lock's advertisement first and refuses unless it
+  sees seed `0000`, and it refuses an address that already has a state file.
+  The steps and why that order are in
+  [Enrolling a factory-reset lock](#enrolling-a-factory-reset-lock).
+- Nobody knows whether the lock locks out after failed owner logins. Each
+  refused login is recorded in `<state-dir>/failed-logins.jsonl`, and after
+  two against one address within a day the CLI stops until `--force-login`.
+- Firmware below 4.7.90 is refused for PIN, RFID and fingerprint commands,
+  and fingerprint commands on models without a reader, as the app does.
+
+State lives in `--state-dir`, by default `~/.config/onesti-lock-ble/`,
+outside the repository. The directory is 0700 and every file in it 0600. Each
+enrolled lock is one JSON file named by a hash of its device id, holding
+`Enrollment.to_dict()` and the address it was last seen at. It holds the
+owner key: back it up, never commit it. A partial enrollment is written
+before the error is printed, since it is the only copy of the key the lock now
+has. One gap remains: Ctrl-C between UserAuthUpdate and the end of `enroll()`
+loses the key, because the library hands the enrollment over only when it
+returns or raises `BleEnrollmentError`. The CLI says so before it starts.
+
+### The trace
+
+Every command writes a JSON-lines frame log, by default
+`<state-dir>/traces/<UTC time>-<command>.jsonl`, or where `--trace FILE`
+says; `--no-trace` turns it off. Each line has `t` (UTC), `dt` (seconds since
+start) and `event`:
+
+| Event                         | Holds                                                                                     |
+| ----------------------------- | ----------------------------------------------------------------------------------------- |
+| `packet`                      | `dir`, the raw Layer 1 bytes in `hex`, `type` and `seq` from the unencrypted header       |
+| `command`, `response`         | `id` by name, `ref`, `status`, `len`, and `payload` in hex only for ids on the list below |
+| `dropped`                     | A frame the session threw away: the error and the length                                  |
+| `advertisement`               | Address, RSSI and the service data, all broadcast in the clear                            |
+| `connected`, `session`, `login`, `enroll`, `error`, ... | What the CLI did around the frames: MTU, firmware, CommandRef mode, model, login outcome, enrollment step |
+
+Packets are clear text during the key exchange and ciphertext after it.
+Payloads are written in hex for the key exchange, DeviceModelGet,
+BattInfoGet, DeviceLogGet, name and clock, EkeyOperate, the slot-only clear
+and scan commands, the LockStatus and UserAdded events, and answers that
+carry only a status. Everything else is a length, because PinCodeSet carries
+the PIN, UserAuthBegin the device id and its answer the challenge,
+UserAuthFinalize the challenge answer, UserAuthUpdate and ServerKeyUpdate
+the key material, and DeviceIdSet/DeviceIdGet the device id that identifies
+the lock's advertisement. An id the list does not know is a length too.
+
+`--trace-secrets` adds every payload, the dropped frames' bytes and the
+link key and IV, with a warning on stderr. With it, a failed CBC chain or a
+refused challenge can be recomputed offline from the ciphertext packets. Use
+it with test PINs on test slots only and delete the file afterwards. The link
+keys are written even when the handshake fails after the key exchange, which
+is when they are most needed.
+
+### On macOS
+
+- **Bluetooth permission.** macOS asks once whether the terminal app may use
+  Bluetooth. If that was denied, scanning fails; allow the terminal under
+  System Settings, Privacy & Security, Bluetooth, and start a new terminal.
+- **Addresses are UUIDs.** CoreBluetooth hides the lock's MAC address and
+  gives each Mac its own UUID for it. `scan` recognises a stored lock by its
+  advertisement (`Advertisement.matches`) and records the address it saw, so
+  a state file moves between Macs.
+- **The MTU cannot be requested.** CoreBluetooth negotiates it on its own
+  and bleak only reports the result. `info` and every session print it, and
+  the session frames for 23 regardless, as the app does.
+- **No connection priority.** Android's `requestConnectionPriority` has no
+  counterpart, so answers may come slower than in the app.
+- **Scanning is active.** macOS has no passive scan, so the Mac sends scan
+  requests, which the lock answers with a scan response. That is the radio's
+  discovery, not a connection, and nothing is written to the lock.
+- **Repeated advertisements are coalesced.** bleak starts the scan without
+  CoreBluetooth's allow-duplicates option, so a device is reported again only
+  when its advertisement changes. `scan --watch` therefore restarts the scan
+  every `--window` seconds (default 2) and reports, window by window, whether
+  the lock was heard. That shows whether it advertises all the time or only
+  when woken, but not its advertising interval; measuring that needs Linux.
+
 ## What is verified, and what only a lock can settle
 
 "App code" means read in the decompiled Java, or in the smali where jadx

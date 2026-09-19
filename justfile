@@ -31,6 +31,14 @@ test-ha target="current" *args:
 test-unit *args:
     UV_PROJECT_ENVIRONMENT=.venv-unit uv run --frozen --python 3.14 --group unit pytest tests/ {{args}}
 
+# The BLE validation tool, scripts/ble_cli.py, against a real lock, in the
+# unit environment, which has bleak and cryptography. `just ble --help` lists
+# the steps; docs/nimly-ble-app/ble-library.md has the order to run them in.
+# Positional arguments, so a quoted argument with a space stays one argument.
+[positional-arguments]
+ble *args:
+    UV_PROJECT_ENVIRONMENT=.venv-unit uv run --frozen --python 3.14 --group unit python scripts/ble_cli.py "$@"
+
 # Combined branch coverage of tests/ and tests_ha on current, held to the
 # 95 % the quality scale's test-coverage rule demands. CI runs the same three
 # recipes: one per suite in their own jobs, then the gate in a job after both.

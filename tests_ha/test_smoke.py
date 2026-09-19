@@ -102,7 +102,6 @@ async def test_setup_and_unload_entry(hass: HomeAssistant, mock_zha) -> None:
 
     assert entry.state is ConfigEntryState.NOT_LOADED
     assert cluster._event_listeners["attribute_report"] == []
-    assert not hass.services.async_services().get(DOMAIN)
 
 
 async def test_unload_then_setup_again(hass: HomeAssistant, mock_zha) -> None:
@@ -123,18 +122,25 @@ async def test_unload_then_setup_again(hass: HomeAssistant, mock_zha) -> None:
     assert set(hass.services.async_services().get(DOMAIN, {})) == SERVICES
 
 
-async def test_services_stay_until_last_entry_unloads(hass: HomeAssistant, mock_zha) -> None:
+async def test_services_outlive_every_entry(hass: HomeAssistant, mock_zha) -> None:
+    """The services belong to the integration, not to one lock.
+
+    They used to go with the last loaded entry, which raced: a lock still
+    setting up does not count as loaded, so unloading another lock at that
+    moment removed the services under it.
+    """
     mock_zha.device_proxies[SECOND_LOCK_IEEE] = make_lock_proxy()
     first = await _setup_entry(hass)
     second = await _setup_entry(hass, SECOND_LOCK_IEEE)
 
     assert await hass.config_entries.async_unload(first.entry_id)
-    await hass.async_block_till_done()
-    assert set(hass.services.async_services().get(DOMAIN, {})) == SERVICES
-
     assert await hass.config_entries.async_unload(second.entry_id)
     await hass.async_block_till_done()
-    assert not hass.services.async_services().get(DOMAIN)
+
+    assert set(hass.services.async_services().get(DOMAIN, {})) == SERVICES
+    with pytest.raises(HomeAssistantError) as excinfo:
+        await hass.services.async_call(DOMAIN, "set_name", {"slot": 5, "name": "Kari"}, blocking=True)
+    assert excinfo.value.translation_key == "lock_not_found"
 
 
 async def test_services_find_only_loaded_locks(hass: HomeAssistant, mock_zha) -> None:

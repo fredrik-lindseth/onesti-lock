@@ -29,7 +29,7 @@
       },
       "set_pin": {
         "title": "Ställ in PIN-kod",
-        "description": "Välj plats och ange namn och en PIN-kod på 4-8 siffror. Platsnumren är låsets egna användarplatser (ZCL DoorLock), och listan börjar efter masterplatserna som anges under Inställningar. Om låset sover får första försöket timeout, och integrationen väcker det med ett låskommando. Då låses en olåst dörr fysiskt, så stäng dörren innan du börjar.",
+        "description": "Välj plats och ange namn och PIN-kod. Platsnumren är låsets egna användarplatser (ZCL DoorLock), och listan börjar efter masterplatserna som anges under Inställningar. Låset bekräftar att det har tagit emot koden, inte att det har godkänt den, så prova den nya koden på knappsatsen. Om låset sover får första försöket timeout, och integrationen väcker det med ett låskommando. Då låses en olåst dörr fysiskt, så stäng dörren innan du börjar.",
         "data": {
           "slot": "Användarplats",
           "name": "Namn",
@@ -38,7 +38,7 @@
       },
       "clear_pin": {
         "title": "Ta bort PIN-kod",
-        "description": "Välj användaren som ska tas bort. Om låset sover väcker integrationen det med ett låskommando, och då låses en olåst dörr fysiskt.",
+        "description": "Välj användaren vars PIN-kod ska tas bort. Bara platser med PIN-kod visas. Namnet finns kvar, så ta bort det under Namnge användare om platsen inte används längre. Om låset sover väcker integrationen det med ett låskommando, och då låses en olåst dörr fysiskt.",
         "data": {
           "slot": "Användare"
         }
@@ -68,7 +68,7 @@
       "clear_pin_progress": "Tar bort PIN-kod från låset..."
     },
     "error": {
-      "invalid_pin": "PIN-koden måste vara 4-8 siffror",
+      "invalid_pin": "PIN-koden måste vara {min}-{max} siffror",
       "invalid_slot": "Platsnumret måste vara mellan 0 och 999",
       "lock_unreachable": "Kunde inte nå låset. Tryck på knappsatsen och försök igen.",
       "unknown": "Ett oväntat fel uppstod. Kontrollera loggarna."
@@ -95,13 +95,16 @@
       "message": "Platsen måste vara mellan {min} och {max}"
     },
     "invalid_pin": {
-      "message": "PIN-koden måste vara 4-8 siffror"
+      "message": "PIN-koden måste vara {min}-{max} siffror"
     },
     "lock_not_found": {
       "message": "Hittade inget Onesti-lås"
     },
     "lock_not_found_ieee": {
       "message": "Hittade inget Onesti-lås med IEEE {ieee}"
+    },
+    "multiple_locks": {
+      "message": "Mer än ett Onesti-lås är konfigurerat ({ieees}). Välj låset med device_id, eller ange ieee."
     }
   },
   "runtime": {

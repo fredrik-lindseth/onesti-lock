@@ -181,6 +181,17 @@ def _entity_registry_async_get(hass):
 
 entity_registry.async_get = _entity_registry_async_get
 
+# services.py resolves a device_id through it.
+device_registry = _module("homeassistant.helpers.device_registry")
+
+
+def _device_registry_async_get(hass):
+    """Tests give their fake hass a device_registry attribute."""
+    return hass.device_registry
+
+
+device_registry.async_get = _device_registry_async_get
+
 entity_platform = _module("homeassistant.helpers.entity_platform")
 entity_platform.AddEntitiesCallback = object
 

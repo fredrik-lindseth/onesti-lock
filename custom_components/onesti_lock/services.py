@@ -7,47 +7,116 @@ import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import device_registry as dr
 
+from . import pin_rules
 from .const import DOMAIN, MAX_SLOTS
-from .coordinator import NimlyConfigEntry, NimlyCoordinator
+from .coordinator import NimlyCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
+ATTR_DEVICE_ID = "device_id"
+ATTR_IEEE = "ieee"
 
-def _get_coordinator(hass: HomeAssistant, ieee: str | None = None) -> NimlyCoordinator:
-    """Get coordinator, optionally filtered by IEEE."""
-    entry: NimlyConfigEntry
-    for entry in hass.config_entries.async_loaded_entries(DOMAIN):
-        coordinator = entry.runtime_data
-        if ieee is None or coordinator.ieee.lower() == ieee.lower():
-            return coordinator
-    if ieee:
-        raise HomeAssistantError(
-            f"No Onesti lock found with IEEE {ieee}",
-            translation_domain=DOMAIN,
-            translation_key="lock_not_found_ieee",
-            translation_placeholders={"ieee": ieee},
-        )
-    raise HomeAssistantError(
+
+def _lock_not_found() -> HomeAssistantError:
+    return HomeAssistantError(
         "No Onesti lock found",
         translation_domain=DOMAIN,
         translation_key="lock_not_found",
     )
 
 
+def _lock_not_found_ieee(ieee: str) -> HomeAssistantError:
+    return HomeAssistantError(
+        f"No Onesti lock found with IEEE {ieee}",
+        translation_domain=DOMAIN,
+        translation_key="lock_not_found_ieee",
+        translation_placeholders={"ieee": ieee},
+    )
+
+
+def _find_by_ieee(coordinators: list[NimlyCoordinator], ieee: str) -> NimlyCoordinator | None:
+    # ZHA shows IEEE addresses in lower case, but people paste them from
+    # anywhere, so the match ignores case.
+    wanted = ieee.lower()
+    return next((c for c in coordinators if c.ieee.lower() == wanted), None)
+
+
+def _ieee_for_device(hass: HomeAssistant, device_id: str) -> str:
+    """The IEEE address behind one of this integration's own devices.
+
+    sensor.py registers each lock's device with the identifier
+    (DOMAIN, ieee). A device id that is unknown, or that belongs to some
+    other integration (the ZHA device of the same lock included), is not an
+    Onesti lock as far as the services are concerned.
+    """
+    device = dr.async_get(hass).async_get(device_id)
+    if device is not None:
+        for domain, identifier in device.identifiers:
+            if domain == DOMAIN:
+                return identifier
+    raise _lock_not_found()
+
+
+def _get_coordinator(hass: HomeAssistant, call: ServiceCall) -> NimlyCoordinator:
+    """The lock a service call targets.
+
+    device_id wins over ieee when both are given. Without either, the call
+    only goes through when exactly one lock is loaded: with two or more,
+    guessing would program a code into the wrong door.
+
+    Only loaded entries count. A lock whose entry is still setting up or
+    retrying has no working transport yet, so it is reported as not found
+    rather than handed a command that cannot reach it.
+    """
+    coordinators: list[NimlyCoordinator] = [
+        entry.runtime_data for entry in hass.config_entries.async_loaded_entries(DOMAIN)
+    ]
+
+    device_id = call.data.get(ATTR_DEVICE_ID)
+    ieee = call.data.get(ATTR_IEEE)
+    if device_id:
+        ieee = _ieee_for_device(hass, device_id)
+    if ieee:
+        coordinator = _find_by_ieee(coordinators, ieee)
+        if coordinator is None:
+            raise _lock_not_found_ieee(ieee)
+        return coordinator
+
+    if not coordinators:
+        raise _lock_not_found()
+    if len(coordinators) > 1:
+        ieees = ", ".join(sorted(c.ieee for c in coordinators))
+        raise HomeAssistantError(
+            f"More than one Onesti lock is set up ({ieees}). Pick the lock "
+            "with device_id or ieee.",
+            translation_domain=DOMAIN,
+            translation_key="multiple_locks",
+            translation_placeholders={"ieees": ieees},
+        )
+    return coordinators[0]
+
+
 async def async_setup_services(hass: HomeAssistant) -> None:
-    """Register Onesti Lock services."""
+    """Register Onesti Lock services, once, when the integration is set up.
+
+    They stay registered for the life of Home Assistant, as Home Assistant
+    recommends, and look the lock up per call. Registering them per entry
+    and removing them with the last one raced: while one lock was unloaded
+    and another was still setting up, neither counted as loaded, so the
+    services went away under the lock that was about to arrive.
+    """
 
     async def handle_set_pin(call: ServiceCall) -> None:
         slot = call.data["slot"]
         name = call.data["name"]
         code = call.data["code"]
-        ieee = call.data.get("ieee")
 
         # The coordinator is looked up before validation because both bounds
         # are per lock: the floor is its reserved-slots setting, the ceiling
         # the PIN capacity it reported.
-        coordinator = _get_coordinator(hass, ieee)
+        coordinator = _get_coordinator(hass, call)
         first = coordinator.first_user_slot()
         max_slot = coordinator.max_user_slot()
         if not first <= slot <= max_slot:
@@ -61,11 +130,15 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     "max": str(max_slot),
                 },
             )
-        if not code.isdigit() or len(code) < 4 or len(code) > 8:
+        if not pin_rules.is_valid_pin(code, coordinator.lock_capabilities):
+            low, high = pin_rules.pin_length_range(coordinator.lock_capabilities)
+            # The message leaves the code out: exceptions reach the log and
+            # automation traces.
             raise HomeAssistantError(
-                "PIN code must be 4-8 digits",
+                f"PIN code must be {low}-{high} digits",
                 translation_domain=DOMAIN,
                 translation_key="invalid_pin",
+                translation_placeholders={"min": str(low), "max": str(high)},
             )
 
         success = await coordinator.set_pin(slot, name, code)
@@ -79,10 +152,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
     async def handle_clear_pin(call: ServiceCall) -> None:
         slot = call.data["slot"]
-        ieee = call.data.get("ieee")
 
         # Looked up first: the reserved master slots are a per-lock setting.
-        coordinator = _get_coordinator(hass, ieee)
+        coordinator = _get_coordinator(hass, call)
         first = coordinator.first_user_slot()
         if not first <= slot < MAX_SLOTS:
             raise HomeAssistantError(
@@ -108,7 +180,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     async def handle_set_name(call: ServiceCall) -> None:
         slot = call.data["slot"]
         name = call.data["name"]
-        ieee = call.data.get("ieee")
 
         # Names are the integration's own data and never reach the lock, so
         # every slot can be named, master slots included (issue #6).
@@ -124,15 +195,14 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 },
             )
 
-        coordinator = _get_coordinator(hass, ieee)
+        coordinator = _get_coordinator(hass, call)
         await coordinator.set_slot_name(slot, name)
 
     async def handle_clear_slot(call: ServiceCall) -> None:
         slot = call.data["slot"]
-        ieee = call.data.get("ieee")
 
         # Looked up first: the reserved master slots are a per-lock setting.
-        coordinator = _get_coordinator(hass, ieee)
+        coordinator = _get_coordinator(hass, call)
         first = coordinator.first_user_slot()
         if not first <= slot < MAX_SLOTS:
             raise HomeAssistantError(
@@ -164,7 +234,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 vol.Required("slot"): vol.Coerce(int),
                 vol.Required("name"): cv.string,
                 vol.Required("code"): cv.string,
-                vol.Optional("ieee"): cv.string,
+                vol.Optional(ATTR_DEVICE_ID): cv.string,
+                vol.Optional(ATTR_IEEE): cv.string,
             }
         ),
     )
@@ -176,7 +247,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         schema=vol.Schema(
             {
                 vol.Required("slot"): vol.Coerce(int),
-                vol.Optional("ieee"): cv.string,
+                vol.Optional(ATTR_DEVICE_ID): cv.string,
+                vol.Optional(ATTR_IEEE): cv.string,
             }
         ),
     )
@@ -189,7 +261,8 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             {
                 vol.Required("slot"): vol.Coerce(int),
                 vol.Required("name"): cv.string,
-                vol.Optional("ieee"): cv.string,
+                vol.Optional(ATTR_DEVICE_ID): cv.string,
+                vol.Optional(ATTR_IEEE): cv.string,
             }
         ),
     )
@@ -201,13 +274,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         schema=vol.Schema(
             {
                 vol.Required("slot"): vol.Coerce(int),
-                vol.Optional("ieee"): cv.string,
+                vol.Optional(ATTR_DEVICE_ID): cv.string,
+                vol.Optional(ATTR_IEEE): cv.string,
             }
         ),
     )
 
-
-async def async_unload_services(hass: HomeAssistant) -> None:
-    """Remove Onesti Lock services."""
-    for service in ("set_pin", "clear_pin", "set_name", "clear_slot"):
-        hass.services.async_remove(DOMAIN, service)

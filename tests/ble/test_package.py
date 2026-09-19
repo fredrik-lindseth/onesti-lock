@@ -4,12 +4,15 @@ The library has to stay usable without Home Assistant and on its own, so
 nothing in it imports Home Assistant or reaches outside ble/. Inside, the
 layers import downwards only: protocol/ knows nothing of crypto or the client,
 crypto.py nothing of the client, and errors.py only the protocol constants it
-names statuses with.
+names statuses with. bleak is imported by client/bleak_transport.py alone, and
+nothing imports that module, so the package loads without bleak.
 """
 from __future__ import annotations
 
 import ast
 import importlib
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -24,6 +27,9 @@ BLE_DIR = Path(COMPONENT_DIR).resolve() / "ble"
 MODULES = sorted(BLE_DIR.rglob("*.py"))
 
 FORBIDDEN_ROOTS = {"homeassistant", "zigpy", "voluptuous"}
+# The one module that may import bleak. Home Assistant brings its own bleak,
+# and the command line tool installs it, but the protocol must not need it.
+BLEAK_MODULE = BLE_DIR / "client" / "bleak_transport.py"
 # The wire format does no crypto and no I/O.
 PROTOCOL_FORBIDDEN_ROOTS = {"cryptography", "asyncio", "logging"}
 
@@ -123,7 +129,7 @@ def test_subpackages_load_nothing_on_import(path):
 
 
 # Calls whose result is raised and that return a BleError themselves.
-BLE_ERROR_FACTORIES = {"error_for_status", "_not_connected"}
+BLE_ERROR_FACTORIES = {"error_for_status", "_not_connected", "_failed"}
 
 
 @pytest.mark.parametrize("path", MODULES, ids=_name)
@@ -142,6 +148,49 @@ def test_raises_only_ble_errors(path):
         if not (name and (name.startswith("Ble") or name in BLE_ERROR_FACTORIES)):
             wrong.append(f"line {node.lineno}: {ast.unparse(node.exc)}")
     assert not wrong, f"{_name(path)} raises outside BleError: {wrong}"
+
+
+@pytest.mark.parametrize("path", MODULES, ids=_name)
+def test_only_the_bleak_transport_imports_bleak(path):
+    roots = {target[0] for level, target in _imports(path) if level == 0}
+    if path == BLEAK_MODULE:
+        assert "bleak" in roots, "the rule below checks a module that no longer imports bleak"
+    else:
+        assert "bleak" not in roots, f"{_name(path)} imports bleak"
+
+
+@pytest.mark.parametrize("path", MODULES, ids=_name)
+def test_nothing_imports_the_bleak_transport(path):
+    # Not even ble/__init__.py: a caller that has bleak imports the module
+    # itself, as ble.client.bleak_transport.
+    targets = {".".join(target) for level, target in _imports(path) if level > 0}
+    assert "ble.client.bleak_transport" not in targets, f"{_name(path)} imports the bleak transport"
+
+
+def test_the_package_loads_without_bleak():
+    """Import ble the way ble-library.md tells a tool to, with bleak made unimportable."""
+    script = f"""
+import sys
+
+class Blocker:
+    def find_spec(self, name, path=None, target=None):
+        if name.split(".")[0] == "bleak":
+            raise ModuleNotFoundError(f"No module named {{name!r}}", name=name)
+        return None
+
+sys.meta_path.insert(0, Blocker())
+sys.path.insert(0, {str(BLE_DIR.parent)!r})
+import ble
+assert "bleak" not in sys.modules
+try:
+    import ble.client.bleak_transport
+except ModuleNotFoundError as err:
+    assert err.name == "bleak", err
+else:
+    raise AssertionError("the blocker let bleak through, so the check above proved nothing")
+"""
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
 
 
 def test_marked_as_typed():

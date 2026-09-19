@@ -52,6 +52,9 @@ error names the dropped frame as its cause. Nothing logged here carries
 payload bytes, keys or PINs: the library's errors describe sizes and ids
 only, a listener's exception is logged by type alone, and no log call
 carries a traceback.
+
+A Tracer (client/tracing.py) passed to the session sees every packet, command,
+response and dropped frame, unredacted, for a caller that needs a frame log.
 """
 from __future__ import annotations
 
@@ -94,6 +97,7 @@ from .const import (
     LATE_ANSWER_GRACE_S,
     MIN_FIRMWARE_CONNECT,
 )
+from .tracing import Tracer, guarded_tracer
 from .transport import Transport
 
 _LOGGER = logging.getLogger(__name__)
@@ -152,6 +156,8 @@ class Session:
     CommandRef (firmware below 4.7.90), which the app does not do; see the
     module docstring. key_pair_factory makes the key pair for the link key
     exchange, and exists so tests can fix it.
+    tracer, if given, sees every frame going out and coming in
+    (client/tracing.py); it is not redacted.
     """
 
     def __init__(
@@ -163,12 +169,14 @@ class Session:
         late_answer_grace: float = LATE_ANSWER_GRACE_S,
         mtu: int = DEFAULT_MTU,
         key_pair_factory: Callable[[], KeyPair] = generate_key_pair,
+        tracer: Tracer | None = None,
     ) -> None:
         self._transport = transport
         self.response_timeout = response_timeout
         self.command_delay = command_delay
         self.late_answer_grace = late_answer_grace
         self._key_pair_factory = key_pair_factory
+        self._tracer = guarded_tracer(tracer)
         self._stream = PacketStream(mtu=mtu)
         self._state = _State.NEW
         self._refs: CommandRefCounter | None = None
@@ -332,7 +340,9 @@ class Session:
                     raise self._not_connected()
 
             command_ref = self._refs.next()
-            frames = self._stream.frame(command.with_ref(command_ref).to_bytes())
+            outgoing = command.with_ref(command_ref)
+            frames = self._stream.frame(outgoing.to_bytes())
+            self._tracer.command(outgoing)
             pending = _Pending(command.command_id, command_ref, self._refs.static, loop.create_future())
             # Waiting starts before the first write, as CommandStream arms its
             # receiver when the write begins: an answer can beat the last write.
@@ -342,6 +352,7 @@ class Session:
             try:
                 async with asyncio.timeout(self.response_timeout) as deadline:
                     for frame in frames:
+                        self._tracer.packet_out(frame)
                         await self._transport.write(frame)
                     response = await pending.future
                 answered = True
@@ -371,10 +382,11 @@ class Session:
     # --- Incoming --------------------------------------------------------------
 
     def _on_notification(self, data: bytes) -> None:
+        self._tracer.packet_in(data)
         try:
             received = self._stream.receive(data)
         except BleProtocolError as err:
-            self._drop(err)
+            self._drop(err, data)
             return
         if not isinstance(received, ReceivedPayload):
             if received is not None:
@@ -384,8 +396,9 @@ class Session:
         try:
             response = Response.from_bytes(received.data)
         except BleProtocolError as err:
-            self._drop(err)
+            self._drop(err, received.data)
             return
+        self._tracer.response(response)
 
         if response.is_event:
             self._dispatch_event(response)
@@ -412,7 +425,7 @@ class Session:
         try:
             event = parse_event(response)
         except BleProtocolError as err:
-            self._drop(err)
+            self._drop(err, response.to_bytes())
             return
         if event is None:
             _LOGGER.debug("Ignoring event %s, which the app does not read either", _response_name(response.response_id))
@@ -434,10 +447,11 @@ class Session:
         self._stream.reset()
         self._fail_pending("The lock disconnected before it answered")
 
-    def _drop(self, err: BleProtocolError) -> None:
+    def _drop(self, err: BleProtocolError, data: bytes) -> None:
         # Our own BleProtocolError, whose text holds sizes and ids only.
         _LOGGER.warning("Dropped a malformed notification from the lock: %s", err)
         self._dropped = err
+        self._tracer.dropped(err, data)
 
     def _fail_pending(self, message: str) -> None:
         pending = self._pending

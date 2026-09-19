@@ -10,8 +10,8 @@
       }
     },
     "abort": {
-      "zha_not_found": "ZHA-integration ikke fundet eller ikke konfigureret. Denne integration kræver ZHA for at afkode brugerdefinerede Zigbee-attributrapporter til brugeridentifikation. Zigbee2MQTT eksponerer ikke disse hændelser på samme måde.",
-      "no_devices_found": "Ingen Onesti Lock-låse fundet i ZHA.",
+      "zha_not_found": "ZHA blev ikke fundet eller er ikke sat op. Integrationen skal bruge ZHA til at afkode låsens egne Zigbee-attributrapporter, som viser, hvem der brugte låsen. Zigbee2MQTT gør ikke disse hændelser tilgængelige på samme måde.",
+      "no_devices_found": "Fandt ingen Onesti-låse i ZHA.",
       "already_configured": "Denne lås er allerede konfigureret."
     }
   },
@@ -29,7 +29,7 @@
       },
       "set_pin": {
         "title": "Indstil PIN-kode",
-        "description": "Vælg plads, indtast navn og PIN-kode (4-8 cifre). Pladsnumrene svarer til låsens interne brugerpladser (ZCL DoorLock). Listen starter efter masterpladserne, der er angivet under Indstillinger. Bemærk: hvis låsen sover, får første forsøg timeout, og integrationen vækker låsen ved at sende en låsekommando. En ulåst dør bliver fysisk låst, så luk døren, før du starter.",
+        "description": "Vælg plads, og indtast navn og en PIN-kode på 4-8 cifre. Pladsnumrene er låsens egne brugerpladser (ZCL DoorLock), og listen starter efter masterpladserne, der er angivet under Indstillinger. Sover låsen, får første forsøg timeout, og integrationen vækker den med en låsekommando. Det låser en ulåst dør fysisk, så luk døren, før du starter.",
         "data": {
           "slot": "Brugerplads",
           "name": "Navn",
@@ -38,14 +38,14 @@
       },
       "clear_pin": {
         "title": "Fjern PIN-kode",
-        "description": "Vælg bruger der skal fjernes. Hvis låsen sover, vækker integrationen den ved at sende en låsekommando; en ulåst dør bliver fysisk låst.",
+        "description": "Vælg den bruger, der skal fjernes. Sover låsen, vækker integrationen den med en låsekommando, og så bliver en ulåst dør låst fysisk.",
         "data": {
           "slot": "Bruger"
         }
       },
       "name_slot": {
         "title": "Navngiv bruger",
-        "description": "Knyt et navn til et pladsnummer (0-999). Bruges til RFID-brikker, fingeraftryk, masterkoderne eller andre adgangsmetoder, der ikke indstilles via PIN-menuen. Lad navnet stå tomt for at fjerne det.",
+        "description": "Giv et pladsnummer (0-999) et navn. Brug det til RFID-brikker, fingeraftryk, masterkoderne og andet, der ikke indstilles via PIN-menuen. Lad navnet stå tomt for at fjerne det.",
         "data": {
           "slot": "Pladsnummer",
           "name": "Navn"
@@ -71,7 +71,7 @@
       "invalid_pin": "PIN-kode skal være 4-8 cifre",
       "invalid_slot": "Pladsnummeret skal være mellem 0 og 999",
       "lock_unreachable": "Kunne ikke nå låsen. Tryk på tastaturet og prøv igen.",
-      "unknown": "En uventet fejl opstod. Tjek logfilerne."
+      "unknown": "Der opstod en uventet fejl. Tjek logfilerne."
     },
     "abort": {
       "no_active_slots": "Ingen aktive PIN-koder at fjerne"

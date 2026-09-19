@@ -10,8 +10,8 @@
       }
     },
     "abort": {
-      "zha_not_found": "ZHA integration not found or not configured. This integration requires ZHA to decode custom Zigbee attribute reports for user identification. Zigbee2MQTT does not expose these events in the same way.",
-      "no_devices_found": "No Onesti Lock locks found in ZHA.",
+      "zha_not_found": "ZHA is not installed or not set up. This integration needs ZHA to decode the lock's custom Zigbee attribute reports, which tell who used the lock. Zigbee2MQTT does not expose these events in the same way.",
+      "no_devices_found": "No Onesti locks found in ZHA.",
       "already_configured": "This lock is already configured."
     }
   },
@@ -29,7 +29,7 @@
       },
       "set_pin": {
         "title": "Set PIN code",
-        "description": "Select slot, enter name and PIN code (4-8 digits). Slot numbers correspond to the lock's internal user slots (ZCL DoorLock). The list starts after the master slots set under Settings. Note: if the lock is asleep, the first attempt times out and the integration wakes the lock by sending a lock command. An unlocked door will be physically locked, so close the door before you start.",
+        "description": "Pick a slot, then enter a name and a PIN code of 4-8 digits. Slot numbers are the lock's own user slots (ZCL DoorLock), and the list starts after the master slots set under Settings. If the lock is asleep, the first attempt times out and the integration wakes it with a lock command, which physically locks an unlocked door. Close the door before you start.",
         "data": {
           "slot": "User slot",
           "name": "Name",
@@ -38,14 +38,14 @@
       },
       "clear_pin": {
         "title": "Clear PIN code",
-        "description": "Select user to remove. If the lock is asleep, the integration wakes it by sending a lock command; an unlocked door will be physically locked.",
+        "description": "Pick the user to remove. If the lock is asleep, the integration wakes it with a lock command, which physically locks an unlocked door.",
         "data": {
           "slot": "User"
         }
       },
       "name_slot": {
         "title": "Name a user slot",
-        "description": "Assign a name to a slot number (0-999). Used for RFID tags, fingerprints, the master codes, or other access methods not set via the PIN menu. Leave the name empty to remove it.",
+        "description": "Give a slot (0-999) a name. Use it for RFID tags, fingerprints, the master codes and anything else not set through the PIN menu. Leave the name empty to remove it.",
         "data": {
           "slot": "Slot number",
           "name": "Name"
@@ -57,7 +57,7 @@
       },
       "settings": {
         "title": "Settings",
-        "description": "Nimly PRO, Touch Pro and Code reserve slots 0-2 for master codes: set 3. Nimly Code Pro reserves only slot 0: set 1. Slot 0 is never written from Home Assistant.",
+        "description": "Nimly PRO, Touch Pro and Code keep slots 0-2 for master codes, so choose 3. Nimly Code Pro keeps only slot 0, so choose 1. Home Assistant never writes to slot 0.",
         "data": {
           "reserved_slots": "Reserved master slots"
         }

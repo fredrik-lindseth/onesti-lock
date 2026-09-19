@@ -10,8 +10,8 @@
       }
     },
     "abort": {
-      "zha_not_found": "ZHA-integration hittades inte eller är inte konfigurerad. Denna integration kräver ZHA för att avkoda anpassade Zigbee-attributrapporter för användaridentifiering. Zigbee2MQTT exponerar inte dessa händelser på samma sätt.",
-      "no_devices_found": "Inga Onesti Lock-lås hittades i ZHA.",
+      "zha_not_found": "ZHA hittades inte eller är inte konfigurerat. Den här integrationen behöver ZHA för att avkoda låsets egna Zigbee-attributrapporter, som visar vem som använde låset. Zigbee2MQTT gör inte dessa händelser tillgängliga på samma sätt.",
+      "no_devices_found": "Inga Onesti-lås hittades i ZHA.",
       "already_configured": "Det här låset är redan konfigurerat."
     }
   },
@@ -29,7 +29,7 @@
       },
       "set_pin": {
         "title": "Ställ in PIN-kod",
-        "description": "Välj plats, ange namn och PIN-kod (4-8 siffror). Platsnumren motsvarar låsets interna användarplatser (ZCL DoorLock). Listan börjar efter masterplatserna som anges under Inställningar. Obs: om låset sover får första försöket timeout och integrationen väcker låset genom att skicka ett låskommando. En olåst dörr blir fysiskt låst, så stäng dörren innan du börjar.",
+        "description": "Välj plats och ange namn och en PIN-kod på 4-8 siffror. Platsnumren är låsets egna användarplatser (ZCL DoorLock), och listan börjar efter masterplatserna som anges under Inställningar. Om låset sover får första försöket timeout, och integrationen väcker det med ett låskommando. Då låses en olåst dörr fysiskt, så stäng dörren innan du börjar.",
         "data": {
           "slot": "Användarplats",
           "name": "Namn",
@@ -38,14 +38,14 @@
       },
       "clear_pin": {
         "title": "Ta bort PIN-kod",
-        "description": "Välj användare att ta bort. Om låset sover väcker integrationen det genom att skicka ett låskommando; en olåst dörr blir fysiskt låst.",
+        "description": "Välj användaren som ska tas bort. Om låset sover väcker integrationen det med ett låskommando, och då låses en olåst dörr fysiskt.",
         "data": {
           "slot": "Användare"
         }
       },
       "name_slot": {
         "title": "Namnge användare",
-        "description": "Koppla ett namn till ett platsnummer (0-999). Används för RFID-taggar, fingeravtryck, masterkoderna eller andra åtkomstmetoder som inte ställs in via PIN-menyn. Lämna namnet tomt för att ta bort det.",
+        "description": "Ge ett platsnummer (0-999) ett namn. Använd det för RFID-taggar, fingeravtryck, masterkoderna och annat som inte ställs in via PIN-menyn. Lämna namnet tomt för att ta bort det.",
         "data": {
           "slot": "Platsnummer",
           "name": "Namn"

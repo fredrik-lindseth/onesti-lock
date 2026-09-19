@@ -296,6 +296,7 @@ ZHA's device and its lock entity are not touched, so you can still lock and unlo
 | [Upstream status](docs/upstream-status.md)                 | Open threads in the ZHA quirk and the Z2M converter              |
 | [Vendor manuals](docs/manuals/README.md)                   | Which manuals exist per model and brand, and where to get them   |
 | [Cloud API status](docs/cloud-api-status.md)               | Reverse engineering of the vendor cloud, progress and next steps |
+| [BLE library](docs/nimly-ble-app/ble-library.md)           | A Bluetooth protocol library in the repo; not used by the integration and not yet tested on a lock |
 
 Bugs and questions go to the [issue tracker](https://github.com/fredrik-lindseth/onesti-lock/issues).
 

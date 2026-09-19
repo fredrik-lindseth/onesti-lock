@@ -1,0 +1,28 @@
+name: HACS (nightly)
+
+# The same validation runs in ci.yml for every pull request and every release
+# candidate. This runs it again every night, because `hacs/action@main` and
+# HACS' own rules can get stricter without anything in this repository
+# changing. The brands check was tightened that way on 28 February 2026. We
+# want to know before the next release, not during it.
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: HACS validation
+        uses: hacs/action@main
+        with:
+          category: integration

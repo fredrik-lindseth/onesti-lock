@@ -4,23 +4,38 @@ on:
   push:
     branches: [ main ]
 
+# ci.yml has no push trigger, so this is where main gets its CI run. The
+# release job waits for the whole graph, release gate included, for this
+# commit, and does not tag a version CI has not passed.
+
+permissions: {}
+
 jobs:
+  ci:
+    name: CI
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+
   release:
+    needs: [ ci ]
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    
+
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: Get version from manifest
         id: version
         run: |
           VERSION=$(jq -r '.version' custom_components/onesti_lock/manifest.json)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Check if release exists
         id: check_release
@@ -28,10 +43,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if gh release view "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
-            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "exists=true" >> "$GITHUB_OUTPUT"
             echo "Release v${{ steps.version.outputs.version }} already exists"
           else
-            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "exists=false" >> "$GITHUB_OUTPUT"
             echo "Creating new release v${{ steps.version.outputs.version }}"
           fi
 
@@ -42,7 +57,7 @@ jobs:
           CURRENT_VERSION="v${{ steps.version.outputs.version }}"
           PREV_TAG=$(git tag --sort=-version:refname | grep -v "$CURRENT_VERSION" | head -n 1)
 
-          echo "prev_tag=${PREV_TAG}" >> $GITHUB_OUTPUT
+          echo "prev_tag=${PREV_TAG}" >> "$GITHUB_OUTPUT"
 
           if [ -z "$PREV_TAG" ]; then
             RANGE=""
@@ -69,7 +84,7 @@ jobs:
             if [ -z "$PREV_TAG" ]; then
               commits=$(git log --pretty=format:"%s" --no-merges -20 | grep -E "^${prefix}(\(.+\))?!?:" || true)
             else
-              commits=$(git log ${RANGE} --pretty=format:"%s" --no-merges | grep -E "^${prefix}(\(.+\))?!?:" || true)
+              commits=$(git log "${RANGE}" --pretty=format:"%s" --no-merges | grep -E "^${prefix}(\(.+\))?!?:" || true)
             fi
             if [ -n "$commits" ]; then
               body="${body}${sections[$prefix]}"$'\n\n'
@@ -86,7 +101,7 @@ jobs:
           if [ -z "$PREV_TAG" ]; then
             other=$(git log --pretty=format:"%s" --no-merges -20 | grep -vE "^(feat|fix|docs|chore|refactor|test|ci)(\(.+\))?!?:" || true)
           else
-            other=$(git log ${RANGE} --pretty=format:"%s" --no-merges | grep -vE "^(feat|fix|docs|chore|refactor|test|ci)(\(.+\))?!?:" || true)
+            other=$(git log "${RANGE}" --pretty=format:"%s" --no-merges | grep -vE "^(feat|fix|docs|chore|refactor|test|ci)(\(.+\))?!?:" || true)
           fi
           if [ -n "$other" ]; then
             body="${body}### Other"$'\n\n'
@@ -103,7 +118,7 @@ jobs:
             echo "body<<EOF"
             echo "$body"
             echo "EOF"
-          } >> $GITHUB_OUTPUT
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create Release
         if: steps.check_release.outputs.exists == 'false'

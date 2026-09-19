@@ -102,7 +102,9 @@ Touching the keypad alone does NOT wake the radio. It wakes the backlight only.
 
 ### How auto-wake works
 
-When a command times out, `ZhaLockTransport.send()` in `zha.py` wakes the lock with a `lock.lock` service call to the ZHA lock entity, waits 1 second for the radio to settle, and retries the original command once. The wake is a real lock command, so an unlocked door gets physically locked. Details in [docs/technical.md](technical.md#auto-wake-mechanism).
+When a command times out or Zigbee reports that it could not be delivered, `ZhaLockTransport.send()` in `zha.py` wakes the lock with a `lock.lock` service call to ZHA's lock entity, waits 1 second for the radio to settle, and retries the original command once. The wake is a real lock command, so an unlocked door gets physically locked. Details in [docs/technical.md](technical.md#auto-wake-mechanism).
+
+The wake needs ZHA's lock entity for the device to exist and be enabled. Without it the log says `No ZHA lock entity found for <ieee>, so the lock cannot be woken`, and the command is retried without a wake, which usually fails on a sleeping lock. Enable the lock entity under the device in ZHA.
 
 ### Signal issues
 
@@ -140,9 +142,13 @@ Reconfigure (Settings → Devices → [lock] → "Reconfigure device") sets up b
 
 ### "Slot must be between 3 and N"
 
-`set_pin` refuses slots above what the lock reports in NumberOfPINUsersSupported. The highest slot is N-1, and NimlyPRO and NimlyCodePRO report 50. If the lock never answered the capability read, 999 is the ceiling.
+`set_pin` refuses slots above what the lock reports in NumberOfPINUsersSupported. The highest slot is N-1, and NimlyPRO and NimlyCodePRO report 50. Until the lock has answered the capability read, 999 is the ceiling. The read is tried at startup and again whenever the lock is awake (after a command reaches it, or when it reports anything), so setting one PIN or unlocking the door once is usually enough. After the first answer the capabilities show up as attributes on the activity sensor, and the lock is not asked again.
 
 The lower bound is the reserved-slots setting under Configure > Settings. The default of 3 fits Touch Pro, PRO and Code, which have master codes on 0-2. A Code Pro has only slot 0 as master, so set it to 1 there to use slots 1 and 2. Slot 0 is never written.
+
+### "PIN code must be 4-8 digits"
+
+The length range comes from the lock's reported MinPINCodeLength and MaxPINCodeLength. Until the lock has answered (see above), and for any value that makes no sense, 4-8 applies. A code shorter than 4 digits is never accepted, even if the lock reports a lower minimum, because the log masking only hides runs of 4 digits or more.
 
 ### "Slot number must be between 3 and 999"
 
@@ -152,9 +158,11 @@ Fixed after 1.3.0. The Name a user slot form used to refuse the master slots 0-2
 
 Both attempts in `ZhaLockTransport.send()` failed:
 
-1. Attempt 1 timed out (the lock was asleep).
+1. Attempt 1 timed out or was not delivered (the lock was asleep).
 2. Auto-wake sent `lock.lock` to wake the radio.
-3. Attempt 2 timed out as well.
+3. Attempt 2 failed as well.
+
+Any other Zigbee error fails at once, without a wake or a retry, and the log line names the error.
 
 What to try:
 
@@ -198,13 +206,11 @@ After setting a PIN:
 
 ### attribute_report (attrid 0x0100) not received
 
-The activity sensor depends on the lock sending attribute reports with attrid `0x0100` (Onesti's custom operation event). If the sensor never updates, start with the event listener. At startup the log should say:
+The activity sensor depends on the lock sending attribute reports with attrid `0x0100` (Onesti's custom operation event). If the sensor never updates, start with the event listener. If it could not be registered, Home Assistant shows the repair issue below under Settings → Repairs. With debug logging on (section 4), a working setup logs this at startup, with the cluster's class name at the end:
 
 ```
-Event listener registered on DoorLock (events: ['attribute_report'])
+Event listener registered on DoorLock
 ```
-
-`Could not find DoorLock cluster for event listener` means the integration did not find the cluster. Try reloading the integration (Settings → Integrations → Onesti Lock → Reload).
 
 Next, check that attribute reports actually arrive. Set the integration's logger to `info` or `debug` (see section 4) and unlock the door. You should see:
 
@@ -213,6 +219,18 @@ Lock event: unlock by Kari via keypad (raw: 0x02020003)
 ```
 
 If nothing is logged on unlock, the lock is not sending reports. See "After battery change" in section 1.
+
+### Repair issue: Lock events are not being received
+
+The integration could not find a part of ZHA it listens through. Setting PIN codes may still work, but the activity sensor and the `onesti_lock_activity` event stay silent. The issue names the missing part:
+
+- **ZHA gateway (get_zha_gateway_proxy)**: ZHA was not running when the integration started. Check that ZHA is loaded under Settings → Devices & services. When ZHA comes up with the lock, the integration reloads by itself and the issue goes away. If ZHA runs normally and the issue stays, a Home Assistant update has most likely changed ZHA's internals.
+- **Door Lock cluster for (address)**: ZHA runs, but the lock is not among its devices, or it has no Door Lock cluster. Check the device in ZHA, re-interview it if the cluster is missing (see "Lock not offered when adding the integration"), then reload Onesti Lock.
+- **(class).on_event**: the Zigbee library no longer offers the hook the integration listens on. Nothing on your side fixes this.
+
+For the first case when ZHA is running, and for the last case, open an issue on [GitHub](https://github.com/fredrik-lindseth/onesti-lock/issues) with your Home Assistant version and the text of the repair issue. The log has the same text on an error line starting `Lock events for`.
+
+Versions before this repair issue logged only `ZHA not found` or `ZHA gateway_proxy not found`. Both meant what the first case means now: the integration could not reach ZHA's gateway.
 
 ### Slot 0 shows as Unknown
 
@@ -223,6 +241,8 @@ Fixed after 1.3.0. Earlier versions treated slot 0 as "no user" for every source
 In older versions, auto-lock events overwrote the ones that mattered, so "Kari unlocked with code" turned into "Auto-lock" 5 seconds later.
 
 This is fixed. The activity sensor now ignores system-initiated locking, which is source `auto`, and on NimlyCodePRO an `unattributed` lock with no user slot. The HA event `onesti_lock_activity` still fires for every event, auto-lock included, so automations can use it.
+
+Locking from Home Assistant does update the sensor, as "Locked via Zigbee". The one exception is the auto-wake before a PIN write, which also locks the door over Zigbee: a Zigbee lock within 30 seconds of a wake is taken as that echo and left out of the sensor. A dashboard lock inside the same 30 seconds is left out too. Whether 30 seconds fits every lock has not been measured, so if a PIN write on a sleeping lock still leaves "Locked via Zigbee" behind, report it with a debug log.
 
 ## 4. Debug logging
 
@@ -242,8 +262,11 @@ Restart HA. The log then shows:
 - Event listener registration at startup
 - All incoming operation events (attrid 0x0100) with raw values
 - Auto-wake attempts and results
+- A Zigbee lock taken as the echo of the auto-wake
 - The Nimly response quirk (IndexError) when it occurs
 - Cluster lookup errors
+
+Error messages from the send path have every run of 4 or more digits replaced with `****`, so a PIN code in an error does not reach the log from this integration.
 
 ### Zigpy/ZHA debug logging for raw Zigbee traffic
 
@@ -279,16 +302,16 @@ The raw value is a bitmap32: `0x02020003` → source=0x02 (keypad), action=0x02 
 **Auto-wake sequence:**
 
 ```
-Timeout on attempt 1 for command 0x0005, waking lock and retrying
+TimeoutError on attempt 1 for command 0x0005, waking lock and retrying
 Waking lock via lock.onesti_products_as_nimlypro_door_lock
 ```
 
-The entity in the second line is ZHA's lock entity, so its id follows ZHA's naming, not this integration's.
+The first line says `DeliveryError` when Zigbee reported the frame as undelivered. The entity in the second line is ZHA's lock entity, so its id follows ZHA's naming, not this integration's.
 
 **Failed command:**
 
 ```
-Timeout sending command 0x0005 to f4:ce:36:... after wake+retry; lock may be unreachable
+TimeoutError sending command 0x0005 to f4:ce:36:... after wake and retry, lock may be unreachable: ...
 ```
 
 **Nimly response quirk:**
@@ -300,15 +323,17 @@ Nimly response quirk (IndexError) for command 0x0005, command was sent successfu
 **Event listener not registered:**
 
 ```
-Could not find DoorLock cluster for event listener
+Lock events for f4:ce:36:... cannot be received, ZHA internals missing: ZHA gateway (get_zha_gateway_proxy). Report the Home Assistant version in an issue if ZHA itself is running
 ```
 
-or:
+It comes with the repair issue described in section 3, and usually after one of these:
 
 ```
-ZHA not found
-ZHA gateway_proxy not found
+ZHA has no running gateway, so the lock cannot be reached
+Door Lock cluster not found for f4:ce:36:...
 ```
+
+Older versions logged `ZHA not found` and `ZHA gateway_proxy not found` in the same situation.
 
 **Raw attribute report from zigpy (with `zigpy.zcl: debug`):**
 

@@ -2,7 +2,7 @@
 
 ## How user identification works
 
-Onesti locks send a custom attribute report (`attrid 0x0100`) on the Door Lock cluster for every lock and unlock. The value is a bitmap32 holding user slot, action and source. ZHA's stock quirk and the Zigbee2MQTT converter both decode it into raw numbers; this integration is the one that turns it into named users and readable activity. It listens for the reports with `cluster.on_event("attribute_report", ...)` and decodes the bitmap:
+Onesti locks send a custom attribute report (`attrid 0x0100`) on the Door Lock cluster for every lock and unlock. The value is a bitmap32 holding user slot, action and source. ZHA's stock quirk and the Zigbee2MQTT converter both decode it into raw numbers; this integration is the one that turns it into named users and readable activity. It listens for the reports with `cluster.on_event("attribute_report", ...)` (`register_event_listener()` in `events.py`) and decodes the bitmap:
 
 ```
 Bits 0-15:  user_slot (uint16 LE; 0 = master or no user, see below)
@@ -23,11 +23,7 @@ Slot 0 means two things. With source keypad, fingerprint or rfid, a person used 
 
 `SOURCE_MAP` in `events.py` is the canonical decoder, so update this table when the map changes. The raw captures behind these values are in `docs/zigbee-protocol/zigbee-captures.md`.
 
-`attrid 0x0101` holds the PIN code in BCD plaintext. The integration leaves it
-alone on purpose. Every state attribute ends up in the recorder, the logbook and
-diagnostics, which would put real access codes on disk (see
-zha-device-handlers#4881), and the slot number from 0x0100 already identifies
-the user.
+`attrid 0x0101` holds the PIN code in BCD plaintext. The integration leaves it alone on purpose. Every state attribute ends up in the recorder, the logbook and diagnostics, which would put real access codes on disk (see zha-device-handlers#4881), and the slot number from 0x0100 already identifies the user.
 
 ## Why standard ZHA approaches don't work
 
@@ -42,9 +38,13 @@ We tried 6 approaches before one worked. The lock sends the event data, but ZHA 
 | `add_listener` + `general_command`         | Not dispatched to listeners for Report_Attributes                               |
 | **`cluster.on_event("attribute_report")`** | **Works, catches all attribute reports including custom 0x0100**                |
 
-## ZHA device chain
+## Reaching the lock through ZHA
 
-The Door Lock cluster lives on the deepest zigpy device object:
+ZHA has no public API for a device's zigpy clusters, so everything that knows ZHA's object layout lives in `zha.py`. The rest of the integration talks to a lock through `ZhaLockTransport`, which is injected into the coordinator so tests can pass a fake.
+
+### Device chain
+
+The gateway comes from ZHA's own helper `get_zha_gateway_proxy`. It raises `ValueError` when ZHA has no running gateway (not set up yet, failed, or reloading), and `zha.py` turns that into "no gateway". The device is looked up in `gateway_proxy.device_proxies`, matching the IEEE address without regard to case, and the Door Lock cluster lives on the deepest zigpy device object:
 
 ```
 ZHADeviceProxy (depth 0, no endpoints)
@@ -52,7 +52,27 @@ ZHADeviceProxy (depth 0, no endpoints)
     → CustomDeviceV2 (depth 2, clusters here)
 ```
 
-All knowledge of that layout lives in `zha.py`. `find_door_lock_cluster()` finds the device among ZHA's device proxies and walks the `.device` chain, and the config flow's `has_door_lock_cluster()` uses the same walk to decide which devices to offer.
+`find_door_lock_cluster()` walks the `.device` chain up to four levels, skips endpoint 0, and returns the first endpoint's Door Lock cluster (0x0101). The config flow's `has_door_lock_cluster()` uses the same walk to decide which devices to offer. Commands are sent to the endpoint the cluster belongs to (`cluster.endpoint.endpoint_id`). Endpoint 11, where every Onesti lock seen so far has the cluster, is only the fallback when that id cannot be read.
+
+### Finding ZHA's lock entity
+
+The auto-wake calls `lock.lock` on ZHA's own lock entity, and `find_lock_entity_id()` finds it through the registries. ZHA registers each device with a zigbee connection holding the IEEE address in lowercase, so the device registry gives the device, and the lock entity is the one entity on it in the `lock` domain from the `zha` platform. Disabled entities are skipped, since HA would refuse the service call. No unique_id format is parsed.
+
+### When ZHA is reloaded
+
+A ZHA reload or a re-pair builds new zigpy objects, and a listener left on the old cluster would stop receiving lock events without a word. `__init__.py` therefore subscribes to `ConfigEntry.async_on_state_change` on every ZHA config entry that exists at setup. When a ZHA entry reaches `LOADED` while this entry is loaded, and the cluster ZHA now holds is not the one the listener sits on (`coordinator.listened_cluster`, `None` if the listener never registered), the entry schedules its own reload. That is also how the integration recovers when it was set up before ZHA had the lock.
+
+### Repair issue for missing ZHA internals
+
+The event listener depends on three things that are not public API: the gateway, the Door Lock cluster under the device, and `cluster.on_event`. If one is missing at setup, `register_event_listener()` raises `ZhaInternalsMissing`, and `__init__.py` logs an error and creates the repair issue `zha_internals_<entry_id>` (severity error, not fixable). Its `detail` placeholder names the missing piece:
+
+| `detail`                              | Meaning                                         |
+| ------------------------------------- | ----------------------------------------------- |
+| `ZHA gateway (get_zha_gateway_proxy)` | ZHA has no running gateway                      |
+| `Door Lock cluster for <ieee>`        | ZHA runs, but the lock or its cluster is absent |
+| `<ClusterClass>.on_event`             | The cluster has no `on_event`                   |
+
+Without the listener nothing reports who unlocked, though PIN writes may still work when ZHA itself runs. The issue is deleted when the listener registers and when the entry unloads. What the user does about it is in [debugging.md](debugging.md#repair-issue-lock-events-are-not-being-received).
 
 ## Nimly response quirk
 
@@ -60,77 +80,143 @@ PIN commands get a malformed ZCL response back, and zigpy raises `IndexError: tu
 
 ## Coordinator pattern
 
-`NimlyCoordinator` is a custom class, on purpose NOT based on HA's `DataUpdateCoordinator`. A polling coordinator makes no sense for a battery-powered Zigbee EndDevice that sleeps between events and cannot be polled.
+`NimlyCoordinator` is a custom class, on purpose NOT based on HA's `DataUpdateCoordinator`. A polling coordinator makes no sense for a battery-powered Zigbee EndDevice that sleeps between events and cannot be polled. There is one per lock, kept on `entry.runtime_data`.
 
 ### Slot data storage
 
-User-to-slot mappings are stored in the config entry's options dict (`.storage`), which survives HA restarts. Dictionary keys are strings (`"0"`, `"1"`, ...) because `ConfigEntry.options` serializes to JSON.
+Slot data is stored in the config entry's options (`.storage`), which survives HA restarts. Keys are strings (`"0"`, `"1"`, ...) because `ConfigEntry.options` serializes to JSON. A stored slot holds `name` and `has_pin` and nothing else. Fields outside that schema are dropped on load, so a hand-edited or older save cannot bring them back.
+
+The same options hold `reserved_slots` from the settings form and `capabilities` once the lock has reported them (see below).
+
+The config entry is at version 2.2. `async_migrate_entry` takes a 2.1 entry to 2.2 by stripping `has_rfid` from every stored slot, a field nothing ever set. An entry written by a newer major version is refused rather than guessed at.
+
+### PIN operations
+
+`set_pin`, `clear_pin` and `clear_slot` refuse slots below the first user slot (`_check_writable`), whoever calls them, so slot 0 is never written from HA. They run one at a time per lock under an `asyncio.Lock`, since the options flow and the services can both write, and interleaved sends and saves could leave storage describing the older of two writes. Local state changes only after a command reached the lock: a failed `clear_slot` does not show the slot as vacant while the lock still accepts the old code.
+
+A successful send means the lock took the frame. It does not mean the lock accepted the code, since the Onesti response cannot be parsed (see the quirk above).
+
+In the options flow, a PIN write runs as its own task, and the progress task HA shows only waits for it through `asyncio.shield`. HA cancels the progress task when the dialog closes, and by then the command may have reached the lock, so cancelling it before the save would leave storage describing the old code. The write finishes on its own and logs its outcome, and the flow logs at info level when a dialog closes while a write is running.
 
 ### Listener pattern
 
 The slot sensors register callbacks with `add_listener(callback)`. When slot data changes (a name set, a PIN set or cleared), the coordinator calls `_notify_listeners()`, which runs `async_write_ha_state()` in each sensor.
 
+### Slot sensors and reloads
+
+The slot sensor row starts at the first user slot and has `NUM_USER_SLOTS` (10) sensors, each with the unique_id `<ieee>-slot-<n>`. On setup, registry entries for slot sensors outside the current row are removed, so moving `reserved_slots` does not leave unavailable entities behind, and a slot that is in both rows keeps its entity id.
+
+Changing `reserved_slots` reloads the entry through an update listener. The coordinator writes slot data and capabilities to the same options, and every write calls that listener, so it compares the first user slot with the one the setup was built for and reloads only when that changed.
+
 ### Activity sensor
 
-The activity sensor registers separately, with `set_activity_sensor(sensor)`. The coordinator calls `update_activity(user_slot, action, source)` on it for every decoded operation event except system-initiated locking, which is source `auto`, and on NimlyCodePRO an `unattributed` lock with no user slot. That keeps auto-relock from overwriting the last activity that mattered. A master code unlock on slot 0 is a user event and does update the sensor.
+The activity sensor registers separately, with `set_activity_sensor(sensor)`, and gets `update_activity(user_slot, action, source)` for every decoded operation event that is not a system lock (`is_system_lock()` in `events.py`):
+
+- source `auto`, always
+- source `unattributed` with action lock and no user slot, which is how NimlyCodePRO reports auto-relock
+- source `zigbee` with action lock and no user slot, but only while the wake echo is pending (see [Wake echo](#wake-echo))
+
+That keeps auto-relock and the integration's own wake from overwriting the last activity that mattered. A Zigbee lock from a dashboard outside the echo window does update the sensor, and so does a master code unlock on slot 0.
+
+The sensor is a `RestoreEntity`. It stores the raw fields (`user_name`, `user_slot`, `action`, `source`, `timestamp`) as extra restore data, never the rendered text, and builds the state from them with the current strings, so it comes back after a restart and follows a change of server language. Restored data is filtered to those five keys, and data without a string `action` and `source` is dropped. `timestamp` is ISO 8601 in UTC (`dt_util.utcnow()`).
 
 ### Lock capabilities
 
-At setup the coordinator reads the standard ZCL DoorLock attributes 0x0012 (NumberOfPINUsersSupported), 0x0017 (MaxPINCodeLength) and 0x0018 (MinPINCodeLength) in the background, and carries on without them if the lock never answers. `set_pin` rejects slots above what the lock reports (`pin_rules.max_user_slot`, highest slot = N-1). When the attribute is missing or makes no sense, the manual's 0-999 range applies. NimlyPRO and NimlyCodePRO both report 50 PIN users.
+The coordinator reads the standard ZCL DoorLock attributes 0x0012 (NumberOfPINUsersSupported), 0x0017 (MaxPINCodeLength) and 0x0018 (MinPINCodeLength) until the lock has answered once:
+
+- at setup
+- after every command that reached the lock
+- on every attribute report from the lock, whatever the attribute
+
+The last two are the moments the radio is known to be awake. Each read runs as a background task tied to the entry, so an unload cancels a read still waiting on a sleeping lock. `read_capabilities()` returns `None` when the lock was not reached, and the read is then repeated at the next chance. Any answer is final, also one without these attributes, since some variants skip them. The answer is stored in `entry.options["capabilities"]` and loaded from there at the next setup, and the lock is never asked again. zigpy may key the answer by attribute id or by name, and both are mapped.
+
+What the capabilities decide is in `pin_rules.py`:
+
+- `set_pin` rejects slots at or above NumberOfPINUsersSupported (`max_user_slot`, highest slot N-1). A missing count, or one outside 4-1000, gives the manual's ceiling of 999. NimlyPRO and NimlyCodePRO both report 50.
+- A PIN code is ASCII digits within the reported min and max length (`pin_length_range`). Each bound is trusted only between 4 and 20, and falls back on its own to 4-8. If the two bounds left over contradict each other, 4-8 applies.
+
+The floor of 4 is there for the log masking below: a lock that reports a minimum of 3 still gets 4.
 
 ### Runtime strings
 
-Sensor states and options-flow labels are built in Python and never pass through HA's translation layer. `localize.py` looks them up in the `runtime` section of `translations/<lang>.json` for the server language (`hass.config.language`). English, Norwegian bokmål, Swedish and Danish ship with the integration. `no` and `nn` map to `nb`, and missing keys fall back to English.
+Sensor states and options-flow labels are built in Python and never pass through HA's translation layer. `localize.py` looks them up in the `runtime` section of `translations/<lang>.json` for the server language (`hass.config.language`). English, Norwegian bokmål, Swedish and Danish ship with the integration. `no` and `nn` map to `nb`, and missing keys fall back to English. The coordinator loads them at setup.
 
 ## Auto-wake mechanism
 
-Battery-powered Zigbee EndDevices sleep most of the time, and ZCL commands like `set_pin_code` time out while the radio is asleep. `ZhaLockTransport.send()` in `zha.py` wakes the lock and retries:
+Battery-powered Zigbee EndDevices sleep most of the time, and ZCL commands like `set_pin_code` fail while the radio is asleep. `ZhaLockTransport.send()` in `zha.py` wakes the lock and retries:
 
 1. The first attempt sends the ZCL command via `zha.issue_zigbee_cluster_command`.
-2. On `TimeoutError` it calls `wake()` and retries the original command once.
-3. `wake()` sends a `lock.lock` service call to the ZHA lock entity.
-4. After a 1-second pause for the radio to settle, the original command is retried.
+2. On `TimeoutError` or zigpy's `DeliveryError`, it calls `wake()` and retries the command once.
+3. `wake()` sends a `lock.lock` service call to ZHA's lock entity, then waits 1 second for the radio to settle.
+4. The command is sent again. A second failure returns `False`.
+
+`DeliveryError` is included because a sleeping lock can plausibly surface as a failed delivery and not only as a timeout. Which of the two a real Onesti lock produces has not been checked. Any other `ZigbeeException` has nothing to do with sleep, so it returns `False` at once without moving the bolt. Any other exception is logged as an error and returns `False` as well: `send()` never raises.
+
+`wake()` must not stop the retry. If no ZHA lock entity is found it logs a warning and skips the wake, and if the service call fails the retry runs anyway.
 
 `lock.lock` is used because it works, while attribute reads through the integration's own cluster path time out. Why it works is not established. ZHA's lock entity wraps the command in longer timeouts and retries for sleepy devices, which is the likely reason, but at the radio level a read and a write are queued the same way.
 
 The wake has a side effect, since it is a real lock command and not a read. An unlocked door gets physically locked, and an open door drives the bolt out into the air. The README limitations and the options flow texts both say so. A wake that does not move the bolt is not solved yet, and replacing the mechanism needs testing on real hardware first.
 
-Nothing sent over the air wakes a sleeping EndDevice, since its radio is off. All the coordinator can do is queue a unicast at the parent router and hope the lock polls within the 7.68-second window; once one frame gets through, the lock fast-polls and drains the rest, which is what looks like waking. At that level a `read_attributes` is queued exactly like a lock command, so if `lock.lock` works better than a plain read (`read_lock_capabilities` just times out against a sleeping lock), the difference is the retry and extended-timeout envelope ZHA gives its lock entity, not the fact that it writes. That is why `homeassistant.update_entity` on the ZHA lock entity, which goes through the same entity path, is the candidate for a bolt-free wake, with "only wake when the cached state is already locked" as the fallback.
-
-To find the ZHA lock entity, `find_lock_entity_id()` in `zha.py` scans the entity registry for an entity where `platform == "zha"`, the `unique_id` contains the device's IEEE address, and the `unique_id` ends with `"257"` (the Door Lock cluster id 0x0101 in decimal, which ZHA puts last in its `ieee-endpoint-cluster` unique ids).
+Nothing sent over the air wakes a sleeping EndDevice, since its radio is off. All the coordinator can do is queue a unicast at the parent router and hope the lock polls within the 7.68-second window; once one frame gets through, the lock fast-polls and drains the rest, which is what looks like waking. At that level a `read_attributes` is queued exactly like a lock command, so if `lock.lock` works better than a plain read (`read_capabilities` usually goes unanswered against a sleeping lock), the difference is the retry and extended-timeout envelope ZHA gives its lock entity, not the fact that it writes. That is why `homeassistant.update_entity` on the ZHA lock entity, which goes through the same entity path, is the candidate for a bolt-free wake, with "only wake when the cached state is already locked" as the fallback.
 
 Commands go through `zha.issue_zigbee_cluster_command` instead of touching the cluster directly, so ZHA's service layer handles ZCL framing and transport.
 
+### Wake echo
+
+The lock reports the wake's `lock.lock` as an ordinary Zigbee lock (source `zigbee`, no user slot), which would replace the last activity every time a PIN is set on a sleeping lock. `wake()` stamps the time just before the service call, because the report can arrive while the call is still waiting, and `wake_echo_pending()` is true for `WAKE_ECHO_WINDOW_S` (30 seconds, `const.py`) after that. Asking does not reset it, since the lock may report the wake more than once. Inside the window, a Zigbee lock without a user slot counts as a system lock: the event still fires, and the activity sensor stays as it was.
+
+The 30 seconds are a generous guess. How long the report can trail the command on a real lock has not been measured. The cost of a long window is that a dashboard lock within 30 seconds of a wake is taken for the echo too.
+
+## Logging and PIN codes
+
+Parameters for `set_pin_code` hold the PIN, and exception messages on the send path are not ours to shape: a voluptuous error from ZHA's service schema quotes the params, and a zigpy error may echo the frame. `send()` therefore never logs a traceback, and every exception message goes through `redact_digits()` in `redact.py` first. It replaces every run of four or more digits with a fixed `****`, so the mask does not reveal the code's length either. Shorter runs stay readable, since command ids, slot numbers and ZCL status codes are what make an error message useful.
+
+The mask covers every PIN the integration accepts only because `pin_rules` never accepts a code shorter than 4 (`PIN_LENGTH_SANE_MIN`, which `redact.py` imports). Lowering one without the other puts codes in the log.
+
+This covers the integration's own log lines. ZHA and zigpy log on their own terms, see [debugging.md](debugging.md#pin-codes-appear-in-raw-logs-and-diagnostics).
+
 ## `onesti_lock_activity` event
 
-Every operation event decoded from attrid `0x0100` fires a Home Assistant event that automations can use:
+Every operation event decoded from attrid `0x0100` fires `onesti_lock_activity`, auto-lock and the wake echo included, so automations see everything the activity sensor leaves out. The payload:
 
-- **Event name:** `onesti_lock_activity`
-- **Payload:** `ieee`, `user_slot`, `user_name`, `action`, `source`. `user_slot` is `0` for the master credential (keypad, fingerprint or rfid source) and `null` when no user was involved.
-- **Scope:** fired for ALL events, auto-lock included.
-- **Activity sensor:** not updated for system-initiated locking (source `auto`, or an `unattributed` lock with no user slot on NimlyCodePRO), so auto-relock does not immediately overwrite the last user event.
+| Key         | Value                                                                               |
+| ----------- | ----------------------------------------------------------------------------------- |
+| `ieee`      | The lock's IEEE address as stored in the config entry                               |
+| `user_slot` | Slot number, `0` for the master credential, `null` when no user was involved        |
+| `user_name` | Name for `user_slot`, `null` exactly when `user_slot` is `null`                     |
+| `action`    | `lock`, `unlock` or `unknown`                                                       |
+| `source`    | `zigbee`, `keypad`, `fingerprint`, `rfid`, `unattributed`, `auto` or `unknown`      |
+
+`user_slot` is `null` for slot 0 from a source that is not keypad, fingerprint or rfid (see [How user identification works](#how-user-identification-works)). Otherwise it is the slot the lock reported.
+
+`user_name` is never `null` for a known slot. It is the name set on the slot, and without one it falls back to "Master" for slot 0 and "Slot N" for any other slot, in the server language as loaded at setup. A template can therefore not tell an unnamed slot from a named one by testing `user_name`. Test `user_slot` against `null` to know whether a user was involved.
+
+The activity sensor carries the same `user_slot`, `user_name`, `action` and `source` as attributes, plus `timestamp`, and the capabilities once reported.
 
 ### Automation example
 
 ```yaml
 automation:
   - alias: "Notify when someone unlocks the front door"
-    trigger:
-      - platform: event
+    triggers:
+      - trigger: event
         event_type: onesti_lock_activity
         event_data:
           action: unlock
-    condition:
+    conditions:
       - condition: template
-        value_template: "{{ trigger.event.data.source != 'auto' }}"
-    action:
-      - service: notify.mobile_app
+        value_template: "{{ trigger.event.data.user_slot is not none }}"
+    actions:
+      - action: notify.notify
         data:
           title: "Door unlocked"
           message: >
-            {{ trigger.event.data.user_name or 'Unknown' }}
+            {{ trigger.event.data.user_name }}
             unlocked via {{ trigger.event.data.source }}
 ```
+
+With more than one lock, add `ieee` to `event_data` to pick one.
 
 ## Sleepy device behavior
 
@@ -177,7 +263,7 @@ Z2M has an `onesti.ts` converter for these locks, and this integration decodes t
 | ------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------- |
 | Decode attrid 0x0100 (user/source/action)         | Yes                                                     | Yes                                               |
 | Last used PIN code (attrid 0x0101)                | No, removed on purpose (0x0101 is the PIN in plaintext) | Yes, `last_used_pin_code` state                   |
-| Lock capabilities (max users, min/max PIN length) | Yes, read at setup                                      | Exposed, never populated (see upstream-status.md) |
+| Lock capabilities (max users, min/max PIN length) | Yes, read until the lock answers once                   | Exposed, never populated (see upstream-status.md) |
 | Set / clear PIN codes                             | Yes, via HA UI and services                             | Yes, via MQTT                                     |
 | Name any slot (for RFID/fingerprint)              | Yes, persisted in HA                                    | No                                                |
 | Activity sensor with human-readable messages      | Yes                                                     | No, raw fields only                               |

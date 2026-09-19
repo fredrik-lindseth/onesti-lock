@@ -19,7 +19,12 @@ out of the decompiled Nimly BLE app, not guessed.
 The caller supplies the Transport: one connected lock on some Bluetooth
 stack, found by ADVERTISING_UUID and reached through the GATT UUIDs below.
 commands builds every command, responses parses every answer, and every
-exception derives from BleError.
+exception derives from BleError. A Tracer passed to Session sees every frame,
+unredacted, for a caller that keeps a frame log.
+
+A transport over bleak is in client/bleak_transport.py. It is not imported
+here, so the package loads without bleak installed: import it as
+ble.client.bleak_transport.
 
 The package is layered, each layer importing only those below it:
 
@@ -48,6 +53,7 @@ from .client.enrollment import (
     resume_enrollment,
 )
 from .client.session import EventListener, LockEvent, Session
+from .client.tracing import Tracer
 from .client.transport import DisconnectCallback, NotificationCallback, Transport
 from .errors import (
     BleDisconnectedError,
@@ -139,6 +145,7 @@ __all__ = [
     "OwnerCredential",
     "ResponseStatusId",
     "Session",
+    "Tracer",
     "Transport",
     "UserAdded",
     "UserAddedStatusId",

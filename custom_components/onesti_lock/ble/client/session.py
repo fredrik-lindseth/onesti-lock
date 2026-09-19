@@ -16,10 +16,25 @@ PayloadStream do together, over a Transport instead of Android's GATT:
 
 After that, send() and request() run one command at a time: the next command
 waits for the answer to the last one, or its timeout, plus the app's 320 ms
-pause. An answer is matched on its CommandRef alone, as CommandStream matches
-it, and a status other than SUCCESS raises the mapped BleOperationError. The
+pause. An answer is matched on its CommandRef, as CommandStream matches it,
+and a status other than SUCCESS raises the mapped BleOperationError. The
 lock's unsolicited events, LockStatus and UserAdded under CommandRef 128, go
 to the event listeners and never touch the command in flight.
+
+Late answers under the static CommandRef. Below 4.7.90 every command carries
+ref 16, so an answer that arrives after its command timed out looks like the
+answer to whatever was sent next. The app has the same weakness: CommandStream
+matches on the ref alone, and sends the next command right after a timeout.
+Two things here narrow it without changing a byte on the wire. After a timeout
+under the static ref, the next command holds back for late_answer_grace, and
+whatever arrives meanwhile finds no command waiting and is dropped. And while
+a command waits, an answer under ref 16 whose response id belongs to another
+command is taken as a late answer and ignored; if nothing else comes, the
+timeout error names it as its cause. What is left: a late answer to a command
+with the same id, arriving after the grace period, still completes the next
+one. Nothing on the wire tells the two apart. With the counter (4.7.90 and
+up) a late answer carries an old ref and is ignored; an answer with the right
+ref and the wrong id there is a BleProtocolError, as before.
 
 The length of a decrypted payload always comes from the Layer 3 header: the
 cipher returns the zero padding with it, and Response.from_bytes reads only
@@ -57,7 +72,12 @@ from ..protocol.const import DEFAULT_MTU, MIN_FIRMWARE_ADMIN, CommandId, Firmwar
 from ..protocol.packet import PacketStream, ReceivedPayload
 from ..protocol.response import Response, expected_response_id
 from ..protocol.responses import LockStatus, UserAdded, parse_device_model, parse_event, parse_exchange_key_pub_l
-from .const import COMMAND_RESPONSE_DELAY_S, DEFAULT_RESPONSE_TIMEOUT_S, MIN_FIRMWARE_CONNECT
+from .const import (
+    COMMAND_RESPONSE_DELAY_S,
+    DEFAULT_RESPONSE_TIMEOUT_S,
+    LATE_ANSWER_GRACE_S,
+    MIN_FIRMWARE_CONNECT,
+)
 from .transport import Transport
 
 _LOGGER = logging.getLogger(__name__)
@@ -94,6 +114,8 @@ class _State(enum.Enum):
 class _Pending:
     command_id: CommandId
     command_ref: int
+    # Firmware below 4.7.90: every command shares the ref (see the module docstring).
+    static_ref: bool
     future: asyncio.Future[Response]
 
 
@@ -106,8 +128,11 @@ class Session:
 
     response_timeout is how long a command waits for its answer (the app's
     20 s). command_delay is the pause after an answer before the next command
-    goes out (320 ms in the app); tests set it to 0. key_pair_factory makes
-    the key pair for the link key exchange, and exists so tests can fix it.
+    goes out (320 ms in the app); tests set it to 0. late_answer_grace is how
+    long the next command holds back after a timeout under the static
+    CommandRef (firmware below 4.7.90), which the app does not do; see the
+    module docstring. key_pair_factory makes the key pair for the link key
+    exchange, and exists so tests can fix it.
     """
 
     def __init__(
@@ -116,12 +141,14 @@ class Session:
         *,
         response_timeout: float = DEFAULT_RESPONSE_TIMEOUT_S,
         command_delay: float = COMMAND_RESPONSE_DELAY_S,
+        late_answer_grace: float = LATE_ANSWER_GRACE_S,
         mtu: int = DEFAULT_MTU,
         key_pair_factory: Callable[[], KeyPair] = generate_key_pair,
     ) -> None:
         self._transport = transport
         self.response_timeout = response_timeout
         self.command_delay = command_delay
+        self.late_answer_grace = late_answer_grace
         self._key_pair_factory = key_pair_factory
         self._stream = PacketStream(mtu=mtu)
         self._state = _State.NEW
@@ -266,7 +293,7 @@ class Session:
 
             command_ref = self._refs.next()
             frames = self._stream.frame(command.with_ref(command_ref).to_bytes())
-            pending = _Pending(command.command_id, command_ref, loop.create_future())
+            pending = _Pending(command.command_id, command_ref, self._refs.static, loop.create_future())
             # Waiting starts before the first write, as CommandStream arms its
             # receiver when the write begins: an answer can beat the last write.
             self._pending = pending
@@ -281,6 +308,8 @@ class Session:
             except TimeoutError as err:
                 if not deadline.expired():
                     raise
+                if pending.static_ref:
+                    self._ready_at = loop.time() + self.late_answer_grace
                 raise BleTimeoutError(
                     f"{command.command_id.name} got no answer within {self.response_timeout:g} s"
                 ) from (self._dropped or err)
@@ -328,6 +357,14 @@ class Session:
                 _response_name(response.response_id),
                 response.command_ref,
             )
+            return
+        if pending.static_ref and response.response_id != expected_response_id(pending.command_id):
+            late = BleProtocolError(
+                f"{_response_name(response.response_id)} arrived under the static CommandRef while "
+                f"{pending.command_id.name} waited, and was taken as a late answer to an earlier command"
+            )
+            _LOGGER.debug("Ignoring %s", late)
+            self._dropped = late
             return
         pending.future.set_result(response)
 

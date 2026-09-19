@@ -587,6 +587,22 @@ class TestFailures:
         assert run(scenario()).percent == 80
         assert [c.command_ref for c in lock.commands][-2:] == [3, 4]
 
+    def test_counter_firmware_does_not_hold_back_after_a_timeout(self):
+        """A late answer there carries an old ref, so there is nothing to wait out."""
+
+        async def scenario():
+            transport = open_transport()
+            async with new_session(transport, response_timeout=0.05, late_answer_grace=10.0) as session:
+                transport.silent.add(CommandId.PIN_CODE_CLEAR)
+                with pytest.raises(errors.BleTimeoutError):
+                    await session.send(commands.pin_code_clear(803))
+                loop = asyncio.get_running_loop()
+                started = loop.time()
+                await session.send(commands.batt_info_get())
+                return loop.time() - started
+
+        assert run(scenario()) < 1.0
+
     def test_timeout_names_a_dropped_frame_as_its_cause(self, caplog):
         async def scenario():
             transport = open_transport()
@@ -726,6 +742,98 @@ class TestFailures:
                 return await session.request(commands.batt_info_get(), responses.parse_batt_info)
 
         assert run(scenario()).percent == 80
+
+
+STATIC_FIRMWARE = b"4.7.89"
+
+
+class TestLateAnswersUnderTheStaticRef:
+    """Firmware below 4.7.90 puts CommandRef 16 on every command."""
+
+    def test_the_next_command_holds_back_and_a_late_answer_meanwhile_is_dropped(self, caplog):
+        caplog.set_level(logging.DEBUG)
+        lock = FakeLock(firmware=STATIC_FIRMWARE)
+
+        async def scenario():
+            transport = lock.connect(require_login=False)
+            async with new_session(transport, response_timeout=0.05, late_answer_grace=0.2) as session:
+                transport.silent.add(CommandId.DEVICE_NAME_SET)
+                with pytest.raises(errors.BleTimeoutError):
+                    await session.send(commands.device_name_set("Door"))
+                loop = asyncio.get_running_loop()
+                timed_out = loop.time()
+                # The lock's answer to the timed-out command, late, and a failure.
+                late = response_mod.Response(ResponseId.DEVICE_NAME_SET, const.COMMAND_REF_STATIC, Status.FAILED)
+                loop.call_later(0.1, transport.send_response, late)
+                transport.silent.clear()
+                await session.send(commands.device_name_set("Hall"))
+                return transport.write_times[-1] - timed_out
+
+        held_back = run(scenario())
+        assert held_back >= 0.2
+        assert lock.name == "Hall"
+        assert "Ignoring DEVICE_NAME_SET with CommandRef 16 that no command is waiting for" in caplog.text
+
+    def test_a_late_answer_with_another_id_does_not_complete_the_next_command(self, caplog):
+        caplog.set_level(logging.DEBUG)
+        lock = FakeLock(firmware=STATIC_FIRMWARE)
+
+        async def scenario():
+            transport = lock.connect(require_login=False)
+            async with new_session(transport, response_timeout=0.05, late_answer_grace=0) as session:
+                transport.silent.add(CommandId.CURRENT_TIME_SET)
+                with pytest.raises(errors.BleTimeoutError):
+                    await session.send(commands.current_time_set(1000))
+                transport.silent.clear()
+                # The late failure lands while DeviceNameSet waits, before its own answer.
+                transport.events_before_answer[CommandId.DEVICE_NAME_SET] = [
+                    response_mod.Response(ResponseId.CURRENT_TIME_SET, const.COMMAND_REF_STATIC, Status.FAILED),
+                ]
+                await session.send(commands.device_name_set("Hall"))
+
+        run(scenario())
+        assert lock.name == "Hall"
+        assert "CURRENT_TIME_SET arrived under the static CommandRef while DEVICE_NAME_SET waited" in caplog.text
+
+    def test_a_timeout_names_the_ignored_late_answer_as_its_cause(self):
+        lock = FakeLock(firmware=STATIC_FIRMWARE)
+
+        async def scenario():
+            transport = lock.connect(require_login=False)
+            async with new_session(transport, response_timeout=0.05) as session:
+                transport.silent.add(CommandId.DEVICE_NAME_SET)
+                task = asyncio.create_task(session.send(commands.device_name_set("Hall")))
+                await asyncio.sleep(0)
+                transport.send_response(
+                    response_mod.Response(ResponseId.CURRENT_TIME_SET, const.COMMAND_REF_STATIC, Status.SUCCESS)
+                )
+                await task
+
+        with pytest.raises(errors.BleTimeoutError) as caught:
+            run(scenario())
+        assert isinstance(caught.value.__cause__, errors.BleProtocolError)
+        assert "late answer to an earlier command" in str(caught.value.__cause__)
+
+    def test_what_is_left_a_late_answer_with_the_same_id_after_the_grace(self):
+        """The known limit: nothing on the wire tells this answer from the right one."""
+        lock = FakeLock(firmware=STATIC_FIRMWARE)
+
+        async def scenario():
+            transport = lock.connect(require_login=False)
+            async with new_session(transport, response_timeout=0.05, late_answer_grace=0) as session:
+                transport.silent.add(CommandId.DEVICE_NAME_SET)
+                with pytest.raises(errors.BleTimeoutError):
+                    await session.send(commands.device_name_set("Door"))
+                transport.silent.clear()
+                transport.events_before_answer[CommandId.DEVICE_NAME_SET] = [
+                    response_mod.Response(ResponseId.DEVICE_NAME_SET, const.COMMAND_REF_STATIC, Status.FAILED),
+                ]
+                await session.send(commands.device_name_set("Hall"))
+
+        # The lock took the name, but the late FAILED completed the command.
+        with pytest.raises(errors.BleFailedError):
+            run(scenario())
+        assert lock.name == "Hall"
 
 
 # --- Nothing secret leaves through logs or reprs --------------------------------------

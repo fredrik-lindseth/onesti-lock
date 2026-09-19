@@ -171,7 +171,7 @@ The floor of 4 is there for the log masking below: a lock that reports a minimum
 
 ### Runtime strings
 
-Sensor states and options-flow labels are built in Python and never pass through HA's translation layer. `localize.py` looks them up in the `runtime` section of `translations/<lang>.json` for the server language (`hass.config.language`). English, Norwegian bokmål, Swedish and Danish ship with the integration. `no` and `nn` map to `nb`, and missing keys fall back to English. The coordinator loads them at setup.
+Sensor states and options-flow labels are built in Python and never pass through HA's translation layer. `localize.py` looks them up in the `common` section of `translations/<lang>.json` for the server language (`hass.config.language`). English, Norwegian bokmål, Swedish and Danish ship with the integration. `no` and `nn` map to `nb`, and missing keys fall back to English. The coordinator loads them at setup.
 
 ## Auto-wake mechanism
 

@@ -53,7 +53,7 @@ class TestNormalizeLanguage:
 
 
 class TestLoadStrings:
-    """load_strings reads the runtime section from translations/<lang>.json."""
+    """load_strings reads the common section from translations/<lang>.json."""
 
     @pytest.mark.parametrize("language", LANGUAGES)
     def test_language_loads(self, language):

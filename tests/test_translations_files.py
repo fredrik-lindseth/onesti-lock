@@ -32,6 +32,10 @@ EXCEPTION_KEYS = [
     "lock_not_found_ieee",
     "multiple_locks",
 ]
+# localize.py reads its strings from this section. It is "common" because
+# hassfest only accepts the top-level keys in HA's strings schema, and
+# nothing in HA looks up an integration's "common" keys on its own.
+RUNTIME_SECTION = "common"
 PLACEHOLDER_RE = re.compile(r"\{(\w+)\}")
 EM_DASH = "—"
 
@@ -88,7 +92,7 @@ class TestFileStructure:
     @pytest.mark.parametrize("filename", FILES)
     def test_has_all_sections(self, filename):
         data = _load(filename)
-        for section in ("config", "options", "entity", "exceptions", "runtime"):
+        for section in ("config", "options", "entity", "exceptions", RUNTIME_SECTION):
             assert section in data, f"{filename} is missing '{section}'"
 
 
@@ -168,26 +172,26 @@ class TestRuntimeSection:
     """Runtime strings are read by localize.py, not by HA."""
 
     def test_all_languages_have_same_runtime_keys(self):
-        base = set(_load("strings.json")["runtime"])
+        base = set(_load("strings.json")[RUNTIME_SECTION])
         for filename in LANGUAGE_FILES:
-            keys = set(_load(filename)["runtime"])
+            keys = set(_load(filename)[RUNTIME_SECTION])
             assert keys == base, f"{filename}: missing {base - keys}, extra {keys - base}"
 
     def test_placeholders_match_across_languages(self):
-        base = _load("strings.json")["runtime"]
+        base = _load("strings.json")[RUNTIME_SECTION]
         for filename in LANGUAGE_FILES:
-            runtime = _load(filename)["runtime"]
+            runtime = _load(filename)[RUNTIME_SECTION]
             for key, value in base.items():
                 assert _placeholders(runtime[key]) == _placeholders(value), (
-                    f"{filename} runtime.{key}: placeholders differ"
+                    f"{filename} {RUNTIME_SECTION}.{key}: placeholders differ"
                 )
 
     @pytest.mark.parametrize("filename", FILES)
     def test_no_em_dash(self, filename):
         """User-facing strings use a colon or parentheses, not an em-dash.
 
-        Covers every section (config, options, entity, services, runtime),
-        not only runtime, since all of it reaches the user.
+        Covers every section (config, options, entity, services, common),
+        not only the runtime strings, since all of it reaches the user.
         """
 
         def walk(node, path):
@@ -202,8 +206,8 @@ class TestRuntimeSection:
 
     @pytest.mark.parametrize("filename", FILES)
     def test_no_empty_values(self, filename):
-        for key, value in _load(filename)["runtime"].items():
-            assert value.strip(), f"{filename} runtime.{key} is empty"
+        for key, value in _load(filename)[RUNTIME_SECTION].items():
+            assert value.strip(), f"{filename} {RUNTIME_SECTION}.{key} is empty"
 
 
 def _keys_used_in_code():
@@ -260,6 +264,6 @@ class TestRuntimeKeysUsedInCode:
 
     @pytest.mark.parametrize("filename", FILES)
     def test_all_used_keys_exist(self, filename):
-        runtime = _load(filename)["runtime"]
+        runtime = _load(filename)[RUNTIME_SECTION]
         missing = sorted(k for k in _keys_used_in_code() if k not in runtime)
-        assert not missing, f"{filename} runtime is missing: {missing}"
+        assert not missing, f"{filename} {RUNTIME_SECTION} is missing: {missing}"

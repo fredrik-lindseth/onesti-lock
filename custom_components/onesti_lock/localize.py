@@ -2,11 +2,17 @@
 
 Sensor states and options-flow labels are built in Python and never pass
 through HA's translation layer, so we resolve them ourselves against the
-server language (hass.config.language). The strings live in the "runtime"
+server language (hass.config.language). The strings live in the "common"
 section of translations/<lang>.json so translators only have one place to
 look, and we read those files directly rather than going through
-async_get_translations, whose handling of non-standard categories is not
-documented for custom integrations.
+async_get_translations, whose handling of categories beyond the documented
+ones is not specified for custom integrations.
+
+The section is "common" because hassfest rejects any top-level key that is
+not in HA's strings schema, and "common" is the one free-form section there:
+slug keys, string values, placeholders allowed. HA caches the section like
+any other category, but nothing in HA looks up component.onesti_lock.common
+keys, so this module is their only reader.
 """
 from __future__ import annotations
 
@@ -20,7 +26,7 @@ from homeassistant.core import HomeAssistant
 from .const import DOMAIN
 
 DEFAULT_LANGUAGE = "en"
-RUNTIME_SECTION = "runtime"
+RUNTIME_SECTION = "common"
 
 # The cache is per language and shared by every entry and options flow, so
 # it belongs to the HA instance, not to one entry's runtime_data. It is the

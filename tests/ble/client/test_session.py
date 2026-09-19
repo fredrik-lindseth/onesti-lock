@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
-from ...conftest import load_component_module
+from ...conftest import COMPONENT_DIR, load_component_module
 from .. import crypto_vectors, vectors
 from ..fake_lock import (
     BATT_INFO_PAYLOAD,
@@ -44,7 +44,9 @@ ResponseId = const.ResponseId
 Status = const.ResponseStatusId
 Session = session_mod.Session
 
-BLE_DIR = Path(__file__).resolve().parents[2] / "custom_components" / "onesti_lock" / "ble"
+# From conftest, not counted up from this file: parents[2] was right before the
+# tests moved into tests/ble/client/, and silently pointed at nothing after.
+BLE_DIR = Path(COMPONENT_DIR).resolve() / "ble"
 
 
 def run(coro):
@@ -701,25 +703,64 @@ class TestFailures:
 _SECRET_WORDS = {"key", "keys", "pin", "code", "secret", "challenge", "answer", "payload", "data", "frame", "frames"}
 
 
+def _logger_calls(path):
+    """Every _LOGGER.<level>(...) call in one module."""
+    for node in ast.walk(ast.parse(path.read_text())):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "_LOGGER"
+        ):
+            yield node
+
+
 def test_ble_log_calls_pass_no_secret_shaped_values():
     """Log calls in ble/ may pass ids, names and errors, never keys, PINs or raw bytes.
 
     Error messages in ble/ are built from sizes and ids only (tests for each
-    module check that), so passing an exception is fine.
+    module check that), so passing an exception is fine. The walk is
+    recursive, and the count keeps it honest: a flat glob, and a path that
+    pointed nowhere after the tests moved, both once let it pass on nothing.
     """
     offenders = []
-    for path in sorted(BLE_DIR.glob("*.py")):
-        for node in ast.walk(ast.parse(path.read_text())):
-            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)):
-                continue
-            if not (isinstance(node.func.value, ast.Name) and node.func.value.id == "_LOGGER"):
-                continue
+    seen = 0
+    for path in sorted(BLE_DIR.rglob("*.py")):
+        for node in _logger_calls(path):
+            seen += 1
             for arg in node.args[1:] + [kw.value for kw in node.keywords]:
                 for sub in ast.walk(arg):
                     name = sub.id if isinstance(sub, ast.Name) else sub.attr if isinstance(sub, ast.Attribute) else None
                     if name and set(name.lower().strip("_").split("_")) & _SECRET_WORDS:
-                        offenders.append(f"{path.name}:{node.lineno} passes {name}")
+                        offenders.append(f"{path.relative_to(BLE_DIR)}:{node.lineno} passes {name}")
+    assert seen, "the walk found no _LOGGER call in ble/, so it checked nothing"
     assert not offenders, offenders
+
+
+def test_ble_logs_only_through_module_loggers_named_logger():
+    """The guard above reads _LOGGER calls, so every logger in ble/ must be one.
+
+    A logger bound to another name, or a call on the logging module itself,
+    would be invisible to it.
+    """
+    strays = []
+    for path in sorted(BLE_DIR.rglob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
+                func = node.value.func
+                if isinstance(func, ast.Attribute) and func.attr == "getLogger":
+                    targets = [t.id for t in node.targets if isinstance(t, ast.Name)]
+                    if targets != ["_LOGGER"]:
+                        strays.append(f"{path.relative_to(BLE_DIR)}:{node.lineno} binds a logger to {targets}")
+            elif (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "logging"
+                and node.func.attr != "getLogger"
+            ):
+                strays.append(f"{path.relative_to(BLE_DIR)}:{node.lineno} logs through logging.{node.func.attr}")
+    assert not strays, strays
 
 
 def test_session_repr_shows_state_only():

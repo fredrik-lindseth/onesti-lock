@@ -59,10 +59,10 @@ class FakeHass:
         self.services = FakeServices(fail=fail_services)
 
 
-def _make_coordinator(options=None, fail_services=False):
+def _make_coordinator(options=None, fail_services=False, transport=None):
     hass = FakeHass(fail_services=fail_services)
     entry = FakeConfigEntry(options)
-    return hass, entry, coordinator_mod.NimlyCoordinator(hass, entry)
+    return hass, entry, coordinator_mod.NimlyCoordinator(hass, entry, transport)
 
 
 class TestSaveSlotsPersistence:

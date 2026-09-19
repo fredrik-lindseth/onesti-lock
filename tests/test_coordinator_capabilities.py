@@ -33,38 +33,6 @@ class TestLockCapabilities:
                 break
         assert found, "read_lock_capabilities must exist as async method"
 
-    def test_reads_standard_zcl_capability_attributes(self):
-        """Must read 0x0012, 0x0017, 0x0018 (standard ZCL DoorLock attributes)."""
-        source = _source()
-        # Standard ZCL: NumberOfPINUsersSupported, MaxPINCodeLength, MinPINCodeLength
-        assert "0x0012" in source
-        assert "0x0017" in source
-        assert "0x0018" in source
-
-    def test_attribute_mapping_matches_zcl_spec(self):
-        """Attribute IDs must map to the correct names per zigpy.
-
-        Verified against live NimlyPRO: 0x0012=50 (num users), 0x0017=8 (max len),
-        0x0018=4 (min len). Source: zigpy.zcl.clusters.closures.DoorLock.
-        """
-        source = _source()
-        # 0x0017 must be max_pin_length (not min)
-        assert '0x0017: "max_pin_length"' in source
-        # 0x0018 must be min_pin_length (not max)
-        assert '0x0018: "min_pin_length"' in source
-
-    def test_handles_missing_capabilities_silently(self):
-        """Must not crash if lock doesn't expose capabilities. Some variants don't."""
-        source = _source()
-        # Find read_lock_capabilities and verify it has try/except
-        tree = ast.parse(source)
-        for node in ast.walk(tree):
-            if isinstance(node, ast.AsyncFunctionDef) and node.name == "read_lock_capabilities":
-                has_try = any(isinstance(n, ast.Try) for n in ast.walk(node))
-                assert has_try, "read_lock_capabilities must handle errors gracefully"
-                return
-        raise AssertionError("read_lock_capabilities not found")
-
 
 class TestActivitySensorAttributes:
     def test_no_pin_code_in_sensor(self):

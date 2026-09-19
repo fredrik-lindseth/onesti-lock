@@ -37,15 +37,20 @@ class FakeHass:
         self.bus = FakeBus()
 
 
+class FakeTransport:
+    def __init__(self, cluster):
+        self._cluster = cluster
+
+    def cluster(self):
+        return self._cluster
+
+
 class FakeCoordinator:
     ieee = "00:11:22:33:44:55:66:77"
 
     def __init__(self, cluster):
-        self._cluster = cluster
+        self.transport = FakeTransport(cluster)
         self.activity_calls = []
-
-    def _get_cluster(self):
-        return self._cluster
 
     def get_slot_name(self, slot):
         return f"User {slot}"

@@ -102,7 +102,7 @@ Touching the keypad alone does NOT wake the radio. It wakes the backlight only.
 
 ### How auto-wake works
 
-When a command times out, `_send_cluster_command` in `coordinator.py` wakes the lock with a `lock.lock` service call to the ZHA lock entity, waits 1 second for the radio to settle, and retries the original command once. The wake is a real lock command, so an unlocked door gets physically locked. Details in [docs/technical.md](technical.md#auto-wake-mechanism).
+When a command times out, `ZhaLockTransport.send()` in `zha.py` wakes the lock with a `lock.lock` service call to the ZHA lock entity, waits 1 second for the radio to settle, and retries the original command once. The wake is a real lock command, so an unlocked door gets physically locked. Details in [docs/technical.md](technical.md#auto-wake-mechanism).
 
 ### Signal issues
 
@@ -150,7 +150,7 @@ Fixed after 1.3.0. The Name a user slot form used to refuse the master slots 0-2
 
 ### "Could not reach the lock" in Options flow
 
-Both attempts in `_send_cluster_command` failed:
+Both attempts in `ZhaLockTransport.send()` failed:
 
 1. Attempt 1 timed out (the lock was asleep).
 2. Auto-wake sent `lock.lock` to wake the radio.
@@ -166,7 +166,7 @@ What to try:
 
 PIN commands (`set_pin_code`, `clear_pin_code`) get a malformed ZCL response back, and zigpy's parser crashes on it with `IndexError: tuple index out of range`. The command reached the lock and was carried out. Only the response parsing fails.
 
-The integration catches the error, logs it at debug level and treats it as success (`_send_cluster_command` in `coordinator.py`):
+The integration catches the error, logs it at debug level and treats it as success (`ZhaLockTransport.send()` in `zha.py`):
 
 ```python
 except IndexError:

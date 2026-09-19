@@ -18,17 +18,22 @@ from .test_coordinator_behavior import _make_coordinator
 from .test_service_slot_limits import FakeCall, HomeAssistantError, _handlers
 
 
-def _lock(options=None):
-    """A real coordinator whose ZCL send always reaches the lock."""
-    hass, entry, coord = _make_coordinator(options)
-    sent = []
+class _DeliveringTransport:
+    """Records (command, user_id) for every send and reports it delivered."""
 
-    async def _send(command, params):
-        sent.append((command, params["user_id"]))
+    def __init__(self):
+        self.sent = []
+
+    async def send(self, command, params):
+        self.sent.append((command, params["user_id"]))
         return True
 
-    coord._send_cluster_command = _send
-    return hass, entry, coord, sent
+
+def _lock(options=None):
+    """A real coordinator whose ZCL send always reaches the lock."""
+    transport = _DeliveringTransport()
+    hass, entry, coord = _make_coordinator(options, transport=transport)
+    return hass, entry, coord, transport.sent
 
 
 def _call(coord, service, **data):

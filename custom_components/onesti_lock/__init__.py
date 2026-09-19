@@ -144,7 +144,7 @@ def _register_event_listener(
     - add_listener + general_command: not dispatched to listeners
     - add_listener + handle_cluster_request: only for cluster commands, not general
     """
-    cluster = coordinator._get_cluster()
+    cluster = coordinator.transport.cluster()
     if not cluster:
         _LOGGER.error("Could not find DoorLock cluster for event listener")
         return

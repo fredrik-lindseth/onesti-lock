@@ -165,9 +165,8 @@ _module("homeassistant.helpers", package=True)
 config_validation = _module("homeassistant.helpers.config_validation")
 config_validation.string = str
 
-# coordinator._wake_lock imports this inside a try block. Without the stub
-# the import raises, the except swallows it, and every wake assertion would
-# silently test nothing.
+# zha.py imports this at module level, and ZhaLockTransport.wake looks the
+# lock entity up through it.
 entity_registry = _module("homeassistant.helpers.entity_registry")
 
 

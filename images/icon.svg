@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="title desc">
+  <title id="title">Onesti Lock</title>
+  <desc id="desc">An open padlock whose keyhole is shaped like a person, head and shoulders: the lock tells who opened it.</desc>
+  <!--
+    Colour tokens. These two rules are the only place a colour is written.
+    The icon sits straight on Home Assistant's light and dark backgrounds, so
+    both colours must reach 3:1 against white and against the dark theme background (WCAG 1.4.11,
+    graphical objects). tests/test_brand_images.py measures that from here.
+  -->
+  <style>
+    .shackle { stroke: #6E7378; }
+    .body { fill: #A86F1C; }
+  </style>
+  <!-- Open shackle: the left leg stays in the body, the right one is lifted clear of it. -->
+  <path class="shackle" d="M64 112 V80 A64 64 0 0 1 192 80 V88" fill="none" stroke-width="32"/>
+  <!-- Body with the keyhole cut out, so the page background shows through in either mode. -->
+  <path class="body" fill-rule="evenodd" d="
+    M36 104 H220 A28 28 0 0 1 248 132 V228 A28 28 0 0 1 220 256 H36 A28 28 0 0 1 8 228 V132 A28 28 0 0 1 36 104 Z
+    M128 132 A24 24 0 1 1 128 180 A24 24 0 1 1 128 132 Z
+    M72 232 C72 206 98 190 128 190 C158 190 184 206 184 232 Z"/>
+</svg>

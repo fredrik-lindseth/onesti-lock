@@ -2,7 +2,7 @@
 
 ## Verify a release
 
-Every release carries an [artifact attestation](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds) that cryptographically binds the ZIP file to the source code and to the GitHub Actions workflow that built it.
+From 1.4.0 on, every release carries an [artifact attestation](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds) that cryptographically binds the ZIP file to the source code and to the GitHub Actions workflow that built it. Releases up to 1.3.0 have no attestation.
 
 `onesti_lock.zip` is also the file HACS downloads and installs (`zip_release` is set in `hacs.json`), not just an attachment on the release page. The attestation therefore covers exactly what ends up in `custom_components/onesti_lock/` on your system.
 
@@ -33,7 +33,7 @@ A custom integration in Home Assistant runs with full access to your system. You
 Every release note carries the SHA256 of the ZIP along with the commit it was built from. Check that the file you downloaded matches:
 
 ```bash
-sha256sum onesti_lock.zip
+shasum -a 256 onesti_lock.zip   # sha256sum on Linux, shasum on macOS
 ```
 
 Compare the output with the checksum in the release note.
@@ -56,7 +56,7 @@ To check the whole chain in one call, that is, that the tag, the ZIP and the att
 just release-verify vX.Y.Z
 ```
 
-Releases published before the flow became deterministic have no ZIP at all: HACS installed them from the tag's source tree, which cannot be attested. `just release-verify` fails on those, and that is the correct answer.
+Releases up to 1.3.0 were published before this flow existed. They do carry an `onesti_lock.zip`, but it was packed outside the release workflow and is not what HACS installed: HACS took those versions from the tag's source tree. Nothing binds those files to a build, so `just release-verify` fails on them, and that is the correct answer.
 
 ## Reporting a security problem
 

@@ -66,6 +66,14 @@ class NimlyCoordinator:
 
         Only loads slots that have been used. No pre-allocation.
         get_slot() returns DEFAULT_SLOT for unknown slots.
+
+        Called again right before every change, since the entry outlives the
+        coordinator. An options-flow write keeps running through a reload
+        (the dialog must not lose a code the lock already took), so the
+        coordinator it started on can save after the reload built a new one.
+        Without the re-read, that new coordinator's next save would write its
+        own older view back over the change. Nothing suspends between the
+        re-read and the save, so the two are one step on the event loop.
         """
         stored = self.entry.options.get("slots", {})
         # Only the keys DEFAULT_SLOT defines, so a field the schema dropped
@@ -90,6 +98,18 @@ class NimlyCoordinator:
                 "slots": {k: dict(v) for k, v in self._slots.items()},
             },
         )
+        # After a reload during a write, this is the coordinator the write
+        # started on and the entry has another one. That one is what the
+        # sensors read, so it takes the change over instead of showing the
+        # slot as it was until something else writes.
+        current = getattr(self.entry, "runtime_data", None)
+        if isinstance(current, NimlyCoordinator) and current is not self:
+            current.adopt_stored_slots()
+
+    def adopt_stored_slots(self) -> None:
+        """Take over slot data another coordinator on this entry just saved."""
+        self._load_slots()
+        self._notify_listeners()
 
     # -- Slot data access --
 
@@ -145,6 +165,7 @@ class NimlyCoordinator:
         credentials is dropped from storage rather than kept as a blank
         record.
         """
+        self._load_slots()
         key = str(slot)
         if name:
             self._slots.setdefault(key, {**DEFAULT_SLOT})["name"] = name
@@ -247,6 +268,7 @@ class NimlyCoordinator:
                 },
             )
             if outcome.delivered:
+                self._load_slots()
                 slot_data = self._slots.setdefault(str(slot), {**DEFAULT_SLOT})
                 slot_data["name"] = name
                 slot_data["has_pin"] = True
@@ -263,6 +285,7 @@ class NimlyCoordinator:
                 {"user_id": slot},
             )
             if outcome.delivered:
+                self._load_slots()
                 self._slots.setdefault(str(slot), {**DEFAULT_SLOT})["has_pin"] = False
                 await self._save_slots()
                 self._notify_listeners()
@@ -280,6 +303,7 @@ class NimlyCoordinator:
                 # Local state only follows a command the lock took. Wiping
                 # the slot after a failed or refused send would show it as
                 # vacant while the lock still accepts the old code.
+                self._load_slots()
                 self._slots[str(slot)] = {**DEFAULT_SLOT}
                 await self._save_slots()
                 self._notify_listeners()

@@ -77,7 +77,8 @@
       "unknown": "An unexpected error occurred. Check the logs."
     },
     "abort": {
-      "no_active_slots": "No active PIN codes to remove"
+      "no_active_slots": "No active PIN codes to remove",
+      "lock_not_loaded": "This lock is not running right now, so its PIN codes cannot be managed. The integration page says why. A lock that is missing from ZHA is waited for, and setup is retried until it is back."
     }
   },
   "entity": {
@@ -129,6 +130,92 @@
     "zha_internals": {
       "title": "Lock events are not being received",
       "description": "Onesti Lock could not find a part of ZHA it depends on: {detail}. Setting PIN codes may still work, but the activity sensor and the onesti_lock_activity event stay silent until this is fixed. If ZHA is running and the lock is paired, a Home Assistant update has most likely changed ZHA's internals. Please open an issue on the integration's GitHub page with your Home Assistant version and this message. When ZHA starts again with the lock, the integration reconnects by itself."
+    }
+  },
+  "services": {
+    "set_pin": {
+      "name": "Set PIN code",
+      "description": "Set a PIN code for a lock slot. If the lock answers that it refused the code, the action fails and says why. Which answers Nimly locks send has not been checked on a real lock, so try the new code on the keypad.",
+      "fields": {
+        "slot": {
+          "name": "Slot",
+          "description": "User slot. Slots below the reserved-slots setting (default 3) are refused; slot 0 is always the master code. Slots above the lock's reported PIN capacity are rejected."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Name for this user, for example Kari."
+        },
+        "code": {
+          "name": "PIN code",
+          "description": "Digits only. The length must be within what the lock reports, 4-8 digits if it has not reported anything."
+        },
+        "device_id": {
+          "name": "Lock",
+          "description": "The lock to use. Needed when more than one lock is set up. Wins over IEEE address if both are given."
+        },
+        "ieee": {
+          "name": "IEEE address",
+          "description": "Advanced, for scripts. The lock's Zigbee IEEE address, as ZHA shows it (for example 00:0d:6f:00:11:22:33:44). Only used when no lock is picked above."
+        }
+      }
+    },
+    "clear_pin": {
+      "name": "Clear PIN code",
+      "description": "Remove the PIN code from a lock slot. The slot keeps its name in Home Assistant.",
+      "fields": {
+        "slot": {
+          "name": "Slot",
+          "description": "User slot. Slots below the reserved-slots setting (default 3) are refused; slot 0 is always the master code."
+        },
+        "device_id": {
+          "name": "Lock",
+          "description": "The lock to use. Needed when more than one lock is set up. Wins over IEEE address if both are given."
+        },
+        "ieee": {
+          "name": "IEEE address",
+          "description": "Advanced, for scripts. The lock's Zigbee IEEE address, as ZHA shows it (for example 00:0d:6f:00:11:22:33:44). Only used when no lock is picked above."
+        }
+      }
+    },
+    "set_name": {
+      "name": "Set slot name",
+      "description": "Set or change the name for a slot without changing the PIN.",
+      "fields": {
+        "slot": {
+          "name": "Slot",
+          "description": "Slot to name (0-999). Names are stored in Home Assistant only, so master slots can be named too."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Name for this user."
+        },
+        "device_id": {
+          "name": "Lock",
+          "description": "The lock to use. Needed when more than one lock is set up. Wins over IEEE address if both are given."
+        },
+        "ieee": {
+          "name": "IEEE address",
+          "description": "Advanced, for scripts. The lock's Zigbee IEEE address, as ZHA shows it (for example 00:0d:6f:00:11:22:33:44). Only used when no lock is picked above."
+        }
+      }
+    },
+    "clear_slot": {
+      "name": "Clear slot",
+      "description": "Remove the PIN code from a lock slot, like Clear PIN code, and also remove the slot's name from Home Assistant.",
+      "fields": {
+        "slot": {
+          "name": "Slot",
+          "description": "User slot. Slots below the reserved-slots setting (default 3) are refused; slot 0 is always the master code."
+        },
+        "device_id": {
+          "name": "Lock",
+          "description": "The lock to use. Needed when more than one lock is set up. Wins over IEEE address if both are given."
+        },
+        "ieee": {
+          "name": "IEEE address",
+          "description": "Advanced, for scripts. The lock's Zigbee IEEE address, as ZHA shows it (for example 00:0d:6f:00:11:22:33:44). Only used when no lock is picked above."
+        }
+      }
     }
   },
   "common": {

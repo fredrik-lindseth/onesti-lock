@@ -14,6 +14,7 @@ import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.translation import async_get_translations
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.onesti_lock.const import CONF_IEEE, DOMAIN
@@ -187,3 +188,28 @@ async def test_invalid_pin_names_the_lock_s_range(hass: HomeAssistant, mock_zha)
     assert excinfo.value.translation_placeholders == {"min": "4", "max": "8"}
     assert "4-8" in str(excinfo.value)
     assert transport.sent == []
+
+
+@pytest.mark.parametrize(
+    ("language", "set_pin_name"), [("en", "Set PIN code"), ("nb", "Sett PIN-kode")]
+)
+async def test_action_names_and_fields_come_from_the_translations(
+    hass: HomeAssistant, mock_zha, language: str, set_pin_name: str
+) -> None:
+    """services.yaml holds no text, so the action dialog reads the translations.
+
+    Every name and description was English in services.yaml before. They now
+    live in strings.json and translations/*.json, and this is what proves
+    Home Assistant finds them there for a custom integration.
+    """
+    await _setup_lock(hass, LOCK_IEEE)
+
+    translations = await async_get_translations(hass, language, "services", {DOMAIN})
+
+    prefix = f"component.{DOMAIN}.services"
+    assert translations[f"{prefix}.set_pin.name"] == set_pin_name
+    for action in ("set_pin", "clear_pin", "set_name", "clear_slot"):
+        assert translations[f"{prefix}.{action}.description"].strip()
+    for field in ("slot", "name", "code", "device_id", "ieee"):
+        assert translations[f"{prefix}.set_pin.fields.{field}.name"].strip()
+        assert translations[f"{prefix}.set_pin.fields.{field}.description"].strip()

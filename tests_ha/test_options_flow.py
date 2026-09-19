@@ -21,6 +21,7 @@ from typing import Any
 
 import pytest
 import voluptuous as vol
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers.translation import async_get_translations
@@ -826,6 +827,86 @@ async def test_concurrent_flows_keep_both_writes(
     assert sorted(command for command, _ in transport.sent) == [SET_PIN_COMMAND, CLEAR_PIN_COMMAND]
     # Each result dialog saved the options as they stood when it finished,
     # so neither wrote the other's change back out.
+    assert entry.options["slots"] == {
+        "4": {"name": "Kari", "has_pin": False},
+        "5": {"name": "Ola", "has_pin": True},
+    }
+
+
+# -- An entry that is not running --
+
+
+async def test_options_flow_aborts_when_the_lock_is_missing_from_zha(
+    hass: HomeAssistant, entry: MockConfigEntry, mock_zha
+) -> None:
+    """A lock gone from ZHA leaves the entry in SETUP_RETRY.
+
+    Every step reads the coordinator from entry.runtime_data, which Home
+    Assistant only sets while the entry is loaded, so the menu has to say
+    that instead of raising AttributeError behind "Unknown error".
+    """
+    mock_zha.device_proxies = {}
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "lock_not_loaded"
+    translations = await async_get_translations(hass, "en", "options", {DOMAIN})
+    assert translations[f"component.{DOMAIN}.options.abort.lock_not_loaded"].strip()
+
+
+async def test_options_flow_aborts_when_the_entry_is_unloaded(
+    hass: HomeAssistant, entry: MockConfigEntry
+) -> None:
+    await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "lock_not_loaded"
+
+
+# -- A reload while a write is running --
+
+
+@pytest.mark.parametrize("entry_options", [{"slots": {"4": {"name": "Kari", "has_pin": True}}}])
+async def test_reload_during_a_write_keeps_it(
+    hass: HomeAssistant, entry: MockConfigEntry, transport: FakeTransport
+) -> None:
+    """A PIN write survives the entry being reloaded under it.
+
+    The write is not cancelled: the code may already be in the lock. It
+    finishes on the coordinator that started it and saves into the entry,
+    and the coordinator the reload built must save on top of that, not on
+    top of the slots as they were when it loaded.
+    """
+    transport.gate = asyncio.Event()
+    result = await _open_step(hass, entry, "set_pin")
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"slot": "5", "name": "Ola", "code": "56789"}
+    )
+    assert result["type"] is FlowResultType.SHOW_PROGRESS
+
+    # No async_block_till_done here: the write is still waiting on the gate,
+    # and waiting for it before the gate is set hangs the test.
+    await hass.config_entries.async_reload(entry.entry_id)
+    assert entry.state is ConfigEntryState.LOADED
+    reloaded = entry.runtime_data
+
+    transport.gate.set()
+    await hass.async_block_till_done()
+    assert entry.options["slots"]["5"] == {"name": "Ola", "has_pin": True}
+    # The sensors read the coordinator the reload built, so it holds the
+    # write too, not only the entry.
+    assert reloaded.get_slot(5) == {"name": "Ola", "has_pin": True}
+
+    # Its own next write goes on top, rather than over, the saved write.
+    await reloaded.clear_pin(4)
+
     assert entry.options["slots"] == {
         "4": {"name": "Kari", "has_pin": False},
         "5": {"name": "Ola", "has_pin": True},

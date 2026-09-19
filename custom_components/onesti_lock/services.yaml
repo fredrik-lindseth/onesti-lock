@@ -1,10 +1,10 @@
+# Names and descriptions live in strings.json and translations/*.json, under
+# the "services" section, so the action dialog follows the Home Assistant
+# language. Only the shape of each action is described here.
+
 set_pin:
-  name: Set PIN code
-  description: Set a PIN code for a lock slot. The lock confirms that it received the code, not that it accepted it, so test the new code on the keypad.
   fields:
     slot:
-      name: Slot
-      description: User slot. Slots below the reserved-slots setting (default 3) are refused; slot 0 is always the master code. Slots above the lock's reported PIN capacity are rejected.
       required: true
       selector:
         number:
@@ -12,39 +12,28 @@ set_pin:
           max: 999
           mode: box
     name:
-      name: Name
-      description: Name for this user (e.g. "Kari")
       required: true
       selector:
         text:
     code:
-      name: PIN code
-      description: Digits only. The length must be within what the lock reports, 4-8 digits if it has not reported anything.
       required: true
       selector:
         text:
+          type: password
     device_id:
-      name: Lock
-      description: The lock to use. Needed when more than one lock is set up. Wins over IEEE address if both are given.
       required: false
       selector:
         device:
           filter:
             integration: onesti_lock
     ieee:
-      name: IEEE address
-      description: Advanced, for scripts. The lock's Zigbee IEEE address, as ZHA shows it (for example 00:0d:6f:00:11:22:33:44). Only used when no lock is picked above.
       required: false
       selector:
         text:
 
 clear_pin:
-  name: Clear PIN code
-  description: Remove the PIN code from a lock slot. The slot keeps its name in Home Assistant.
   fields:
     slot:
-      name: Slot
-      description: User slot. Slots below the reserved-slots setting (default 3) are refused; slot 0 is always the master code.
       required: true
       selector:
         number:
@@ -52,27 +41,19 @@ clear_pin:
           max: 999
           mode: box
     device_id:
-      name: Lock
-      description: The lock to use. Needed when more than one lock is set up. Wins over IEEE address if both are given.
       required: false
       selector:
         device:
           filter:
             integration: onesti_lock
     ieee:
-      name: IEEE address
-      description: Advanced, for scripts. The lock's Zigbee IEEE address, as ZHA shows it (for example 00:0d:6f:00:11:22:33:44). Only used when no lock is picked above.
       required: false
       selector:
         text:
 
 set_name:
-  name: Set slot name
-  description: Set or change the name for a slot without changing the PIN
   fields:
     slot:
-      name: Slot
-      description: Slot to name (0-999). Names are stored in Home Assistant only, so master slots can be named too.
       required: true
       selector:
         number:
@@ -80,33 +61,23 @@ set_name:
           max: 999
           mode: box
     name:
-      name: Name
-      description: Name for this user
       required: true
       selector:
         text:
     device_id:
-      name: Lock
-      description: The lock to use. Needed when more than one lock is set up. Wins over IEEE address if both are given.
       required: false
       selector:
         device:
           filter:
             integration: onesti_lock
     ieee:
-      name: IEEE address
-      description: Advanced, for scripts. The lock's Zigbee IEEE address, as ZHA shows it (for example 00:0d:6f:00:11:22:33:44). Only used when no lock is picked above.
       required: false
       selector:
         text:
 
 clear_slot:
-  name: Clear slot
-  description: Remove the PIN code from a lock slot, like Clear PIN code, and also remove the slot's name from Home Assistant.
   fields:
     slot:
-      name: Slot
-      description: User slot. Slots below the reserved-slots setting (default 3) are refused; slot 0 is always the master code.
       required: true
       selector:
         number:
@@ -114,16 +85,12 @@ clear_slot:
           max: 999
           mode: box
     device_id:
-      name: Lock
-      description: The lock to use. Needed when more than one lock is set up. Wins over IEEE address if both are given.
       required: false
       selector:
         device:
           filter:
             integration: onesti_lock
     ieee:
-      name: IEEE address
-      description: Advanced, for scripts. The lock's Zigbee IEEE address, as ZHA shows it (for example 00:0d:6f:00:11:22:33:44). Only used when no lock is picked above.
       required: false
       selector:
         text:

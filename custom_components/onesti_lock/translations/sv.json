@@ -77,7 +77,8 @@
       "unknown": "Ett oväntat fel uppstod. Kontrollera loggarna."
     },
     "abort": {
-      "no_active_slots": "Inga aktiva PIN-koder att ta bort"
+      "no_active_slots": "Inga aktiva PIN-koder att ta bort",
+      "lock_not_loaded": "Det här låset körs inte just nu, så dess PIN-koder kan inte hanteras. Integrationssidan visar varför. Saknas låset i ZHA väntar Home Assistant in det, och konfigurationen görs om tills det är tillbaka."
     }
   },
   "entity": {
@@ -129,6 +130,92 @@
     "zha_internals": {
       "title": "Låshändelser tas inte emot",
       "description": "Onesti Lock hittade inte en del av ZHA som integrationen är beroende av: {detail}. Att ställa in PIN-koder kan fortfarande fungera, men aktivitetssensorn och händelsen onesti_lock_activity förblir tysta tills detta är åtgärdat. Om ZHA körs och låset är parkopplat har troligen en uppdatering av Home Assistant ändrat ZHA:s interna delar. Skapa ett ärende på integrationens GitHub-sida med din Home Assistant-version och detta meddelande. När ZHA startar igen med låset ansluter integrationen på nytt av sig själv."
+    }
+  },
+  "services": {
+    "set_pin": {
+      "name": "Ställ in PIN-kod",
+      "description": "Ställ in en PIN-kod för en plats i låset. Svarar låset att det avvisade koden misslyckas åtgärden och säger varför. Vilka svar Nimly-lås skickar är inte kontrollerat på ett riktigt lås, så prova den nya koden på knappsatsen.",
+      "fields": {
+        "slot": {
+          "name": "Plats",
+          "description": "Användarplats. Platser under inställningen för reserverade masterplatser (3 som standard) avvisas, och plats 0 är alltid masterkoden. Platser över den PIN-kapacitet låset rapporterar avvisas också."
+        },
+        "name": {
+          "name": "Namn",
+          "description": "Namn på den här användaren, till exempel Kari."
+        },
+        "code": {
+          "name": "PIN-kod",
+          "description": "Endast siffror. Längden måste ligga inom det låset rapporterar, 4-8 siffror om det inte har rapporterat något."
+        },
+        "device_id": {
+          "name": "Lås",
+          "description": "Låset som ska användas. Behövs när mer än ett lås är konfigurerat. Går före IEEE-adress om båda anges."
+        },
+        "ieee": {
+          "name": "IEEE-adress",
+          "description": "Avancerat, för skript. Låsets Zigbee IEEE-adress, så som ZHA visar den (till exempel 00:0d:6f:00:11:22:33:44). Används bara när inget lås har valts ovan."
+        }
+      }
+    },
+    "clear_pin": {
+      "name": "Ta bort PIN-kod",
+      "description": "Ta bort PIN-koden från en plats i låset. Platsen behåller sitt namn i Home Assistant.",
+      "fields": {
+        "slot": {
+          "name": "Plats",
+          "description": "Användarplats. Platser under inställningen för reserverade masterplatser (3 som standard) avvisas, och plats 0 är alltid masterkoden."
+        },
+        "device_id": {
+          "name": "Lås",
+          "description": "Låset som ska användas. Behövs när mer än ett lås är konfigurerat. Går före IEEE-adress om båda anges."
+        },
+        "ieee": {
+          "name": "IEEE-adress",
+          "description": "Avancerat, för skript. Låsets Zigbee IEEE-adress, så som ZHA visar den (till exempel 00:0d:6f:00:11:22:33:44). Används bara när inget lås har valts ovan."
+        }
+      }
+    },
+    "set_name": {
+      "name": "Namnge plats",
+      "description": "Ställ in eller ändra namnet på en plats utan att ändra PIN-koden.",
+      "fields": {
+        "slot": {
+          "name": "Plats",
+          "description": "Plats att namnge (0-999). Namn lagras bara i Home Assistant, så även masterplatser kan namnges."
+        },
+        "name": {
+          "name": "Namn",
+          "description": "Namn på den här användaren."
+        },
+        "device_id": {
+          "name": "Lås",
+          "description": "Låset som ska användas. Behövs när mer än ett lås är konfigurerat. Går före IEEE-adress om båda anges."
+        },
+        "ieee": {
+          "name": "IEEE-adress",
+          "description": "Avancerat, för skript. Låsets Zigbee IEEE-adress, så som ZHA visar den (till exempel 00:0d:6f:00:11:22:33:44). Används bara när inget lås har valts ovan."
+        }
+      }
+    },
+    "clear_slot": {
+      "name": "Rensa plats",
+      "description": "Ta bort PIN-koden från en plats i låset, som Ta bort PIN-kod, och ta även bort platsens namn i Home Assistant.",
+      "fields": {
+        "slot": {
+          "name": "Plats",
+          "description": "Användarplats. Platser under inställningen för reserverade masterplatser (3 som standard) avvisas, och plats 0 är alltid masterkoden."
+        },
+        "device_id": {
+          "name": "Lås",
+          "description": "Låset som ska användas. Behövs när mer än ett lås är konfigurerat. Går före IEEE-adress om båda anges."
+        },
+        "ieee": {
+          "name": "IEEE-adress",
+          "description": "Avancerat, för skript. Låsets Zigbee IEEE-adress, så som ZHA visar den (till exempel 00:0d:6f:00:11:22:33:44). Används bara när inget lås har valts ovan."
+        }
+      }
     }
   },
   "common": {

@@ -256,6 +256,8 @@ English, Norwegian (bokmål), Swedish and Danish. Sensor states, entity names, o
 
 8. **Dashboard locks right after a wake**: a lock from a dashboard within 30 seconds of the integration waking the lock looks the same as the wake itself, so the activity sensor does not show it. The `onesti_lock_activity` event still fires.
 
+9. **Going back to an older version is untested.** From 1.4.0 on, HACS installs the ZIP attached to the release instead of the tag's source tree. The ZIPs on the 1.0.0 to 1.3.0 releases hold the same flat layout, so picking one of them in HACS should land the right files, but nobody has tried it. If a downgrade leaves Home Assistant without the integration, delete `config/custom_components/onesti_lock`, install the version you want again and restart. Releases before 1.0.0 are the old `nimly_pro` integration and are not a rollback target at all. Upgrading is not affected.
+
 ## Troubleshooting
 
 The [debugging guide](docs/debugging.md) describes each problem with its symptom, cause and fix. The ones people run into most:

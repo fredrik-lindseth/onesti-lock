@@ -37,6 +37,10 @@ class NimlyCoordinator:
         self._slots: dict[str, dict[str, Any]] = {}
         self._listeners: list = []
         self._activity_sensor = None
+        # One PIN operation at a time per lock. The options flow and the
+        # services can both write, and interleaved sends and saves would let
+        # local state end up describing the older of two writes.
+        self._pin_lock = asyncio.Lock()
         # Serialises capability reads, so a refresh asked for while one is in
         # flight waits for it and then finds the answer already stored.
         self._capabilities_lock = asyncio.Lock()
@@ -211,51 +215,54 @@ class NimlyCoordinator:
     async def set_pin(self, slot: int, name: str, code: str) -> bool:
         """Set PIN code for a slot."""
         self._check_writable(slot)
-        success = await self._send(
-            0x0005,
-            {
-                "user_id": slot,
-                "user_status": 1,  # Enabled
-                "user_type": 0,  # Unrestricted
-                "pin_code": code,
-            },
-        )
-        if success:
-            slot_data = self._slots.setdefault(str(slot), {**DEFAULT_SLOT})
-            slot_data["name"] = name
-            slot_data["has_pin"] = True
-            await self._save_slots()
-            self._notify_listeners()
-        return success
+        async with self._pin_lock:
+            success = await self._send(
+                0x0005,
+                {
+                    "user_id": slot,
+                    "user_status": 1,  # Enabled
+                    "user_type": 0,  # Unrestricted
+                    "pin_code": code,
+                },
+            )
+            if success:
+                slot_data = self._slots.setdefault(str(slot), {**DEFAULT_SLOT})
+                slot_data["name"] = name
+                slot_data["has_pin"] = True
+                await self._save_slots()
+                self._notify_listeners()
+            return success
 
     async def clear_pin(self, slot: int) -> bool:
         """Clear PIN code for a slot."""
         self._check_writable(slot)
-        success = await self._send(
-            0x0007,
-            {"user_id": slot},
-        )
-        if success:
-            self._slots.setdefault(str(slot), {**DEFAULT_SLOT})["has_pin"] = False
-            await self._save_slots()
-            self._notify_listeners()
-        return success
+        async with self._pin_lock:
+            success = await self._send(
+                0x0007,
+                {"user_id": slot},
+            )
+            if success:
+                self._slots.setdefault(str(slot), {**DEFAULT_SLOT})["has_pin"] = False
+                await self._save_slots()
+                self._notify_listeners()
+            return success
 
     async def clear_slot(self, slot: int) -> bool:
         """Clear all credentials and name for a slot."""
         self._check_writable(slot)
-        success = await self._send(
-            0x0007,
-            {"user_id": slot},
-        )
-        if success:
-            # Local state only follows a command that reached the lock.
-            # Wiping the slot after a failed send would show it as vacant
-            # while the lock still accepts the old code.
-            self._slots[str(slot)] = {**DEFAULT_SLOT}
-            await self._save_slots()
-            self._notify_listeners()
-        return success
+        async with self._pin_lock:
+            success = await self._send(
+                0x0007,
+                {"user_id": slot},
+            )
+            if success:
+                # Local state only follows a command that reached the lock.
+                # Wiping the slot after a failed send would show it as vacant
+                # while the lock still accepts the old code.
+                self._slots[str(slot)] = {**DEFAULT_SLOT}
+                await self._save_slots()
+                self._notify_listeners()
+            return success
 
     # -- Listener pattern for sensors --
 

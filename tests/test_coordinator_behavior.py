@@ -15,6 +15,8 @@ from __future__ import annotations
 import asyncio
 import json
 
+import pytest
+
 from .conftest import load_component_module
 
 coordinator_mod = load_component_module("coordinator")
@@ -213,3 +215,54 @@ class TestSlotNameFallback:
         _hass, _entry, coord = _make_coordinator({"slots": {}})
         assert coord.get_slot_name(0) == "Master"
 
+
+class GatedTransport:
+    """Holds every send until the test opens the gate, and counts overlap."""
+
+    def __init__(self):
+        self.gate = asyncio.Event()
+        self.started = []
+        self.in_flight = 0
+        self.max_in_flight = 0
+
+    async def send(self, command, params):
+        self.started.append((command, params["user_id"]))
+        self.in_flight += 1
+        self.max_in_flight = max(self.max_in_flight, self.in_flight)
+        await self.gate.wait()
+        self.in_flight -= 1
+        return True
+
+
+class TestPinOperationsAreSerialised:
+    """The options flow and a service call must not interleave on one lock."""
+
+    def test_second_operation_waits_for_the_first(self):
+        transport = GatedTransport()
+        _hass, _entry, coord = _make_coordinator({"slots": {}}, transport=transport)
+
+        async def scenario():
+            first = asyncio.create_task(coord.set_pin(5, "Kari", "1234"))
+            second = asyncio.create_task(coord.clear_slot(5))
+            third = asyncio.create_task(coord.clear_pin(6))
+            for _ in range(5):
+                await asyncio.sleep(0)
+            # Only the first send is on the air; the others queue behind it.
+            assert transport.started == [(0x0005, 5)]
+            transport.gate.set()
+            return await asyncio.gather(first, second, third)
+
+        assert asyncio.run(scenario()) == [True, True, True]
+        assert transport.max_in_flight == 1
+        assert transport.started == [(0x0005, 5), (0x0007, 5), (0x0007, 6)]
+        # The later clear_slot wins, as it was called last.
+        assert coord.get_slot(5)["has_pin"] is False
+        assert coord.get_slot(5)["name"] == ""
+
+    def test_a_refused_slot_does_not_hold_the_lock(self):
+        transport = GatedTransport()
+        transport.gate.set()
+        _hass, _entry, coord = _make_coordinator({"slots": {}}, transport=transport)
+        with pytest.raises(ValueError):
+            asyncio.run(coord.set_pin(0, "Master", "1234"))
+        assert asyncio.run(coord.set_pin(5, "Kari", "1234")) is True

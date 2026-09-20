@@ -196,6 +196,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 | `docs/debugging.md`                             | Troubleshooting guide for common problems                                                     |
 | `docs/cloud-api-status.md`                      | Cloud API reversing status, what has been tried and what comes next                           |
 | `docs/upstream-status.md`                       | Open threads in the ZHA quirk and the Z2M converter, and why we do not build dual transport   |
+| `docs/feature-parity.md`                        | What the vendor app and hub do that we do not, what BLE could add, and what is never ours     |
 
 ## Testing
 

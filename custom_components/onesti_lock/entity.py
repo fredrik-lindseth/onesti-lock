@@ -1,6 +1,7 @@
 """Base class for the entities Onesti Lock creates."""
 from __future__ import annotations
 
+from homeassistant.core import callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
 
@@ -27,3 +28,31 @@ class NimlyEntity(Entity):
             name="Onesti Lock",
             manufacturer="Onesti Products AS",
         )
+
+    @property
+    def available(self) -> bool:
+        """Follows the coordinator, which follows the event listener.
+
+        Unavailable means lock events cannot reach Home Assistant, so
+        nothing shown here is being kept up to date. A lock that is merely
+        asleep is available: see NimlyCoordinator.available.
+        """
+        return self._coordinator.available
+
+    async def async_added_to_hass(self) -> None:
+        """Follow the coordinator, for availability at least.
+
+        A subclass that registers its own listener (the slot sensors do,
+        for slot data) may skip this; one that calls super() gets the
+        availability updates through it.
+        """
+        await super().async_added_to_hass()
+        self._coordinator.add_listener(self._handle_coordinator_update)
+
+    async def async_will_remove_from_hass(self) -> None:
+        self._coordinator.remove_listener(self._handle_coordinator_update)
+        await super().async_will_remove_from_hass()
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self.async_write_ha_state()

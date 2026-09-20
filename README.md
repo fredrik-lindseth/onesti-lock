@@ -80,6 +80,8 @@ The activity sensor reads like "Kari unlocked with code" and has these attribute
 | `min_pin_length` | Shortest PIN code the lock reports, once it has reported it                                        |
 | `max_pin_length` | Longest PIN code the lock reports, once it has reported it                                         |
 
+All the sensors go unavailable while ZHA is not running, since no lock event can reach Home Assistant then; a lock that is only asleep keeps them as they are.
+
 The sensor text and the "Slot 5" and "Master" fallbacks follow the server language. The raw values in `action` and `source` do not, so use those in automations. The last activity survives a restart.
 
 Auto-lock does not change the sensor, so "Kari unlocked with code" stays visible after the door relocks. Locking from a dashboard does change it, to "Locked via Zigbee". The lock command the integration sends to wake a sleeping lock (see [Limitations](#limitations)) does not: a Zigbee lock within 30 seconds of a wake is taken to be that command. NimlyCodePRO reports Zigbee commands, auto-relock and the interior keypad with the same source code, so there `source` is `unattributed` and the sensor reads plain "Locked" or "Unlocked". An unattributed lock with no user is treated as auto-relock.

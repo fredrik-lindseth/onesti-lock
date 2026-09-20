@@ -25,6 +25,7 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
+from custom_components.onesti_lock import coordinator as coordinator_module
 from custom_components.onesti_lock.const import CONF_IEEE, CONF_RESERVED_SLOTS, DOMAIN
 from custom_components.onesti_lock.events import ATTR_OPERATION_EVENT
 from tests_ha.conftest import (
@@ -93,6 +94,40 @@ async def _retry_setup(hass: HomeAssistant) -> None:
     """Move time past Home Assistant's longest setup retry backoff."""
     async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=5))
     await hass.async_block_till_done(wait_background_tasks=True)
+
+
+def _info_lines(caplog: pytest.LogCaptureFixture, text: str) -> int:
+    """How many INFO lines of ours hold this text."""
+    return len(
+        [
+            record
+            for record in caplog.records
+            if record.levelname == "INFO"
+            and record.name.startswith("custom_components.onesti_lock")
+            and text in record.getMessage()
+        ]
+    )
+
+
+def _loss_lines(caplog: pytest.LogCaptureFixture) -> int:
+    return _info_lines(caplog, "stopped, ZHA is not running")
+
+
+def _return_lines(caplog: pytest.LogCaptureFixture) -> int:
+    return _info_lines(caplog, "arriving again, ZHA is running")
+
+
+@pytest.fixture(autouse=True)
+def _forget_logged_losses():
+    """Whether a loss was logged outlives the coordinator, not the test.
+
+    The flag is per IEEE on the coordinator module, since ZHA coming back
+    reloads the entry and the return is reported by a new coordinator.
+    Every test here uses the same IEEE, so it is cleared between them.
+    """
+    coordinator_module._LOSS_LOGGED.clear()
+    yield
+    coordinator_module._LOSS_LOGGED.clear()
 
 
 async def _report(hass: HomeAssistant, cluster: FakeDoorLockCluster, raw_value: int) -> None:
@@ -257,10 +292,9 @@ async def test_zha_not_loaded_yet_is_not_an_internals_issue(
     assert entry.state is ConfigEntryState.LOADED
     assert _zha_issue(hass, entry) is None
     assert not [r for r in caplog.records if r.levelname == "ERROR"]
-    assert any(
-        r.levelname == "INFO" and "ZHA is not loaded yet" in r.getMessage()
-        for r in caplog.records
-    )
+    assert _loss_lines(caplog) == 1
+    assert _return_lines(caplog) == 0
+    assert entry.runtime_data.available is False
 
 
 async def test_loaded_zha_without_gateway_names_the_gateway(hass: HomeAssistant, zha_dependency) -> None:
@@ -458,6 +492,92 @@ async def test_zha_state_listener_is_removed_on_unload(
     await _reload_zha(hass, zha_entry)
 
     assert entry.state is ConfigEntryState.NOT_LOADED
+
+
+# -- Availability --
+
+
+async def test_entities_are_unavailable_while_zha_is_down(
+    hass: HomeAssistant, mock_zha, zha_entry: MockConfigEntry
+) -> None:
+    entry = await _setup(hass)
+    assert entry.runtime_data.available is True
+    assert hass.states.get(ACTIVITY_ENTITY_ID).state != "unavailable"
+
+    zha_entry.mock_state(hass, ConfigEntryState.NOT_LOADED)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.runtime_data.available is False
+    assert hass.states.get(ACTIVITY_ENTITY_ID).state == "unavailable"
+    assert hass.states.get("sensor.onesti_lock_slot_5").state == "unavailable"
+
+    new_cluster = FakeDoorLockCluster()
+    mock_zha.device_proxies = {LOCK_IEEE: make_lock_proxy(cluster=new_cluster)}
+    zha_entry.mock_state(hass, ConfigEntryState.LOADED)
+    await hass.async_block_till_done()
+
+    assert entry.runtime_data.listened_cluster is new_cluster
+    assert entry.runtime_data.available is True
+    assert hass.states.get(ACTIVITY_ENTITY_ID).state != "unavailable"
+    assert hass.states.get("sensor.onesti_lock_slot_5").state != "unavailable"
+
+
+async def test_zha_back_with_the_same_objects_makes_the_entities_available(
+    hass: HomeAssistant, mock_zha, zha_entry: MockConfigEntry
+) -> None:
+    """Nothing was rebuilt, so there is nothing to reload; the listener fits."""
+    entry = await _setup(hass)
+    coordinator = entry.runtime_data
+
+    await _reload_zha(hass, zha_entry)
+
+    assert entry.runtime_data is coordinator
+    assert coordinator.available is True
+    assert hass.states.get(ACTIVITY_ENTITY_ID).state != "unavailable"
+
+
+async def test_loss_and_return_are_logged_once_each_cycle(
+    hass: HomeAssistant, mock_zha, zha_entry: MockConfigEntry, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Two cycles, two lines each, however many state changes ZHA makes."""
+    entry = await _setup(hass)
+    caplog.clear()
+
+    for _ in range(2):
+        zha_entry.mock_state(hass, ConfigEntryState.NOT_LOADED)
+        await hass.async_block_till_done()
+        # ZHA passes through more than one state on the way back up, and
+        # only the first of them is worth a line.
+        zha_entry.mock_state(hass, ConfigEntryState.SETUP_IN_PROGRESS)
+        await hass.async_block_till_done()
+        mock_zha.device_proxies = {LOCK_IEEE: make_lock_proxy(cluster=FakeDoorLockCluster())}
+        zha_entry.mock_state(hass, ConfigEntryState.LOADED)
+        await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.runtime_data.available is True
+    assert _loss_lines(caplog) == 2
+    assert _return_lines(caplog) == 2
+
+
+async def test_a_sleeping_lock_stays_available(
+    hass: HomeAssistant, mock_zha, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A command that never reaches the radio says nothing about events."""
+    entry = await _setup(hass)
+    cluster = _cluster(mock_zha)
+    # Two: the send retries once after waking, and no ZHA lock entity is
+    # registered here, so the wake only logs a warning.
+    cluster.command_effects = [TimeoutError(), TimeoutError()]
+
+    outcome = await entry.runtime_data.clear_pin(5)
+    await hass.async_block_till_done()
+
+    assert outcome.lock_answered is False
+    assert entry.runtime_data.available is True
+    assert hass.states.get(ACTIVITY_ENTITY_ID).state != "unavailable"
+    assert _loss_lines(caplog) == 0
 
 
 # -- Update listener --

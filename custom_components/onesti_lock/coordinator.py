@@ -19,6 +19,13 @@ _LOGGER = logging.getLogger(__name__)
 # lock has answered, so its presence is what marks the read as done.
 OPTION_CAPABILITIES = "capabilities"
 
+# IEEEs whose loss of lock events has been logged, so the loss is logged
+# once and the return once. It lives on the module rather than on the
+# coordinator because ZHA coming back reloads the entry: the coordinator
+# that logged the loss is gone by the time the one that takes over can
+# report the return.
+_LOSS_LOGGED: set[str] = set()
+
 
 class NimlyCoordinator:
     """Manages slot data and PIN operations for one Nimly lock."""
@@ -58,8 +65,61 @@ class NimlyCoordinator:
         self.setup_first_user_slot = self.first_user_slot()
         # The zigpy cluster the event listener is registered on, or None.
         # A ZHA reload replaces it, which __init__.py watches for.
-        self.listened_cluster: Any = None
+        self._listened_cluster: Any = None
+        # No listener yet, so no lock event can arrive. The entities read
+        # this through NimlyEntity.available.
+        self._available = False
         self._load_slots()
+
+    # -- Availability --
+
+    @property
+    def listened_cluster(self) -> Any:
+        """The zigpy cluster the event listener sits on, or None."""
+        return self._listened_cluster
+
+    @listened_cluster.setter
+    def listened_cluster(self, cluster: Any) -> None:
+        """Record the cluster, and let availability follow it.
+
+        events.py assigns this when it has registered the listener, which
+        is the moment lock events start arriving.
+        """
+        self._listened_cluster = cluster
+        self.set_available(cluster is not None)
+
+    @property
+    def available(self) -> bool:
+        """Whether lock events can reach Home Assistant right now.
+
+        True once the event listener is registered on a cluster, false
+        while ZHA is not running or its internals were missing. A sleeping
+        lock stays available: the slot sensors show Home Assistant's own
+        stored data and the activity sensor the last event it saw, and a
+        command that times out on a sleeping radio says nothing about
+        whether events arrive.
+        """
+        return self._available
+
+    def set_available(self, available: bool) -> None:
+        """Set whether lock events reach us, and tell the entities.
+
+        Logs one INFO line when they stop and one when they are back, and
+        never the same one twice in a row. The flag is per IEEE and not
+        per coordinator, since ZHA coming back reloads the entry and the
+        return is reported by a new coordinator.
+        """
+        changed = available is not self._available
+        self._available = available
+        if available:
+            if self.ieee in _LOSS_LOGGED:
+                _LOSS_LOGGED.discard(self.ieee)
+                _LOGGER.info("Lock events for %s are arriving again, ZHA is running", self.ieee)
+        elif self.ieee not in _LOSS_LOGGED:
+            _LOSS_LOGGED.add(self.ieee)
+            _LOGGER.info("Lock events for %s stopped, ZHA is not running", self.ieee)
+        if changed:
+            self._notify_listeners()
 
     def _load_slots(self) -> None:
         """Load slot data from config entry options.

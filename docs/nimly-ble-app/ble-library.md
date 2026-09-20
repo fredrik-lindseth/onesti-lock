@@ -578,19 +578,19 @@ just ble pin set <ADDR> 805 --factory --yes
 
 The commands, in the order to run them on a lock, from safe to risky:
 
-| Command                           | Sends                                                           | Settles                                                               |
-| --------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `scan [--watch S]`                | Nothing                                                         | Seed (`0000` is factory state), identifier, whether a stored lock matches, whether the lock advertises all the time |
-| `info ADDR`                       | GATT reads only                                                 | Services, the communication characteristic's properties (write type), MTU, 0x2A28 |
-| `handshake ADDR`                  | Key exchange, DeviceModelGet                                    | Public key byte order, CBC from the link IV, the CommandRef rule      |
-| `login ADDR`                      | UserAuthBegin, UserAuthFinalize                                 | The factory key, the challenge, which status a wrong key gets         |
-| `read ADDR`                       | DeviceModelGet, BattInfoGet, DeviceLogGet, DeviceNameGet, CurrentTimeGet | That the encrypted channel holds over several messages      |
-| `operate ADDR lock\|unlock`       | EkeyOperate; the bolt moves                                     | That the lock obeys; stand at the door                                |
-| `pin set\|clear ADDR SLOT`        | PinCodeSet / PinCodeClear, 800-899                              | End-to-end PIN write; try the code on the keypad                      |
-| `rfid scan\|clear ADDR SLOT`      | ScanRfidCode / RfidCodeClear, 900-999                           | Interactive tag enrollment, UserAdded before the answer               |
-| `fingerprint scan\|clear ADDR SLOT` | FingerprintScan / FingerprintClear, 150-199                   | The same for a finger                                                 |
-| `enroll ADDR --name NAME`         | The whole `enroll()`                                            | Enrollment order, ServerKeyUpdate, device id binding, the seed after |
-| `enroll ADDR --resume`            | `resume_enrollment()`                                           | Finishing an enrollment that stopped partway                          |
+| Command                             | Sends                                                                    | Settles                                                                                                             |
+| ----------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `scan [--watch S]`                  | Nothing                                                                  | Seed (`0000` is factory state), identifier, whether a stored lock matches, whether the lock advertises all the time |
+| `info ADDR`                         | GATT reads only                                                          | Services, the communication characteristic's properties (write type), MTU, 0x2A28                                   |
+| `handshake ADDR`                    | Key exchange, DeviceModelGet                                             | Public key byte order, CBC from the link IV, the CommandRef rule                                                    |
+| `login ADDR`                        | UserAuthBegin, UserAuthFinalize                                          | The factory key, the challenge, which status a wrong key gets                                                       |
+| `read ADDR`                         | DeviceModelGet, BattInfoGet, DeviceLogGet, DeviceNameGet, CurrentTimeGet | That the encrypted channel holds over several messages                                                              |
+| `operate ADDR lock\|unlock`         | EkeyOperate; the bolt moves                                              | That the lock obeys; stand at the door                                                                              |
+| `pin set\|clear ADDR SLOT`          | PinCodeSet / PinCodeClear, 800-899                                       | End-to-end PIN write; try the code on the keypad                                                                    |
+| `rfid scan\|clear ADDR SLOT`        | ScanRfidCode / RfidCodeClear, 900-999                                    | Interactive tag enrollment, UserAdded before the answer                                                             |
+| `fingerprint scan\|clear ADDR SLOT` | FingerprintScan / FingerprintClear, 150-199                              | The same for a finger                                                                                               |
+| `enroll ADDR --name NAME`           | The whole `enroll()`                                                     | Enrollment order, ServerKeyUpdate, device id binding, the seed after                                                |
+| `enroll ADDR --resume`              | `resume_enrollment()`                                                    | Finishing an enrollment that stopped partway                                                                        |
 
 `login`, `read` and the writes log in with `--factory`, with `--state FILE`,
 or by default with the stored enrollment last seen at that address.
@@ -631,8 +631,14 @@ What it refuses to do:
   The steps and why that order are in
   [Enrolling a factory-reset lock](#enrolling-a-factory-reset-lock).
 - Nobody knows whether the lock locks out after failed owner logins. Each
-  refused login is recorded in `<state-dir>/failed-logins.jsonl`, and after
-  two against one address within a day the CLI stops until `--force-login`.
+  login that went out and did not come back logged in is recorded in
+  `<state-dir>/failed-logins.jsonl`, and past `FAILED_LOGIN_LIMIT` of them
+  against one address inside `FAILED_LOGIN_WINDOW` (both in
+  `scripts/ble_cli.py`, and `--help` prints the limit) the CLI stops until
+  `--force-login`. A timeout or a dropped link counts too: the lock may have
+  counted the attempt, and the CLI cannot tell. A resumed enrollment can
+  spend two attempts on one run, when the lock refuses the factory device id
+  and the library tries the enrolled one, and both are recorded.
 - A command the app would not send to this lock (`Session.availability`,
   the firmware and model gates) is refused right after the handshake, before
   a login is spent on it; `read` skips such a read and says so. The CLI has
@@ -705,9 +711,10 @@ is when they are most needed.
 - **Repeated advertisements are coalesced.** bleak starts the scan without
   CoreBluetooth's allow-duplicates option, so a device is reported again only
   when its advertisement changes. `scan --watch` therefore restarts the scan
-  every `--window` seconds (default 2) and reports, window by window, whether
-  the lock was heard. That shows whether it advertises all the time or only
-  when woken, but not its advertising interval; measuring that needs Linux.
+  every `--window` seconds and reports, window by window, whether
+  the lock was heard (`--help` prints the default window). That shows whether
+  it advertises all the time or only when woken, but not its advertising
+  interval; measuring that needs Linux.
 
 ## What is verified, and what only a lock can settle
 

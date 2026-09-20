@@ -213,9 +213,15 @@ then Y, 32 bytes each, little endian. (app code, JDK run)
   a device id during enrollment and sends it in every later `UserAuthBegin`,
   so our flow does the same and remembers it. Whether the lock checks it is
   untested on a lock.
-- The owner key is `[0:16]` of the reversed secret on the assumption that
-  Android's ECDH always returns exactly 32 bytes. That holds for SunJCE and
-  for Python's `cryptography`; for Conscrypt it is untested.
+- The owner key is `[0:16]` of the reversed secret, so the byte order depends
+  on the secret being a full 32 bytes with any leading zeros kept. Python's
+  `cryptography` always gives that, so our own side is not at risk. What
+  decides whether we agree with the lock is whether the lock's own ECDH pads
+  the shared secret to 32 bytes too; that is untested. The app has the same
+  question about Conscrypt, which is Android's provider: if it stripped a
+  leading zero the app would disagree with the lock roughly one connection in
+  256. That the app works in the field says the two of them agree, which is
+  weak evidence that the lock pads.
 - Firmware floor: 4.6.0 to connect, 4.7.90 for model detection and the admin
   commands (PIN, fingerprint, RFID, keypad, auto-lock, volume, battery). The
   enrollment commands themselves are offered from 4.6.0.

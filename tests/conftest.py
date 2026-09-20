@@ -148,6 +148,7 @@ class OptionsFlow(_FlowResultsMixin):
     """HA injects hass and config_entry after construction; tests set them."""
 
 
+config_entries.SOURCE_IGNORE = "ignore"
 config_entries.ConfigEntry = ConfigEntry
 config_entries.ConfigEntryState = ConfigEntryState
 config_entries.ConfigFlow = ConfigFlow

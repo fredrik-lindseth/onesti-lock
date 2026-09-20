@@ -141,7 +141,9 @@ What that table says on the day it was made:
 - **The laggards are Confi.care on Android (1.20.9, from 2022) and Tryg
   Smart.** Confi.care's own iOS build is on 1.28.1, so that brand is four years
   apart between its two platforms, which makes it the best pair for seeing what
-  was removed from the codebase rather than added.
+  was removed from the codebase rather than added. The Android build is branded
+  Safely, not Confi.care, and probably predates a rename; see the tenant roster
+  in [app-architecture.md](app-architecture.md#the-tenant-roster).
 - **Larmify Android is on 1.27.84**, the same build string as our decompiled
   nimly connect. Whatever we read there holds for it.
 - **LF has no app of its own.** It only exists as a brand block inside the
@@ -266,9 +268,11 @@ not be written down anywhere as "they moved to AWS".
 
 **One brand nobody had on the list.** Tekam's host block names `waoo`
 (`api.customer.waoo.iotiliti.cloud` and its test host), eight literals, and
-Homely's does not. Waoo is a Danish ISP that sells home services. No Android or
-iOS app for it has been found, so it looks like a platform tenant without an app
-of its own, the way LF is.
+Homely's does not. Waoo is a Danish ISP with no app of its own, the way LF is.
+Following that up over all twelve builds turned up six more brands nobody had
+written down and a tenant roster that shrinks from build to build; the table is
+under "The tenant roster" in
+[app-architecture.md](app-architecture.md#the-tenant-roster).
 
 One loose end worth noting for the next round: the Homely build has no
 production host for its own brand in the bundle, only `stage-api-homely` and

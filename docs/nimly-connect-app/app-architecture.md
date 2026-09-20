@@ -186,23 +186,101 @@ kept locally configures `api-<brand>.iotiliti.cloud` for every brand
 ```
 Safe4 Security Group AS (parent company)
   └── iotiliti (cloud platform, developed by Neurosys, Poland)
-       ├── Nimly (Norwegian consumer brand)
-       ├── EasyAccess (OEM/B2B)
-       ├── Keyfree (Norwegian, Safe4 brand)
-       ├── Salus Protect / Immunity (UK)
-       ├── Homely (Norwegian smart home)
-       ├── Forebygg (Swedish security)
-       ├── Copiax / HomeSecurity (Swedish)
-       ├── Tekam Smarthus (Norwegian)
-       ├── Folklarm / Appsolut Säkerhet (Swedish)
-       ├── Tryg Smart (Norwegian insurance)
-       ├── Safe4 Care / Confi.care (Norwegian health)
-       ├── LF (Swedish, own Keycloak realm)
-       └── Larmify (Swedish)
+       └── one tenant per brand, the table below
 
 Onesti Products AS (hardware)
   └── All physical locks + Connect Module (ZMNC010)
 ```
+
+### The tenant roster
+
+Read out of the twelve Android builds kept on 2026-09-20 (listed in
+[app-versions.md](app-versions.md)). Every build carries the whole family's
+brand configuration, not just its own, so the roster can be read from any one
+of them, and a brand appearing or disappearing between builds is dated by the
+build it is in.
+
+Three independent things in a build name a tenant, and the Evidence column says
+which of them were found: **H** an API host (`api-<key>.iotiliti.cloud` or the
+older `api.customer.<key>.iotiliti.cloud`), **T** theme assets (`logo-<key>`,
+`bg-dashboard-<key>`, `arc-<key>`), **P** a support PDF folder
+(`assets/pdf/support/<key>/`, only shipped by builds up to 1.22).
+
+| Key | Brand | Country | Own app | Evidence | In builds | Host today |
+| --- | ----- | ------- | ------- | -------- | --------- | ---------- |
+| `easyaccess` | Nimly / EasyAccess | NO | `com.easyaccess.connect` | TP | all | via neutralclone |
+| `iotiliti` | iotiliti (neutral) | - | `io.iotiliti.home` | TP | all | via neutralclone |
+| `keyfree` | Keyfree (Safe4) | NO | `com.safe4.keyfree` | HTP | all | live |
+| `homely` | Homely | NO | `io.homely.home` | HTP | all | live (`api.homely.no`) |
+| `forebygg` | Förebygg | SE | `se.forebygg.forebygg` | HTP | all | live |
+| `copiax` | Copiax / HomeSecurity | SE | `com.copiax.homesecurity` | TP | all | via neutralclone |
+| `tekam` | Tekam Smarthus | NO | `no.tekam.smarthus` | TP | all | via neutralclone |
+| `salus` | Salus Protect / Immunity | SE | `com.salusprotekt.immunity` | HT | 1.24 and up | live |
+| `larmify` | Larmify | SE | `se.larmify.larmify` | T | 1.27 and up | via neutralclone |
+| `conficare` | Confi.care | NO | see below | T | 1.25 and up | via neutralclone |
+| `safe4care` | Safe4 Care | NO | none | H | 1.24 and up | live |
+| `lf` | LF (Länsförsäkringar) | SE | none | H | 1.24 and up | live |
+| `folklarm` | Folklarm / Appsolut Säkerhet | SE | `com.folklarm.appsolutsakerhet` | TP | up to 1.25 | via neutralclone |
+| `tryg` | Tryg Smart | NO | `com.tryg.smart` | HTP | up to 1.27 | NXDOMAIN |
+| `waoo` | Waoo Home Protect | DK | none | HTP | up to 1.24 | NXDOMAIN |
+| `safely` | Safely | UK | `com.safelyteam.safely` | HTP | up to 1.25 | NXDOMAIN |
+| `nearsens` | nearsens | NO | none | TP | up to 1.24 | domain dead |
+| `eidsiva` | Eidsiva "Tett På" | NO | none | HTP | up to 1.22 | page 404 |
+| `larmplus` | larmplus | SE | none | TP | up to 1.22 | domain dead |
+| `assured` | Home Assurance (John Lewis) | UK | none | TP | 1.20 only | - |
+| `neutralclone` | internal, the unbranded build | - | - | H | all | live |
+| `neurosys` | internal, the developer's test tenant | - | - | H | 1.24 and up | test only |
+
+Twenty brands, then, plus two internal keys, where the hierarchy above used to
+list thirteen. The Host today column is a DNS lookup made on 2026-09-20, not
+something read in the app: `api-tryg`, `api.tryg`, `api.customer.waoo`,
+`api.safely` and their test hosts do not resolve, while `api-keyfree`,
+`api-salus`, `api-lf` and `api-safe4care` do. So the roster shrinks, and the
+tenants that left the code also left the platform.
+
+`conficare` and `safely` are probably one brand renamed. Package
+`com.safelyteam.safely`, recorded in app-versions.md as Confi.care, is branded
+Safely in the 1.20.9 build we have: its icon is `logo_safely`, its support PDF
+sends users to `safelyteam.co.uk`, and no `conficare` asset is in it. The
+`conficare` theme key and `shop.confi.care` appear from 1.25 on, in builds that
+carry no `safely` assets. `safelyteam.co.uk` is dead and `confi.care` is live.
+That reads as a rename, but nothing in the code says so.
+
+### Waoo, and what "a brand is in the code" means
+
+Waoo is a Danish fibre ISP, part of Fibia P/S. In the app it is a full tenant,
+not a leftover string. The Tekam 1.22.44 build gives it an API host
+(`api.customer.waoo.iotiliti.cloud`, plus a test host), its own logo, dashboard
+background and arc, its terms and privacy links
+(`waoo.dk/kundeservice/vejledninger-og-vilkar/` and
+`waoo.dk/om-waoo/persondataogcookies/`), and a support PDF in Danish and
+English. That is exactly the set Tekam, Homely and Förebygg get in the same
+build.
+
+The PDF names the product: Waoo Home Protect, an alarm on a police-approved
+central station, `protect@waoo.dk`, +45 44 16 16 16. It says nothing about a
+door lock, and the lock is not mentioned anywhere in the Waoo-specific strings.
+
+On the web there is nothing left. waoo.dk sells fibre, TV and telephony and has
+no Home Protect page; the Wayback copies of waoo.dk from 2020 to 2023 only
+carry an unrelated "Waoo Smart Home", Google Nest kit sold through L'EASY and
+3C Retail, which is not this platform. The tenant host stopped resolving. Waoo
+is last seen in a 1.24 build, so the product ran at some point and is gone.
+
+Whether a Waoo customer could buy the lock is unanswered. Nothing found says
+yes and nothing says no.
+
+The other brands have not been checked the same way, and most of the countries
+above come from the domain they link to rather than from a company register.
+Two were checked and are worth writing down. Eidsiva's support PDF lists the
+door lock as its own line, "Dørlås: Easy Access", so that bundle did include
+the lock under the Easy Access name. Confi.care's site sells sensors, plugs and
+an alarm watch for elderly care and no lock at all. Keyfree's own site presents
+Keyfree as software on top of existing locks rather than a lock vendor.
+
+None of this changes anything in the integration. It is business context for
+who ships the same hardware, and a second argument for not building a cloud
+transport: the tenant list churns.
 
 ## Security notes
 

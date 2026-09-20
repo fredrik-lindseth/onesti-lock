@@ -5,6 +5,7 @@ import asyncio
 import logging
 from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any
+from weakref import WeakSet
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -22,12 +23,16 @@ _LOGGER = logging.getLogger(__name__)
 # lock has answered, so its presence is what marks the read as done.
 OPTION_CAPABILITIES = "capabilities"
 
-# IEEEs whose loss of lock events has been logged, so the loss is logged
-# once and the return once. It lives on the module rather than on the
-# coordinator because ZHA coming back reloads the entry: the coordinator
+# The config entries whose loss of lock events has been logged, so the
+# loss is logged once and the return once. It cannot live on the
+# coordinator, because ZHA coming back reloads the entry: the coordinator
 # that logged the loss is gone by the time the one that takes over can
-# report the return.
-_LOSS_LOGGED: set[str] = set()
+# report the return. The entry object is what does survive that reload,
+# and Home Assistant drops it when the entry is removed, so a weak set
+# keyed on it follows the entry's life with nothing to clean up. Keyed on
+# the IEEE instead, a lock removed while ZHA was down and added again
+# later reported its events "arriving again" with no loss ever logged.
+_LOSS_LOGGED: WeakSet[ConfigEntry] = WeakSet()
 
 
 class OnestiCoordinator:
@@ -119,9 +124,9 @@ class OnestiCoordinator:
         """Set whether lock events reach us, and tell the entities.
 
         Logs one INFO line when they stop and one when they are back, and
-        never the same one twice in a row. The flag is per IEEE and not
-        per coordinator, since ZHA coming back reloads the entry and the
-        return is reported by a new coordinator.
+        never the same one twice in a row. The flag is per config entry
+        and not per coordinator, since ZHA coming back reloads the entry
+        and the return is reported by a new coordinator.
 
         quiet leaves the log out of it entirely, for the caller that has
         already said more than this could: ZHA internals missing is an
@@ -137,11 +142,11 @@ class OnestiCoordinator:
 
     def _log_availability(self, available: bool) -> None:
         if available:
-            if self.ieee in _LOSS_LOGGED:
-                _LOSS_LOGGED.discard(self.ieee)
+            if self.entry in _LOSS_LOGGED:
+                _LOSS_LOGGED.discard(self.entry)
                 _LOGGER.info("Lock events for %s are arriving again, ZHA is running", self.ieee)
-        elif self.ieee not in _LOSS_LOGGED:
-            _LOSS_LOGGED.add(self.ieee)
+        elif self.entry not in _LOSS_LOGGED:
+            _LOSS_LOGGED.add(self.entry)
             _LOGGER.info("Lock events for %s stopped, ZHA is not running", self.ieee)
 
     def _load_slots(self) -> None:

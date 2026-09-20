@@ -71,7 +71,7 @@ Sensors (sensor.py)
   └── Activity: RestoreEntity with ExtraStoredData of the raw fields, so the last
       activity survives a restart; timestamp is UTC (dt_util.utcnow)
 
-BLE library (ble/, nothing outside it imports it yet; never run against a lock)
+BLE library (ble/, imported only by bluetooth.py, which nothing uses yet; never run against a lock)
   ├── __init__.py: the public API; layers import downwards only (gotcha 13)
   ├── protocol/: wire format, no crypto, no I/O: Layer 1-3 framing, blobs,
   │   one builder per command, one parser per answer, advertisement, enums
@@ -176,7 +176,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 | Suite                        | Runs against                                                                          | Command                                         | Covers                                                                                              |
 | ---------------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | `tests/`                     | Stubbed `homeassistant`/`voluptuous`/`zigpy` from `tests/conftest.py`                 | `just test-unit`, `python3 scripts/ci_sim.py`   | Decoding, pin_rules, redact, coordinator, services, release flow, guards against PIN leaks and hardcoded language |
-| `tests_ha/`                  | Real HA from `pytest-homeassistant-custom-component`, ZHA mocked at the gateway proxy, real zigpy | `just test-ha minimum`, `just test-ha current`  | Setup, migration, repair issue, ZHA reload, options flow, sensors, restore, services, transport, both zigpy listener hooks |
+| `tests_ha/`                  | Real HA from `pytest-homeassistant-custom-component`, ZHA mocked at the gateway proxy, real zigpy | `just test-ha minimum`, `just test-ha current`  | Setup, migration, repair issue, ZHA reload, options flow, sensors, restore, services, transport, both zigpy listener hooks, Bluetooth lookup and connect on both stacks |
 | `tests/test_version_sync.py` | `hacs.json`, `uv.lock`, prose in README/AGENTS/justfile/pyproject                     | part of `pytest tests/`                         | The minimum HA version agrees everywhere it is written                                              |
 | `tests/ble/`                 | The `ble/` package alone, with `tests/ble/fake_lock.py` as the lock; no HA stubs needed | part of `pytest tests/`, or `pytest tests/ble`  | Every builder and parser, framing, crypto against NIST and app-executed vectors, session, owner login, full enrollment, package boundary |
 | `tests/ble/java/`            | The app's decompiled crypto classes on a JDK (sources local only)                     | by hand, see `docs/nimly-ble-app/ble-library.md` | Prints the `executed` vectors in `tests/ble/crypto_vectors.py`; rerun when crypto code or vectors change |

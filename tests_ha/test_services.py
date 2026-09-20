@@ -70,7 +70,7 @@ def _device_id(hass: HomeAssistant, entry: MockConfigEntry) -> str:
     deprecation error in the current target, and this works in both.
     """
     devices = dr.async_entries_for_config_entry(dr.async_get(hass), entry.entry_id)
-    assert [device.identifiers for device in devices] == [{(DOMAIN, entry.data[CONF_IEEE])}]
+    assert [device.identifiers for device in devices] == [{(DOMAIN, entry.entry_id)}]
     return devices[0].id
 
 
@@ -139,14 +139,21 @@ async def test_ieee_in_another_case_picks_the_lock(hass: HomeAssistant, two_lock
 
 
 async def test_a_device_from_another_integration_is_refused(hass: HomeAssistant, two_locks) -> None:
-    """A ZHA device with the same IEEE is still not one of ours."""
+    """A device with no identifier of ours is not a lock the services know.
+
+    The address is one no entry here owns: ZHA's own device for a lock
+    that is set up here carries our identifier too on Home Assistant
+    through 2026.8, where the shared zigbee connection makes the two one
+    registry entry.
+    """
     (front, _), (back, _) = two_locks
+    other_ieee = "00:0d:6f:00:99:99:99:99"
     zha_entry = MockConfigEntry(domain="zha")
     zha_entry.add_to_hass(hass)
     zha_device = dr.async_get(hass).async_get_or_create(
         config_entry_id=zha_entry.entry_id,
-        identifiers={("zha", LOCK_IEEE)},
-        connections={(dr.CONNECTION_ZIGBEE, LOCK_IEEE)},
+        identifiers={("zha", other_ieee)},
+        connections={(dr.CONNECTION_ZIGBEE, other_ieee)},
     )
 
     with pytest.raises(ServiceValidationError) as excinfo:

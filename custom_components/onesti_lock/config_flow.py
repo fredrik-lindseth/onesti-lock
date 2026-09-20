@@ -19,6 +19,7 @@ from homeassistant.core import callback
 from . import pin_rules
 from .const import (
     CONF_IEEE,
+    CONF_MODEL,
     CONF_RESERVED_SLOTS,
     DOMAIN,
     MAX_SLOTS,
@@ -56,7 +57,7 @@ class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
     """Config flow for Onesti Lock."""
 
     VERSION = 2
-    MINOR_VERSION = 2
+    MINOR_VERSION = 3
 
     # Set by async_step_integration_discovery, read by the confirmation step.
     _discovered_ieee: str = ""
@@ -67,24 +68,27 @@ class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
         return NimlyProOptionsFlow()
 
-    def _create_lock_entry(self, ieee: str) -> ConfigFlowResult:
+    def _create_lock_entry(self, ieee: str, model: str) -> ConfigFlowResult:
         """The entry for one lock, however the flow got to it."""
         return self.async_create_entry(
             title=f"Onesti Lock ({ieee[-8:]})",
-            data={CONF_IEEE: ieee},
+            data={CONF_IEEE: ieee, CONF_MODEL: model},
             options={"slots": {}},
         )
 
-    async def async_step_user(self, user_input=None) -> ConfigFlowResult:
-        """Handle user step: select a Nimly lock from ZHA."""
-        if not is_zha_loaded(self.hass):
-            return self.async_abort(reason="zha_not_found")
+    def _locks_on_offer(self, skip_entry_id: str | None = None) -> dict[str, str]:
+        """{ieee: model} for the Onesti locks in ZHA no config entry owns.
 
-        devices = {}
-        existing = {
+        skip_entry_id leaves one entry's own lock in the list, which the
+        reconfigure step needs: the entry being pointed somewhere else
+        must not rule out the lock it points at today.
+        """
+        taken = {
             entry.data.get(CONF_IEEE)
             for entry in self._async_current_entries()
+            if entry.entry_id != skip_entry_id
         }
+        locks: dict[str, str] = {}
         for ieee_str, model in iter_onesti_locks(self.hass):
             if model not in SUPPORTED_MODELS:
                 _LOGGER.warning(
@@ -92,23 +96,84 @@ class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
                     "Please report the model string on GitHub",
                     model,
                 )
-            if ieee_str not in existing:
-                devices[ieee_str] = f"{model} ({ieee_str})"
+            if ieee_str not in taken:
+                locks[ieee_str] = model
+        return locks
 
-        if not devices:
+    @staticmethod
+    def _device_labels(locks: Mapping[str, str]) -> dict[str, str]:
+        """The picker's options: the model and the address, per lock."""
+        return {ieee: f"{model} ({ieee})" for ieee, model in locks.items()}
+
+    async def async_step_user(self, user_input=None) -> ConfigFlowResult:
+        """Handle user step: select a Nimly lock from ZHA."""
+        if not is_zha_loaded(self.hass):
+            return self.async_abort(reason="zha_not_found")
+
+        locks = self._locks_on_offer()
+        if not locks:
             return self.async_abort(reason="no_devices_found")
 
         if user_input is not None:
             ieee = user_input["device"]
             await self.async_set_unique_id(ieee)
             self._abort_if_unique_id_configured()
-            return self._create_lock_entry(ieee)
+            return self._create_lock_entry(ieee, locks[ieee])
 
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema(
-                {vol.Required("device"): vol.In(devices)}
+                {vol.Required("device"): vol.In(self._device_labels(locks))}
             ),
+        )
+
+    async def async_step_reconfigure(self, user_input=None) -> ConfigFlowResult:
+        """Point an existing entry at another Connect Module.
+
+        The module (ZMNC010) is an accessory, and a replacement brings a
+        new IEEE address for the same door. Everything the integration
+        stores, the slot names and their PIN status, belongs to the lock
+        rather than to the module, so the entry follows the new address
+        and keeps its options. The entities come along too: they are
+        keyed on the config entry, not on the address.
+        """
+        if not is_zha_loaded(self.hass):
+            return self.async_abort(reason="zha_not_found")
+
+        entry = self._get_reconfigure_entry()
+        locks = self._locks_on_offer(skip_entry_id=entry.entry_id)
+        if not locks:
+            return self.async_abort(reason="no_devices_found")
+
+        if user_input is not None:
+            ieee = user_input["device"]
+            await self.async_set_unique_id(ieee)
+            # Not _abort_if_unique_id_configured: this entry's own unique
+            # id is the one being set, and that is not a collision. Only
+            # another entry holding the address is, which the list above
+            # already leaves out unless that entry appeared meanwhile.
+            for other in self._async_current_entries():
+                if other.entry_id != entry.entry_id and other.data.get(CONF_IEEE) == ieee:
+                    return self.async_abort(reason="already_configured")
+            return self.async_update_reload_and_abort(
+                entry,
+                unique_id=ieee,
+                title=f"Onesti Lock ({ieee[-8:]})",
+                data_updates={CONF_IEEE: ieee, CONF_MODEL: locks[ieee]},
+            )
+
+        # Prefilled with the module in use, where ZHA still has it: a
+        # module that is gone is exactly the case this step is for.
+        current = entry.data.get(CONF_IEEE)
+        field = (
+            vol.Required("device", default=current)
+            if current in locks
+            else vol.Required("device")
+        )
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema({field: vol.In(self._device_labels(locks))}),
+            description_placeholders={"ieee": str(current)},
         )
 
     async def async_step_integration_discovery(
@@ -130,7 +195,7 @@ class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
         self._abort_if_unique_id_configured()
 
         self._discovered_ieee = ieee
-        self._discovered_model = str(discovery_info.get("model") or "")
+        self._discovered_model = str(discovery_info.get(CONF_MODEL) or "")
         # What the Discovered card is titled, through config.flow_title.
         self.context["title_placeholders"] = {
             "model": self._discovered_model,
@@ -141,7 +206,7 @@ class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_discovery_confirm(self, user_input=None) -> ConfigFlowResult:
         """Ask before setting up a discovered lock."""
         if user_input is not None:
-            return self._create_lock_entry(self._discovered_ieee)
+            return self._create_lock_entry(self._discovered_ieee, self._discovered_model)
 
         self._set_confirm_only()
         return self.async_show_form(

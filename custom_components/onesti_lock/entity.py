@@ -1,33 +1,83 @@
 """Base class for the entities Onesti Lock creates."""
 from __future__ import annotations
 
-from homeassistant.core import callback
+from typing import Any
+
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
 
-from .const import DOMAIN
+from .const import CONF_MODEL, DOMAIN, MANUFACTURER
 from .coordinator import NimlyCoordinator
+from .zha import find_zha_device
+
+# HA 2026.9 replaced DeviceInfo's via_device, an identifier tuple the
+# registry resolved, with via_device_id, the device id itself. Both name
+# the same link; which one exists decides how the link is built below.
+HAS_VIA_DEVICE_ID = "via_device_id" in DeviceInfo.__optional_keys__
+
+
+def device_name(ieee: str, model: str) -> str:
+    """What the lock's device is called, with two of them side by side.
+
+    The model alone does not tell two locks of the same model apart, so
+    the last four characters of the IEEE address come with it. They are
+    what ZHA's device page shows last under Zigbee info, and the same
+    four are in the config entry title.
+    """
+    tail = ieee.replace(":", "")[-4:]
+    return f"{model} ({tail})" if model else f"Onesti Lock ({tail})"
+
+
+def build_device_info(hass: HomeAssistant, coordinator: NimlyCoordinator) -> DeviceInfo:
+    """The device the lock's entities hang on.
+
+    identifiers are keyed on the config entry, not on the IEEE address:
+    a replaced Connect Module changes the address, and the reconfigure
+    flow points the entry at the new one without throwing the device and
+    its entities away.
+
+    The zigbee connection is the same one ZHA registers the lock with.
+    Through HA 2026.8 a connection was unique across config entries, so
+    the registry merges this device and ZHA's into a single entry with
+    both integrations on it, and there is nothing left to link. From
+    2026.9 a connection is unique only within one config entry, so the
+    two stay apart and the link is made explicitly, ZHA's device as the
+    one this hangs off.
+    """
+    ieee = coordinator.ieee
+    model = str(coordinator.entry.data.get(CONF_MODEL) or "")
+    via: dict[str, Any] = {}
+    if HAS_VIA_DEVICE_ID and (zha_device := find_zha_device(hass, ieee)) is not None:
+        via = {"via_device_id": zha_device.id}
+    return DeviceInfo(
+        identifiers={(DOMAIN, coordinator.entry.entry_id)},
+        connections={(dr.CONNECTION_ZIGBEE, ieee.lower())},
+        name=device_name(ieee, model),
+        manufacturer=MANUFACTURER,
+        model=model or None,
+        serial_number=ieee,
+        **via,
+    )
 
 
 class NimlyEntity(Entity):
     """An entity on the Onesti Lock device of one lock.
 
-    Every unique_id is the lock's IEEE followed by a per-entity key, and
-    the entity registry holds users' entities by it, so the format must
-    not change. Never set _attr_name here or in a subclass: HA checks it
-    before the translation key, which silently disables translated names.
+    Every unique_id is the config entry id followed by a per-entity key,
+    and the entity registry holds users' entities by it, so the format
+    must not change. Never set _attr_name here or in a subclass: HA checks
+    it before the translation key, which silently disables translated
+    names.
     """
 
     _attr_has_entity_name = True
 
     def __init__(self, coordinator: NimlyCoordinator, key: str) -> None:
         self._coordinator = coordinator
-        self._attr_unique_id = f"{coordinator.ieee}-{key}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, coordinator.ieee)},
-            name="Onesti Lock",
-            manufacturer="Onesti Products AS",
-        )
+        self._attr_unique_id = f"{coordinator.entry.entry_id}-{key}"
+        self._attr_device_info = build_device_info(coordinator.hass, coordinator)
 
     @property
     def available(self) -> bool:

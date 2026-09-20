@@ -3,6 +3,10 @@
 DOMAIN = "onesti_lock"
 
 CONF_IEEE = "ieee"
+# The model string ZHA read off the Connect Module, stored at setup and at
+# reconfigure. Kept in entry.data so the device name and the device registry
+# entry are right at startup, before ZHA has a gateway to ask.
+CONF_MODEL = "model"
 # Per-lock option: how many slots from 0 up are master codes that set_pin,
 # clear_pin and clear_slot must never touch. Naming is not affected.
 CONF_RESERVED_SLOTS = "reserved_slots"

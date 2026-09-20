@@ -451,13 +451,9 @@ that as support being vague, not as a hint.
 
 ## The Swedish forums
 
-All four rows were read on 2026-09-20. sweclockers came out through the
-public r.jina.ai text reader; the three byggahus threads needed a headless
-Firefox driven over WebDriver BiDi, because Cloudflare blocks curl on the TLS
-fingerprint and no cookie changes that
-([manuals/README.md](manuals/README.md#living-sources) has the method and the
-dead ends). That is 621 byggahus posts, 2023-08 to 2026-09, plus two on
-sweclockers.
+All four threads were read on 2026-09-20, by hand: 621 byggahus posts from
+2023-08 to 2026-09, plus two on sweclockers. Neither site can be fetched by
+script.
 
 sweclockers thread 1713551 (April 2024) is two posts and no answers. A Touch
 Pro owner tired of running a hub per brand asks whether Homey Pro gives him

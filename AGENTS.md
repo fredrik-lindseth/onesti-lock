@@ -184,6 +184,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 | `docs/technical.md`                             | Integration internals: event decoding, coordinator, auto-wake, sleepy device, community refs  |
 | `docs/zigbee-protocol/zigbee-captures.md`       | Raw ZCL frames and verified protocol values (canonical for attrid 0x0100)                     |
 | `docs/zigbee-protocol/elife-module-spec.md`     | Onesti's own 2021 Zigbee spec for the module, and where it disagrees with what we measure     |
+| `docs/zigbee-interrogation.md`                  | Runbook for asking the lock what it has (ZCL discovery, block by block), run by `scripts/interrogate_lock.sh` |
 | `docs/nimly-connect-app/app-architecture.md`    | iotiliti cloud ecosystem, white-label hierarchy, DoorlockTypes, cloud events                  |
 | `docs/nimly-connect-app/reversing-notes.md`     | Nimly Connect APK reverse engineering, REST API, white-label hosts                            |
 | `docs/nimly-connect-app/iotiliti-api-spec.yaml` | OpenAPI spec for iotiliti cloud (reverse-engineered)                                          |

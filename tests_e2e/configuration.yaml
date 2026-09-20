@@ -1,0 +1,29 @@
+homeassistant:
+  name: Onesti Lock e2e
+  latitude: 60.4
+  longitude: 5.3
+  elevation: 0
+  time_zone: Europe/Oslo
+  country: "NO"
+  unit_system: metric
+  currency: NOK
+
+# frontend pulls http, api, websocket_api, config and onboarding, which is
+# everything the driver uses. default_config is left out on purpose: it drags
+# in bluetooth, zeroconf, ssdp and a recorder database that only make the
+# start slower, and none of them say anything about this integration.
+frontend:
+api:
+config:
+
+# The blueprints under blueprints/automation/onesti_lock/ are validated by
+# creating an automation from each one through the config API, which writes
+# here.
+automation: !include automations.yaml
+
+# info, not warning: the container log is the evidence a failed CI run
+# leaves behind, and warnings alone rarely say what happened.
+logger:
+  default: info
+  logs:
+    custom_components.onesti_lock: debug

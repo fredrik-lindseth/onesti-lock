@@ -122,7 +122,7 @@ jobs:
 
       - name: Lint with Ruff
         run: |
-          ruff check custom_components/onesti_lock/ tests/ tests_ha/ scripts/
+          ruff check custom_components/onesti_lock/ tests/ tests_ha/ tests_e2e/ scripts/
           echo "Ruff linting passed"
 
       - name: Run tests with coverage

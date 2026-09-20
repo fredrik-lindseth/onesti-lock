@@ -9,9 +9,12 @@ Last updated 2026-09-20.
 ## zigpy/zha-device-handlers (the ZHA quirk)
 
 **PR 4881, "Improve Nimly lock operation event decoding", open, ours.**
-Checked 2026-09-19: still open, and no maintainer has written in it since
+Checked again 2026-09-20: unchanged. The last activity in the thread is our
+own status comment of 2026-09-19, and no maintainer has written in it since
 TheJulianJES's review comment of 2026-04-29 (about `.enum()` versus
-`.sensor()` for the source entity).
+`.sensor()` for the source entity). PR 5345 and issue 5235 are likewise
+untouched since our comments went in on the 19th. Nothing is waiting on us
+there, so the next move is patience, not another comment.
 
 It replaces hex string parsing with bitmask operations, renames source `0x0A`
 from `self` to `auto`, returns `unknown` instead of `None` for unexpected
@@ -27,7 +30,11 @@ documented in the PR thread. We removed our own equivalent in v1.3.0 for that
 reason. TheJulianJES was asked whether it should be removed or masked upstream
 and has not answered. The sensor is `entity_registry_enabled_default=False`
 there, which is better than what we had, but it is enabled on at least one
-real instance (Fredrik's), so the default is not protection.
+real instance (Fredrik's), so the default is not protection. The hardware
+session of 2026-09-19 made that concrete: the sensor showed the test code in
+clear text in its state, and the recorder kept it. That is worth saying in the
+thread, but not one day after our last comment. Save it for the next time the
+PR needs a nudge.
 
 **matthiasnielsen1 reported that live reports never reach the quirk's
 entities.** Tested on a NimlyPRO24 (2026-08-18), which also confirmed that
@@ -107,9 +114,20 @@ What is now in `master`:
 - **The DC/battery split.** Issue 32772 in `Koenkk/zigbee2mqtt` (2026-08-07, a
   Nimly lock shown as DC-powered) is still open and unanswered, and issue 32469
   (200 % battery, `dontDividePercentage`) was closed as stale on 2026-09-09
-  with no fix. Both look like a firmware or module split we cannot settle
-  without more units, so they are a candidate for the same follow-up PR only if
-  a second reporter turns up.
+  with no fix. The DC half now has an explanation, see below; the battery half
+  still looks like a firmware or module split we cannot settle without more
+  units.
+- **`auto_relock_time` is exposed as a number of seconds.** Both Nimly
+  definitions expose `e.numeric("auto_relock_time").withUnit("s")` from
+  attribute `autoRelockTime`, while the same file's `easycode_auto_relock`
+  writes `1` or `0` to that attribute and the binary `auto_relock` expose next
+  to it says "Auto relock after 7 seconds". The vendor spec (see below) says
+  0x0023 takes 0x00 or 0x01 only and is not a time, so the numeric shows "1 s"
+  for a seven-second relock. Folding it into the binary is one more item for
+  the deferred PR, and breaking in the same way.
+- **13080 is closed.** The BCD issue that 13233 fixed was closed by the merge
+  on 2026-09-20. No new Onesti or Nimly issue has appeared in either
+  Zigbee2MQTT repo since (searched 2026-09-20).
 - **The plaintext PIN.** 13233 made `last_used_pin_code` decode correctly; it
   did not remove or mask it, and the question of whether it should be there at
   all is unanswered. See the first finding below.
@@ -260,6 +278,86 @@ through ZHA, on the reports in zha-device-handlers#4881, and on reading
 zigbee-herdsman. Ask for someone with a NimlyCodePRO to confirm `0x05` and
 someone with an ASCII lock to confirm the PIN still decodes. Do not present
 the 16-bit slot width as verified.
+
+## What the vendor's 2021 spec is worth upstream
+
+`zigbee-protocol/elife-module-spec.md` reads the *E-life Zigbee Modul User
+Manual v2.0* that a customer attached to
+[Koenkk/zigbee2mqtt#6379](https://github.com/Koenkk/zigbee2mqtt/issues/6379) in
+2021. Anyone can download the same PDF from that issue, which makes it the
+first thing we have that an upstream maintainer can check without owning a
+lock. Assessed 2026-09-20, item by item.
+
+**Worth sending: the DC power source.** The spec documents Basic attribute
+PowerSource 0x0007 with the value 0x04, "DC source", on a module that runs on
+three AA cells. So a Nimly lock really does report DC, and
+`Koenkk/zigbee2mqtt#32772` is not a Zigbee2MQTT misreading. `onesti.ts` already
+compensates with `device.powerSource = "Battery"` in `configure` on both Nimly
+definitions, and has since before the report, so a device still shown as DC was
+most likely interviewed without that `configure` ever completing. That gives
+the reporter something to try (re-configure the device from the Z2M dashboard)
+and the maintainers something to close the issue on. A short comment on 32772,
+not a PR.
+
+**Worth sending, bundled: AutoRelockTime is boolean.** See the item above in
+"Still open after the merge". It belongs in the deferred breaking PR together
+with the `self` to `auto` rename, and the spec link is the evidence.
+
+**Hold: the one-byte command response.** The spec says every Lock, Unlock, Set
+PIN and Clear PIN response carries a single status byte, FAILURE 0x00 or
+SUCCESS 0x01, and that memory-full and duplicate-code statuses are deliberately
+not implemented. That is the first vendor statement consistent with the
+`IndexError` the stock quirk raises when the lock's answer is read, which we
+have long suspected comes from reading `response[1]`. It is not yet a bug
+report: we have not read the ZHA or zigpy code that does the indexing, and
+neither repo has an open issue about it (searched 2026-09-20). Nail the code
+path first, then file it in the right repo with the spec as the why. Filed
+half-done it would just be a theory with a PDF attached.
+
+**Not worth sending: 0xFEA2 is "EA v2".** The spec names the cluster and says
+nothing else about it: no attributes, no commands. It closes a naming question
+for us and gives a converter nothing to implement.
+
+**Not worth sending: the 50 PIN users and the 4-8 digit range.** Both projects
+read the numbers off the lock now, which is better than a document from 2021.
+The spec is a sanity check for us, not news for them.
+
+**Not worth sending: the operation notification table.** Command 0x20 with its
+own source encoding (0x00 keypad, 0x02 manual, 0x03 RFID, 0xFF other) is a
+different channel from attribute 0x0100, and our lock has never been seen to
+send it. Posting the table upstream would invite someone to mix the two
+encodings.
+
+## Findings from our own hardware that do not go upstream yet
+
+**The radio is Nordic, and manufacturer code 4660 is a ZBOSS default.** The
+IEEE prefix `f4:ce:36` belongs to Nordic Semiconductor, and 0x1234 is what an
+unconfigured ZBOSS stack reports. Both are in
+`connect-bridge/hardware-gateway.md`. Neither changes anything a converter
+does, so neither is worth a comment.
+
+**Basic reports `dateCode`, `hwVersion` and `swBuildId`, and ZHA never reads
+them.** Z2M picks them up at interview, ZHA does not, which is ZHA core
+behaviour rather than anything the quirk can fix. It becomes interesting only
+if the DC or the 200 % battery split turns out to follow a firmware version:
+then `swBuildId` (4.x.yy on the modules we have seen) is the field to ask
+reporters for. Keep it in the pocket for the next reporter on 32469.
+
+**Source 0x0A may be Zigbee-initiated rather than auto-lock, and the evidence
+is too thin to send.** Every 0x0100 report our lock produced after the
+2026-09-19 re-pairing arrived 0.2-1.2 s after a `lock_door` or `unlock_door`
+response, source 0x0A, including `0x0A020000` (unlock), which no auto-relock
+would produce. That is six reports from one session on one lock, with no
+keypad-triggered report to compare against, because keypad events stopped
+arriving entirely. It also sits against the March captures in
+`zigbee-protocol/zigbee-captures.md`, where `0x0A010000` arrived six seconds
+after a keypad unlock with no command from Home Assistant, which is exactly
+what auto-relock looks like. The honest reading is that 0x0A may be "no user
+to attribute this to" on NimlyPRO, the role 0x05 plays on the newer firmware,
+rather than "auto-lock" specifically. Both `SOURCE_MAP` and the Z2M converter
+would need changing if that held. Do not raise it with either project before a
+session where a keypad event and a Zigbee command are captured minutes apart on
+a lock that is reporting properly.
 
 ## What we decided, and why we are not building a second transport
 

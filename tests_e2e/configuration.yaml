@@ -21,6 +21,26 @@ config:
 # here.
 automation: !include automations.yaml
 
+# Two of the blueprints act on a lock entity, and there is no radio here to
+# give them one. This template lock is the stand-in they are pointed at: a
+# real lock entity with real lock and unlock actions, so lock.lock from a
+# blueprint has somewhere to land and the result can be read back.
+input_boolean:
+  e2e_bolt:
+
+template:
+  - lock:
+      name: E2E stand-in
+      state: "{{ 'locked' if is_state('input_boolean.e2e_bolt', 'on') else 'unlocked' }}"
+      lock:
+        - action: input_boolean.turn_on
+          target:
+            entity_id: input_boolean.e2e_bolt
+      unlock:
+        - action: input_boolean.turn_off
+          target:
+            entity_id: input_boolean.e2e_bolt
+
 # info, not warning: the container log is the evidence a failed CI run
 # leaves behind, and warnings alone rarely say what happened.
 logger:

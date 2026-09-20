@@ -71,3 +71,84 @@ def test_readme_states_the_hacs_json_minimum():
     assert f"Home Assistant {major_minor} or newer" in readme, (
         f"README.md does not say 'Home Assistant {major_minor} or newer', which is what hacs.json promises"
     )
+
+
+# --- the Python floor --------------------------------------------------------
+#
+# The integration runs in the user's Home Assistant, so the lowest Python it
+# has to work on is the lowest the minimum HA runs on, not the dev Python in
+# .python-version. That floor is written out four times: the uv group that
+# builds the minimum environment, requires-python, ruff's target-version and
+# the interpreter CI compiles the integration with. mypy's python_version is
+# deliberately not one of them (it parses the newest HA, see pyproject.toml).
+
+PY_FLOOR_GROUP = "ha-minimum"
+LOWER_BOUND = re.compile(r">=\s*(\d+)\.(\d+)(?:\.\d+)?")
+
+
+def _python_floor() -> tuple[int, int]:
+    """The floor as (major, minor), read from the ha-minimum group in pyproject.toml.
+
+    That group's requires-python is the one place the number is derived rather
+    than repeated: it is the range the minimum Home Assistant resolves in.
+    """
+    pyproject = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))
+    spec = pyproject["tool"]["uv"]["dependency-groups"][PY_FLOOR_GROUP]["requires-python"]
+    match = LOWER_BOUND.search(spec)
+    assert match, f"[tool.uv.dependency-groups].{PY_FLOOR_GROUP}.requires-python is {spec!r} and has no >= bound"
+    return int(match.group(1)), int(match.group(2))
+
+
+def test_requires_python_is_the_floor():
+    major, minor = _python_floor()
+    pyproject = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))
+    spec = pyproject["project"]["requires-python"]
+    match = LOWER_BOUND.search(spec)
+    assert match, f"project.requires-python is {spec!r} and has no >= bound"
+    assert (int(match.group(1)), int(match.group(2))) == (major, minor), (
+        f"project.requires-python is {spec!r}, but the {PY_FLOOR_GROUP} group runs Python "
+        f"{major}.{minor}. The floor is the runtime, not the dev toolchain: raise or lower both."
+    )
+
+
+def test_ruff_targets_the_floor():
+    major, minor = _python_floor()
+    pyproject = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))
+    target = pyproject["tool"]["ruff"]["target-version"]
+    assert target == f"py{major}{minor}", (
+        f"[tool.ruff] target-version is {target!r}, but the lowest Python the integration runs on "
+        f"is {major}.{minor}. Ruff would suggest syntax the minimum Home Assistant cannot parse."
+    )
+
+
+def test_ci_compiles_the_integration_on_the_floor():
+    major, minor = _python_floor()
+    ci = (REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    found = re.findall(r"python(\d+)\.(\d+) -m compileall", ci)
+    assert found, "ci.yml no longer runs compileall with a versioned interpreter, so nothing proves the floor compiles"
+    for version in found:
+        assert (int(version[0]), int(version[1])) == (major, minor), (
+            f"ci.yml compiles the integration with python{version[0]}.{version[1]}, but the floor is "
+            f"{major}.{minor}. Move the interpreter and the setup-python list with it."
+        )
+
+
+def test_the_minimum_test_target_runs_on_the_floor():
+    major, minor = _python_floor()
+    justfile = (REPO / "justfile").read_text(encoding="utf-8")
+    match = re.search(r"minimum\)\s*python=(\d+)\.(\d+)", justfile)
+    assert match, "the justfile no longer picks a Python for `just test-ha minimum`, so this rule checks nothing"
+    assert (int(match.group(1)), int(match.group(2))) == (major, minor), (
+        f"`just test-ha minimum` runs Python {match.group(1)}.{match.group(2)}, but the "
+        f"{PY_FLOOR_GROUP} group resolves for {major}.{minor}."
+    )
+
+
+def test_the_dev_python_is_not_below_the_floor():
+    major, minor = _python_floor()
+    dev = (REPO / ".python-version").read_text(encoding="utf-8").strip()
+    parts = tuple(int(part) for part in dev.split(".")[:2])
+    assert parts >= (major, minor), (
+        f".python-version is {dev}, below the {major}.{minor} floor the integration has to run on. "
+        f"Development and CI may run ahead of the floor, never behind it."
+    )

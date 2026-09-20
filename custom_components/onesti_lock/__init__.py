@@ -107,10 +107,17 @@ def _async_discover_locks(hass: HomeAssistant) -> None:
     is stopped by the unique id in async_step_integration_discovery, and so
     is a second flow for a lock already being asked about. The check here
     only keeps the common case from making a flow at all.
+
+    The unique id counts as known next to the stored address, because an
+    ignored entry has no data at all. Without it every device registry
+    event from ZHA, for any device, started and aborted a flow per
+    ignored lock.
     """
     known = {
-        str(entry.data.get(CONF_IEEE, "")).lower()
+        address.lower()
         for entry in hass.config_entries.async_entries(DOMAIN)
+        for address in (str(entry.data.get(CONF_IEEE, "")), str(entry.unique_id or ""))
+        if address
     }
     for ieee, model in iter_onesti_locks(hass):
         if ieee.lower() in known:
@@ -136,13 +143,22 @@ def _migrate_to_entry_id_keys(hass: HomeAssistant, entry: OnestiConfigEntry) -> 
 
     Both registries are rewritten in place, so entity ids, user-set names
     and everything else Home Assistant stores per entity survive.
+
+    Only our own identifier is swapped, never the whole set. Through HA
+    2026.8 a zigbee connection is unique across config entries, so this
+    device and ZHA's are one registry entry holding both identifiers.
+    Replacing the set would drop ("zha", ieee), and ZHA looks its device
+    up by exactly that in device triggers, device actions, logbook and
+    its own diagnostics.
     """
     ieee: str = entry.data[CONF_IEEE]
     device_registry = dr.async_get(hass)
     for device in dr.async_entries_for_config_entry(device_registry, entry.entry_id):
         if (DOMAIN, ieee) in device.identifiers:
             device_registry.async_update_device(
-                device.id, new_identifiers={(DOMAIN, entry.entry_id)}
+                device.id,
+                new_identifiers=(device.identifiers - {(DOMAIN, ieee)})
+                | {(DOMAIN, entry.entry_id)},
             )
     entity_registry = er.async_get(hass)
     for registry_entry in er.async_entries_for_config_entry(entity_registry, entry.entry_id):
@@ -210,6 +226,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: OnestiConfigEntry) -> bo
             translation_domain=DOMAIN,
             translation_key="lock_not_in_zha",
             translation_placeholders={"ieee": ieee},
+        )
+
+    if not entry.data.get(CONF_MODEL) and (model := model_in_zha(hass, ieee)):
+        # The 2.3 migration reads the model off ZHA, but it runs whenever
+        # the entry loads, and ZHA can still be in SETUP_RETRY behind a
+        # slow Zigbee stick. Nothing else fills it in short of a
+        # reconfigure the user has no reason to run, so the device would
+        # stay "Onesti Lock (3344)" for good. Written to data rather than
+        # options, and before the update listener is registered.
+        hass.config_entries.async_update_entry(
+            entry, data={**entry.data, CONF_MODEL: model}
         )
 
     coordinator = OnestiCoordinator(hass, entry)

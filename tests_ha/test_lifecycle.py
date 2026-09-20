@@ -188,14 +188,35 @@ async def test_migration_to_entry_id_keys_keeps_the_entities(
     address. The migration rewrites both keys in place, so the entity ids
     people put in dashboards and automations, and the names they typed,
     are the same afterwards.
+
+    The device is the one a 2.2 install really has: through HA 2026.8 a
+    zigbee connection is unique across config entries, so ours and ZHA's
+    are a single registry entry carrying ("zha", ieee) as well. ZHA finds
+    its device by that identifier, so the migration must leave it alone.
     """
     entry = _entry(minor_version=2, data={CONF_IEEE: LOCK_IEEE})
     entry.add_to_hass(hass)
+    zha_entry = MockConfigEntry(domain="zha", title="ZHA")
+    zha_entry.add_to_hass(hass)
+    registry_device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=zha_entry.entry_id,
+        identifiers={("zha", LOCK_IEEE)},
+        connections={(dr.CONNECTION_ZIGBEE, LOCK_IEEE)},
+        name="Onesti Products AS NimlyPRO",
+    )
     device = dr.async_get(hass).async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, LOCK_IEEE)},
+        connections={(dr.CONNECTION_ZIGBEE, LOCK_IEEE)},
         name="Onesti Lock",
     )
+    # From 2026.9 the connection is unique per config entry and the two
+    # stay apart, so how many identifiers our device carries is up to the
+    # Home Assistant under test. Whatever it has, the migration may only
+    # swap ours.
+    identifiers_before = device.identifiers
+    if device.id == registry_device.id:
+        assert ("zha", LOCK_IEEE) in identifiers_before
     registry = er.async_get(hass)
     activity = registry.async_get_or_create(
         "sensor",
@@ -222,7 +243,9 @@ async def test_migration_to_entry_id_keys_keeps_the_entities(
     assert (entry.version, entry.minor_version) == (2, 3)
     # The model is read off ZHA, so the device has it without a reconfigure.
     assert entry.data[CONF_MODEL] == LOCK_MODEL
-    assert dr.async_get(hass).async_get(device.id).identifiers == {(DOMAIN, entry.entry_id)}
+    assert dr.async_get(hass).async_get(device.id).identifiers == (
+        identifiers_before - {(DOMAIN, LOCK_IEEE)}
+    ) | {(DOMAIN, entry.entry_id)}
 
     migrated = registry.async_get(activity.entity_id)
     assert migrated is not None, "the activity sensor kept its entity id"
@@ -253,6 +276,30 @@ async def test_migration_without_zha_leaves_the_model_empty(
 
     assert (entry.version, entry.minor_version) == (2, 3)
     assert entry.data[CONF_MODEL] == ""
+
+
+async def test_the_model_is_filled_in_once_zha_answers(
+    hass: HomeAssistant, zha_dependency
+) -> None:
+    """The migration can run before ZHA is up, and then nothing else fills it.
+
+    A slow Zigbee stick puts ZHA in SETUP_RETRY at the first start after
+    the upgrade, so the migration finds no model. Setup reads it the next
+    time the entry loads, rather than leaving the device named after its
+    address until the user runs a reconfigure nothing asks for.
+    """
+    entry = await _setup(hass, _entry(minor_version=2, data={CONF_IEEE: LOCK_IEEE}))
+    assert entry.data[CONF_MODEL] == ""
+
+    hass.data["zha"] = SimpleNamespace(
+        gateway_proxy=SimpleNamespace(device_proxies={LOCK_IEEE: make_lock_proxy()})
+    )
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.data[CONF_MODEL] == LOCK_MODEL
+    devices = dr.async_entries_for_config_entry(dr.async_get(hass), entry.entry_id)
+    assert [device.name for device in devices] == ["NimlyPRO (3344)"]
 
 
 async def test_entry_from_a_newer_major_version_is_refused(hass: HomeAssistant, mock_zha) -> None:

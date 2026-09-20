@@ -2,19 +2,22 @@
 
 All notable changes to Onesti Lock. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.5.0] - Unreleased
 
 ### Features
 
 - **Lock number two is found on its own.** Once one lock is set up, pairing another Onesti lock with ZHA makes it turn up under Discovered on the integrations page, with its model and IEEE address, and you confirm or ignore it there. The first lock still has to be added with Add Integration: Home Assistant does not load a custom integration that has no config entry. <!--short-->
-- **The lock's device says which lock it is.** It is named after the model and the last four characters of its Zigbee address, so two locks of the same model are no longer two entries called Onesti Lock, and it carries the model and the address as its serial number. On Home Assistant 2026.9 and newer it is shown under ZHA's device for the same lock; on older releases the two become one device with the lock entity and these sensors on it. Existing entity IDs and names are kept. <!--short-->
+- **The lock's device says which lock it is.** It is named after the model and the last four characters of its Zigbee address, so two locks of the same model are no longer two devices called Onesti Lock, and the device page shows the model and the full address as its serial number. On Home Assistant 2026.9 and newer the device is shown under ZHA's device for the same lock; on older releases a lock added from now on shares one device with ZHA, because a Zigbee address can belong to one device only there. A lock already set up keeps the device it has, with its entity ids and the names you have given them. <!--short-->
 - **A replaced Connect Module keeps the lock's setup.** The module is an accessory with its own Zigbee address, and swapping it used to mean setting the lock up again from scratch. Use Reconfigure on the entry and pick the new module: the slot names, the PIN status and every sensor stay as they are. <!--short-->
-- **The Integration Quality Scale rules are documented rule by rule** in `quality_scale.yaml`, with a reason for every exemption. No level is claimed; see the README.
 - **The sensors say when they are not being updated.** While ZHA is not running, no lock event can reach Home Assistant, and the slot and activity sensors show as unavailable until it is back. A lock that is only asleep is not unavailable: the sensors keep what they have. The log gets one line when events stop and one when they are back, in place of the line that only ever said they had started. <!--short-->
-
-### Security
+- **The actions have icons**, and so do the new sensors: Set PIN, Clear PIN, Set name and Clear slot each show their own in the action picker.
+- **A new integration icon**, a fingertip whose core is a keyhole, on the integration page and in the device list.
+- **`EasyCode903G2` is on the supported model list.** It is the default model string in Onesti's own module spec, and nobody has reported a lock using it yet. A lock reporting it could be added before as well; now it no longer logs a warning about an unrecognized model.
 
 ### Bug fixes
+
+- **"Could not reach the lock" now says how to wake it.** Touching the keypad only lights it up, which the old message asked you to do. The radio wakes when you turn the knob, or enter a valid code and #, which also unlocks the door. <!--short-->
+- **A ZHA restart no longer logs an error about the lock.** Looking for the lock's Door Lock cluster while ZHA was still coming back logged "Door Lock cluster not found" as an error. Nothing is wrong at that point, and the line is now only in the debug log.
 
 ### Breaking changes
 

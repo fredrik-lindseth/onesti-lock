@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 
 import pytest
 from homeassistant.config_entries import ConfigEntryState
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
@@ -69,6 +70,12 @@ def _cluster(mock_zha):
     return mock_zha.device_proxies[LOCK_IEEE].device.device.endpoints[11].in_clusters[DOORLOCK_CLUSTER_ID]
 
 
+def _enabled_entities(hass: HomeAssistant, entry: MockConfigEntry) -> list:
+    """The registry entries that have a state, so the disabled ones are left out."""
+    entries = er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
+    return [registry_entry for registry_entry in entries if not registry_entry.disabled]
+
+
 def _entity_id(hass: HomeAssistant, unique_suffix: str) -> str:
     entity_id = er.async_get(hass).async_get_entity_id("sensor", DOMAIN, f"{LOCK_IEEE}-{unique_suffix}")
     assert entity_id is not None, f"no sensor with unique_id suffix {unique_suffix!r}"
@@ -84,15 +91,14 @@ async def _report(hass: HomeAssistant, mock_zha, attribute_id: int, raw_value) -
 # -- Platform --
 
 
-async def test_platform_creates_eleven_entities(hass: HomeAssistant, mock_zha) -> None:
+async def test_platform_creates_eleven_enabled_entities(hass: HomeAssistant, mock_zha) -> None:
     entry = await _setup_entry(hass)
 
     entries = er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
-    by_unique_id = {e.unique_id: e.entity_id for e in entries}
+    by_unique_id = {e.unique_id: e.entity_id for e in entries if not e.disabled}
 
     expected = {f"{LOCK_IEEE}-slot-{slot}": f"sensor.onesti_lock_slot_{slot}" for slot in USER_SLOTS}
     expected[f"{LOCK_IEEE}-activity"] = "sensor.onesti_lock_last_activity"
-    assert len(entries) == 11
     assert by_unique_id == expected
     for entity_id in expected.values():
         assert hass.states.get(entity_id) is not None
@@ -117,7 +123,7 @@ async def test_every_sensor_is_available_once_the_listener_is_registered(
     entry = await _setup_entry(hass)
 
     assert _coordinator(hass, entry).available is True
-    for entity in er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id):
+    for entity in _enabled_entities(hass, entry):
         assert hass.states.get(entity.entity_id).state != "unavailable", entity.entity_id
 
 
@@ -129,13 +135,13 @@ async def test_every_sensor_is_unavailable_without_a_listener(hass: HomeAssistan
     coordinator.set_available(False)
     await hass.async_block_till_done()
 
-    for entity in er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id):
+    for entity in _enabled_entities(hass, entry):
         assert hass.states.get(entity.entity_id).state == "unavailable", entity.entity_id
 
     coordinator.set_available(True)
     await hass.async_block_till_done()
 
-    for entity in er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id):
+    for entity in _enabled_entities(hass, entry):
         assert hass.states.get(entity.entity_id).state != "unavailable", entity.entity_id
 
 
@@ -273,9 +279,8 @@ async def test_update_activity_writes_state(hass: HomeAssistant, mock_zha) -> No
     assert state.attributes["user_slot"] is None
 
 
-async def test_activity_attributes_include_lock_capabilities(hass: HomeAssistant, mock_zha) -> None:
-    # Setup reads the capabilities in the background from the fake cluster
-    # (0x0012=50, 0x0017=8, 0x0018=4); the next state write carries them.
+async def test_activity_attributes_are_only_the_event(hass: HomeAssistant, mock_zha) -> None:
+    """What the lock reports about itself moved to its own sensors."""
     entry = await _setup_entry(hass)
     assert _coordinator(hass, entry).lock_capabilities == {
         "num_pin_users": 50,
@@ -286,10 +291,9 @@ async def test_activity_attributes_include_lock_capabilities(hass: HomeAssistant
     await _report(hass, mock_zha, ATTR_OPERATION_EVENT, KARI_UNLOCKS_WITH_CODE)
 
     attributes = hass.states.get(_entity_id(hass, "activity")).attributes
-    assert attributes["num_pin_users"] == 50
-    assert attributes["max_pin_length"] == 8
-    assert attributes["min_pin_length"] == 4
     assert attributes["action"] == "unlock"
+    for key in ("num_pin_users", "max_pin_length", "min_pin_length"):
+        assert key not in attributes
 
 
 async def test_pin_report_never_reaches_activity_state(hass: HomeAssistant, mock_zha) -> None:
@@ -496,3 +500,67 @@ async def test_slot_attributes_have_no_has_rfid(hass: HomeAssistant, mock_zha) -
 
     assert "has_rfid" not in attributes
     assert attributes["has_pin"] is True
+
+
+# -- Capability sensors --
+
+# What the fake cluster reports (0x0012=50, 0x0017=8, 0x0018=4), by the
+# unique_id suffix of the sensor that shows it.
+CAPABILITY_SENSORS = {
+    "pin-users": 50,
+    "pin-length-min": 4,
+    "pin-length-max": 8,
+}
+
+
+async def _enable_capability_sensors(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    """Turn the three sensors on the way a user does, and reload for them."""
+    registry = er.async_get(hass)
+    for suffix in CAPABILITY_SENSORS:
+        registry.async_update_entity(_entity_id(hass, suffix), disabled_by=None)
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_capability_sensors_are_diagnostic_and_off_by_default(hass: HomeAssistant, mock_zha) -> None:
+    """They describe the lock, not what it is doing, so they stay out of the way."""
+    await _setup_entry(hass)
+    registry = er.async_get(hass)
+
+    for suffix in CAPABILITY_SENSORS:
+        registry_entry = registry.async_get(_entity_id(hass, suffix))
+        assert registry_entry.disabled_by is er.RegistryEntryDisabler.INTEGRATION
+        assert registry_entry.entity_category is EntityCategory.DIAGNOSTIC
+        assert hass.states.get(registry_entry.entity_id) is None
+
+
+async def test_enabled_capability_sensors_show_what_the_lock_reported(hass: HomeAssistant, mock_zha) -> None:
+    entry = await _setup_entry(hass)
+
+    await _enable_capability_sensors(hass, entry)
+
+    for suffix, value in CAPABILITY_SENSORS.items():
+        assert hass.states.get(_entity_id(hass, suffix)).state == str(value)
+
+
+async def test_capability_sensors_have_no_value_until_the_lock_answers(hass: HomeAssistant, mock_zha) -> None:
+    """The lock sleeps, so the first read usually goes unanswered."""
+    cluster = _cluster(mock_zha)
+
+    async def asleep(attributes):
+        raise TimeoutError
+
+    cluster.read_attributes = asleep
+    entry = await _setup_entry(hass)
+    await _enable_capability_sensors(hass, entry)
+
+    assert _coordinator(hass, entry).lock_capabilities == {}
+    for suffix in CAPABILITY_SENSORS:
+        assert hass.states.get(_entity_id(hass, suffix)).state == "unknown"
+
+    # A lock event means the radio is awake, so the read is tried again.
+    del cluster.read_attributes
+    await _report(hass, mock_zha, ATTR_OPERATION_EVENT, KARI_UNLOCKS_WITH_CODE)
+
+    for suffix, value in CAPABILITY_SENSORS.items():
+        assert hass.states.get(_entity_id(hass, suffix)).state == str(value)

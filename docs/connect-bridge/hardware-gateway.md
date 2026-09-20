@@ -50,13 +50,26 @@ in the lock says "E-Life 3.0", and the app is called "Nimly Connect".
 
 - **Zigbee 3.0** certified (Certificate ID: ZIG21356ZB331216-24, Dec 2021, spec 3.0.1;
   the certificate is listed on csa-iot.org as "Squid.link Gateway", Onics A/S / Frient A/S)
-- Install Code: `8CFD D0A6 0BC1 68B3 A4E2`
+- Install Code: printed on the label, not reproduced here (see below)
 - Role: Zigbee coordinator, pairs and controls the locks
 - Gateway-to-lock protocol: Zigbee 3.0, the ZCL Door Lock cluster, the same
   thing ZHA speaks to the lock. Earlier versions of this file called it "CAS
   with AES encryption"; that came from the Ezviz camera SDK's error table in
   the app bundle and had nothing to do with the lock (see
   `docs/nimly-connect-app/reversing-notes.md`).
+
+The install code is the one value off the label that is left out. It is 20 hex
+digits, an 8-byte installation code plus its CRC16, one of the lengths Zigbee
+allows (6, 8, 12 or 16 bytes and the CRC). The trust center runs it through
+AES-MMO to get that device's link key, and that link key is what encrypts the
+network key while the device joins. Knowing it does not stop mattering once
+pairing is done: someone within radio range can force a rejoin and read the
+network key out of the transport frame. It is burned in at manufacture and
+cannot be rotated, only replaced along with the hub, so it stays out of a
+public repo whether or not this particular hub is powered on. The other
+identifiers above are a different matter and stay: the Zigbee IEEE address goes
+out in the clear in every frame, the Ethernet MAC is visible to anything on the
+same LAN, and the S/N only names the unit to a support desk.
 
 The certificate covers the hub, and it is still live: a lookup by certificate
 id on 2026-09-20 returns "Squid.link 2B", Onics A/S / Frient A/S, Zigbee 3.0

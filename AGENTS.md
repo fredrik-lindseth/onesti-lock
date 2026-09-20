@@ -137,7 +137,7 @@ Fredrik's Home Assistant is reachable as `ssh ha-local`; `scripts/ha.sh` wraps t
 
 1. Run the gates CI runs: `just test-unit`, `python3 scripts/ci_sim.py`, `just test-ha minimum`, `just mypy`, `just coverage`, `uv lock --check`. `just e2e` is not in the release gate, and E2E runs on its own against the release commit.
 2. Write the release note in `CHANGELOG.md` under `## [X.Y.Z]`, and mark the bullets a user would notice with `<!--short-->`. The marked ones become the release body; CI fails without them.
-3. Bump `version` in `custom_components/onesti_lock/manifest.json`. It is the only version that counts: `pyproject.toml` holds a `0.0.0` placeholder that nothing reads, so leave it.
+3. Bump `version` in `custom_components/onesti_lock/manifest.json`, and in the same edit replace `Unreleased` in that version's CHANGELOG heading with the date, `## [X.Y.Z] - YYYY-MM-DD`. CI checks the manifest version's section for a date, so an undated heading turns the release commit red and the release never starts. The manifest is the only version that counts: `pyproject.toml` holds a `0.0.0` placeholder that nothing reads, so leave it. `python3 scripts/release_notes.py X.Y.Z --short --require-date` runs that check here, before the push.
 4. Commit as `chore: release X.Y.Z`, without `[skip ci]`. GitHub skips every workflow for a push whose head commit carries it, the release included. That happened with 1.3.0: the bump commit had `[skip ci]`, so the tag landed on the next push, a docs commit.
 5. Push to `main` and wait for the run: `gh run watch -R fredrik-lindseth/onesti-lock`.
 6. Check the result: `just release-verify vX.Y.Z`.

@@ -58,7 +58,7 @@ from .client.enrollment import (
 )
 from .client.session import EventListener, LockEvent, Session
 from .client.tracing import Tracer
-from .client.transport import DisconnectCallback, NotificationCallback, Transport
+from .client.transport import DisconnectCallback, NotificationCallback, Transport, write_with_response
 from .errors import (
     BleDisconnectedError,
     BleError,
@@ -162,4 +162,5 @@ __all__ = [
     "parse_advertisement",
     "responses",
     "resume_enrollment",
+    "write_with_response",
 ]

@@ -19,8 +19,10 @@ against a lock; the parameter exists so that can be tested.
 """
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from typing import Protocol
+
+from ..errors import BleError
 
 # The characteristics are COMMUNICATION_CHARACTERISTIC_UUID and
 # SOFTWARE_REVISION_CHARACTERISTIC_UUID in client/const.py.
@@ -55,11 +57,31 @@ class Transport(Protocol):
         """Write one packet to the communication characteristic.
 
         Returns once the write is done, so the next packet of a blob goes out
-        only after the previous one landed, as in PayloadStream. The app
-        leaves the write type at the characteristic's default, which Android
-        makes a write with response when the characteristic allows one; which
-        properties the lock's characteristic has is not recorded.
+        only after the previous one landed, as in PayloadStream. Which write
+        type to use is write_with_response() below; which properties the
+        lock's characteristic has is not recorded.
         """
 
     async def close(self) -> None:
         """Unsubscribe and disconnect. Safe to call more than once."""
+
+
+def write_with_response(properties: Iterable[str]) -> bool:
+    """Whether to write with response, from the characteristic's GATT properties.
+
+    The app never calls setWriteType, so Android picks: BluetoothGatt-
+    Characteristic.initCharacteristic sets WRITE_TYPE_NO_RESPONSE as soon as
+    PROPERTY_WRITE_NO_RESPONSE is listed, whether or not PROPERTY_WRITE is
+    listed as well. We make the same choice, so a firmware that only serves
+    write-without-response works here too, and a packet costs no ATT round
+    trip. bleak's own default (response=None) prefers a write with response,
+    so the flag is always passed explicitly.
+
+    Raises BleError when the characteristic cannot be written at all.
+    """
+    listed = set(properties)
+    if "write-without-response" in listed:
+        return False
+    if "write" in listed:
+        return True
+    raise BleError(f"The communication characteristic cannot be written (properties: {sorted(listed)})")

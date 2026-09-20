@@ -33,7 +33,7 @@ from bleak.exc import BleakError
 
 from ..errors import BleDisconnectedError, BleError, BleTimeoutError
 from .const import COMMUNICATION_CHARACTERISTIC_UUID, SOFTWARE_REVISION_CHARACTERISTIC_UUID
-from .transport import DisconnectCallback, NotificationCallback
+from .transport import DisconnectCallback, NotificationCallback, write_with_response
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -53,10 +53,11 @@ class BleakTransport:
     """The Transport the Session needs, on a connected bleak.BleakClient.
 
     The client must have discovered its services, as BleakClient.connect()
-    and Home Assistant's establish_connection both do. Writes go with
-    response when the communication characteristic has the "write" property,
-    and without otherwise, since the app leaves the write type at Android's
-    default, which is the same choice. Every failure comes out as a BleError:
+    and Home Assistant's establish_connection both do. Writes go without
+    response when the communication characteristic lists
+    "write-without-response", and with response only when it lists "write"
+    alone; transport.write_with_response() explains why that is what the app
+    does. Every failure comes out as a BleError:
     BleTimeoutError for a timeout, BleDisconnectedError once the link is
     gone, BleError for anything else bleak raised.
     """
@@ -200,12 +201,7 @@ class BleakTransport:
         if characteristic is None:
             raise BleError("The lock has no communication characteristic; is it a Nimly/Onesti lock?")
         properties = set(characteristic.properties)
-        if "write" in properties:
-            self._write_with_response = True
-        elif "write-without-response" in properties:
-            self._write_with_response = False
-        else:
-            raise BleError(f"The communication characteristic cannot be written (properties: {sorted(properties)})")
+        self._write_with_response = write_with_response(properties)
         _LOGGER.debug(
             "Communication characteristic has properties %s; writing %s response",
             sorted(properties),

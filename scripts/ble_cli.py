@@ -83,6 +83,7 @@ if str(COMPONENT_DIR) not in sys.path:
 
 from ble import (  # noqa: E402
     ADVERTISING_UUID,
+    COMMUNICATION_CHARACTERISTIC_UUID,
     DEFAULT_OWNER_CREDENTIAL,
     SOFTWARE_REVISION_CHARACTERISTIC_UUID,
     Advertisement,
@@ -107,6 +108,7 @@ from ble import (  # noqa: E402
     parse_advertisement,
     responses,
     resume_enrollment,
+    write_with_response,
 )
 from ble.client.const import DEFAULT_RESPONSE_TIMEOUT_S  # noqa: E402
 from ble.protocol.command import Command, CommandPayload  # noqa: E402
@@ -958,6 +960,8 @@ async def cmd_info(ctx: Context) -> int:
                 properties = sorted(characteristic.properties)
                 ctx.say(f"  characteristic {characteristic.uuid}  [{', '.join(properties)}]  {characteristic.description}")
                 characteristics.append({"uuid": characteristic.uuid, "properties": properties})
+                if characteristic.uuid.lower() == COMMUNICATION_CHARACTERISTIC_UUID:
+                    ctx.say(f"    the library would write {_write_type(properties)}")
                 if characteristic.uuid.lower() in DEVICE_INFORMATION and "read" in properties:
                     readable.append(characteristic)
             ctx.trace.note("service", uuid=service.uuid, characteristics=characteristics)
@@ -975,6 +979,14 @@ async def cmd_info(ctx: Context) -> int:
         await ctx.deps.radio.disconnect(client)
         ctx.trace.note("closed")
     return EXIT_OK
+
+
+def _write_type(properties: list[str]) -> str:
+    """How BleakTransport would write to a characteristic with these properties."""
+    try:
+        return "with response" if write_with_response(properties) else "without response"
+    except BleError:
+        return "nothing: the characteristic cannot be written"
 
 
 def _printable(value: bytes) -> str:

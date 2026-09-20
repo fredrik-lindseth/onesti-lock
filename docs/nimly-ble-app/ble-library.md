@@ -323,14 +323,18 @@ so a drop between connecting and wrapping is not lost.
 
 What it does on the link:
 
-- **Write type.** The app writes with the characteristic's default write
-  type, which on Android is a write with response when the characteristic
-  allows it. `BleakTransport` does the same: `response=True` when the
-  communication characteristic lists `write`, `response=False` when it lists
-  only `write-without-response`, and `BleError` when it lists neither. The
-  choice is logged at debug level once per connection, and
-  `write_with_response` tells which it was. Which properties the lock's
-  characteristic has is not recorded.
+- **Write type.** The app never calls `setWriteType`, so Android picks:
+  `BluetoothGattCharacteristic.initCharacteristic` sets
+  `WRITE_TYPE_NO_RESPONSE` as soon as `PROPERTY_WRITE_NO_RESPONSE` is listed,
+  whether or not `PROPERTY_WRITE` is listed as well. `BleakTransport` makes
+  the same choice through `transport.write_with_response()`:
+  `response=False` when the communication characteristic lists
+  `write-without-response`, `response=True` when it lists only `write`, and
+  `BleError` when it lists neither. bleak's own default goes the other way,
+  so the flag is always passed explicitly. The choice is logged at debug
+  level once per connection, `write_with_response` tells which it was, and
+  `info` prints it for the characteristic it found. Which properties the
+  lock's characteristic has is not recorded.
 - **Notifications.** bleak calls the callback with the characteristic first
   and a `bytearray`; the transport drops the first and hands on `bytes`.
   Nothing is handed on after `close()`.

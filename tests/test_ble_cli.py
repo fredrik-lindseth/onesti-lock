@@ -994,9 +994,19 @@ def test_the_cli_source_never_builds_a_forbidden_command():
     enroll() and resume_enrollment() send DeviceIdSet, UserAuthUpdate and
     ServerKeyUpdate inside the library; the CLI itself must not name them,
     nor the master PIN or the unchecked PIN slot.
+
+    keypad_enable_set is here for a different reason: a KeypadEnableSet(0)
+    against the front door takes the keypad away from everyone who has only
+    a PIN, and nothing in this tool needs to send it.
     """
     tree = ast.parse(CLI_PATH.read_text())
-    forbidden = {"device_id_set", "user_auth_update", "server_key_update", "master_pin_code_set"}
+    forbidden = {
+        "device_id_set",
+        "user_auth_update",
+        "server_key_update",
+        "master_pin_code_set",
+        "keypad_enable_set",
+    }
     names = {node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)}
     names |= {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
     assert not names & forbidden

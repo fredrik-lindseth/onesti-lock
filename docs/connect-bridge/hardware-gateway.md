@@ -46,6 +46,33 @@ Elektroimportøren 5800460, Ahlsell 5868052, Dustin 5011307956, Clas Ohlson
 anywhere, so a module revision is not something the trade tracks. You cannot
 order a particular one.
 
+### Where "E-Life" comes from
+
+E-Life is Onesti's own name for the module, printed in white silkscreen on the
+module board itself. It is not a Zigbee attribute and not something the lock
+ever reports: the Basic cluster answers "Onesti Products AS" for
+ManufacturerName and the lock model ("NimlyPRO", "EasyFingerTouch",
+"easyCodeTouch_v1") for ModelIdentifier, and nothing in the repo's decompiled
+apps, in the cloud API or in any vendor manual mentions E-Life at all. Read it
+off the board, or not at all.
+
+EasyAccess's own mounting guide photographs the mark: `e-Life` next to the RF
+shield on the black daughterboard, on a lock mainboard silkscreened
+`PL943_Back05 2020.06.02`
+(`https://easyaccess.no/wp-content/uploads/2021/04/ZigBee-modul-montering.pdf`,
+read 2026-09-20). Whether the `3.0` on Fredrik's module is a module generation
+or just "Zigbee 3.0" is unknown; that photo's suffix is too blurred to read.
+
+The name also titles the vendor's own Zigbee protocol spec, *E-life Zigbee
+Modul User Manual v2.0*, written in Word by Andrea Birkheim on 2021-01-26 and
+posted publicly by a customer in
+[Z2M#6379](https://github.com/Koenkk/zigbee2mqtt/issues/6379) on 2021-02-20
+(direct link:
+`https://github.com/Koenkk/zigbee2mqtt/files/6015013/E-life.Zigbee.Modul.User.Manual.v2.0.pdf`).
+That document is the only vendor-written description of the Zigbee side we
+have, and the `v2.0` is the manual's own version, not the module's. Its
+contents are summarised in `docs/zigbee-protocol/elife-module-spec.md`.
+
 ### Which silicon
 
 The EUI64 of every Onesti lock seen in public issues from 2022 to 2026 starts
@@ -64,9 +91,11 @@ footnote in the Connect Module guide ("Bluetooth is only available on the newer
 versions of the module", 231024 edition, see `docs/manuals/README.md`) is more
 likely about firmware than about a missing radio. Which exact part it is, and
 where the line between "newer" and older actually runs, is still unknown. No
-FCC ID, no CSA certificate, no Bluetooth SIG listing and no teardown photo of
-the board exists in public under any Onesti, Nimly, EasyAccess or ZMNC010 name,
-searched on 2026-09-20.
+FCC ID, no CSA certificate and no Bluetooth SIG listing exists in public under
+any Onesti, Nimly, EasyAccess or ZMNC010 name, searched on 2026-09-20, and
+nobody has published a teardown. The one photograph of the board is the
+EasyAccess mounting guide above, and the part is under a metal RF shield in it,
+so it does not settle which Nordic device it is either.
 
 ### What the module tells you about itself over Zigbee
 

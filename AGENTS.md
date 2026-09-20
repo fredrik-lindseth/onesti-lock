@@ -277,39 +277,30 @@ added as a harmless-looking fallback for entity names and silently disabled
 every translated name, since HA checks `_attr_name` before the translation key.
 Only a deployment showed it.
 
-Back up first, then copy into a staging directory and swap, so a failed
-transfer never leaves a half-written integration behind:
+`scripts/deploy_ha.sh` does the deployment itself:
 
 ```bash
-ssh ha-local 'cd /config/custom_components && tar czf /config/onesti_lock-backup-$(date +%Y%m%d-%H%M%S).tar.gz onesti_lock'
-ssh ha-local 'rm -rf /config/custom_components/onesti_lock.new && mkdir -p /config/custom_components/onesti_lock.new'
-scp -r custom_components/onesti_lock/. ha-local:/config/custom_components/onesti_lock.new/
-ssh ha-local 'rm -rf /config/custom_components/onesti_lock && mv /config/custom_components/onesti_lock.new /config/custom_components/onesti_lock'
+scripts/deploy_ha.sh --dry-run deploy   # print every command, run none of them
+scripts/deploy_ha.sh deploy             # back up, copy, swap, check, restart, verify
+scripts/deploy_ha.sh restore <tarball>  # put a backup back and restart
 ```
 
-Strip `__pycache__` from the copy first. Then run `ha core check` and `ha core
-restart`, and read the result. States and entity names come back through the
-Supervisor proxy, which needs no token of its own:
-
-```bash
-ssh ha-local 'curl -s -H "Authorization: Bearer $SUPERVISOR_TOKEN" http://supervisor/core/api/states'
-ssh ha-local 'ha core logs | grep -i onesti_lock'
-```
+`deploy` writes the backup tarball to `/config/onesti_lock-backup-<timestamp>.tar.gz`
+and reads it back before it touches anything else, copies the working tree into
+`onesti_lock.new` without `__pycache__`, proves that staging directory is
+complete (manifest, `__init__.py`, the same number of Python files as here) and
+only then removes and replaces the installed copy in one command. Then `ha core
+check`, `ha core restart` and a states grep. It prints the restore line for the
+tarball it just made. `tests/test_deploy_script.py` holds that order in place
+through the dry-run output.
 
 The integration's own entities are `sensor.dorlasen_*` on that instance. The
 `sensor.onesti_products_as_nimlypro_*` entities belong to the ZHA quirk, not
-to us.
+to us. Logs are `scripts/ha.sh grep onesti_lock`.
 
-Restore afterwards unless the new version is the one meant to ship, and
-restart once more:
-
-```bash
-ssh ha-local 'cd /config/custom_components && rm -rf onesti_lock && tar xzf /config/onesti_lock-backup-<timestamp>.tar.gz'
-```
-
-Leave the backup tarball in place. Slot names and PIN status live in
-`.storage`, not in the integration directory, so they survive a swap either
-way.
+Restore afterwards unless the new version is the one meant to ship, and leave
+the backup tarball in place. Slot names and PIN status live in `.storage`, not
+in the integration directory, so they survive a swap either way.
 
 ## Releasing
 

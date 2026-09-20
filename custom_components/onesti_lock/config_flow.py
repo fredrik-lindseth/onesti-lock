@@ -114,17 +114,30 @@ class OnestiLockConfigFlow(ConfigFlow, domain=DOMAIN):
         if not locks:
             return self.async_abort(reason="no_devices_found")
 
+        errors: dict[str, str] = {}
         if user_input is not None:
             ieee = user_input["device"]
             await self.async_set_unique_id(ieee)
             self._abort_if_unique_id_configured()
-            return self._create_lock_entry(ieee, locks[ieee])
+            # Home Assistant validates the submitted value against the
+            # schema of the form that was shown, so a lock ZHA lost
+            # meanwhile still passes vol.In and is missing from the list
+            # recomputed above. Asking for it again is the answer; reading
+            # it out of the list would be a KeyError. After the unique id
+            # check, so a lock that gained an entry instead still aborts
+            # already_configured.
+            model = locks.get(ieee)
+            if model is None:
+                errors["device"] = "device_gone"
+            else:
+                return self._create_lock_entry(ieee, model)
 
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema(
                 {vol.Required("device"): vol.In(self._device_labels(locks))}
             ),
+            errors=errors,
         )
 
     async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
@@ -145,14 +158,9 @@ class OnestiLockConfigFlow(ConfigFlow, domain=DOMAIN):
         if not locks:
             return self.async_abort(reason="no_devices_found")
 
+        errors: dict[str, str] = {}
         if user_input is not None:
             ieee = user_input["device"]
-            # raise_on_progress=False: pairing the new module is what the
-            # user did to get here, and that put a Discovered card for the
-            # same address on screen. The default would abort reconfigure
-            # with already_in_progress and leave only the card, which is a
-            # second entry for the same door.
-            await self.async_set_unique_id(ieee, raise_on_progress=False)
             # Not _abort_if_unique_id_configured: this entry's own unique
             # id is the one being set, and that is not a collision. Only
             # another entry holding the address is, which the list above
@@ -160,13 +168,26 @@ class OnestiLockConfigFlow(ConfigFlow, domain=DOMAIN):
             for other in self._async_current_entries():
                 if other.entry_id != entry.entry_id and other.data.get(CONF_IEEE) == ieee:
                     return self.async_abort(reason="already_configured")
-            await self._clear_the_way_for(ieee)
-            return self.async_update_reload_and_abort(
-                entry,
-                unique_id=ieee,
-                title=f"Onesti Lock ({ieee[-8:]})",
-                data_updates={CONF_IEEE: ieee, CONF_MODEL: locks[ieee]},
-            )
+            # The module left ZHA between the form and the submit. See
+            # async_step_user: the schema still accepts it, so the list
+            # has to be asked rather than indexed.
+            model = locks.get(ieee)
+            if model is None:
+                errors["device"] = "device_gone"
+            else:
+                # raise_on_progress=False: pairing the new module is what
+                # the user did to get here, and that put a Discovered card
+                # for the same address on screen. The default would abort
+                # reconfigure with already_in_progress and leave only the
+                # card, which is a second entry for the same door.
+                await self.async_set_unique_id(ieee, raise_on_progress=False)
+                await self._clear_the_way_for(ieee)
+                return self.async_update_reload_and_abort(
+                    entry,
+                    unique_id=ieee,
+                    title=f"Onesti Lock ({ieee[-8:]})",
+                    data_updates={CONF_IEEE: ieee, CONF_MODEL: model},
+                )
 
         # Prefilled with the module in use, where ZHA still has it: a
         # module that is gone is exactly the case this step is for.
@@ -180,6 +201,7 @@ class OnestiLockConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="reconfigure",
             data_schema=vol.Schema({field: vol.In(self._device_labels(locks))}),
             description_placeholders={"ieee": str(current)},
+            errors=errors,
         )
 
     async def _clear_the_way_for(self, ieee: str) -> None:

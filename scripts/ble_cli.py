@@ -1270,6 +1270,12 @@ async def cmd_enroll(ctx: Context) -> int:
     ]
     if not confirm(ctx, address, None, steps):
         return EXIT_REFUSED
+    # Said before anything goes out, not only after it worked: from
+    # UserAuthUpdate on, that file is the only way back into this lock.
+    ctx.say(
+        f"That file is the only copy of the owner key. Have somewhere to copy it to ({ctx.store.directory} is "
+        "one disk), and copy it there as soon as this finishes: a lock whose key is gone needs a module reset."
+    )
     ctx.store.check_writable()
     ctx.say(f"Listening up to {ctx.args.seconds:g} s for {address}'s advertisement, to check the seed ...")
     advertisement = await find_advertisement(ctx, address, ctx.args.seconds)

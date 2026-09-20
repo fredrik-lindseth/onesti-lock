@@ -305,6 +305,7 @@ ZHA's device and its lock entity are not touched, so you can still lock and unlo
 | [Slot numbering](docs/slot-numbering.md)                   | Zigbee vs BLE vs cloud slot mapping                              |
 | [Zigbee captures](docs/zigbee-protocol/zigbee-captures.md) | Raw ZCL frames and verified protocol values                      |
 | [Upstream status](docs/upstream-status.md)                 | Open threads in the ZHA quirk and the Z2M converter              |
+| [Feature parity](docs/feature-parity.md)                   | What the vendor app and hub do that this does not, and why       |
 | [Vendor manuals](docs/manuals/README.md)                   | Which manuals exist per model and brand, and where to get them   |
 | [Cloud API status](docs/cloud-api-status.md)               | Reverse engineering of the vendor cloud, progress and next steps |
 | [BLE library](docs/nimly-ble-app/ble-library.md)           | A Bluetooth protocol library in the repo; not used by the integration and not yet tested on a lock |

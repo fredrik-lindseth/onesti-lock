@@ -136,13 +136,22 @@ def _migrate_to_entry_id_keys(hass: HomeAssistant, entry: OnestiConfigEntry) -> 
 
     Both registries are rewritten in place, so entity ids, user-set names
     and everything else Home Assistant stores per entity survive.
+
+    Only our own identifier is swapped, never the whole set. Through HA
+    2026.8 a zigbee connection is unique across config entries, so this
+    device and ZHA's are one registry entry holding both identifiers.
+    Replacing the set would drop ("zha", ieee), and ZHA looks its device
+    up by exactly that in device triggers, device actions, logbook and
+    its own diagnostics.
     """
     ieee: str = entry.data[CONF_IEEE]
     device_registry = dr.async_get(hass)
     for device in dr.async_entries_for_config_entry(device_registry, entry.entry_id):
         if (DOMAIN, ieee) in device.identifiers:
             device_registry.async_update_device(
-                device.id, new_identifiers={(DOMAIN, entry.entry_id)}
+                device.id,
+                new_identifiers=(device.identifiers - {(DOMAIN, ieee)})
+                | {(DOMAIN, entry.entry_id)},
             )
     entity_registry = er.async_get(hass)
     for registry_entry in er.async_entries_for_config_entry(entity_registry, entry.entry_id):

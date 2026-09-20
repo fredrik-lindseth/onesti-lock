@@ -340,9 +340,13 @@ The class also has an `ivReset = true` mode that encrypts each 16-byte block
 on its own from the original IV (ECB-like). Nothing in the app uses it: all
 four places that construct `Aes128CbcEncrypter` pass `false`. (app code)
 
-The shared secret is reversed on the assumption that the platform always
-returns a fixed 32 bytes, leading zeros included. SunJCE does; that Conscrypt
-on Android does too is untested.
+The shared secret is reversed, which only gives the same key on both sides if
+both keep it at a fixed 32 bytes, leading zeros included. Python's
+`cryptography` does, so our side is settled; whether the lock's own ECDH pads
+the same way is not. The app depends on Conscrypt, Android's provider, doing
+it: a stripped leading zero would put the app out of step with the lock about
+one connection in 256, so the app working in the field is weak evidence that
+both it and the lock pad.
 
 `Constants` also defines `DefaultEncryptionKey` (`0x11` x 16) and
 `DefaultEncryptionIv` (`0x22` x 16). Neither is a transport key. The first is

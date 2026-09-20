@@ -754,7 +754,7 @@ failed. "JDK run" means the app's own classes produced the same bytes.
 | What the server key is used for, and the EkeyDeviceInfo blob format                             | Lock only                               |
 | Meaning of the credentials byte in UserAuthUpdate and UserAuthFinalize                          | Not traced                              |
 | Battery `level` unit, device log content, Ack/Nac/Error packets, blob RFU and other flag bits    | Not traced                              |
-| That Conscrypt, like SunJCE, returns a full 32-byte ECDH secret                                 | Lock only                               |
+| That the lock's own ECDH pads the shared secret to 32 bytes, as ours does (Conscrypt's padding is the app's question, not ours) | Lock only              |
 | MTU above 23, the characteristic's write type, the advertisement bytes themselves               | Lock only                               |
 | That RFID and fingerprint scans send UserAdded before their answer (the fake assumes so)        | Lock only                               |
 

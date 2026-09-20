@@ -26,6 +26,7 @@ is the vendor's own text.
 | sha256 (xapk) | `c1ee02695d0cc4b8d2eacbab925f166157c4c670656f2211fe7213f54ca2ae98` |
 | sha256 (base apk) | `0991df54ae5028968ad8a15d224cbd4e8e67cfab961261d7cc939703aba4301e` |
 | Decompiled to | `reversing/unloc-decompiled/` with `jadx`, gitignored |
+| Baseline | [app-versions.md](../nimly-connect-app/app-versions.md), with every other app in the family |
 
 The app is Kotlin, obfuscated with R8, but the vendor SDKs inside it keep their
 package names. Unloc is a hardware-agnostic key platform: Danalock, Master Lock,

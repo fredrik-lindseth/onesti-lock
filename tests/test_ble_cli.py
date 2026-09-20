@@ -479,6 +479,20 @@ def test_failed_logins_are_counted_and_then_refused(run_cli, state_dir):
     assert len(radio.connects) == cli.FAILED_LOGIN_LIMIT + 1
 
 
+def test_a_login_that_never_got_an_answer_counts_too(run_cli, state_dir):
+    """The lock saw UserAuthBegin, so it may have counted the attempt."""
+
+    def lose_the_challenge(transport):
+        transport.silent.add(fake_const.CommandId.USER_AUTH_BEGIN)
+
+    result = run_cli("login", ADDRESS, "--factory", radio=FakeRadio(FakeLock(), configure=lose_the_challenge))
+    assert result.code == cli.EXIT_FAILED
+    assert "BleTimeoutError" in result.err
+    [entry] = [json.loads(line) for line in (state_dir / "failed-logins.jsonl").read_text().splitlines()]
+    assert entry["status"] == "BleTimeoutError"
+    assert entry["credential"] == "factory"
+
+
 def test_read_reports_each_answer_and_carries_on_after_a_refusal(run_cli):
     result = run_cli("read", ADDRESS, "--factory", radio=FakeRadio(FakeLock()))
     # The fake lock does not know DeviceLogGet, DeviceNameGet or CurrentTimeGet.
@@ -790,6 +804,24 @@ def test_ctrl_c_during_a_resume_keeps_what_the_resume_saved(run_cli, state_dir):
     assert _state(path)["completed"] == ENROLL_STEPS
 
 
+def test_a_resume_that_tried_twice_records_two_failed_logins(run_cli, state_dir):
+    """The library retries the login with the enrolled device id; the lock saw both."""
+    lock = FakeLock()
+    radio = FakeRadio(lock, [advert()], configure=_interrupt_on("DEVICE_ID_SET"))
+    run_cli("enroll", ADDRESS, "--name", "Door", "--yes", "--seconds", "0", radio=radio)
+    [path] = stored_files(state_dir)
+    assert "device_id" not in _state(path)["completed"]
+    # Whatever the stored key is, this lock no longer takes it, so both the
+    # factory device id and the enrolled one are refused.
+    lock.owner_key = bytes(16)
+
+    result = run_cli("enroll", ADDRESS, "--resume", "--yes", "--force-login", radio=FakeRadio(lock))
+    assert result.code == cli.EXIT_FAILED
+    assert "refused the stored owner key" in result.err
+    entries = [json.loads(line) for line in (state_dir / "failed-logins.jsonl").read_text().splitlines()]
+    assert [entry["status"] for entry in entries] == ["SECURITY_ERROR", "SECURITY_ERROR"]
+
+
 def test_ctrl_c_before_the_owner_key_answer_says_what_is_unknown(run_cli, state_dir):
     lock = FakeLock()
     radio = FakeRadio(lock, [advert()], configure=_interrupt_on("USER_AUTH_UPDATE"))
@@ -867,6 +899,34 @@ def test_a_failed_save_stops_enrollment_and_is_retried(run_cli, state_dir, monke
 
     result = run_cli("enroll", ADDRESS, "--resume", "--yes", radio=FakeRadio(lock))
     assert result.code == 0, result.out + result.err
+
+
+def test_a_broken_stdout_does_not_look_like_a_failed_save(state_dir, tmp_path):
+    """Piping the output into head must not report the owner key as unstored.
+
+    The save hook writes the file and then prints; a BrokenPipeError out of
+    the print would otherwise reach the library, which stops sending and
+    calls the enrollment the only copy of a key it had just written.
+    """
+
+    class BrokenOut(io.StringIO):
+        """Breaks on the line the save hook prints, as a closed pipe would."""
+
+        def write(self, text):
+            if "confirmed by the lock" in text:
+                raise BrokenPipeError(32, "Broken pipe")
+            return super().write(text)
+
+    lock = FakeLock()
+    err = io.StringIO()
+    deps = cli.Deps(
+        radio=FakeRadio(lock, [advert()]), session_factory=_session, stdin=io.StringIO(), out=BrokenOut(), err=err
+    )
+    argv = ["--state-dir", str(state_dir), "--response-timeout", "2", "--no-trace"]
+    code = cli.main([*argv, "enroll", ADDRESS, "--name", "Door", "--yes", "--seconds", "0"], deps)
+    assert code == cli.EXIT_OK, err.getvalue()
+    [path] = stored_files(state_dir)
+    assert _state(path)["completed"] == ["owner_key", "device_id", "clock", "server_key", "name"]
 
 
 def test_a_save_that_fails_twice_says_the_key_is_lost(run_cli, state_dir, monkeypatch):

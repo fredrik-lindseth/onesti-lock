@@ -108,6 +108,7 @@ from ble import (  # noqa: E402
     responses,
     resume_enrollment,
 )
+from ble.client.const import DEFAULT_RESPONSE_TIMEOUT_S  # noqa: E402
 from ble.protocol.command import Command, CommandPayload  # noqa: E402
 from ble.protocol.const import MIN_FIRMWARE_ADMIN, CommandId, ResponseId  # noqa: E402
 from ble.protocol.packet import Packet  # noqa: E402
@@ -768,6 +769,25 @@ def check_login_budget(ctx: Context, address: str) -> None:
     ctx.warn(message)
 
 
+def record_login_failures(ctx: Context, address: str, kind: str, err: BleError) -> None:
+    """One line per attempt the lock may have counted, oldest first.
+
+    A refusal is not the only thing that spends an attempt: UserAuthBegin
+    has gone out by the time anything can go wrong, so a timeout or a
+    dropped link counts too. The lock may or may not have counted it, and
+    nothing tells us which, so the budget errs on the side of the lock.
+
+    resume_enrollment can spend two attempts on one call, when the lock
+    refuses the factory device id and the library tries the enrolled one.
+    The refused first attempt is the second error's context.
+    """
+    earlier = err.__context__
+    if isinstance(earlier, BleOperationError):
+        ctx.failed_logins.record(address, kind, _status_name(earlier.status))
+    status = _status_name(err.status) if isinstance(err, BleOperationError) else type(err).__name__
+    ctx.failed_logins.record(address, kind, status)
+
+
 async def log_in(ctx: Context, session: Session, address: str, login: Login) -> None:
     ctx.say(f"Logging in with {login.description} ...")
     ctx.trace.note("login", credential=login.kind)
@@ -775,9 +795,13 @@ async def log_in(ctx: Context, session: Session, address: str, login: Login) -> 
         await authenticate_owner(session, login.credential)
     except BleOperationError as err:
         status = _status_name(err.status)
-        ctx.failed_logins.record(address, login.kind, status)
+        record_login_failures(ctx, address, login.kind, err)
         ctx.trace.note("login_refused", status=status)
         raise CliError(f"The lock refused the login: {err}") from None
+    except BleError as err:
+        record_login_failures(ctx, address, login.kind, err)
+        ctx.trace.note("login_failed", kind=type(err).__name__)
+        raise
     ctx.say("  logged in")
     ctx.trace.note("logged_in")
     if login.stored is not None:
@@ -1199,8 +1223,6 @@ async def cmd_fingerprint(ctx: Context) -> int:
 
 
 def _answer_window(ctx: Context) -> float:
-    from ble.client.const import DEFAULT_RESPONSE_TIMEOUT_S
-
     timeout: float = ctx.args.response_timeout or DEFAULT_RESPONSE_TIMEOUT_S
     return timeout
 
@@ -1274,7 +1296,7 @@ async def cmd_enroll(ctx: Context) -> int:
         except BleEnrollmentError as err:
             return _enrollment_stopped(ctx, address, err)
         except BleOperationError as err:
-            ctx.failed_logins.record(address, "factory", _status_name(err.status))
+            record_login_failures(ctx, address, "factory", err)
             raise CliError(f"The lock refused the factory credential ({err}). Nothing changed on it.") from None
         except asyncio.CancelledError:
             _enrollment_interrupted(ctx, address, saver)
@@ -1320,7 +1342,8 @@ async def _resume(ctx: Context) -> int:
         except BleEnrollmentError as err:
             return _enrollment_stopped(ctx, address, err)
         except BleOperationError as err:
-            ctx.failed_logins.record(address, "stored", _status_name(err.status))
+            # Two lines when the resume spent two attempts (see the helper).
+            record_login_failures(ctx, address, "stored", err)
             raise CliError(f"The lock refused the stored owner key ({err}).") from None
         except asyncio.CancelledError:
             _enrollment_interrupted(ctx, address, saver)
@@ -1348,7 +1371,12 @@ class EnrollmentSaver:
         self.last = enrollment
         done = [step.value for step in EnrollmentStep if step in enrollment.completed]
         self.ctx.trace.note("enroll", step="saved", completed=done)
-        self.ctx.say(f"  {done[-1]}: confirmed by the lock, saved to {path}")
+        # Only the file counts as saving. A broken pipe on stdout (output
+        # piped into head, say) would otherwise raise out of the save hook,
+        # and the library would stop and report the key as unstored, having
+        # written it correctly.
+        with contextlib.suppress(OSError):
+            self.ctx.say(f"  {done[-1]}: confirmed by the lock, saved to {path}")
 
 
 def _enrollment_stopped(ctx: Context, address: str, err: BleEnrollmentError) -> int:
@@ -1448,14 +1476,23 @@ def _global_options(parser: argparse.ArgumentParser, *, defaults: bool) -> argpa
         action="store_true",
         help="also log every payload and the link keys: PINs and keys end up in the file",
     )
-    parser.add_argument("--debug", action="store_true", help="library and bleak debug logging, and tracebacks")
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        # bleak's backend logs every GATT write and notification at DEBUG,
+        # so the raw frames land on stderr as well as in the trace file.
+        # They are ciphertext after the key exchange, under a key that lives
+        # only for the connection, but a terminal is not the trace file's
+        # 0600 in a 0700 directory.
+        help="library and bleak debug logging, and tracebacks; bleak writes the raw frames to stderr too",
+    )
     parser.add_argument("--connect-timeout", type=float, default=default(DEFAULT_CONNECT_TIMEOUT_S), metavar="S")
     parser.add_argument(
         "--response-timeout",
         type=float,
         default=default(None),
         metavar="S",
-        help="per command (default: the app's 20 s)",
+        help=f"per command (default: the app's {DEFAULT_RESPONSE_TIMEOUT_S:g} s)",
     )
     return parser
 
@@ -1475,9 +1512,15 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True, metavar="COMMAND")
 
     scan = sub.add_parser("scan", parents=[common], help="list locks by their 0xFD00 advertisement; sends nothing")
-    scan.add_argument("--seconds", type=float, default=DEFAULT_SCAN_S)
+    scan.add_argument("--seconds", type=float, default=DEFAULT_SCAN_S, help="how long to listen (default: %(default)s)")
     scan.add_argument("--watch", type=float, metavar="S", help="log every advertisement for S seconds")
-    scan.add_argument("--window", type=float, default=DEFAULT_WATCH_WINDOW_S, metavar="S", help="--watch scan window")
+    scan.add_argument(
+        "--window",
+        type=float,
+        default=DEFAULT_WATCH_WINDOW_S,
+        metavar="S",
+        help="--watch scan window (default: %(default)s)",
+    )
 
     address = argparse.ArgumentParser(add_help=False, parents=[common])
     address.add_argument("address", help="the lock's address as scan shows it (a UUID on macOS)")

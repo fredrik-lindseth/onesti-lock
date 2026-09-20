@@ -257,7 +257,7 @@ Battery-powered Zigbee EndDevices sleep most of the time, and ZCL commands like 
 
 `lock.lock` is used because it works, while attribute reads through the integration's own cluster path time out. Why it works is not established. ZHA's lock entity wraps the command in longer timeouts and retries for sleepy devices, which is the likely reason, but at the radio level a read and a write are queued the same way.
 
-The wake has a side effect, since it is a real lock command and not a read. An unlocked door gets physically locked, and an open door drives the bolt out into the air. The README limitations and the options flow texts both say so. A wake that does not move the bolt is not solved yet, and replacing the mechanism needs testing on real hardware first.
+The wake has a side effect, since it is a real lock command and not a read. An unlocked door gets physically locked, and an open door drives the bolt out into the air. The [user guide's limitations](user-guide.md#limitations) and the options flow texts both say so. A wake that does not move the bolt is not solved yet, and replacing the mechanism needs testing on real hardware first.
 
 Nothing sent over the air wakes a sleeping EndDevice, since its radio is off. All the coordinator can do is queue a unicast at the parent router and hope the lock polls within the 7.68-second window; once one frame gets through, the lock fast-polls and drains the rest, which is what looks like waking. At that level a `read_attributes` is queued exactly like a lock command, so if `lock.lock` works better than a plain read (`read_capabilities` usually goes unanswered against a sleeping lock), the difference is the retry and extended-timeout envelope ZHA gives its lock entity, not the fact that it writes. That is why `homeassistant.update_entity` on the ZHA lock entity, which goes through the same entity path, is the candidate for a bolt-free wake, with "only wake when the cached state is already locked" as the fallback.
 
@@ -279,45 +279,7 @@ This covers the integration's own log lines. ZHA and zigpy log on their own term
 
 ## `onesti_lock_activity` event
 
-Every operation event decoded from attrid `0x0100` fires `onesti_lock_activity`, auto-lock and the wake echo included, so automations see everything the activity sensor leaves out. The payload:
-
-| Key         | Value                                                                               |
-| ----------- | ----------------------------------------------------------------------------------- |
-| `ieee`      | The lock's IEEE address as stored in the config entry                               |
-| `user_slot` | Slot number, `0` for the master credential, `null` when no user was involved        |
-| `user_name` | Name for `user_slot`, `null` exactly when `user_slot` is `null`                     |
-| `action`    | `lock`, `unlock` or `unknown`                                                       |
-| `source`    | `zigbee`, `keypad`, `fingerprint`, `rfid`, `unattributed`, `auto` or `unknown`      |
-
-`user_slot` is `null` for slot 0 from a source that is not keypad, fingerprint or rfid (see [How user identification works](#how-user-identification-works)). Otherwise it is the slot the lock reported.
-
-`user_name` is never `null` for a known slot. It is the name set on the slot, and without one it falls back to "Master" for slot 0 and "Slot N" for any other slot, in the server language as loaded at setup. A template can therefore not tell an unnamed slot from a named one by testing `user_name`. Test `user_slot` against `null` to know whether a user was involved.
-
-The activity sensor carries the same `user_slot`, `user_name`, `action` and `source` as attributes, plus `timestamp`, and the capabilities once reported.
-
-### Automation example
-
-```yaml
-automation:
-  - alias: "Notify when someone unlocks the front door"
-    triggers:
-      - trigger: event
-        event_type: onesti_lock_activity
-        event_data:
-          action: unlock
-    conditions:
-      - condition: template
-        value_template: "{{ trigger.event.data.user_slot is not none }}"
-    actions:
-      - action: notify.notify
-        data:
-          title: "Door unlocked"
-          message: >
-            {{ trigger.event.data.user_name }}
-            unlocked via {{ trigger.event.data.source }}
-```
-
-With more than one lock, add `ieee` to `event_data` to pick one.
+Every operation event decoded from attrid `0x0100` fires `onesti_lock_activity`, auto-lock and the wake echo included, so automations see everything the activity sensor leaves out. The payload, what `null` means in it, and automation examples are in the [user guide](user-guide.md#the-onesti_lock_activity-event).
 
 ## Sleepy device behavior
 

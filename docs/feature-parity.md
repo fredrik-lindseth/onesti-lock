@@ -100,8 +100,8 @@ Two honest dents in it. A PIN write is delivered but not confirmed, because the
 stock quirk raises an `IndexError` when the lock's answer is read and the
 integration counts the command as delivered anyway. And a sleeping lock is woken
 by throwing the bolt, which can physically lock an open door. Both are described
-in the README under Limitations, and both are BLE-shaped problems with
-Zigbee-shaped workarounds.
+under [Limitations](user-guide.md#limitations) in the user guide, and both are
+BLE-shaped problems with Zigbee-shaped workarounds.
 
 A good part of the middle of the table is Zigbee work rather than BLE work,
 and some of it is done by others. The vendor's own 2021 spec
@@ -194,8 +194,8 @@ are that setting the code may physically lock an open door, and that the code
 passes through Home Assistant's recorder and any automation trace that sets it.
 
 **Time-limited access** is a PIN plus an automation: set the code the morning
-the job starts, clear it when the job ends. The README's plumber example is
-exactly this. It is not a schedule in the lock, it is a schedule in Home
+the job starts, clear it when the job ends. The plumber example in the
+[user guide](user-guide.md#automation-examples) is exactly this. It is not a schedule in the lock, it is a schedule in Home
 Assistant, which means it stops working while Home Assistant is down.
 
 **An RFID tag per person** is the nicest of the four for the guest, and it is
@@ -214,7 +214,8 @@ Remote control is the one thing the cloud app does that sounds hard to match
 locally, and it is the easiest of the lot if Home Assistant is already reachable
 from outside. The path is your phone, your Home Assistant, ZHA, the lock, with
 no cloud in it. Zigbee range is handled by a router next to the door, which the
-README already recommends because the metal casing acts like a Faraday cage.
+[user guide](user-guide.md#limitations) already recommends because the metal
+casing acts like a Faraday cage.
 BLE, if it ever becomes a channel, needs an ESPHome Bluetooth proxy at the door,
 since the Home Assistant host is rarely within Bluetooth range of a front door.
 

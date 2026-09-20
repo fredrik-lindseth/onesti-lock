@@ -1,6 +1,14 @@
 # Debugging guide
 
-How to track down the usual problems with the Onesti Lock integration.
+How to track down the usual problems with the Onesti Lock integration. Each problem is described with its symptom, cause and fix. The ones people run into most:
+
+- Setup says no lock was found: [Lock not offered when adding the integration](#lock-not-offered-when-adding-the-integration).
+- The lock will not pair with ZHA: [Module not discovered during pairing](#module-not-discovered-during-pairing).
+- Setting a PIN fails with "Could not reach the lock": [the lock is asleep or out of range](#could-not-reach-the-lock-in-options-flow).
+- The activity sensor stopped changing, often after new batteries: [Activity sensor not updating](#3-activity-sensor-not-updating).
+- A repair issue says lock events are not being received: [Repair issue](#repair-issue-lock-events-are-not-being-received).
+
+If none of that helps, turn on [debug logging](#4-debug-logging) and open an [issue](https://github.com/fredrik-lindseth/onesti-lock/issues). The log can contain PIN codes, so read [PIN codes appear in raw logs and diagnostics](#pin-codes-appear-in-raw-logs-and-diagnostics) before you paste it.
 
 ## LED indicators and sounds
 
@@ -295,9 +303,16 @@ logger:
 
 ### PIN codes appear in raw logs and diagnostics
 
-`zigpy.zcl: debug` prints raw ZCL frames, and frames for attribute 0x0101 on the DoorLock cluster carry the last used PIN in plaintext. The same goes for ZHA's "Download diagnostics" on the device, which dumps zigpy's attribute cache including the last reported 0x0101 value.
+A PIN code opens your door, and several parts of Home Assistant can write them to disk. This integration keeps codes out of its own states and its own log lines: it never reads the attribute where the lock reports the last used PIN, it masks digit runs of 4 or more when it logs a failed command, and it never accepts a PIN shorter than 4 digits, so the mask always covers a real code. It cannot keep a code out of everything, and one of the paths below is its own action:
 
-Scrub those values before pasting a log or a diagnostics file into a GitHub issue or a forum post. If you already shared one, change the codes on the lock.
+- ZHA's quirk has its own last PIN code sensor. It is disabled by default, but if it is enabled, the recorder stores every code used, and the code last typed on the door sits in clear text in Home Assistant's state.
+- ZHA's **Download diagnostics** on the lock's device dumps zigpy's attribute cache, including the last reported 0x0101 value, which is the last used PIN.
+- `zigpy.zcl: debug` prints raw ZCL frames. Frames for attribute 0x0101 on the DoorLock cluster carry the last used PIN in plaintext, and every command sent to the lock is printed too, so a PIN you set shows up in clear text.
+- Calling the `onesti_lock.set_pin` action puts the code in the recorder database, since Home Assistant records every action call with its data, and from an automation or script also in that run's trace. The options flow does not.
+
+Scrub those values before pasting a log, a diagnostics file or a trace into a GitHub issue or a forum post. If you already shared one, change the codes on the lock.
+
+Versions 1.1.0 through 1.2.0 of this integration exposed the last used PIN as a state attribute, which put real codes in the recorder database. If you ran one of them, follow the cleanup in [section 6](#6-cleanup-after-versions-110-through-120).
 
 ### What to look for in the log
 

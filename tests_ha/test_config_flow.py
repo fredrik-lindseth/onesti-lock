@@ -26,6 +26,7 @@ from custom_components.onesti_lock.zha import SEND_DELIVERED, SendOutcome
 from tests_ha.conftest import LOCK_IEEE, make_lock_proxy
 
 SECOND_LOCK_IEEE = "00:0d:6f:00:55:66:77:88"
+THIRD_LOCK_IEEE = "00:0d:6f:00:99:aa:bb:cc"
 
 
 def _device_choices(result: dict[str, Any]) -> dict[str, str]:
@@ -106,6 +107,60 @@ async def test_second_setup_of_the_same_lock_aborts_already_configured(
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
     assert len(hass.config_entries.async_entries(DOMAIN)) == 1
+
+
+# -- The lock leaving ZHA with the form open --
+
+
+async def test_a_lock_that_left_zha_is_asked_for_again(hass: HomeAssistant, mock_zha) -> None:
+    """ZHA drops the lock between the form and the submit.
+
+    Home Assistant validates the submitted value against the schema of the
+    form it showed, so the lock still passes vol.In. Reading it out of the
+    freshly built list was a KeyError and "Unknown error occurred".
+    """
+    mock_zha.device_proxies[SECOND_LOCK_IEEE] = make_lock_proxy()
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    assert result["type"] is FlowResultType.FORM
+
+    del mock_zha.device_proxies[LOCK_IEEE]
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"device": LOCK_IEEE})
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "user"
+    assert result["errors"] == {"device": "device_gone"}
+    assert set(_device_choices(result)) == {SECOND_LOCK_IEEE}
+    assert not hass.config_entries.async_entries(DOMAIN)
+
+
+async def test_reconfigure_to_a_lock_that_left_zha_is_asked_for_again(
+    hass: HomeAssistant, mock_zha
+) -> None:
+    """The same race on the reconfigure step, which is where it is likeliest.
+
+    The new module has just been paired, and a ZHA reload with the dialog
+    open is what puts it out of the gateway again.
+    """
+    mock_zha.device_proxies[SECOND_LOCK_IEEE] = make_lock_proxy()
+    mock_zha.device_proxies[THIRD_LOCK_IEEE] = make_lock_proxy()
+    entry = _add_entry(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    result = await entry.start_reconfigure_flow(hass)
+    assert result["type"] is FlowResultType.FORM
+
+    del mock_zha.device_proxies[SECOND_LOCK_IEEE]
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"device": SECOND_LOCK_IEEE}
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reconfigure"
+    assert result["errors"] == {"device": "device_gone"}
+    assert entry.data[CONF_IEEE] == LOCK_IEEE
 
 
 # -- The options flow, cut off mid-write --

@@ -81,7 +81,7 @@ async def async_get_strings(hass: HomeAssistant, language: str | None) -> Mappin
     would poison every consumer in the HA instance at once. A writer gets
     an immediate TypeError at the write site instead.
     """
-    cache = hass.data.setdefault(DATA_RUNTIME_STRINGS, {})
+    cache: dict[str, Mapping[str, str]] = hass.data.setdefault(DATA_RUNTIME_STRINGS, {})
     lang = normalize_language(language)
     if lang not in cache:
         cache[lang] = MappingProxyType(

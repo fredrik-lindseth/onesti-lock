@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Mapping
-from typing import Any
+from collections.abc import Callable, Mapping
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -12,6 +12,9 @@ from homeassistant.core import HomeAssistant
 from . import pin_rules
 from .const import CONF_IEEE, DEFAULT_SLOT
 from .zha import SendOutcome, ZhaLockTransport
+
+if TYPE_CHECKING:
+    from .sensor import NimlyActivitySensor
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,7 +36,7 @@ class NimlyCoordinator:
     def __init__(
         self,
         hass: HomeAssistant,
-        entry: ConfigEntry,
+        entry: NimlyConfigEntry,
         transport: ZhaLockTransport | None = None,
     ) -> None:
         self.hass = hass
@@ -42,8 +45,8 @@ class NimlyCoordinator:
         # Tests inject a fake with the same methods.
         self.transport = transport or ZhaLockTransport(hass, self.ieee)
         self._slots: dict[str, dict[str, Any]] = {}
-        self._listeners: list = []
-        self._activity_sensor = None
+        self._listeners: list[Callable[[], None]] = []
+        self._activity_sensor: NimlyActivitySensor | None = None
         # One PIN operation at a time per lock. The options flow and the
         # services can both write, and interleaved sends and saves would let
         # local state end up describing the older of two writes.
@@ -54,7 +57,7 @@ class NimlyCoordinator:
         stored_capabilities = self.entry.options.get(OPTION_CAPABILITIES)
         self.capabilities_final = isinstance(stored_capabilities, Mapping)
         self.lock_capabilities: dict[str, Any] = (
-            dict(stored_capabilities) if self.capabilities_final else {}
+            dict(stored_capabilities) if isinstance(stored_capabilities, Mapping) else {}
         )
         # Populated from async_setup_entry: reading the translation files is
         # blocking IO and this constructor runs on the event loop.
@@ -186,7 +189,7 @@ class NimlyCoordinator:
 
     def get_slot_name(self, slot: int) -> str:
         """Get human-readable name for slot."""
-        name = self._slots.get(str(slot), {}).get("name", "")
+        name: str = self._slots.get(str(slot), {}).get("name", "")
         if name:
             return name
         if slot == 0:
@@ -240,11 +243,11 @@ class NimlyCoordinator:
 
     # -- Activity sensor --
 
-    def set_activity_sensor(self, sensor) -> None:
+    def set_activity_sensor(self, sensor: NimlyActivitySensor | None) -> None:
         """Register the activity sensor for updates."""
         self._activity_sensor = sensor
 
-    def update_activity(self, user_slot, action, source) -> None:
+    def update_activity(self, user_slot: int | None, action: str, source: str) -> None:
         """Update the activity sensor."""
         if self._activity_sensor:
             self._activity_sensor.update_activity(user_slot, action, source)
@@ -301,7 +304,7 @@ class NimlyCoordinator:
 
     # -- PIN operations --
 
-    async def _send(self, command: int, params: dict) -> SendOutcome:
+    async def _send(self, command: int, params: dict[str, Any]) -> SendOutcome:
         """Send through the transport, then use the awake radio.
 
         A lock that answered, whether it accepted the command or refused
@@ -374,11 +377,11 @@ class NimlyCoordinator:
 
     # -- Listener pattern for sensors --
 
-    def add_listener(self, callback) -> None:
+    def add_listener(self, callback: Callable[[], None]) -> None:
         """Register a callback for slot data changes."""
         self._listeners.append(callback)
 
-    def remove_listener(self, callback) -> None:
+    def remove_listener(self, callback: Callable[[], None]) -> None:
         """Remove a callback."""
         self._listeners = [cb for cb in self._listeners if cb != callback]
 

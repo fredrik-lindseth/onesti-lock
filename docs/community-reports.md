@@ -449,14 +449,15 @@ time, "but that people on forums had gotten it working" (#80, **relayed**).
 Nobody in the archive has, and one Zigbee device joins one network, so read
 that as support being vague, not as a hint.
 
-## The two Swedish forums, half opened
+## The Swedish forums
 
-Both had stood in the archive as "Cloudflare 403" since the sweep. On
-2026-09-20 two of the four rows were read, one through the public r.jina.ai
-text reader, which sweclockers serves and byggahus does not, and one by
-rendering the page in a browser and reading the screenshots. Neither changes
-a line in this repo. The guess that the Swedish threads would be more
-technical than the Norwegian ones does not hold for these two.
+All four rows were read on 2026-09-20. sweclockers came out through the
+public r.jina.ai text reader; the three byggahus threads needed a headless
+Firefox driven over WebDriver BiDi, because Cloudflare blocks curl on the TLS
+fingerprint and no cookie changes that
+([manuals/README.md](manuals/README.md#living-sources) has the method and the
+dead ends). That is 621 byggahus posts, 2023-08 to 2026-09, plus two on
+sweclockers.
 
 sweclockers thread 1713551 (April 2024) is two posts and no answers. A Touch
 Pro owner tired of running a hub per brand asks whether Homey Pro gives him
@@ -466,20 +467,104 @@ opens the door (**anecdote**, both questions). A second member asks whether
 Nimly's own gateway is needed at all next to a Homey. Nobody replied to
 either in two and a half years.
 
-byggahus thread 543716 (March 2025) is seven posts about Z2M against ZHA,
-five of which could be read. The buyer has a Connect Module and a SkyConnect
-dongle and has been told the module works with both bridges, "but not
-simultaneously" (**relayed**, source not named; it matches the one Zigbee
-network per device the rest of this file describes). The answers are the
-usual preference argument: both work, Homey works too, Z2M exposes more
-detail and more devices for more setup and can be moved off Home Assistant
-later. No frames, no payloads, no firmware versions.
+byggahus 543716 (March 2025, 7 posts) is the Z2M against ZHA question. The
+buyer has a Connect Module and a SkyConnect dongle and has been told the
+module works with both bridges, "but not simultaneously" (**relayed**, source
+not named, and it matches the one Zigbee network per device the rest of this
+file describes). The answers are the usual preference argument. No frames, no
+payloads, no firmware versions.
 
-Nothing in either thread touches Bluetooth, unloc, the Connect Bridge, date
-codes or module revisions, and nothing contradicts anything written here.
-byggahus 497166, the 37-page Touch/Touch Pro thread, and 573457, the Code
-thread, are still unread; `docs/manuals/README.md` says what stopped each
-route and what would open them.
+byggahus 497166 (592 posts over three years) and 573457 (22 posts, the Code
+and Code Pro thread) are mostly doors: strike plates, the square spindle that
+has to go in red-mark-up, emergency keys that will not turn until the
+through-bolts are backed off, fingerprint readers in fog. The Zigbee content
+is thin for the length, and it repeats what the Home Assistant and Homey
+threads already say: modules that drop off, batteries gone in two weeks, a
+replacement module from the vendor as the fix, one gateway per lock. What is
+new or worth pinning down is below.
+
+Somebody found this integration, once. On 2026-04-16 in 497166,
+maskeradeproggaren posts the repo link with "en kille gjort en integration som
+ska ha alla egenskaper såsom lösenordhantering för Nimly", adds that it runs
+ZHA and not Zigbee2MQTT, and says he is weighing buying a second coordinator
+for the door rather than migrating. Nobody answered him and he never returned
+to it. That is the whole record: no report from anyone who installed it, no
+bug, no praise (**anecdote**). The ZHA-only line is the friction worth
+noticing, since he already had Z2M running. Three months earlier, on
+2026-01-29, the same person posted `bharat/homeassistant-lockly` the same way
+and got the same silence.
+
+Lock firmware and module firmware are different numbers, and Z2M shows the
+module's. tobor, 2024-10-27: "I z2m visas modulens byggdatum och
+versionsnummer under enhetsinformationen. 20240625 har versionsnummer 4.7.79.
+Det är firmwaren i modulen som visas, inte låsets" (**measured**, he is
+reading his own device page). Walle85 and toka read 4.5.24 for the same
+period out of Homey and take it for the lock's. Nobody has both numbers side
+by side, so which one the 4.x ladder in
+[hardware-generations.md](hardware-generations.md) belongs to rests on this
+one reading.
+
+A Code Pro reports mains power over Zigbee. Scuttle, 2026-07-15 in
+573457, on Z2M: `Read result of 'genBasic': {"powerSource":4}`, and 4 is DC
+source where a battery device owes 3 (**measured**, the log line is pasted).
+This is the same defect the Z2M converter papers over with
+`device.powerSource = "Battery"` in `configure`
+([upstream-status.md](upstream-status.md)), now seen first-hand on a Code Pro
+rather than inferred from the converter.
+
+Standby current, measured with a meter. Walle85, 2024-02-06: about
+1 mAh per day, roughly 40 µA, with the Zigbee module removed (**measured**,
+photographed, though the photos are behind the forum's login wall). He never
+posted the figure with the module fitted, which is the number that would
+matter.
+
+Two gateway hardware revisions. Balob got a dead gateway replaced in
+January 2025 and the replacement "hade ett nytt utseende"; MangeSwe in July
+2025 bought one with a grey top while nimly.se pictured an all-white one
+(**anecdote**, both). Neither photographed it and nobody named a model, so
+this is one more sighting of the two-hub family in
+[app-architecture.md](nimly-connect-app/app-architecture.md), not evidence
+about which is which.
+
+Bluetooth: three questions, no answers, in three years. Asked 2023-08-23,
+2024-08-17 and in passing in 2024-01. The only response is anis16 on
+2023-10-11 relaying a support phone call: BLE is in the lock but not yet
+supported by the app, and the app goes through the gateway only
+(**relayed**). Nobody has scanned, paired or sniffed anything, and unloc is
+not mentioned once in 621 posts.
+
+Deleting a guest in the app does not delete their fingerprint. bjorsi,
+2024-09-26, tested it deliberately: he enrolled a finger on a guest user, the
+app claimed no fingerprint had been added, the finger opened the door anyway,
+he deleted the user, and the finger kept working (**measured**, his own
+test). Nobody replied. If that still holds it is a security hole in the
+vendor's own credential handling, and it is the strongest single finding in
+the thread.
+
+The vendor's position on Home Assistant flipped. 2025-09-05,
+maskeradeproggaren after contacting Nimly: they will neither document the
+lock for the community nor build an integration themselves. 2025-12-08, the
+same person: Nimly "verkar ändrat sig" and official HA support is coming
+"i början av nästa år" (**relayed**, both). Nothing had arrived by the
+thread's last post on 2026-09-18.
+
+2FA is not two factors, confirmed by the vendor twice. Enabling it
+requires a code alongside a fingerprint or tag, but any user code, the master
+code included, still opens the door alone. Walle85 pasted his support ticket
+in full on 2025-01-01 and the reply concedes the point without promising a
+fix. PeMa82 got the same answer in November 2023. Certification for Code Pro
+class 3 requires 2FA on, which makes the gap worth knowing about rather than
+just an annoyance.
+
+Programming is only possible from the outside panel, confirmed by support
+2026-06-01 after a user could not change his master code from the inside
+keypad. It is not in the manual.
+
+The Code Pro has no thumbturn and the Code's is not mechanical. mrmlz
+pulled the batteries and tested: with the lock dead the thumbturn moves but
+does nothing, and the door stayed locked (**measured**, 2026-08-20).
+
+Nothing in the three threads contradicts anything written in this repo.
 
 ## What does not exist anywhere
 
@@ -539,11 +624,14 @@ flows, PIN by flow, the gateway) and three smaller Home Assistant ones.
 - community.smartthings.com, "Easy Access EasyCode door lock zigbee module",
   2018-04 to 2018-05, <https://community.smartthings.com/t/easy-access-easycode-door-lock-zigbee-module-compatible-with-smartthings-hub/86418>
 - byggahus.se, "Nimly Zigbee - Z2M eller ZHA?" (543716), 7 posts, 2-3 March
-  2025, five of them read in a browser on 2026-09-20,
+  2025, read in full on 2026-09-20,
   <https://www.byggahus.se/forum/threads/nimly-zigbee-z2m-eller-zha.543716/>
-- byggahus.se, "Nimly Touch / Touch Pro -tråd" (497166) and "Nimly Code /
-  Code Pro -tråd" (573457). Still unread: both block automated fetching and
-  are too long to read as screenshots. Nothing from them is cited above.
+- byggahus.se, "Nimly Touch / Touch Pro -tråd" (497166), 592 posts over 40
+  pages, 2023-08-21 to 2026-09-18, read in full on 2026-09-20,
+  <https://www.byggahus.se/forum/threads/nimly-touch-touch-pro-trad.497166/>
+- byggahus.se, "Nimly Code / Code Pro -tråd" (573457), 22 posts, 2026-04-08
+  to 2026-09-20, read in full on 2026-09-20,
+  <https://www.byggahus.se/forum/threads/nimly-code-code-pro-trad.573457/>
 - sweclockers.com, "Homey Pro med Eufy och Nimly" (thread 1713551), 2 posts,
   April 2024, read in full on 2026-09-20,
   <https://www.sweclockers.com/forum/trad/1713551-homey-pro-med-eufy-och-nimly>

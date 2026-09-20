@@ -896,6 +896,10 @@ def _describe_advertisement(ctx: Context, seen: Seen, stored: list[StoredLock]) 
     else:
         factory_id = advertisement.factory_id.hex() if advertisement.factory_id else ""
         ctx.say(f"  enrolled   no: factory state, factory id {factory_id}")
+        ctx.say(
+            "  warning    the factory owner credential is public, so anyone within Bluetooth range can take "
+            "this lock over until someone enrolls it"
+        )
     matches = _matches(advertisement, stored)
     for lock in matches:
         ctx.say(f"  stored     yes, {lock.label}")
@@ -1422,7 +1426,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         defaults=True,
     )
-    # The same options after the command too: `pin set ADDR 803 --yes --trace-secrets`.
+    # The same options after the command too: `pin set ADDR 805 --yes --trace-secrets`.
     common = _global_options(
         argparse.ArgumentParser(add_help=False, argument_default=argparse.SUPPRESS), defaults=False
     )

@@ -227,6 +227,14 @@ that crashed, or the backtrace is fiction, and unwinding wants a RISC-V gdb on
 PATH=~/.platformio/packages/tool-riscv32-esp-elf-gdb/bin:$PATH
 ```
 
+The ELF is 20 MB, so it is kept out of git: `tools/esphome/build/` is ignored,
+and the ELF of whatever build is on the device lives there, named after the
+build time (`firmware-<YYYYMMDD-HHMM>.elf`). ESPHome does not build
+reproducibly, so rebuilding the same YAML later gives a different ELF, and a
+dump from the flashed build can only be read with the ELF that was flashed.
+Copy it out of `.esphome/build/<name>/.pioenvs/<name>/firmware.elf` right after
+every flash, and delete the old one once nothing on any device matches it.
+
 The PyPI package and its entry point are both called `esp-coredump`, not
 `espcoredump.py`. Its other mode, reading straight off the serial port
 (`esp-coredump -p <port> info_corefile <elf>`), refuses to run without a full

@@ -298,9 +298,8 @@ async def test_the_model_is_filled_in_once_zha_answers(
     await hass.async_block_till_done()
 
     assert entry.data[CONF_MODEL] == LOCK_MODEL
-    device = dr.async_get(hass).async_get_device({(DOMAIN, entry.entry_id)})
-    assert device is not None
-    assert device.name == "NimlyPRO (3344)"
+    devices = dr.async_entries_for_config_entry(dr.async_get(hass), entry.entry_id)
+    assert [device.name for device in devices] == ["NimlyPRO (3344)"]
 
 
 async def test_entry_from_a_newer_major_version_is_refused(hass: HomeAssistant, mock_zha) -> None:

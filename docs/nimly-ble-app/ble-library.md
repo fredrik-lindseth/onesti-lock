@@ -16,9 +16,14 @@ Two things it is not, yet:
   own classes run on a JDK; whether the lock agrees is open. The table at the
   end separates the two.
 - **The integration does not use it.** Nothing outside `ble/` imports it, the
-  config flow has no BLE step, and Home Assistant never loads it. It ships in
-  the release ZIP because it lives under the component directory, so wiring
-  it in later needs no packaging change.
+  config flow has no BLE step, and Home Assistant never loads it. It is not in
+  the release ZIP either: `ZIP_EXCLUDE` in `scripts/release_publish.py` leaves
+  out `ble/` and `bluetooth.py`, so `ble/client/const.py` and
+  `ble/client/auth.py`, which hold the credential a factory-reset lock accepts
+  as its owner, are not installed on anyone's box for a feature that does not
+  exist. The code stays in the repo and in the tag's source tree. Whatever
+  first imports it drops the path from `ZIP_EXCLUDE` in the same change; the
+  build refuses to pack a module that reaches for something it leaves out.
 
 ## Layers
 

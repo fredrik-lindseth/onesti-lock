@@ -234,6 +234,69 @@ def test_the_build_follows_the_sha_and_not_the_working_tree(repo: Path, sha: str
 
 
 # --------------------------------------------------------------------------
+# What the ZIP leaves out
+# --------------------------------------------------------------------------
+
+
+def commit_ble_stack(repo: Path, *, imported_by: str | None = None) -> str:
+    """Give the little repo a ble/ package and a bluetooth.py, as the real one has."""
+    (repo / COMPONENT / "ble" / "client").mkdir(parents=True)
+    (repo / COMPONENT / "ble" / "__init__.py").write_text("SESSION = 1\n")
+    (repo / COMPONENT / "ble" / "py.typed").write_text("")
+    (repo / COMPONENT / "ble" / "client" / "auth.py").write_text("OWNER_CREDENTIAL = b'factory'\n")
+    (repo / COMPONENT / "bluetooth.py").write_text("from .ble import SESSION\n")
+    if imported_by is not None:
+        path = repo / COMPONENT / imported_by
+        path.write_text(path.read_text() + "from .ble import SESSION\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "the ble stack")
+    return _git(repo, "rev-parse", "HEAD")
+
+
+def test_the_ble_stack_is_not_packed(repo: Path, tmp_path: Path) -> None:
+    """The factory owner credential must not be installed on every user's box."""
+    head = commit_ble_stack(repo)
+    target = tmp_path / "onesti_lock.zip"
+    build(repo, head, target)
+    with zipfile.ZipFile(target) as archive:
+        names = sorted(archive.namelist())
+
+    assert [n for n in names if n.startswith("ble/")] == []
+    assert "bluetooth.py" not in names
+    assert names == ["__init__.py", "manifest.json", "sensor.py", "translations/nb.json"]
+
+
+def test_a_packed_module_reaching_for_an_excluded_one_stops_the_build(repo: Path, tmp_path: Path) -> None:
+    """Otherwise the day something imports ble/ we ship a package that cannot load."""
+    head = commit_ble_stack(repo, imported_by="sensor.py")
+    with pytest.raises(release_publish.Failure) as excinfo:
+        build(repo, head, tmp_path / "onesti_lock.zip")
+    assert "sensor.py:2" in str(excinfo.value)
+    assert "ble/" in str(excinfo.value)
+
+
+def test_an_excluded_name_from_another_package_is_not_ours(repo: Path, tmp_path: Path) -> None:
+    """`from homeassistant.components import bluetooth` is somebody else's module."""
+    commit_ble_stack(repo)
+    path = repo / COMPONENT / "sensor.py"
+    path.write_text("from homeassistant.components import bluetooth\nimport ble\n" + path.read_text())
+    _git(repo, "commit", "-qam", "an absolute import")
+    build(repo, _git(repo, "rev-parse", "HEAD"), tmp_path / "onesti_lock.zip")
+
+
+def test_this_repos_own_zip_holds_no_ble_and_reaches_for_none(tmp_path: Path) -> None:
+    """The same two checks against the tree that actually ships."""
+    git = release_publish.Git(REPO)
+    files = release_publish.component_files(git, release_publish.full_sha(git, "HEAD"))
+    names = [name for _mode, _blob, name in files]
+
+    assert names, "the component has tracked files"
+    assert [n for n in names if n.startswith("ble/") or n == "bluetooth.py"] == []
+    assert "manifest.json" in names
+    assert release_publish.packed_imports_excluded(git, files) == []
+
+
+# --------------------------------------------------------------------------
 # A fresh publish
 # --------------------------------------------------------------------------
 

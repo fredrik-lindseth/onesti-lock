@@ -152,3 +152,54 @@ def test_collect_masks_the_values_it_reads_back(stub_path: tuple[str, Path]) -> 
     lines = "\n".join(run_script(stub_path, "collect"))
     assert "attribute_value" in lines and "<masked>" in lines, "scan values reach the terminal raw"
     assert "[0-9]{4,}" in lines, "log lines reach the terminal with digit runs intact"
+
+
+def ssh_commands(lines: list[str]) -> list[str]:
+    """Every shell command the dry-run would have run on the box."""
+    return [line[len("SSH ") :] for line in lines if line.startswith("SSH ")]
+
+
+class TestPurge:
+    """A `pins` run leaves plaintext codes in the core log, and that log is
+    what a Home Assistant backup takes. Purge has to empty it itself: the
+    two-step recipe it used to print was skipped in practice."""
+
+    def test_purge_empties_the_live_log(self, stub_path: tuple[str, Path]) -> None:
+        commands = ssh_commands(run_script(stub_path, "purge"))
+        truncating = [c for c in commands if ": >/config/home-assistant.log" in c]
+        assert truncating, f"the live log is never emptied: {commands}"
+        # Truncated, not replaced: HA holds the file open, and a new inode
+        # would leave it writing to the deleted one.
+        assert not any(re.search(r"rm -f [^;]*home-assistant\.log(?![.\w])", c) for c in commands)
+
+    def test_purge_removes_the_rotated_and_crash_logs(self, stub_path: tuple[str, Path]) -> None:
+        commands = " ".join(ssh_commands(run_script(stub_path, "purge")))
+        assert "/config/home-assistant.log.1" in commands
+        assert "/config/home-assistant.log.fault" in commands
+
+    def test_purge_removes_the_scans_and_the_csv(self, stub_path: tuple[str, Path]) -> None:
+        commands = " ".join(ssh_commands(run_script(stub_path, "purge")))
+        assert "/config/scans/*" in commands
+        assert "onesti-interrogation.csv" in commands
+
+    def test_purge_checks_afterwards_and_fails_when_something_is_left(
+        self, stub_path: tuple[str, Path]
+    ) -> None:
+        lines = run_script(stub_path, "purge")
+        check = [c for c in ssh_commands(lines) if "grep -ci" in c]
+        assert len(check) == 1, "purge must read back what it emptied"
+        assert "exit 1" in check[0], "a leftover line has to be an error, not a remark"
+        assert "get_pin_code" in check[0], "the check looks for the answers block C brings back"
+
+    def test_purge_no_longer_hands_over_a_manual_recipe(self, stub_path: tuple[str, Path]) -> None:
+        told = "\n".join(line for line in run_script(stub_path, "purge") if not line.startswith("SSH "))
+        assert "ha core restart" not in told
+        assert "ssh ha-local" not in told, "purge does the work; it does not dictate it"
+
+    def test_collect_and_purge_look_for_the_same_lines(self, stub_path: tuple[str, Path]) -> None:
+        """Otherwise purge can report clean on lines collect would print."""
+        pattern = r"grep -ciE '([^']+)'"
+        purged = re.search(pattern, " ".join(ssh_commands(run_script(stub_path, "purge"))))
+        collected = re.search(r"grep -iE '([^']+)'", " ".join(ssh_commands(run_script(stub_path, "collect"))))
+        assert purged is not None and collected is not None
+        assert purged.group(1) == collected.group(1)

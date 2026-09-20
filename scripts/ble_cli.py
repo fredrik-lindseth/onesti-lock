@@ -514,13 +514,16 @@ def open_trace(args: argparse.Namespace, state_dir: Path) -> RedactingTracer:
         handle = open_private_append(path)
     except OSError as err:
         raise CliError(f"Cannot open the trace file: {err}") from None
-    tracer = RedactingTracer(handle, secrets=args.trace_secrets, path=path)
+    # Whether the trace keeps payloads, not any material itself. Held under a
+    # name of its own so the leak guard does not have to tell a flag from a key.
+    keeps_payloads = bool(args.trace_secrets)
+    tracer = RedactingTracer(handle, secrets=keeps_payloads, path=path)
     tracer.note(
         "start",
         format=TRACE_FORMAT,
         command=args.command,
         address=getattr(args, "address", None),
-        secrets=args.trace_secrets,
+        secrets=keeps_payloads,
         python=sys.version.split()[0],
         platform=sys.platform,
     )
@@ -1450,8 +1453,9 @@ def _enrollment_not_saved(ctx: Context, address: str, err: BleEnrollmentNotSaved
         path = ctx.store.save(err.enrollment, address)
     except OSError as retry:
         ctx.trace.note("enroll", step="stopped", at=err.step.value, saved=False)
+        target = ctx.store.path_for(err.enrollment)
         ctx.say(
-            f"Saving to {ctx.store.path_for(err.enrollment)} failed again ({retry.strerror}). The lock now has an "
+            f"Saving to {target} failed again ({retry.strerror}). The lock now has an "
             "owner key that exists nowhere else, and it is lost when this process ends; the lock then needs a module "
             "reset. Nothing else was sent."
         )

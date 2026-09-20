@@ -36,28 +36,32 @@ def build_device_info(hass: HomeAssistant, coordinator: OnestiCoordinator) -> De
     flow points the entry at the new one without throwing the device and
     its entities away.
 
-    The zigbee connection is the same one ZHA registers the lock with.
-    Through HA 2026.8 a connection was unique across config entries, so
-    the registry merges this device and ZHA's into a single entry with
-    both integrations on it, and there is nothing left to link. From
-    2026.9 a connection is unique only within one config entry, so the
-    two stay apart and the link is made explicitly, ZHA's device as the
-    one this hangs off.
+    The zigbee connection ZHA registers the lock with is carried only
+    from HA 2026.9, where a connection is unique within one config entry:
+    the two devices stay apart, and the link is made explicitly with
+    ZHA's device as the one this hangs off. Through 2026.8 the same
+    connection was unique across config entries, so the registry would
+    fold this device into ZHA's row. That row is ZHA's to delete: it
+    removes the whole thing when the lock leaves the network or the user
+    removes the device, and our sensors, their names, areas and restore
+    data would go with it. So on those releases the device stands alone,
+    which is also what every release up to 1.4.0 gave.
     """
     ieee = coordinator.ieee
     model = str(coordinator.entry.data.get(CONF_MODEL) or "")
     device_info = DeviceInfo(
         identifiers={(DOMAIN, coordinator.entry.entry_id)},
-        connections={(dr.CONNECTION_ZIGBEE, ieee.lower())},
         name=device_name(ieee, model),
         manufacturer=MANUFACTURER,
         model=model or None,
         serial_number=ieee,
     )
-    # Set after the fact rather than as a keyword, because the key is not
-    # in the older release's TypedDict at all.
-    if HAS_VIA_DEVICE_ID and (zha_device := find_zha_device(hass, ieee)) is not None:
-        device_info["via_device_id"] = zha_device.id
+    # Set after the fact rather than as keywords, because via_device_id is
+    # not in the older release's TypedDict at all.
+    if HAS_VIA_DEVICE_ID:
+        device_info["connections"] = {(dr.CONNECTION_ZIGBEE, ieee.lower())}
+        if (zha_device := find_zha_device(hass, ieee)) is not None:
+            device_info["via_device_id"] = zha_device.id
     return device_info
 
 

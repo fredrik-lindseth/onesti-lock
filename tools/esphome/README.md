@@ -51,13 +51,15 @@ device ran before. Do not commit a `secrets.yaml` here.
 
 ## Building and flashing
 
-ESPHome is not a dependency of this repository. Use a throwaway virtualenv and
+ESPHome is not a dependency of this repository. Built and flashed with 2026.9.0
+last; nothing in the config has been renamed or deprecated since 2026.4.0, and
+`min_version` in the YAML is only a floor. Use a throwaway virtualenv and
 a throwaway working directory, because `secrets.yaml` has to sit next to the
 config:
 
 ```bash
 python3 -m venv /tmp/esphome-venv
-/tmp/esphome-venv/bin/pip install esphome==2026.4.0
+/tmp/esphome-venv/bin/pip install esphome==2026.9.0
 mkdir -p /tmp/bleproxy-flash
 cp tools/esphome/ble-debug-proxy.yaml /tmp/bleproxy-flash/proxy.yaml
 # copy the Wi-Fi secrets from Home Assistant

@@ -84,7 +84,7 @@ Identifiers are `(DOMAIN, entry_id)`, not the IEEE address. A replaced Connect M
 What the shared connection does depends on the Home Assistant version, and both are tested:
 
 - Through 2026.8 a connection is unique across config entries, so the registry merges this device and ZHA's into one entry carrying both integrations. The lock then has a single device page with ZHA's lock entity and ours side by side.
-- From 2026.9 a connection is unique only within one config entry. The two stay apart, and `build_device_info()` sets `via_device_id` to ZHA's device, so ours is shown as hanging off it. `DeviceInfo` lost `via_device` in the same release; which field it has is what the code branches on.
+- From 2026.9 a connection is unique only within one config entry. The two stay apart, and `build_device_info()` sets `via_device_id` to ZHA's device, so ours is shown as hanging off it. `DeviceInfo` lost `via_device` in the same release; which field it has is what the code branches on (`HAS_VIA_DEVICE_ID` in `entity.py`).
 
 ### When ZHA is reloaded
 
@@ -240,7 +240,7 @@ The floor of 4 is there for the log masking below: a lock that reports a minimum
 
 ### Runtime strings
 
-Sensor states and options-flow labels are built in Python and never pass through HA's translation layer. `localize.py` looks them up in the `common` section of `translations/<lang>.json` for the server language (`hass.config.language`). English, Norwegian bokmål, Swedish and Danish ship with the integration. `no` and `nn` map to `nb`, and missing keys fall back to English. The coordinator loads them at setup.
+Sensor states and options-flow labels are built in Python and never pass through HA's translation layer. `localize.py` looks them up in the `common` section of `translations/<lang>.json` for the server language (`hass.config.language`). The section is called `common` because hassfest rejects any top-level key outside HA's strings schema, and `common` is one it allows. English, Norwegian bokmål, Swedish and Danish ship with the integration. `no` and `nn` map to `nb`, and missing keys fall back to English. The coordinator loads them at setup.
 
 ## Auto-wake mechanism
 

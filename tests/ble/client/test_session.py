@@ -232,6 +232,23 @@ class TestConnect:
 
         run(scenario())
 
+    def test_a_command_is_never_framed_in_the_clear(self):
+        """Without the link cipher PacketStream frames plaintext, so only the key exchange may.
+
+        A PinCodeSet framed that way would put the PIN on the air in the
+        clear, so _exchange refuses every other command instead.
+        """
+
+        async def scenario():
+            lock = FakeLock()
+            session = new_session(lock.connect(require_login=False))
+            async with session:
+                session._stream.cipher = None  # noqa: SLF001
+                with pytest.raises(errors.BleSessionStateError, match="key exchange"):
+                    await session.send(commands.batt_info_get())
+
+        run(scenario())
+
     def test_close_is_idempotent(self):
         transport = open_transport()
 

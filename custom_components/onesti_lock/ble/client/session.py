@@ -339,6 +339,15 @@ class Session:
                 if self._state not in (_State.CONNECTING, _State.CONNECTED):
                     raise self._not_connected()
 
+            # PacketStream frames in the clear when it has no cipher, and
+            # ExchangeKeyPubM is the one command that is meant to go that way.
+            # Anything else without a cipher would put a PIN or a challenge
+            # answer on the air unencrypted, so it is refused instead.
+            if self._stream.cipher is None and command.command_id is not CommandId.EXCHANGE_KEY_PUB_M:
+                raise BleSessionStateError(
+                    f"{command.command_id.name} cannot be sent before the key exchange has set the link cipher"
+                )
+
             command_ref = self._refs.next()
             outgoing = command.with_ref(command_ref)
             frames = self._stream.frame(outgoing.to_bytes())

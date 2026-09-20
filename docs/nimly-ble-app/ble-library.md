@@ -559,7 +559,7 @@ and `unit` includes it. Options go before or after the command:
 ```bash
 just ble scan
 just ble handshake <ADDR>
-just ble pin set <ADDR> 803 --factory --yes
+just ble pin set <ADDR> 805 --factory --yes
 ```
 
 The commands, in the order to run them on a lock, from safe to risky:
@@ -580,6 +580,16 @@ The commands, in the order to run them on a lock, from safe to risky:
 
 `login`, `read` and the writes log in with `--factory`, with `--state FILE`,
 or by default with the stored enrollment last seen at that address.
+
+Which slot to try first. Nobody has shown that BLE slots 800-899 and the
+Zigbee slots are separate storage; `docs/slot-numbering.md` keeps two
+hypotheses alive, BLE 800 as Zigbee 3 and BLE 800 as Zigbee 0. Pick a slot
+that is free under both, so slot `n` where `n - 797` and `n - 800` are both
+free Zigbee slots. That rules out 800-804, which land on a master slot or on
+a Zigbee slot that may hold a working code; 805 and up is the safe end.
+There is no command that reads a slot back, so every write is blind: try the
+code on the keypad afterwards, and check that the codes that worked before
+still do.
 
 What it refuses to do:
 

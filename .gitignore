@@ -44,3 +44,7 @@ tests/ble/java/out/
 
 # Evidence from `just e2e`: container logs, check reports and what was built
 tests_e2e/artifacts/
+
+# Texts waiting to be posted somewhere else (upstream issues and PR bodies).
+# They belong to this work, but not in a public repository until they are sent.
+drafts/

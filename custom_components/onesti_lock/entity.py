@@ -1,8 +1,6 @@
 """Base class for the entities Onesti Lock creates."""
 from __future__ import annotations
 
-from typing import Any
-
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -48,18 +46,19 @@ def build_device_info(hass: HomeAssistant, coordinator: NimlyCoordinator) -> Dev
     """
     ieee = coordinator.ieee
     model = str(coordinator.entry.data.get(CONF_MODEL) or "")
-    via: dict[str, Any] = {}
-    if HAS_VIA_DEVICE_ID and (zha_device := find_zha_device(hass, ieee)) is not None:
-        via = {"via_device_id": zha_device.id}
-    return DeviceInfo(
+    device_info = DeviceInfo(
         identifiers={(DOMAIN, coordinator.entry.entry_id)},
         connections={(dr.CONNECTION_ZIGBEE, ieee.lower())},
         name=device_name(ieee, model),
         manufacturer=MANUFACTURER,
         model=model or None,
         serial_number=ieee,
-        **via,
     )
+    # Set after the fact rather than as a keyword, because the key is not
+    # in the older release's TypedDict at all.
+    if HAS_VIA_DEVICE_ID and (zha_device := find_zha_device(hass, ieee)) is not None:
+        device_info["via_device_id"] = zha_device.id
+    return device_info
 
 
 class NimlyEntity(Entity):

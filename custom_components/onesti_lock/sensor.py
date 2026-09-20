@@ -108,7 +108,7 @@ class NimlySlotSensor(NimlyEntity, SensorEntity):
         return slot_data.get("name") or self._coordinator.strings.get("slot_vacant", "Vacant")
 
     @property
-    def extra_state_attributes(self) -> dict:
+    def extra_state_attributes(self) -> dict[str, Any]:
         slot_data = self._coordinator.get_slot(self._slot)
         return {
             "slot_id": self._slot,
@@ -203,7 +203,7 @@ class NimlyActivitySensor(NimlyEntity, SensorEntity, RestoreEntity):
         )
 
     @property
-    def extra_state_attributes(self) -> dict:
+    def extra_state_attributes(self) -> dict[str, Any]:
         # Only the event. What the lock reports about itself has its own
         # diagnostic sensors, since it never changes with an event.
         return dict(self._activity) if self._activity else {}

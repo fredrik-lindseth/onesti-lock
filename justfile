@@ -31,6 +31,15 @@ test-ha target="current" *args:
 test-unit *args:
     UV_PROJECT_ENVIRONMENT=.venv-unit uv run --frozen --python 3.14 --group unit pytest tests/ {{args}}
 
+# mypy --strict over the whole integration, ble/ included. It runs in the
+# ha-current environment because that is the only one with everything the
+# imports need at once: the real Home Assistant for bluetooth.py, zigpy for
+# zha.py, bleak and cryptography for ble/. The settings, including which
+# Python version is assumed, live in [tool.mypy] in pyproject.toml.
+mypy *args:
+    UV_PROJECT_ENVIRONMENT=.venv-ha-current uv run --frozen --python 3.14 \
+        --group ha-current mypy {{args}}
+
 # The BLE validation tool, scripts/ble_cli.py, against a real lock, in the
 # unit environment, which has bleak and cryptography. `just ble --help` lists
 # the steps; docs/nimly-ble-app/ble-library.md has the order to run them in.

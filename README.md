@@ -312,6 +312,12 @@ ZHA's device and its lock entity are not touched, so you can still lock and unlo
 
 Bugs and questions go to the [issue tracker](https://github.com/fredrik-lindseth/onesti-lock/issues).
 
+## Integration Quality Scale
+
+Home Assistant's [Integration Quality Scale](https://developers.home-assistant.io/docs/core/integration-quality-scale/) is a list of 54 rules about setup, error handling, documentation, entities and typing. This integration follows all of them, and [`quality_scale.yaml`](custom_components/onesti_lock/quality_scale.yaml) says rule by rule whether it is met or does not apply, with a reason for each exemption. `manifest.json` declares `platinum` on that basis.
+
+The declaration is our own. Home Assistant reports every custom integration as `custom` whatever the manifest says, so no level shows up in the UI, and hassfest only validates `quality_scale.yaml` for integrations inside Home Assistant itself. An official level exists only after review by the core team, which is part of being included in Home Assistant. What holds it honest here is [`tests/test_quality_scale.py`](tests/test_quality_scale.py), which mirrors hassfest's own check: the rule list, the file's schema, and that every rule up to the declared level really is marked met.
+
 ## Contributing
 
 Pull requests are welcome. [AGENTS.md](AGENTS.md) describes the architecture, the rules and the pitfalls, and applies to people as much as to agents. Before you open one, run `python3 scripts/ci_sim.py`, which runs ruff and then `tests/` in the same uv environment as CI, and catches a test that imports Home Assistant. To add a language, copy `custom_components/onesti_lock/translations/en.json` and translate it, `common` section included. Taking part here means following the [Code of Conduct](CODE_OF_CONDUCT.md).

@@ -75,12 +75,19 @@ def connections(monkeypatch) -> list[dict]:
     return calls
 
 
-async def test_the_manifest_dependency_sets_up_bluetooth(hass: HomeAssistant, mock_zha) -> None:
+async def test_setup_does_not_pull_in_the_bluetooth_stack(hass: HomeAssistant, mock_zha) -> None:
+    """Nothing calls bluetooth.py yet, so no installation should pay for it.
+
+    The manifest names bluetooth_adapters again in the change that first
+    imports bluetooth.py; the tests below set Bluetooth up themselves
+    (enable_bluetooth) rather than leaning on the manifest.
+    """
     entry = MockConfigEntry(domain=DOMAIN, version=2, unique_id=LOCK_IEEE, data={CONF_IEEE: LOCK_IEEE}, options={"slots": {}})
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
-    assert {"bluetooth_adapters", "bluetooth"} <= hass.config.components
+    assert "bluetooth_adapters" not in hass.config.components
+    assert "bluetooth" not in hass.config.components
 
 
 async def test_without_bluetooth_the_error_says_so(hass: HomeAssistant) -> None:

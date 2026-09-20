@@ -36,9 +36,11 @@ from bleak_retry_connector import (
     establish_connection,
 )
 
-# bluetooth_adapters is a manifest dependency and depends on bluetooth, so
-# this package and the bleak stack it ships are importable whenever this
-# integration is, and set up before it.
+# This module and the bleak stack above are importable only where Home
+# Assistant's Bluetooth integration is set up, since that is what installs
+# them. The manifest does not name bluetooth_adapters while nothing imports
+# this module: it would set the Bluetooth stack up on every installation for
+# nothing. Put it back in the change that first imports this module.
 from homeassistant.components import bluetooth
 from homeassistant.core import HomeAssistant, callback
 

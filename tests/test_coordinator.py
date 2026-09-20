@@ -86,17 +86,22 @@ class TestManifest:
             manifest = json.load(f)
         assert "zha" in manifest["dependencies"]
 
-    def test_manifest_depends_on_bluetooth_adapters_without_a_matcher(self):
-        """bluetooth.py needs the Bluetooth stack set up, with ESPHome and other
-        proxies loaded first, which bluetooth_adapters gives. A `bluetooth`
-        matcher would start discovery flows in the UI, and waits for a config
-        flow that can enroll a lock."""
+    def test_manifest_leaves_bluetooth_out_until_something_imports_it(self):
+        """Nothing in the integration imports bluetooth.py yet.
+
+        bluetooth_adapters depends on bluetooth and loads after ESPHome,
+        Shelly and the other proxy integrations, so naming it would set the
+        Bluetooth stack up on every installation and hold this entry back
+        until those four are done, for nothing. It goes back in the same
+        change that first calls bluetooth.py. A `bluetooth` matcher stays
+        out for longer: it would start discovery flows in the UI, and it
+        waits for a config flow that can enroll a lock."""
         manifest_path = os.path.join(
             os.path.dirname(__file__), "..", "custom_components", "onesti_lock", "manifest.json"
         )
         with open(manifest_path) as f:
             manifest = json.load(f)
-        assert "bluetooth_adapters" in manifest["dependencies"]
+        assert "bluetooth_adapters" not in manifest["dependencies"]
         assert "bluetooth" not in manifest
 
     def test_manifest_version_format(self):

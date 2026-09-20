@@ -35,22 +35,65 @@ class TestVersions(unittest.TestCase):
 
 
 class TestSeed(unittest.TestCase):
-    def test_entry_carries_the_current_config_flow_version(self):
-        (entry,) = run.seed_config_entry()["data"]["entries"]
+    def entries(self):
+        plan = run.seed_plan()
+        return plan, {
+            row["entry_id"]: row for row in run.seed_config_entry(plan)["data"]["entries"]
+        }
+
+    def test_the_current_entry_carries_the_current_config_flow_version(self):
+        plan, entries = self.entries()
+        entry = entries[plan["current"]["entry_id"]]
         self.assertEqual(entry["version"], 2)
         self.assertEqual(entry["minor_version"], run.minor_version())
         self.assertEqual(entry["domain"], "onesti_lock")
 
+    def test_one_entry_per_stored_shape_a_user_can_start_from(self):
+        plan, entries = self.entries()
+        versions = {
+            name: (entries[plan[name]["entry_id"]]["version"],
+                   entries[plan[name]["entry_id"]]["minor_version"])
+            for name in ("migrated", "legacy", "future")
+        }
+        self.assertEqual(versions["migrated"], (2, 2))
+        self.assertEqual(versions["legacy"], (2, 1))
+        self.assertEqual(versions["future"][0], run.major_version() + 1)
+
+    def test_the_2_1_entry_carries_the_field_that_migration_strips(self):
+        plan, entries = self.entries()
+        slot = entries[plan["legacy"]["entry_id"]]["options"]["slots"][plan["legacy"]["slot"]]
+        self.assertIn("has_rfid", slot)
+
     def test_store_is_written_in_the_oldest_format_home_assistant_migrates(self):
-        store = run.seed_config_entry()
-        self.assertEqual((store["version"], store["minor_version"]), (1, 1))
+        stores = [run.seed_config_entry(), *run.seed_registries(run.seed_plan())]
+        for store in stores:
+            self.assertEqual((store["version"], store["minor_version"]), (1, 1))
+
+    def test_the_seeded_registries_are_keyed_on_the_ieee_address(self):
+        plan = run.seed_plan()
+        devices, entities = run.seed_registries(plan)
+        ieee = plan["migrated"]["ieee"]
+        (device,) = devices["data"]["devices"]
+        self.assertEqual(device["identifiers"], [["onesti_lock", ieee]])
+        # No connections: a migration that failed to rewrite the identifier
+        # must show up as a second device, not be merged into this one.
+        self.assertEqual(device["connections"], [])
+        self.assertTrue(
+            all(row["unique_id"].startswith(f"{ieee}-") for row in entities["data"]["entities"])
+        )
+        self.assertTrue(any(row["name"] for row in entities["data"]["entities"]))
+        self.assertTrue(any(row["disabled_by"] == "user" for row in entities["data"]["entities"]))
 
     def test_prepare_lays_out_config_storage_and_blueprints(self):
         with tempfile.TemporaryDirectory() as directory:
-            entry_id = run.prepare(Path(directory))
+            plan = run.prepare(Path(directory))
             config = Path(directory) / "config"
             stored = json.loads((config / ".storage/core.config_entries").read_text())
-            self.assertEqual(stored["data"]["entries"][0]["entry_id"], entry_id)
+            seeded = {row["entry_id"] for row in stored["data"]["entries"]}
+            self.assertEqual(seeded, {plan[name]["entry_id"] for name in plan})
+            self.assertEqual(json.loads((config / "seed.json").read_text()), plan)
+            for name in ("core.device_registry", "core.entity_registry"):
+                self.assertTrue((config / ".storage" / name).is_file())
             self.assertTrue((config / "configuration.yaml").is_file())
             self.assertTrue((config / "automations.yaml").is_file())
             copied = sorted(p.name for p in (config / "blueprints/automation/onesti_lock").iterdir())
@@ -69,6 +112,14 @@ class TestLogCheck(unittest.TestCase):
 
     def test_someone_elses_error_is_not_ours(self):
         self.assertEqual(run.check_log("ERROR [homeassistant.components.bluetooth] no adapter"), [])
+
+    def test_the_refusal_of_the_entry_from_the_future_is_expected(self):
+        (allowed,) = run.log_allowed()
+        self.assertEqual(run.check_log(f"2026-09-20 ERROR [x] {allowed} which is higher"), [])
+
+    def test_the_same_refusal_about_another_entry_still_fails(self):
+        line = "ERROR Config entry Front door for onesti_lock has version 9 which is higher"
+        self.assertTrue(run.check_log(line))
 
     def test_the_usual_custom_integration_warning_passes(self):
         text = "WARNING We found a custom integration onesti_lock which has not been tested"

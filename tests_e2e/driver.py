@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import sys
 import time
 from pathlib import Path
@@ -24,15 +25,41 @@ BASE = "http://127.0.0.1:8123"
 INSTALLED = Path("/config/custom_components/onesti_lock")
 AUTH = Path("/config/e2e-auth.json")
 REPORT = Path("/config/report.json")
+SEED = Path("/config/seed.json")
+ENTRY_STORE = Path("/config/.storage/core.config_entries")
 DOMAIN = "onesti_lock"
 SERVICES = ("set_pin", "clear_pin", "set_name", "clear_slot")
 # 10 user slots, the activity sensor, and the three capability sensors.
 EXPECTED_ENTITIES = 14
 BLUEPRINTS = ("goodnight_lock.yaml", "lock_connectivity_alert.yaml", "unlock_activity_notify.yaml")
+# The template lock in configuration.yaml, which stands in for the lock ZHA
+# would have given the blueprints.
+STANDIN_LOCK = "lock.e2e_stand_in"
+STANDIN_NAME = "E2E stand-in"
+# How long a check waits for something Home Assistant does in the background:
+# a delayed store write, an automation run, a notification.
+PATIENCE_S = 30
 
 
 class CheckFailed(AssertionError):
     """A named check that did not hold."""
+
+
+def entry_version() -> tuple[int, int]:
+    """The config entry version the installed ZIP writes, from its own source.
+
+    Read here rather than written down, so bumping MINOR_VERSION moves what
+    the migration checks expect along with it.
+    """
+    source = (INSTALLED / "config_flow.py").read_text(encoding="utf-8")
+    found = {
+        name: int(match.group(1))
+        for name in ("VERSION", "MINOR_VERSION")
+        if (match := re.search(rf"^\s*{name}\s*=\s*(\d+)", source, re.MULTILINE))
+    }
+    if len(found) != 2:
+        raise CheckFailed("config_flow.py in the ZIP has no VERSION/MINOR_VERSION")
+    return found["VERSION"], found["MINOR_VERSION"]
 
 
 class Driver:
@@ -44,6 +71,10 @@ class Driver:
         self.translations = json.loads(
             (INSTALLED / "translations/en.json").read_text(encoding="utf-8")
         )
+        # What run.py seeded: the four entries and the registry rows the 2.2
+        # one was given.
+        self.seed = json.loads(SEED.read_text(encoding="utf-8"))
+        self.entry_version = entry_version()
 
     # -- plumbing --
 
@@ -317,7 +348,7 @@ class Driver:
             f"Home Assistant loaded all {len(BLUEPRINTS)} blueprints without an error",
         )
 
-    async def check_blueprints_instantiate(self, activity_entity: str) -> None:
+    async def check_blueprints_instantiate(self, activity_entity: str) -> dict[str, str]:
         """Every blueprint survives HA's own automation validation and runs.
 
         The config API validates a blueprint automation the way the UI does:
@@ -326,11 +357,11 @@ class Driver:
         the blueprint is usable, not just parseable.
         """
         wanted = {
-            "goodnight_lock.yaml": {"lock_entity": "lock.e2e_stand_in"},
-            "lock_connectivity_alert.yaml": {"lock_entity": "lock.e2e_stand_in"},
+            "goodnight_lock.yaml": {"lock_entity": STANDIN_LOCK},
+            "lock_connectivity_alert.yaml": {"lock_entity": STANDIN_LOCK},
             "unlock_activity_notify.yaml": {"activity_sensor": activity_entity},
         }
-        created = []
+        created = {}
         for name, inputs in wanted.items():
             config_id = f"e2e_{name.removesuffix('.yaml')}"
             try:
@@ -344,11 +375,310 @@ class Driver:
                 )
             except RuntimeError as error:
                 raise CheckFailed(f"{name} is not a usable automation: {error}") from error
-            created.append(await self._wait_for_automation(config_id))
+            created[name] = await self._wait_for_automation(config_id)
         self.record(
             "blueprints_instantiate",
             "an automation from each blueprint validated and is running",
-            automations=created,
+            automations=sorted(created.values()),
+        )
+        return created
+
+    # -- the blueprints, actually triggered --
+
+    async def _wait(self, what: str, probe: Any) -> Any:
+        """Poll until a probe returns something truthy, or give up saying what."""
+        deadline = time.monotonic() + PATIENCE_S
+        while time.monotonic() < deadline:
+            found = await probe()
+            if found:
+                return found
+            await asyncio.sleep(0.25)
+        raise CheckFailed(f"{what} (waited {PATIENCE_S} s)")
+
+    async def _write_state(self, entity_id: str, state: str, attributes: dict) -> None:
+        """Put a state on the bus the way the lock's own data would arrive.
+
+        There is no radio, so nothing can make the activity sensor move by
+        itself, and the lock entity ZHA would own does not exist. Writing the
+        state is how the trigger these blueprints listen for is produced; the
+        automation that follows is Home Assistant's own, unhelped.
+        """
+        await self.api(
+            f"/api/states/{entity_id}", {"state": state, "attributes": attributes}
+        )
+
+    async def _notification(self, needle: str) -> dict | None:
+        for notification in await self.ws("persistent_notification/get"):
+            if needle in notification.get("message", ""):
+                return notification
+        return None
+
+    async def check_blueprint_locks_the_door(self, automations: dict[str, str]) -> None:
+        """The goodnight blueprint's action reaches the lock it was given.
+
+        Its own trigger is a time of day, which is Home Assistant's to fire,
+        so the automation is triggered by hand and what the blueprint does
+        after that is read off the stand-in lock.
+        """
+        await self.api("/api/services/lock/unlock", {"entity_id": STANDIN_LOCK})
+        await self._wait(
+            "the stand-in lock would not unlock",
+            lambda: self._state_is(STANDIN_LOCK, "unlocked"),
+        )
+        await self.api(
+            "/api/services/automation/trigger",
+            {"entity_id": automations["goodnight_lock.yaml"], "skip_condition": True},
+        )
+        await self._wait(
+            "the goodnight blueprint ran but the door never locked",
+            lambda: self._state_is(STANDIN_LOCK, "locked"),
+        )
+        self.record(
+            "blueprint_goodnight_locks",
+            "triggering the goodnight automation locked the stand-in lock",
+        )
+
+    async def _state_is(self, entity_id: str, state: str) -> bool:
+        return (await self.api(f"/api/states/{entity_id}"))["state"] == state
+
+    async def check_blueprint_notifies_on_return(self) -> None:
+        """A lock that comes back from unavailable gets the blueprint's alert.
+
+        The offline half waits out a timer measured in minutes and is not
+        worth the wall clock; the return fires at once and runs the same
+        choose, the same templates and the same notification call.
+        """
+        for state in ("unavailable", "locked"):
+            await self._write_state(
+                STANDIN_LOCK, state, {"friendly_name": STANDIN_NAME}
+            )
+        notification = await self._wait(
+            "the connectivity blueprint sent no notification when the lock returned",
+            lambda: self._notification(f"{STANDIN_NAME} is available again"),
+        )
+        if notification["title"] != "Door lock back online":
+            raise CheckFailed(f"the notification is titled {notification['title']!r}")
+        if "(locked)" not in notification["message"]:
+            raise CheckFailed(f"the notification does not say the new state: {notification['message']!r}")
+        self.record(
+            "blueprint_connectivity_notifies",
+            "a lock returning from unavailable produced the blueprint's own notification",
+            message=" ".join(notification["message"].split()),
+        )
+
+    async def check_blueprint_notifies_on_unlock(self, activity_entity: str) -> None:
+        """Someone unlocking the door reaches the notification a user reads.
+
+        Two writes: the first is the activity the sensor already held, since
+        the blueprint ignores a change out of unknown, and it is a lock, which
+        its condition filters away. The second is the unlock, and the text
+        that comes out is the blueprint's templates run over the activity
+        sensor's attributes.
+        """
+        for action, user in (("lock", "Ola"), ("unlock", "Kari")):
+            await self._write_state(
+                activity_entity,
+                f"{user} {action}ed with code",
+                {
+                    "friendly_name": "Onesti Lock Last activity",
+                    "user_name": user,
+                    "user_slot": 3,
+                    "action": action,
+                    "source": "keypad",
+                },
+            )
+            # mode: single. Let the run the first write starts finish and be
+            # filtered out by the condition before the second arrives.
+            await asyncio.sleep(0.5)
+        notification = await self._wait(
+            "the unlock blueprint sent no notification for the unlock",
+            lambda: self._notification("Kari unlocked via keypad"),
+        )
+        if notification["title"] != "Door lock: unlock":
+            raise CheckFailed(f"the notification is titled {notification['title']!r}")
+        if await self._notification("Ola locked via keypad"):
+            raise CheckFailed("the blueprint notified about a lock, with unlock only set")
+        self.record(
+            "blueprint_unlock_notifies",
+            "an unlock on the activity sensor notified who did it and how, and a lock did not",
+            message=notification["message"],
+        )
+
+    # -- the migration --
+
+    async def stored_entries(self) -> dict[str, dict]:
+        """The config entries as they are on disk, keyed by entry id.
+
+        The stored version is the only place the result of a migration shows:
+        the API does not report an entry's version. Home Assistant writes the
+        store on a delay, so this waits for the 2.2 entry to arrive at the
+        installed version rather than reading the file once.
+        """
+        entry_id = self.seed["migrated"]["entry_id"]
+        return await self._wait(
+            f"the migrated entry never reached {self._version_text()} on disk",
+            lambda: self._entries_once(entry_id),
+        )
+
+    def _version_text(self) -> str:
+        return "{}.{}".format(*self.entry_version)
+
+    async def _entries_once(self, entry_id: str) -> dict[str, dict] | None:
+        rows = {
+            row["entry_id"]: row
+            for row in json.loads(ENTRY_STORE.read_text(encoding="utf-8"))["data"]["entries"]
+        }
+        row = rows.get(entry_id, {})
+        if (row.get("version"), row.get("minor_version")) == self.entry_version:
+            return rows
+        return None
+
+    async def check_migrated_entries_load(self, stored: dict[str, dict]) -> None:
+        """Every entry below the current version comes up at it, and loaded."""
+        entries = await self.api(f"/api/config/config_entries/entry?domain={DOMAIN}")
+        states = {row["entry_id"]: row["state"] for row in entries}
+        for name in ("current", "migrated", "legacy"):
+            entry_id = self.seed[name]["entry_id"]
+            row = stored.get(entry_id)
+            if row is None:
+                raise CheckFailed(f"the {name} entry is not in the store")
+            if (row["version"], row["minor_version"]) != self.entry_version:
+                raise CheckFailed(
+                    f"the {name} entry is stored as "
+                    f"{row['version']}.{row['minor_version']}, not {self._version_text()}"
+                )
+            if states.get(entry_id) != "loaded":
+                raise CheckFailed(f"the {name} entry is {states.get(entry_id)}, not loaded")
+        self.record(
+            "migration_reaches_current_version",
+            f"the 2.1 and 2.2 entries migrated to {self._version_text()} and set up",
+        )
+
+    async def check_migration_strips_has_rfid(self, stored: dict[str, dict]) -> None:
+        """2.1 -> 2.2 drops has_rfid and leaves the rest of the slot alone."""
+        legacy = self.seed["legacy"]
+        slots = stored[legacy["entry_id"]]["options"]["slots"]
+        slot = slots.get(legacy["slot"])
+        if slot is None:
+            raise CheckFailed(f"slot {legacy['slot']} is gone from the 2.1 entry")
+        if "has_rfid" in slot:
+            raise CheckFailed(f"the migrated slot still carries has_rfid: {slot}")
+        if slot.get("name") != "Per" or slot.get("has_pin") is not True:
+            raise CheckFailed(f"the migrated slot lost the user's own data: {slot}")
+        self.record(
+            "migration_2_1_strips_has_rfid",
+            "an entry that skipped 2.2 came through with has_rfid gone and the slot kept",
+            slot=slot,
+        )
+
+    async def check_registry_keys_rewritten(self, registry: list[dict]) -> None:
+        """The 2.2 keys on the IEEE address became keys on the entry id.
+
+        Both registries, and nothing duplicated: a migration that left the old
+        unique ids behind would show up here as the seeded rows plus a full
+        new set, and as a second device beside the seeded one.
+        """
+        migrated = self.seed["migrated"]
+        entry_id, ieee = migrated["entry_id"], migrated["ieee"]
+        ours = [row for row in registry if row.get("config_entry_id") == entry_id]
+        if len(ours) != EXPECTED_ENTITIES:
+            raise CheckFailed(
+                f"{len(ours)} entities on the migrated entry, expected {EXPECTED_ENTITIES}: "
+                + ", ".join(sorted(f"{row['entity_id']} ({row['unique_id']})" for row in ours))
+            )
+        stale = [row["unique_id"] for row in ours if not row["unique_id"].startswith(f"{entry_id}-")]
+        if stale:
+            raise CheckFailed(f"unique ids that are still not keyed on the entry id: {stale}")
+        devices = await self.ws("config/device_registry/list")
+        theirs = [row for row in devices if entry_id in row.get("config_entries", [])]
+        if len(theirs) != 1:
+            raise CheckFailed(
+                f"{len(theirs)} devices on the migrated entry: "
+                + ", ".join(str(row.get("identifiers")) for row in theirs)
+            )
+        (device,) = theirs
+        if device["id"] != migrated["device_id"]:
+            raise CheckFailed("the device was replaced rather than rewritten in place")
+        # The device identifier is the other half of the same rewrite. The
+        # IEEE address is still the device's serial number, which is where it
+        # belongs; what must be gone is the address as a key.
+        if [list(pair) for pair in device["identifiers"]] != [[DOMAIN, entry_id]]:
+            raise CheckFailed(f"the device identifiers are {device['identifiers']}, not the entry id")
+        if any(ieee in row["unique_id"] for row in ours):
+            raise CheckFailed("an entity unique id still holds the IEEE address")
+        self.record(
+            "migration_rewrites_registry_keys",
+            f"{len(ours)} entities and one device, all keyed on the entry id and none duplicated",
+            device_id=device["id"],
+        )
+
+    async def check_migration_keeps_customisation(
+        self, registry: list[dict], stored: dict[str, dict]
+    ) -> None:
+        """What the user renamed, disabled and filled in is still there.
+
+        This is the part of the 2.3 migration a user would notice going
+        wrong: entity ids are what their dashboards and automations name, and
+        a rename that comes back as the default name is a support thread.
+        """
+        migrated = self.seed["migrated"]
+        entry_id = migrated["entry_id"]
+        by_entity_id = {row["entity_id"]: row for row in registry}
+        for seeded in migrated["entities"]:
+            row = by_entity_id.get(seeded["entity_id"])
+            if row is None:
+                raise CheckFailed(f"{seeded['entity_id']} did not survive the migration")
+            if row["unique_id"] != f"{entry_id}-{seeded['key']}":
+                raise CheckFailed(
+                    f"{seeded['entity_id']} is keyed {row['unique_id']}, not on the entry id"
+                )
+            if row["name"] != seeded["name"]:
+                raise CheckFailed(
+                    f"{seeded['entity_id']} is named {row['name']!r}, not {seeded['name']!r}"
+                )
+            if row.get("disabled_by") != seeded["disabled_by"]:
+                raise CheckFailed(
+                    f"{seeded['entity_id']} is disabled by {row.get('disabled_by')!r}, "
+                    f"not {seeded['disabled_by']!r}"
+                )
+        devices = await self.ws("config/device_registry/list")
+        (device,) = [row for row in devices if entry_id in row.get("config_entries", [])]
+        if device.get("name_by_user") != migrated["device_name"]:
+            raise CheckFailed(f"the device is no longer called {migrated['device_name']!r}")
+        # What the frontend puts on the renamed entity. A user-set name takes
+        # the whole friendly name, so losing it in the migration would show up
+        # here as the device name and the translated one instead.
+        renamed = next(row for row in migrated["entities"] if row["name"])
+        state = await self.api(f"/api/states/{renamed['entity_id']}")
+        friendly = state["attributes"].get("friendly_name")
+        if friendly != renamed["name"]:
+            raise CheckFailed(f"the renamed entity is shown as {friendly!r}")
+        # The slot data itself is in the entry, not in the state: without a
+        # radio the sensors are unavailable and carry no attributes.
+        slots = stored[entry_id]["options"]["slots"]
+        if slots != migrated["slots"]:
+            raise CheckFailed(f"the slots the user filled in came through as {slots}")
+        self.record(
+            "migration_keeps_what_the_user_set",
+            "entity ids, a rename, a disabled entity, the device name and the slot data survived",
+            renamed=friendly,
+        )
+
+    async def check_newer_entry_refused(self, registry: list[dict]) -> None:
+        """An entry from a newer major version is refused, not guessed at."""
+        future = self.seed["future"]
+        entries = await self.api(f"/api/config/config_entries/entry?domain={DOMAIN}")
+        row = next((row for row in entries if row["entry_id"] == future["entry_id"]), None)
+        if row is None:
+            raise CheckFailed("the entry from a newer release is gone")
+        if row["state"] != "migration_error":
+            raise CheckFailed(f"the newer entry is {row['state']}, expected migration_error")
+        adopted = [r["entity_id"] for r in registry if r.get("config_entry_id") == future["entry_id"]]
+        if adopted:
+            raise CheckFailed(f"the refused entry still created entities: {adopted}")
+        self.record(
+            "newer_entry_refused",
+            "an entry written by a newer major version does not load and creates nothing",
         )
 
     async def _wait_for_automation(self, config_id: str) -> str:
@@ -382,7 +712,20 @@ class Driver:
         activity = next(
             row["entity_id"] for row in entities if row["unique_id"] == f"{self.entry_id}-activity"
         )
-        await self.check_blueprints_instantiate(activity)
+        automations = await self.check_blueprints_instantiate(activity)
+        await self.check_blueprint_locks_the_door(automations)
+        await self.check_blueprint_notifies_on_return()
+        await self.check_blueprint_notifies_on_unlock(activity)
+        # The migration ran at startup, long before any of this. What it left
+        # behind is read at the end, so a failure here is about the migration
+        # and not about a check that has not run yet.
+        stored = await self.stored_entries()
+        registry = await self.ws("config/entity_registry/list")
+        await self.check_migrated_entries_load(stored)
+        await self.check_migration_strips_has_rfid(stored)
+        await self.check_registry_keys_rewritten(registry)
+        await self.check_migration_keeps_customisation(registry, stored)
+        await self.check_newer_entry_refused(registry)
 
 
 def _flatten(data: Any, prefix: str = "") -> list[tuple[str, str]]:

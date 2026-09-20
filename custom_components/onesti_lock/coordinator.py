@@ -11,7 +11,7 @@ from homeassistant.core import HomeAssistant
 
 from . import pin_rules
 from .const import CONF_IEEE, DEFAULT_SLOT
-from .zha import SendOutcome, ZhaLockTransport
+from .zha import SendOutcome, ZhaLockTransport, is_zha_loaded
 
 if TYPE_CHECKING:
     from .sensor import OnestiActivitySensor
@@ -69,9 +69,15 @@ class OnestiCoordinator:
         # The zigpy cluster the event listener is registered on, or None.
         # A ZHA reload replaces it, which __init__.py watches for.
         self._listened_cluster: Any = None
-        # No listener yet, so no lock event can arrive. The entities read
-        # this through OnestiEntity.available.
-        self._available = False
+        # The listener is registered a moment after the platforms are
+        # forwarded, so a coordinator that starts unavailable makes every
+        # entity write one unavailable state and then the real one, on
+        # every startup, reload and options change. That reaches the
+        # recorder and fires state-change automations. Starting from
+        # whether ZHA is up is the same answer the listener is about to
+        # give, and async_setup_entry corrects it when it is not: it
+        # cannot register the listener without ZHA, and says so.
+        self._available = is_zha_loaded(hass)
         self._load_slots()
 
     # -- Availability --
@@ -109,16 +115,27 @@ class OnestiCoordinator:
         """
         return self._available
 
-    def set_available(self, available: bool) -> None:
+    def set_available(self, available: bool, *, quiet: bool = False) -> None:
         """Set whether lock events reach us, and tell the entities.
 
         Logs one INFO line when they stop and one when they are back, and
         never the same one twice in a row. The flag is per IEEE and not
         per coordinator, since ZHA coming back reloads the entry and the
         return is reported by a new coordinator.
+
+        quiet leaves the log out of it entirely, for the caller that has
+        already said more than this could: ZHA internals missing is an
+        ERROR naming the piece, and "ZHA is not running" would be false
+        there.
         """
         changed = available is not self._available
         self._available = available
+        if not quiet:
+            self._log_availability(available)
+        if changed:
+            self._notify_listeners()
+
+    def _log_availability(self, available: bool) -> None:
         if available:
             if self.ieee in _LOSS_LOGGED:
                 _LOSS_LOGGED.discard(self.ieee)
@@ -126,8 +143,6 @@ class OnestiCoordinator:
         elif self.ieee not in _LOSS_LOGGED:
             _LOSS_LOGGED.add(self.ieee)
             _LOGGER.info("Lock events for %s stopped, ZHA is not running", self.ieee)
-        if changed:
-            self._notify_listeners()
 
     def _load_slots(self) -> None:
         """Load slot data from config entry options.

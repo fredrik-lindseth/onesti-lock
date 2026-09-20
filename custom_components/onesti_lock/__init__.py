@@ -107,10 +107,17 @@ def _async_discover_locks(hass: HomeAssistant) -> None:
     is stopped by the unique id in async_step_integration_discovery, and so
     is a second flow for a lock already being asked about. The check here
     only keeps the common case from making a flow at all.
+
+    The unique id counts as known next to the stored address, because an
+    ignored entry has no data at all. Without it every device registry
+    event from ZHA, for any device, started and aborted a flow per
+    ignored lock.
     """
     known = {
-        str(entry.data.get(CONF_IEEE, "")).lower()
+        address.lower()
         for entry in hass.config_entries.async_entries(DOMAIN)
+        for address in (str(entry.data.get(CONF_IEEE, "")), str(entry.unique_id or ""))
+        if address
     }
     for ieee, model in iter_onesti_locks(hass):
         if ieee.lower() in known:

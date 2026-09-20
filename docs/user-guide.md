@@ -85,6 +85,8 @@ Tags and fingerprints are enrolled on the lock itself, with the master code and 
 
 One entry per lock. With the first set up, the next lock is offered under **Discovered** as soon as it is paired with ZHA, and **Add Integration** still works by hand. Both show the model and the IEEE address, so two of the same model are told apart by the address, which ZHA shows on the lock's device page under Zigbee info as `00:0d:6f:00:11:22:33:44`. A lock you press Ignore on is not offered again, and locks already set up are left out. Each device is named after the model and the last four characters of the address; rename them to whatever the doors are called.
 
+A replaced Connect Module is not a new lock. Pair it with ZHA, then use **Reconfigure** on the existing entry and pick it, rather than confirming the Discovered card the pairing put on screen: the card would be a second entry for the same door, leaving the names and PIN status on the old one. Remove the old module from ZHA afterwards, or it is offered as a discovered lock every time ZHA changes.
+
 The services take a `device_id`, and the UI shows a lock picker for it. On Home Assistant 2026.9 and newer, pick this integration's device, not the ZHA device below it. Scripts can pass `ieee` instead, upper or lower case. With more than one lock and neither given, the call fails with a `multiple_locks` error listing the addresses rather than guessing which door to program.
 
 Events carry `ieee`, which is how an automation tells the locks apart. Event data is matched exactly, so copy the address as ZHA shows it, in lower case:

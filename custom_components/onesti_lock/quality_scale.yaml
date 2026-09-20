@@ -11,17 +11,9 @@ rules:
     comment: |
       The home-assistant/brands repository no longer takes custom
       integrations, so the icon ships in custom_components/onesti_lock/brand/.
-  common-modules:
-    status: todo
-    comment: |
-      coordinator.py exists, but there is no entity.py and device_info is
-      duplicated in both sensor classes.
+  common-modules: done
   config-flow: done
-  config-flow-test-coverage:
-    status: todo
-    comment: |
-      tests_ha does not reach every line of config_flow.py (the cancelled
-      task and an unknown model string) and has no already_configured test.
+  config-flow-test-coverage: done
   dependency-transparency: done
   docs-actions: done
   docs-conditions:
@@ -54,19 +46,18 @@ rules:
   docs-configuration-parameters: done
   docs-installation-parameters: done
   entity-unavailable:
-    status: todo
+    status: done
     comment: |
-      The sensors never become unavailable, not even when the event listener
-      could not be registered.
+      The entities follow NimlyCoordinator.available, which is false while no
+      event listener is registered. A lock that is merely asleep stays
+      available.
   integration-owner: done
   log-when-unavailable:
-    status: todo
+    status: done
     comment: |
-      Losing and regaining ZHA is logged on every reload, not once each way.
-  parallel-updates:
-    status: todo
-    comment: |
-      sensor.py does not set PARALLEL_UPDATES.
+      NimlyCoordinator.set_available logs one INFO line when lock events stop
+      and one when they are back, never the same one twice in a row.
+  parallel-updates: done
   reauthentication-flow:
     status: exempt
     comment: |
@@ -78,16 +69,18 @@ rules:
 
   # Gold
   devices:
-    status: todo
+    status: done
     comment: |
-      device_info has only identifiers, name and manufacturer. No model and no
-      link to the ZHA device.
+      build_device_info in entity.py sets model, serial_number, the zigbee
+      connection and a link to ZHA's own device for the lock.
   diagnostics: done
   discovery:
-    status: todo
+    status: done
     comment: |
-      A loaded integration could offer new Onesti locks paired in ZHA through
-      integration_discovery. It does not yet.
+      A loaded integration watches the device registry and starts an
+      integration_discovery flow for every Onesti lock in ZHA no entry owns.
+      The first lock cannot be discovered, since Home Assistant does not load
+      a custom integration that has no entry.
   discovery-update-info:
     status: exempt
     comment: |
@@ -105,25 +98,23 @@ rules:
     comment: |
       Each config entry has exactly one device. A new lock is a new entry.
   entity-category:
-    status: todo
+    status: done
     comment: |
-      The lock's capabilities are attributes on the activity sensor instead of
-      diagnostic sensors.
+      The lock's own numbers are diagnostic sensors. The slot and activity
+      sensors are primary and carry no category.
   entity-device-class: done
   entity-disabled-by-default:
-    status: todo
+    status: done
     comment: |
-      Nothing is disabled by default. The capability sensors should be.
+      The three capability sensors are disabled by default.
   entity-translations: done
   exception-translations: done
-  icon-translations:
-    status: todo
-    comment: |
-      sensor.py sets _attr_icon and there is no icons.json.
+  icon-translations: done
   reconfiguration-flow:
-    status: todo
+    status: done
     comment: |
-      Replacing the Connect Module cannot be done without a new entry.
+      async_step_reconfigure points the entry at another Connect Module and
+      keeps the device, its entities and the stored names.
   repair-issues: done
   stale-devices:
     status: exempt

@@ -367,7 +367,8 @@ MIT, Norwegian, five commits, last pushed 2026-08-10. It sits on top of
 Zigbee2MQTT (it subscribes to one device topic through HA's MQTT integration
 and never talks Zigbee itself) and adds an admin panel for fingerprint slots.
 It cites our `docs/nimly-ble-app/ble-protocol.md`, our README limitations and
-our `zigbee-captures.md` as sources. Read 2026-09-20 at commit `b47b09d`.
+our `zigbee-captures.md` as sources. Read 2026-09-20 at commit `b47b09d`, of
+which `docs/manuals/` keeps a local snapshot (one-star, one-person repo).
 
 **Its "guided local enrollment" is not a Zigbee enrollment.** The name reads
 like a fingerprint command over Zigbee; the code sends nothing. `start_fingerprint_enrollment`

@@ -3,6 +3,40 @@
 Gateway for Nimly/EasyAccess locks, bridging Zigbee devices to iotiliti.cloud.
 Documented so nobody needs to buy the hub to understand the system.
 
+## Two hubs, and this file is about the older one
+
+Onesti has sold two gateways, and "bridge" has meant both of them at different
+times. Everything below the next section describes the first one.
+
+| | Connect Gateway | Connect Bridge |
+| --- | --- | --- |
+| What it is | Ethernet box, Develco Squid.link 2B, MGW211 | Plug-in unit for a wall socket, 120x45x65 mm |
+| Sold as | EasyAccess Connect Bridge / EasyConnect, Nimly Connect Gateway | Nimly Connect Bridge |
+| To the house | Ethernet, or WLAN | Wi-Fi 2.4 GHz, set up over Bluetooth |
+| To the lock | Zigbee 3.0 | Zigbee 3.0 |
+| Locks | No stated limit | Two |
+| Status on nimly.se | "Utgången produkt", discontinued | Current |
+
+Fredrik's unit is the first one. The Nimly product page for the Connect
+Gateway is the one that says discontinued, read 2026-09-20; the Connect Bridge
+page is the one with the wall plug, the two-lock limit and the green/red
+backlight, and its installation guide is dated 17 June 2026
+(`https://nimly.se/wp-content/uploads/2026/06/SE-Connect-Bridge-Installation-Guide-17062026-online.pdf`,
+not yet in the `docs/manuals/` source table). The vendor's own Connect Module guide hedges by writing
+"Connect Gateway/Bridge" and leaving it there.
+
+The Nimly Connect app carries both, and calls them `develco-gateway` and
+`nimly-gateway`. They share one driver, also called `develco`, and one feature
+set: `wlan.set` with ssid/password/encryption, `power`, `status` with
+firmware version and update, and `scan.turnOn` to open joining. What separates
+them is a block of policy, quoted under "What else can join it" below. The app
+picks between them by serial number: one beginning `02000005` is the Connect
+Bridge, anything else the Connect Gateway. Fredrik's begins `02000001`.
+
+The app also knows one model number per hub: `EGW01` is the Connect Bridge,
+and a list of gateways without "certified mode" names `EGW01` and
+`MGW101-S402`. `MGW211` appears nowhere in the app.
+
 ## Brand hierarchy (white-label)
 
 The same hardware is sold under several brands, so one system goes by three
@@ -352,6 +386,123 @@ ZHA/zigbee2mqtt, remove it there first:
 
 The hub has limited Zigbee range, and the metal casing around the lock acts as
 a Faraday cage. Place the hub as close to the lock as possible during pairing.
+
+## What else can join it
+
+Three owners' claims about the hub were checked on 2026-09-20: that it takes
+nothing but Onesti locks, that Home Assistant cannot reach it, and that there
+is a "pro hub" you cannot buy. The first is a firmware and app policy, not a
+hardware limit. The second holds. The third is a product that does not exist.
+
+The hardware is a general gateway. Onics, which is what Develco Products is
+called now, lists the Squid.link 2B with Zigbee 3.0, Z-Wave Plus, Bluetooth
+and BLE, sub-GHz Wireless M-Bus and 2.4 GHz WLAN on the device side, and
+Ethernet, WLAN or LTE towards the house
+(`https://onics.com/products/squid-link-2b`, read 2026-09-20). Their own
+description of the family is that it bridges "wireless devices across
+communication protocols and brands", and they sell the platform into alarm,
+care, insurance and metering, where the devices are not door locks.
+
+What narrows it is the app. The Nimly Connect bundle carries a vendor list of
+its own, and it is not a lock list: Develco, Frient, Climax, Datek, Namron,
+ELKO, Schneider Electric, IKEA of Sweden, OSRAM, Heiman, D-Link, Aeotec,
+Reolink, Fireangel and Safe4 stand next to Onesti, Nimly, EasyAccess,
+Danalock, ID Lock, ASSA ABLOY and Dormakaba. Next to it sit device-type
+groups for bulbs, motion, window, vibration and air-quality sensors, sirens,
+smart plugs and alarm zones. That is the Safe4 alarm platform, shipped whole
+inside a door-lock app.
+
+Each gateway model then gets a policy object, and this is where the two hubs
+part:
+
+| Policy field | Connect Gateway (`develco-gateway`) | Connect Bridge (`nimly-gateway`) |
+| --- | --- | --- |
+| `vendor` | Onesti Products AS | nimly |
+| `alarmSupported` | true | false |
+| `automationSupported` | true | false |
+| `eventLogSupported` | true | false |
+| `enabledVendors` | not set | nimly only |
+| `hiddenVendors` | not set | EasyAccess |
+| `doorLocksLimit` | not set | 2 |
+| `smartplugsLimit` | not set | 3 |
+| `doorLockAccessTypeLimits` | not set | 20 each of PIN, tag, finger |
+| `locationTypeBlacklist` | not set | apartment buildings |
+| `doorLockRulesDisabled` | not set | true |
+
+The app reads those through `isVendorEnabledOnGateway`,
+`isDeviceTypeWhitelistedForVendorOnGateway`, `isAccessTypeLimitReachedOnGateway`
+and `isLocationTypeSupportedByGateway`, and each one returns "allowed" when the
+field is absent. So the newer Connect Bridge is fenced by name to Nimly-branded
+devices, two locks and three smart plugs, with the alarm and event-log half of
+the platform switched off, while the older Connect Gateway has no fence in the
+app at all and the alarm, automation and event-log flags on.
+
+Which does not mean anyone has done it. Nobody in the archive has reported
+adding a third-party Zigbee device to either hub, and no vendor page or manual
+invites it: Nimly's own product texts describe both hubs only as a way to run
+your locks from the Nimly Connect app, and the Connect Bridge page names the
+two-lock limit outright. The smart-plug allowance is the one place the vendor's
+own configuration admits to something that is not a lock. Read the table as
+where the restriction lives, not as a promise that an IKEA bulb will join.
+
+## Talking to it from Home Assistant
+
+It cannot be done, and as of 2026-09-20 nobody has reported doing it.
+
+Nothing local is offered. No web server (ports 80 and 443 closed), no local
+REST, no local MQTT; the only listening service is SSH, and that is open for
+about 60 seconds at boot and takes public keys only. The app does not help
+either: the decompiled Nimly Connect bundle contains no mDNS, no Bonjour, no
+LAN discovery and no local address of any kind. Every path from the phone to
+the lock goes phone → iotiliti cloud → MQTT → hub → Zigbee.
+
+Onics documents the Squid.link platform as having a "RESTful API for gateway
+configuration and control" in its Squid Smart App layer
+(`https://onics.com/gateway-software/squid-platform-software`, read
+2026-09-20). Whether that is reachable on the LAN or only from the operator's
+own backend is not stated, and the closed ports on this unit say Onesti's
+firmware does not put it on the network. Untested either way.
+
+Two people in the Home Assistant thread asked directly whether the gateway
+could be integrated instead of the lock, in November 2023 and December 2024.
+Neither got an answer. A third asked the same on the Homey forum, and the app
+author's reply was that the Nimly app for Homey talks Zigbee to the lock,
+because no cloud path through the gateway is offered. Searches of the Home
+Assistant, Homey, openHAB and Hubitat forums and of GitHub for the hub, for
+`MGW211`, for Squid.link and for iotiliti return nothing at all. Two Swedish
+forums and Reddit could not be searched, so this is "not found", not "proven
+absent".
+
+That is also why the hub is not an option for this integration. It cannot be
+shared with ZHA, since the lock joins one Zigbee network at a time, and it
+cannot be reached without the vendor's cloud.
+
+## The "pro hub"
+
+No such product. There is no "Connect Bridge Pro", "Connect Gateway Pro" or
+"Nimly hub Pro" on nimly.se, nimly.no or easyaccess.no, at any Nordic
+retailer, in any manual, in the app or anywhere the 105 archived sources
+reach. The word "pro" in this family belongs to lock models, Touch Pro and
+Code Pro. The app's own gateway registry holds exactly two entries, both
+covered above.
+
+Three things nearby could be mistaken for it, and are worth naming so the
+question does not come back:
+
+- **The older hub is the more capable one, and it is the one you cannot
+  buy.** The Connect Gateway carries alarm, automation and event log and no
+  device limits, the Connect Bridge that replaced it is capped at two locks
+  with those features off, and nimly.se marks the Connect Gateway
+  "utgången produkt". An owner told that the better hub exists, and then
+  unable to order it, has the situation exactly right, only with the tiers
+  the other way round from how a "pro" model usually works.
+- **Homey Pro.** A real hub, from a different company, and one of the
+  third-party systems Nimly's own Connect Module page points at. "Buy a pro
+  hub and get more out of the lock" is a fair description of it, and it is
+  not sold by Nimly, which would explain not finding it in their shop.
+- **Squid.link 2X.** Onics does sell a higher tier than the 2B, with more
+  memory and a Matter-ready update path. Nothing ties it to Onesti: no
+  Nimly or EasyAccess product is built on it, and nobody has announced one.
 
 ## Relevance for the HA integration
 

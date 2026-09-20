@@ -99,6 +99,10 @@ Three layers, each described in full in `docs/technical.md`; the file names belo
 | `docs/upstream-status.md`                       | Open threads in the ZHA quirk and the Z2M converter, and why we do not build dual transport   |
 | `docs/feature-parity.md`                        | What the vendor app and hub do that we do not, what BLE could add, and what is never ours     |
 
+## Writing docs
+
+Short and dry, as a person would write it. Fewer words beat more; a sentence that can be halved is halved, a paragraph that repeats the previous one goes, and nothing gets a transition or a summary. Write "is", not "serves as" or "represents"; no "not only X but also Y", no rule-of-three, no "-ing" tails ("highlighting", "ensuring"), no bold lead-ins as pseudo-headings, no em-dashes, no "honest" or "genuinely" as seasoning. What is inferred, unmeasured or untried is said to be so, every time, in as few words as the claim needs.
+
 ## Testing
 
 | Suite                        | Runs against                                                                          | Command                                         | Covers                                                                                              |

@@ -71,7 +71,7 @@ Or go to **Settings → Devices & Services → Add Integration → Onesti Lock**
 
 ZHA and this integration split the work. ZHA owns the lock itself: the lock entity you lock and unlock with, the battery, and whatever sensors ZHA's quirk adds. This integration adds names, activity and PIN management. That gives two devices per lock in Home Assistant, ZHA's device with the lock entity and a device called Onesti Lock with the sensors below. Entities named `sensor.onesti_products_as_*` come from ZHA's quirk, not from this integration.
 
-Each lock gets ten slot sensors and one activity sensor. The slot sensors start at the first user slot (see [Managing access](#managing-access)), so slots 3-12 by default and 1-10 on a Code Pro set to one master slot. Changing that setting moves the row and removes the sensors that fell out of it. A slot sensor shows the name on the slot, or "Vacant", with `slot_id` and `has_pin` as attributes.
+Each lock gets ten slot sensors, one activity sensor and three diagnostic sensors that are off by default. The slot sensors start at the first user slot (see [Managing access](#managing-access)), so slots 3-12 by default and 1-10 on a Code Pro set to one master slot. Changing that setting moves the row and removes the sensors that fell out of it. A slot sensor shows the name on the slot, or "Vacant", with `slot_id` and `has_pin` as attributes.
 
 The activity sensor reads like "Kari unlocked with code" and has these attributes:
 
@@ -82,9 +82,8 @@ The activity sensor reads like "Kari unlocked with code" and has these attribute
 | `action`         | `lock`, `unlock` or `unknown`                                                                      |
 | `source`         | `keypad`, `rfid`, `fingerprint`, `zigbee`, `auto`, `unattributed` or `unknown`                     |
 | `timestamp`      | When the event arrived, in UTC as ISO 8601                                                         |
-| `num_pin_users`  | PIN slots the lock reports, once it has reported them                                              |
-| `min_pin_length` | Shortest PIN code the lock reports, once it has reported it                                        |
-| `max_pin_length` | Longest PIN code the lock reports, once it has reported it                                         |
+
+Three more sensors show what the lock says about itself: PIN slots, shortest PIN code and longest PIN code. They are diagnostic sensors and switched off when the integration is set up, since the numbers are the same for every lock of a model and only matter when a code is refused. Turn them on under the device, and they show a value once the lock has been awake and answered. Up to and including 1.4.0 the same three numbers were attributes on the activity sensor.
 
 All the sensors go unavailable while ZHA is not running, since no lock event can reach Home Assistant then; a lock that is only asleep keeps them as they are.
 

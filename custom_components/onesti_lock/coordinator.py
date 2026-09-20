@@ -282,6 +282,9 @@ class NimlyCoordinator:
                 },
             )
             _LOGGER.debug("Lock %s reported capabilities %s", self.ieee, capabilities)
+        # Outside the lock: the diagnostic sensors show these numbers and
+        # have nothing to show until the lock has answered once.
+        self._notify_listeners()
 
     def schedule_capability_refresh(self) -> None:
         """Run async_refresh_capabilities in the background, if still needed.

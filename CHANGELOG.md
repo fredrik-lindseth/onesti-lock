@@ -14,6 +14,8 @@ All notable changes to Onesti Lock. The format is based on [Keep a Changelog](ht
 
 ### Breaking changes
 
+- **The lock's PIN capacity and code length moved off the activity sensor.** `num_pin_users`, `min_pin_length` and `max_pin_length` are no longer attributes there. They are three sensors of their own, switched off when the integration is set up: turn them on under the device if you need them. An automation or template reading the old attributes has to point at the sensors instead. <!--short-->
+
 ## [1.4.0] - 2026-09-19
 
 ### Action required

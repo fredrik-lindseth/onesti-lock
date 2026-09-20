@@ -132,14 +132,7 @@ The `appstore` and `android` rows cover every app in the white-label family, one
 
 Two Swedish forums are in the table as `manual` rows. byggahus.se and sweclockers.com both answer 403 to anything that is not a browser: the block is a Cloudflare challenge served before any HTML, so there is no fallback to parse. Only a real browser gets through, which is why the script cannot own these rows even though the text is now local. hemautomation.se is not in the table at all: the domain is parked at Loopia and the forum no longer exists.
 
-All four rows were read on 2026-09-20 and their text now lies in `forums/`, so the script still fetches nothing but the content is local. What worked, and what did not:
-
-- sweclockers serves the public `r.jina.ai` text reader, so thread 1713551 came out as text in one request. byggahus does not: the reader gets the same "Just a moment..." interstitial curl gets.
-- **The byggahus block is not a cookie problem.** Lending the Cloudflare clearance from a Firefox profile was the plan, and it cannot work: neither profile holds a `cf_clearance` for the site, and the browser that gets 200 sends nothing but a consent cookie and an XenForo CSRF token. Cloudflare is judging the TLS and HTTP fingerprint, so curl is answered 403 with any headers and any jar. The request headers of a browser load that did get 200 are what settle it; `hentkilde.py --jar` is the wrong tool for this site and always will be.
-- Headless Chrome (`--headless=new --dump-dom`) is detected and gets the interstitial. Headless Firefox is not.
-- What worked: start a throwaway Firefox with `--headless --profile <tmp> --remote-debugging-port <n>` and drive it over WebDriver BiDi, `script.evaluate` reading `article.message` out of the DOM, one page at a time with a pause between them. Firefox allows one BiDi session at a time, so this cannot share the browser the devtools MCP holds; it needs its own. That got all three byggahus threads in full, 621 posts.
-- The devtools MCP alone is not a text route here. `take_snapshot` truncates every text node to about 30 characters on this site, and there is no scroll command, so a thread body cannot be captured that way. That is what limited the first pass to 5 of 7 posts.
-- Neither site has a wayback snapshot of any of these threads, checked through the CDX API.
+All four rows were read on 2026-09-20 and their text now lies in `forums/`, so the script fetches nothing for them. Automated fetching does not work on either site, and Wayback has none of the threads, checked through the CDX API. Re-reading them is a manual job.
 
 | Local item | Source | Type | Key | Fetched | Size then |
 | ---------- | ------ | ---- | --- | ------- | --------- |
@@ -278,7 +271,7 @@ All four rows were read on 2026-09-20 and their text now lies in `forums/`, so t
 | forums/byggahus-497166.txt | https://www.byggahus.se/forum/threads/497166 | manual | 497166 | 2026-09-20 | 592 posts, 40 pages, whole thread, headless Firefox over BiDi |
 | forums/byggahus-573457.txt | https://www.byggahus.se/forum/threads/573457 | manual | 573457 | 2026-09-20 | 22 posts, 2 pages, whole thread, headless Firefox over BiDi |
 | forums/byggahus-543716.txt | https://www.byggahus.se/forum/threads/543716 | manual | 543716 | 2026-09-20 | 7 posts, whole thread, headless Firefox over BiDi |
-| forums/sweclockers-1713551.txt | https://www.sweclockers.com/forum/trad/1713551 | manual | 1713551 | 2026-09-20 | 2 posts, whole thread, via r.jina.ai |
+| forums/sweclockers-1713551.txt | https://www.sweclockers.com/forum/trad/1713551 | manual | 1713551 | 2026-09-20 | 2 posts, whole thread |
 | code/nimly-manager/ | https://github.com/aridder/nimly-manager | gh-repo | aridder/nimly-manager@main | 2026-09-20 | b47b09d4cdac |
 
 ## White-label brands

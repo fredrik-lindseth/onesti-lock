@@ -5,10 +5,26 @@ name: E2E
 #
 # Its own workflow, not a job in ci.yml, and therefore not part of the release
 # gate: it needs Docker and a 600 MB image pull per target, and the graph the
-# release waits for should not wait for that. It runs beside CI on pull
-# requests, so it never delays anything.
+# release waits for should not wait for that. It runs beside CI, so it never
+# delays anything.
+#
+# The pull_request trigger alone meant it had never run: this repository has
+# had no pull request, every commit goes straight to main, and the 1.5.0 diff
+# that changes the entity set was never loaded in a container by CI. The push
+# trigger below fixes that. It carries a path filter because a docs commit
+# cannot change what the ZIP contains, and the release commit is caught by it:
+# the manifest bump is inside custom_components.
 
 on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'custom_components/**'
+      - 'blueprints/**'
+      - 'tests_e2e/**'
+      - 'scripts/release_publish.py'
+      - 'hacs.json'
+      - '.github/workflows/e2e.yml'
   pull_request:
     branches: [ main ]
   workflow_dispatch:

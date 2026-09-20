@@ -116,7 +116,7 @@
   },
   "exceptions": {
     "lock_unreachable": {
-      "message": "Could not reach the lock. Wake the radio by turning the knob, or with a valid code + # on the keypad, which also unlocks the door. Touching the keypad only lights it up. Then try again."
+      "message": "Could not reach the lock. Wake the radio by turning the knob, or with a valid code + # on the keypad, which also unlocks the door. Then try again."
     },
     "lock_rejected": {
       "message": "The lock refused the command (status {status}). Check the slot and the code, then try again."

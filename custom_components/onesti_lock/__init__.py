@@ -69,7 +69,9 @@ def _watch_for_undiscovered_locks(hass: HomeAssistant) -> None:
         if event.data["action"] not in ("create", "update"):
             return
         device = dr.async_get(hass).async_get(event.data["device_id"])
-        if device is None:
+        # A child device (HA 2026.9 and up) has no connections of its own,
+        # and a lock is never one.
+        if not isinstance(device, dr.DeviceEntry):
             return
         if not any(conn[0] == dr.CONNECTION_ZIGBEE for conn in device.connections):
             return

@@ -15,7 +15,7 @@ import logging
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 # ZHA is a manifest dependency, so its helpers and the zigpy it ships are
 # importable whenever this integration is.
@@ -29,6 +29,13 @@ from zigpy.zcl.foundation import Status
 from .const import DOORLOCK_CLUSTER_ID, MANUFACTURER, WAKE_ECHO_WINDOW_S, ZHA_DOMAIN
 from .redact import redact_digits
 
+if TYPE_CHECKING:
+    # Names used in annotations only, so the running integration never
+    # depends on where they live in the zigpy its Home Assistant ships,
+    # and the stubbed zigpy in tests/ does not have to grow them.
+    from zigpy.zcl import Cluster
+    from zigpy.zcl.foundation import ZCLAttributeDef
+
 _LOGGER = logging.getLogger(__name__)
 
 # How far down the .device chain to look: ZHADeviceProxy -> Device ->
@@ -39,7 +46,7 @@ _CHAIN_DEPTH = 4
 #   0x0012 NumberOfPINUsersSupported
 #   0x0017 MaxPINCodeLength
 #   0x0018 MinPINCodeLength
-_CAPABILITY_ATTR_IDS = [0x0012, 0x0017, 0x0018]
+_CAPABILITY_ATTR_IDS: list[int | str | ZCLAttributeDef] = [0x0012, 0x0017, 0x0018]
 # Keyed by both the numeric id and zigpy's own attribute name for the
 # same attribute, because zigpy keys the success dict by whatever the
 # caller passed in and a quirk or a future zigpy may hand back names
@@ -154,8 +161,14 @@ def rejected(command: int, response: Any, status: Any) -> SendOutcome:
     return SendOutcome(Delivery.REJECTED, status=code, rejection=rejection)
 
 
-def _gateway_proxy(hass: HomeAssistant):
-    """ZHA's gateway proxy, or None when ZHA has no running gateway."""
+def _gateway_proxy(hass: HomeAssistant) -> Any:
+    """ZHA's gateway proxy, or None when ZHA has no running gateway.
+
+    Typed as Any because the proxy is a zha library object, and the zha
+    library is not installed for the type check: ZHA brings it, and
+    pinning it here would tie the check to a version Home Assistant
+    chooses.
+    """
     try:
         return get_zha_gateway_proxy(hass)
     except ValueError:
@@ -181,7 +194,7 @@ def iter_device_proxies(hass: HomeAssistant) -> Iterator[tuple[Any, Any]]:
     yield from gateway_proxy.device_proxies.items()
 
 
-def device_metadata(proxy) -> tuple[str, str]:
+def device_metadata(proxy: Any) -> tuple[str, str]:
     """(manufacturer, model) as the ZHA device reports them."""
     device = proxy.device if hasattr(proxy, "device") else proxy
     return getattr(device, "manufacturer", ""), getattr(device, "model", "")
@@ -203,7 +216,7 @@ def iter_onesti_locks(hass: HomeAssistant) -> Iterator[tuple[str, str]]:
         yield str(ieee), model
 
 
-def _walk_to_door_lock_cluster(obj):
+def _walk_to_door_lock_cluster(obj: Any) -> Cluster | None:
     """The Door Lock cluster below obj, or None.
 
     Walks the ZHA object chain: ZHADeviceProxy → Device → CustomDeviceV2
@@ -217,7 +230,7 @@ def _walk_to_door_lock_cluster(obj):
                     continue
                 clusters = getattr(ep, "in_clusters", {})
                 if DOORLOCK_CLUSTER_ID in clusters:
-                    return clusters[DOORLOCK_CLUSTER_ID]
+                    return cast("Cluster", clusters[DOORLOCK_CLUSTER_ID])
         if hasattr(obj, "device"):
             obj = obj.device
         else:
@@ -225,12 +238,12 @@ def _walk_to_door_lock_cluster(obj):
     return None
 
 
-def has_door_lock_cluster(obj) -> bool:
+def has_door_lock_cluster(obj: Any) -> bool:
     """Whether the ZHA device exposes the Door Lock cluster."""
     return _walk_to_door_lock_cluster(obj) is not None
 
 
-def find_door_lock_cluster(hass: HomeAssistant, ieee: str):
+def find_door_lock_cluster(hass: HomeAssistant, ieee: str) -> Cluster | None:
     """Get the Door Lock cluster for one device from ZHA, or None."""
     if _gateway_proxy(hass) is None:
         _LOGGER.error("ZHA has no running gateway, so the lock cannot be reached")
@@ -263,7 +276,7 @@ def find_zha_device(hass: HomeAssistant, ieee: str) -> dr.DeviceEntry | None:
     by_connection = getattr(device_registry, "async_get_device_by_connection", None)
     for zha_entry in hass.config_entries.async_entries(ZHA_DOMAIN):
         if by_connection is not None:
-            device = by_connection(connection, zha_entry.entry_id)
+            device = cast("dr.DeviceEntry | None", by_connection(connection, zha_entry.entry_id))
             if device is not None:
                 return device
             continue
@@ -312,7 +325,7 @@ class ZhaLockTransport:
         # time.monotonic() of the last wake actuation, for wake_echo_pending.
         self._last_wake: float | None = None
 
-    def cluster(self):
+    def cluster(self) -> Cluster | None:
         """The lock's zigpy Door Lock cluster, or None."""
         return find_door_lock_cluster(self.hass, self.ieee)
 
@@ -370,7 +383,7 @@ class ZhaLockTransport:
                 "Wake attempt failed (%s), proceeding anyway", type(err).__name__
             )
 
-    async def send(self, command: int, params: dict) -> SendOutcome:
+    async def send(self, command: int, params: dict[str, Any]) -> SendOutcome:
         """Send a ZCL command to the lock's Door Lock cluster.
 
         Calls the command on the zigpy cluster directly, the same call ZHA's

@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 
 import voluptuous as vol
 from homeassistant.config_entries import (
-    ConfigEntry,
     ConfigEntryState,
     ConfigFlow,
     ConfigFlowResult,
@@ -65,7 +64,7 @@ class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
+    def async_get_options_flow(config_entry: NimlyConfigEntry) -> OptionsFlow:
         return NimlyProOptionsFlow()
 
     def _create_lock_entry(self, ieee: str, model: str) -> ConfigFlowResult:
@@ -105,7 +104,7 @@ class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
         """The picker's options: the model and the address, per lock."""
         return {ieee: f"{model} ({ieee})" for ieee, model in locks.items()}
 
-    async def async_step_user(self, user_input=None) -> ConfigFlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle user step: select a Nimly lock from ZHA."""
         if not is_zha_loaded(self.hass):
             return self.async_abort(reason="zha_not_found")
@@ -127,7 +126,7 @@ class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
             ),
         )
 
-    async def async_step_reconfigure(self, user_input=None) -> ConfigFlowResult:
+    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Point an existing entry at another Connect Module.
 
         The module (ZMNC010) is an accessory, and a replacement brings a
@@ -203,7 +202,7 @@ class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
         }
         return await self.async_step_discovery_confirm()
 
-    async def async_step_discovery_confirm(self, user_input=None) -> ConfigFlowResult:
+    async def async_step_discovery_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Ask before setting up a discovered lock."""
         if user_input is not None:
             return self._create_lock_entry(self._discovered_ieee, self._discovered_model)
@@ -360,7 +359,7 @@ class NimlyProOptionsFlow(OptionsFlow):
 
     # -- Main menu --
 
-    async def async_step_init(self, user_input=None) -> ConfigFlowResult:
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Main menu: choose action, or say that the lock is not running.
 
         Every step below reads the coordinator from entry.runtime_data, which
@@ -380,7 +379,7 @@ class NimlyProOptionsFlow(OptionsFlow):
 
     # -- Set PIN: form → progress → result --
 
-    async def async_step_set_pin(self, user_input=None) -> ConfigFlowResult:
+    async def async_step_set_pin(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Set a PIN code: show form, validate, start background task."""
         errors: dict[str, str] = {}
         suggested: dict[str, Any] | None = None
@@ -420,7 +419,7 @@ class NimlyProOptionsFlow(OptionsFlow):
         )
 
     async def async_step_set_pin_progress(
-        self, user_input=None,
+        self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Show a spinner while set_pin runs, then route on its outcome.
 
@@ -455,7 +454,7 @@ class NimlyProOptionsFlow(OptionsFlow):
         return self.async_show_progress_done(next_step_id="set_pin_done")
 
     async def async_step_set_pin_done(
-        self, user_input=None,
+        self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Finish the flow after the lock accepted the PIN."""
         self._set_pin_input = None
@@ -465,7 +464,7 @@ class NimlyProOptionsFlow(OptionsFlow):
 
     # -- Clear PIN: form → progress → result --
 
-    async def async_step_clear_pin(self, user_input=None) -> ConfigFlowResult:
+    async def async_step_clear_pin(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Clear a PIN code: show form, start background task."""
         errors: dict[str, str] = {}
 
@@ -518,7 +517,7 @@ class NimlyProOptionsFlow(OptionsFlow):
         )
 
     async def async_step_clear_pin_progress(
-        self, user_input=None,
+        self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Show a spinner while clear_pin runs, then route on its outcome.
 
@@ -548,7 +547,7 @@ class NimlyProOptionsFlow(OptionsFlow):
         return self.async_show_progress_done(next_step_id="clear_pin_done")
 
     async def async_step_clear_pin_done(
-        self, user_input=None,
+        self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Finish the flow after the lock cleared the PIN."""
         self._clear_pin_input = None
@@ -557,7 +556,7 @@ class NimlyProOptionsFlow(OptionsFlow):
 
     # -- Name slot (for RFID, fingerprint, etc.) --
 
-    async def async_step_name_slot(self, user_input=None) -> ConfigFlowResult:
+    async def async_step_name_slot(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Assign a name to any slot (for RFID tags, fingerprints, etc.)."""
         errors: dict[str, str] = {}
         suggested: dict[str, Any] | None = None
@@ -592,7 +591,7 @@ class NimlyProOptionsFlow(OptionsFlow):
 
     # -- View slots --
 
-    async def async_step_view_slots(self, user_input=None) -> ConfigFlowResult:
+    async def async_step_view_slots(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """View current slot status, shown as description text."""
         strings = await async_get_strings(self.hass, self.hass.config.language)
         pin_active = strings.get("slot_status_pin_active", "(PIN active)")
@@ -632,7 +631,7 @@ class NimlyProOptionsFlow(OptionsFlow):
 
     # -- Settings --
 
-    async def async_step_settings(self, user_input=None) -> ConfigFlowResult:
+    async def async_step_settings(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Per-lock settings: how many slots from 0 up are master codes."""
         if user_input is not None:
             # Merged into the existing options, which also hold slot data.

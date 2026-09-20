@@ -119,6 +119,21 @@ def test_pycache_is_left_behind(stub_path: tuple[str, Path]) -> None:
     assert "--exclude '*.pyc'" in copy
 
 
+def test_appledouble_sidecars_cannot_reach_the_box(stub_path: tuple[str, Path]) -> None:
+    """macOS tar writes a `._name` sidecar per file with an extended attribute.
+
+    Every file in a checkout here carries com.apple.provenance, so the
+    sidecars double the `*.py` count in the staging directory and the gate
+    stops the deploy before the swap. COPYFILE_DISABLE=1 keeps them out of
+    the stream, and the exclude on the receiving side drops any that were
+    written anyway. busybox tar on the box understands the flag.
+    """
+    lines = run_script(stub_path, "--dry-run", "deploy")
+    copy = lines[index_of(lines, "tar czf - -C")]
+    assert copy.split("+ ", 1)[1].startswith("COPYFILE_DISABLE=1 tar "), copy
+    assert "--exclude ._*" in copy, copy
+
+
 def test_check_then_restart_then_states(stub_path: tuple[str, Path]) -> None:
     lines = run_script(stub_path, "--dry-run", "deploy")
     swap = index_of(lines, "mv /config/custom_components/onesti_lock.new")

@@ -37,12 +37,22 @@ remote() { # remote <command>
   fi
 }
 
+# Two guards against AppleDouble files, which macOS tar writes as a sidecar
+# `._name` for every file carrying an extended attribute. Everything in a
+# checkout on this machine carries com.apple.provenance, so a deploy from
+# macOS can double the file count in the staging directory: `._sensor.py`
+# matches `*.py`, the staging gate counts twice what it copied, and the
+# deploy stops before the swap. COPYFILE_DISABLE=1 tells tar not to write
+# them; the exclude on the receiving side drops any that were written
+# anyway, so nothing named `._*` can reach /config whatever tar this
+# machine has.
 push_staging() { # tar the component over the wire, without __pycache__
-  local cmd="tar czf - -C $REPO/custom_components --exclude __pycache__ --exclude '*.pyc' $COMPONENT"
-  echo "+ $cmd | ssh $HA_SSH 'tar xzf - -C $STAGING --strip-components=1'"
+  local cmd="COPYFILE_DISABLE=1 tar czf - -C $REPO/custom_components --exclude __pycache__ --exclude '*.pyc' $COMPONENT"
+  echo "+ $cmd | ssh $HA_SSH 'tar xzf - -C $STAGING --strip-components=1 --exclude ._*'"
   if [ "$DRY_RUN" = 0 ]; then
-    tar czf - -C "$REPO/custom_components" --exclude __pycache__ --exclude '*.pyc' "$COMPONENT" \
-      | ssh_ha "tar xzf - -C $STAGING --strip-components=1"
+    COPYFILE_DISABLE=1 \
+      tar czf - -C "$REPO/custom_components" --exclude __pycache__ --exclude '*.pyc' "$COMPONENT" \
+      | ssh_ha "tar xzf - -C $STAGING --strip-components=1 --exclude '._*'"
   fi
 }
 

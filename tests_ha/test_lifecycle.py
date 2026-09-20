@@ -366,7 +366,9 @@ async def test_an_ieee_stored_in_another_case_is_still_rewritten(
     )
 
 
-async def test_a_rollback_duplicate_is_folded_back_in(hass: HomeAssistant, mock_zha) -> None:
+async def test_a_rollback_duplicate_is_folded_back_in(
+    hass: HomeAssistant, mock_zha, caplog: pytest.LogCaptureFixture
+) -> None:
     """Downgrading and upgrading again leaves one set of entities, the user's.
 
     A release keyed on the address does not know about 2.3 and registers
@@ -414,6 +416,13 @@ async def test_a_rollback_duplicate_is_folded_back_in(hass: HomeAssistant, mock_
     assert [device.id for device in dr.async_entries_for_config_entry(dr.async_get(hass), entry.entry_id)] == [
         kept_device.id
     ]
+    # This is the only path that looks the entry-id device up, so it is where
+    # a deprecated registry lookup would show. From HA 2026.9 such a call
+    # warns through homeassistant.helpers.frame, names this integration and
+    # asks the user to file a bug, and the warning reaches everyone who
+    # upgrades. On the minimum HA nothing reports, and the assert is free.
+    deprecated = [r for r in caplog.records if "is deprecated" in r.message and DOMAIN in r.message]
+    assert not deprecated, [r.message for r in deprecated]
 
 
 async def test_a_leftover_entity_row_does_not_kill_the_entry(

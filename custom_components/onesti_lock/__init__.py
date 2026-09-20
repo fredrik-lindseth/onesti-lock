@@ -167,7 +167,14 @@ def _migrate_to_entry_id_keys(hass: HomeAssistant, entry: OnestiConfigEntry) -> 
     ieee: str = entry.data[CONF_IEEE]
     prefix = f"{ieee.lower()}-"
     device_registry = dr.async_get(hass)
-    for device in dr.async_entries_for_config_entry(device_registry, entry.entry_id):
+    devices = dr.async_entries_for_config_entry(device_registry, entry.entry_id)
+    # The entry-id key is looked for in the entry's own devices rather than
+    # through async_get_device, which searched every config entry and is
+    # deprecated from HA 2026.9 with a warning telling the user to file a
+    # bug against us. Its replacement, async_get_device_by_identifier, does
+    # not exist on the minimum HA, and the list is already at hand.
+    owner = next((d for d in devices if (DOMAIN, entry.entry_id) in d.identifiers), None)
+    for device in devices:
         stale = {
             identifier
             for identifier in device.identifiers
@@ -175,7 +182,6 @@ def _migrate_to_entry_id_keys(hass: HomeAssistant, entry: OnestiConfigEntry) -> 
         }
         if not stale:
             continue
-        owner = device_registry.async_get_device(identifiers={(DOMAIN, entry.entry_id)})
         if owner is not None and owner.id != device.id:
             # A rollback re-registered the old key as a second device. The
             # entry-id one is the user's own row, with their name, area and
@@ -184,10 +190,12 @@ def _migrate_to_entry_id_keys(hass: HomeAssistant, entry: OnestiConfigEntry) -> 
             _LOGGER.debug("Removing the duplicate device %s of %s", device.id, entry.entry_id)
             device_registry.async_update_device(device.id, remove_config_entry_id=entry.entry_id)
             continue
-        device_registry.async_update_device(
+        updated = device_registry.async_update_device(
             device.id,
             new_identifiers=(device.identifiers - stale) | {(DOMAIN, entry.entry_id)},
         )
+        if owner is None:
+            owner = updated
     entity_registry = er.async_get(hass)
     for registry_entry in er.async_entries_for_config_entry(entity_registry, entry.entry_id):
         if not registry_entry.unique_id.lower().startswith(prefix):

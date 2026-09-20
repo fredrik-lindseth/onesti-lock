@@ -33,6 +33,7 @@ stays gitignored; the row in git is the record of when we looked and at what.
     python3 scripts/fetch_manuals.py --only appstore --only android   # just the apps
 """
 import argparse
+import collections
 import datetime
 import hashlib
 import html
@@ -242,6 +243,18 @@ def parse_living_table(text):
             )
         )
     return rows
+
+
+def duplicate_items(rows):
+    """Living rows whose item appears more than once, as (item, count).
+
+    The item is the file each fetch writes, so two rows sharing one means the
+    second overwrites the first's file. Two rows identical line for line are
+    only a double fetch, since the write-back is keyed on the line. Both are
+    table bugs, and neither shows up on its own.
+    """
+    counts = collections.Counter(row.item for row in rows)
+    return [(item, n) for item, n in sorted(counts.items()) if n > 1]
 
 
 def strip_html(text):
@@ -551,6 +564,7 @@ def fetch_living(write_back=True, only=None):
     """
     text = README.read_text()
     rows = parse_living_table(text)
+    duplicates = duplicate_items(rows)
     if only:
         rows = [row for row in rows if row.kind in only]
     if not rows:
@@ -587,6 +601,10 @@ def fetch_living(write_back=True, only=None):
             print(f"  {item}: {before} -> {after}")
     else:
         print("nothing moved since the last fetch")
+    if duplicates:
+        for item, count in duplicates:
+            print(f"DUPLICATE  {item}: {count} rows in the Living sources table")
+        return 1
     return 0
 
 

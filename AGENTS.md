@@ -83,6 +83,7 @@ Three layers, each described in full in `docs/technical.md`; the file names belo
 | `docs/nimly-connect-app/app-architecture.md`    | iotiliti cloud ecosystem, white-label hierarchy, DoorlockTypes, cloud events                  |
 | `docs/nimly-connect-app/reversing-notes.md`     | Nimly Connect APK reverse engineering, REST API, white-label hosts                            |
 | `docs/nimly-connect-app/iotiliti-api-spec.yaml` | OpenAPI spec for iotiliti cloud (reverse-engineered)                                          |
+| `docs/nimly-connect-app/app-versions.md`        | Which app builds the readings came from, every brand's store version, and how to diff a new decompilation |
 | `docs/nimly-ble-app/ble-protocol.md`            | BLE protocol from decompiled nimly BLE app (not used by integration)                          |
 | `docs/nimly-ble-app/ble-auth-provisioning.md`   | Owner enrollment over BLE: local ECDH owner key, factory-reset default cred, cloud only for guests |
 | `docs/nimly-ble-app/ble-library.md`             | The `ble/` library: layers, API, transports, Enrollment storage, errors, vector provenance, verified vs lock-only |

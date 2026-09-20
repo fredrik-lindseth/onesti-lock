@@ -13,6 +13,7 @@ with asyncio.run().
 from __future__ import annotations
 
 import asyncio
+import gc
 import json
 from types import SimpleNamespace
 
@@ -335,3 +336,68 @@ class TestSetupState:
         assert coord.wake_echo_pending() is False
         transport.pending = True
         assert coord.wake_echo_pending() is True
+
+
+class TestLossLogging:
+    """The loss of lock events is logged once, and the return once.
+
+    The flag cannot live on the coordinator: ZHA coming back reloads the
+    entry, so the loss is logged by the coordinator that is on its way out
+    and the return by the one that takes over. It is keyed on the config
+    entry object, which survives that reload and is dropped when the entry
+    is removed.
+    """
+
+    @staticmethod
+    def _lines(caplog, text):
+        return [r for r in caplog.records if r.levelname == "INFO" and text in r.getMessage()]
+
+    def _losses(self, caplog):
+        return self._lines(caplog, "stopped, ZHA is not running")
+
+    def _returns(self, caplog):
+        return self._lines(caplog, "are arriving again")
+
+    def test_loss_and_return_are_logged_once_each(self, caplog):
+        caplog.set_level("INFO")
+        _hass, _entry, coord = _make_coordinator({"slots": {}})
+
+        coord.set_available(False)
+        coord.set_available(False)
+        assert len(self._losses(caplog)) == 1
+
+        coord.set_available(True)
+        coord.set_available(True)
+        assert len(self._returns(caplog)) == 1
+
+    def test_a_reload_reports_the_return_through_the_new_coordinator(self, caplog):
+        """Same entry, new coordinator: the loss it did not log is still its own."""
+        caplog.set_level("INFO")
+        hass, entry, coord = _make_coordinator({"slots": {}})
+        coord.set_available(False)
+        assert len(self._losses(caplog)) == 1
+
+        after_reload = coordinator_mod.OnestiCoordinator(hass, entry)
+        after_reload.set_available(True)
+
+        assert len(self._returns(caplog)) == 1
+
+    def test_a_removed_entry_leaves_nothing_behind(self, caplog):
+        """A lock removed while ZHA is down, and added again later.
+
+        Keyed on the IEEE, the new entry inherited the old one's logged
+        loss and reported events "arriving again" that never went away.
+        """
+        caplog.set_level("INFO")
+        _hass, entry, coord = _make_coordinator({"slots": {}})
+        coord.set_available(False)
+        assert len(self._losses(caplog)) == 1
+
+        del entry, coord
+        gc.collect()
+        assert len(coordinator_mod._LOSS_LOGGED) == 0
+
+        _hass2, _entry2, fresh = _make_coordinator({"slots": {}})
+        fresh.set_available(True)
+
+        assert self._returns(caplog) == []

@@ -73,6 +73,15 @@ class OnestiEntity(Entity):
     must not change. Never set _attr_name here or in a subclass: HA checks
     it before the translation key, which silently disables translated
     names.
+
+    Available, deliberately, whatever ZHA is doing. Almost everything
+    these entities show is Home Assistant's own stored data in
+    entry.options: slot names, whether a slot holds a code, what the lock
+    once reported about itself. None of it goes stale because the Zigbee
+    stack is down, and all of it is still writable through the options
+    flow and the services. Only a value that ZHA keeps up to date can go
+    unavailable, and the activity sensor is the one that does; it
+    overrides this with OnestiCoordinator.available.
     """
 
     _attr_has_entity_name = True
@@ -82,22 +91,12 @@ class OnestiEntity(Entity):
         self._attr_unique_id = f"{coordinator.entry.entry_id}-{key}"
         self._attr_device_info = build_device_info(coordinator.hass, coordinator)
 
-    @property
-    def available(self) -> bool:
-        """Follows the coordinator, which follows the event listener.
-
-        Unavailable means lock events cannot reach Home Assistant, so
-        nothing shown here is being kept up to date. A lock that is merely
-        asleep is available: see OnestiCoordinator.available.
-        """
-        return self._coordinator.available
-
     async def async_added_to_hass(self) -> None:
-        """Follow the coordinator, for availability at least.
+        """Follow the coordinator.
 
         A subclass that registers its own listener (the slot sensors do,
-        for slot data) may skip this; one that calls super() gets the
-        availability updates through it.
+        for slot data) may skip this; one that calls super() is written
+        again whenever the coordinator's data or availability changes.
         """
         await super().async_added_to_hass()
         self._coordinator.add_listener(self._handle_coordinator_update)

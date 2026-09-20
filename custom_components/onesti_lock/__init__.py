@@ -365,6 +365,12 @@ def _start_event_listener(
             translation_key=ISSUE_ZHA_INTERNALS,
             translation_placeholders={"detail": detail},
         )
+        # The coordinator starts available when ZHA is up, so that the
+        # entities do not blink through unavailable on the way. ZHA is up
+        # and the listener still did not register, so that guess was
+        # wrong. quiet because the ERROR above names the missing piece,
+        # and the INFO line would claim ZHA is not running.
+        coordinator.set_available(False, quiet=True)
     else:
         entry.async_on_unload(unsub)
         ir.async_delete_issue(hass, DOMAIN, issue_id)

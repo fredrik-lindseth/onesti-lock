@@ -5,13 +5,14 @@ import asyncio
 import logging
 from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any
+from weakref import WeakSet
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from . import pin_rules
 from .const import CONF_IEEE, DEFAULT_SLOT
-from .zha import SendOutcome, ZhaLockTransport
+from .zha import SendOutcome, ZhaLockTransport, is_zha_loaded
 
 if TYPE_CHECKING:
     from .sensor import OnestiActivitySensor
@@ -22,12 +23,16 @@ _LOGGER = logging.getLogger(__name__)
 # lock has answered, so its presence is what marks the read as done.
 OPTION_CAPABILITIES = "capabilities"
 
-# IEEEs whose loss of lock events has been logged, so the loss is logged
-# once and the return once. It lives on the module rather than on the
-# coordinator because ZHA coming back reloads the entry: the coordinator
+# The config entries whose loss of lock events has been logged, so the
+# loss is logged once and the return once. It cannot live on the
+# coordinator, because ZHA coming back reloads the entry: the coordinator
 # that logged the loss is gone by the time the one that takes over can
-# report the return.
-_LOSS_LOGGED: set[str] = set()
+# report the return. The entry object is what does survive that reload,
+# and Home Assistant drops it when the entry is removed, so a weak set
+# keyed on it follows the entry's life with nothing to clean up. Keyed on
+# the IEEE instead, a lock removed while ZHA was down and added again
+# later reported its events "arriving again" with no loss ever logged.
+_LOSS_LOGGED: WeakSet[ConfigEntry] = WeakSet()
 
 
 class OnestiCoordinator:
@@ -69,9 +74,15 @@ class OnestiCoordinator:
         # The zigpy cluster the event listener is registered on, or None.
         # A ZHA reload replaces it, which __init__.py watches for.
         self._listened_cluster: Any = None
-        # No listener yet, so no lock event can arrive. The entities read
-        # this through OnestiEntity.available.
-        self._available = False
+        # The listener is registered a moment after the platforms are
+        # forwarded, so a coordinator that starts unavailable makes every
+        # entity write one unavailable state and then the real one, on
+        # every startup, reload and options change. That reaches the
+        # recorder and fires state-change automations. Starting from
+        # whether ZHA is up is the same answer the listener is about to
+        # give, and async_setup_entry corrects it when it is not: it
+        # cannot register the listener without ZHA, and says so.
+        self._available = is_zha_loaded(hass)
         self._load_slots()
 
     # -- Availability --
@@ -96,33 +107,47 @@ class OnestiCoordinator:
         """Whether lock events can reach Home Assistant right now.
 
         True once the event listener is registered on a cluster, false
-        while ZHA is not running or its internals were missing. A sleeping
-        lock stays available: the slot sensors show Home Assistant's own
-        stored data and the activity sensor the last event it saw, and a
-        command that times out on a sleeping radio says nothing about
-        whether events arrive.
+        while ZHA is not running or its internals were missing.
+
+        Only the activity sensor reads this, because it is the only entity
+        whose value comes from the lock. The slot and capability sensors
+        show Home Assistant's own stored data, which is as true with ZHA
+        down as with it up, and still writable through the options flow
+        and the services.
+
+        A sleeping lock stays available either way: a command that times
+        out on a sleeping radio says nothing about whether events arrive.
         """
         return self._available
 
-    def set_available(self, available: bool) -> None:
+    def set_available(self, available: bool, *, quiet: bool = False) -> None:
         """Set whether lock events reach us, and tell the entities.
 
         Logs one INFO line when they stop and one when they are back, and
-        never the same one twice in a row. The flag is per IEEE and not
-        per coordinator, since ZHA coming back reloads the entry and the
-        return is reported by a new coordinator.
+        never the same one twice in a row. The flag is per config entry
+        and not per coordinator, since ZHA coming back reloads the entry
+        and the return is reported by a new coordinator.
+
+        quiet leaves the log out of it entirely, for the caller that has
+        already said more than this could: ZHA internals missing is an
+        ERROR naming the piece, and "ZHA is not running" would be false
+        there.
         """
         changed = available is not self._available
         self._available = available
-        if available:
-            if self.ieee in _LOSS_LOGGED:
-                _LOSS_LOGGED.discard(self.ieee)
-                _LOGGER.info("Lock events for %s are arriving again, ZHA is running", self.ieee)
-        elif self.ieee not in _LOSS_LOGGED:
-            _LOSS_LOGGED.add(self.ieee)
-            _LOGGER.info("Lock events for %s stopped, ZHA is not running", self.ieee)
+        if not quiet:
+            self._log_availability(available)
         if changed:
             self._notify_listeners()
+
+    def _log_availability(self, available: bool) -> None:
+        if available:
+            if self.entry in _LOSS_LOGGED:
+                _LOSS_LOGGED.discard(self.entry)
+                _LOGGER.info("Lock events for %s are arriving again, ZHA is running", self.ieee)
+        elif self.entry not in _LOSS_LOGGED:
+            _LOSS_LOGGED.add(self.entry)
+            _LOGGER.info("Lock events for %s stopped, ZHA is not running", self.ieee)
 
     def _load_slots(self) -> None:
         """Load slot data from config entry options.

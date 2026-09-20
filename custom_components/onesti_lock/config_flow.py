@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 
 import voluptuous as vol
 from homeassistant.config_entries import (
+    SOURCE_IGNORE,
     ConfigEntryState,
     ConfigFlow,
     ConfigFlowResult,
@@ -146,7 +147,12 @@ class OnestiLockConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             ieee = user_input["device"]
-            await self.async_set_unique_id(ieee)
+            # raise_on_progress=False: pairing the new module is what the
+            # user did to get here, and that put a Discovered card for the
+            # same address on screen. The default would abort reconfigure
+            # with already_in_progress and leave only the card, which is a
+            # second entry for the same door.
+            await self.async_set_unique_id(ieee, raise_on_progress=False)
             # Not _abort_if_unique_id_configured: this entry's own unique
             # id is the one being set, and that is not a collision. Only
             # another entry holding the address is, which the list above
@@ -154,6 +160,7 @@ class OnestiLockConfigFlow(ConfigFlow, domain=DOMAIN):
             for other in self._async_current_entries():
                 if other.entry_id != entry.entry_id and other.data.get(CONF_IEEE) == ieee:
                     return self.async_abort(reason="already_configured")
+            await self._clear_the_way_for(ieee)
             return self.async_update_reload_and_abort(
                 entry,
                 unique_id=ieee,
@@ -174,6 +181,24 @@ class OnestiLockConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema({field: vol.In(self._device_labels(locks))}),
             description_placeholders={"ieee": str(current)},
         )
+
+    async def _clear_the_way_for(self, ieee: str) -> None:
+        """Free the address this entry is about to take.
+
+        Two things hold it after the new module has paired with ZHA: the
+        discovery flow that pairing started, whose card sits under
+        Discovered, and an entry from pressing Ignore on that card. Home
+        Assistant lets a second entry end up with the same unique id and
+        only logs an error asking for a bug report, so whatever holds the
+        address goes before the entry takes it.
+        """
+        for flow in self._async_in_progress(
+            include_uninitialized=True, match_context={"unique_id": ieee}
+        ):
+            self.hass.config_entries.flow.async_abort(flow["flow_id"])
+        for other in self._async_current_entries(include_ignore=True):
+            if other.source == SOURCE_IGNORE and other.unique_id == ieee:
+                await self.hass.config_entries.async_remove(other.entry_id)
 
     async def async_step_integration_discovery(
         self, discovery_info: Mapping[str, Any]

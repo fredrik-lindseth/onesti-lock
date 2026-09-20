@@ -85,7 +85,7 @@ Or go to **Settings → Devices & Services → Add Integration → Onesti Lock**
 
 Only the first lock needs this. Home Assistant does not load a custom integration without a config entry, so the first lock cannot be discovered; after that, a newly paired Onesti lock turns up under **Discovered** on the integrations page with its model and address, and you set it up there or press Ignore. Telling locks apart in services and automations is under [Multiple locks](docs/user-guide.md#multiple-locks).
 
-If the Connect Module is replaced, the lock is the same but its Zigbee address is not. Use **Reconfigure** on the entry and pick the new module: names, PIN status and sensors stay as they are.
+If the Connect Module is replaced, the lock is the same but its Zigbee address is not. Pair the new module with ZHA, then use **Reconfigure** on the entry and pick it: names, PIN status and sensors stay as they are. Remove the old module from ZHA afterwards, or it keeps turning up as a discovered lock.
 
 Removing the integration is in the [user guide](docs/user-guide.md#removing-the-integration). Clear the codes that should stop working first: they live on the lock, and removing the integration leaves them there.
 

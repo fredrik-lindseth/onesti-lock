@@ -48,8 +48,11 @@ All Onesti Products AS locks with the Zigbee Connect Module (ZMNC010):
 | easyCodeTouch_v1 | EasyAccess EasyCodeTouch   | Assumed                                       |
 | EasyCodeTouch    | EasyAccess EasyCodeTouch   | Assumed                                       |
 | EasyFingerTouch  | EasyAccess EasyFingerTouch | Assumed                                       |
+| EasyCode903G2    | Unknown                    | Vendor-documented, not yet reported by a user |
 
 "Assumed" means nobody has reported on that model yet. The locks are the same Onesti hardware with the same Zigbee module, sold under Nimly, EasyAccess, Keyfree, Salus, Homely, Forebygg and other brands, so they are expected to work. If yours does, or does not, say so in an [issue](https://github.com/fredrik-lindseth/onesti-lock/issues).
+
+`EasyCode903G2` comes from Onesti's own 2021 Zigbee spec for the module, not from a user report, and its market product name is unknown. It is a different string from `EasyCode903G2.1`, seen once ([Zigbee2MQTT#6551](https://github.com/Koenkk/zigbee2mqtt/issues/6551)) on a lock that answers a different manufacturer name over Zigbee, on different Zigbee silicon, and is not supported by this integration or any converter. See [docs/hardware-generations.md](docs/hardware-generations.md).
 
 The table does not limit what you can set up. A Connect Module sometimes reports a sibling model name rather than the lock it sits on (a Code Pro has shown up as NimlyTwist), so setup offers any ZHA device from Onesti Products AS with a Door Lock cluster and logs a warning for a model string it does not know. Please report that string too.
 

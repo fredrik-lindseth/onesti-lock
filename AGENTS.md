@@ -192,6 +192,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 | `docs/nimly-ble-app/ble-library.md`             | The `ble/` library: layers, API, transports, Enrollment storage, errors, vector provenance, verified vs lock-only |
 | `tools/esphome/README.md`                       | The BLE debug proxy: board and output power, secrets, USB-first flashing, core dumps, NVS counters, Active scanning |
 | `docs/connect-bridge/hardware-gateway.md`       | Connect Bridge hardware, network stack, firmware                                              |
+| `docs/hardware-generations.md`                  | Per-report log of model string, IEEE OUI, module name and firmware fields, one row per observed lock |
 | `docs/slot-numbering.md`                        | Slot numbering across Zigbee, BLE and cloud, verified and unverified                          |
 | `docs/manuals/README.md`                        | Index of vendor manuals per model and brand, fetched locally by `scripts/fetch_manuals.py`    |
 | `docs/debugging.md`                             | Troubleshooting guide for common problems                                                     |

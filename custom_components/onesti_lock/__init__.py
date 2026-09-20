@@ -6,12 +6,14 @@ import logging
 import homeassistant.helpers.config_validation as cv
 from homeassistant.config_entries import (
     SIGNAL_CONFIG_ENTRY_CHANGED,
+    SOURCE_INTEGRATION_DISCOVERY,
     ConfigEntry,
     ConfigEntryChange,
     ConfigEntryState,
 )
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.typing import ConfigType
@@ -21,7 +23,7 @@ from .const import CONF_IEEE, DEFAULT_SLOT, DOMAIN, ZHA_DOMAIN
 from .coordinator import NimlyConfigEntry, NimlyCoordinator
 from .events import ZhaInternalsMissing, register_event_listener
 from .localize import async_get_strings
-from .zha import is_zha_loaded, iter_device_proxies
+from .zha import is_zha_loaded, iter_device_proxies, iter_onesti_locks
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,10 +35,91 @@ ISSUE_ZHA_INTERNALS = "zha_internals"
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Register the services once for all locks."""
+    """Register the services and the discovery watch once for all locks."""
     from .services import async_setup_services
     await async_setup_services(hass)
+    _watch_for_undiscovered_locks(hass)
     return True
+
+
+@callback
+def _watch_for_undiscovered_locks(hass: HomeAssistant) -> None:
+    """Offer every Onesti lock in ZHA that no config entry owns.
+
+    Registered in async_setup, so it lives for the whole Home Assistant run
+    like the services do. Home Assistant never loads a custom integration
+    without a config entry, so the first lock has to be added by hand; from
+    then on this is what makes lock number two show up under Discovered.
+
+    Two things start a look: a device registry entry from ZHA (a newly
+    paired device, or one that gained its Door Lock cluster after the
+    interview finished), and a ZHA entry reaching LOADED (ZHA starting
+    after us, or coming back from a reload with devices we have not seen).
+    Both only say "something changed in ZHA"; the list itself comes from
+    the gateway either way.
+    """
+
+    @callback
+    def _zha_entry_ids() -> set[str]:
+        return {entry.entry_id for entry in hass.config_entries.async_entries(ZHA_DOMAIN)}
+
+    @callback
+    def _on_device_registry_updated(event: Event[dr.EventDeviceRegistryUpdatedData]) -> None:
+        if event.data["action"] not in ("create", "update"):
+            return
+        device = dr.async_get(hass).async_get(event.data["device_id"])
+        if device is None:
+            return
+        if not any(conn[0] == dr.CONNECTION_ZIGBEE for conn in device.connections):
+            return
+        if device.config_entries.isdisjoint(_zha_entry_ids()):
+            return
+        _async_discover_locks(hass)
+
+    @callback
+    def _on_zha_state_change(zha_entry: ConfigEntry) -> None:
+        if zha_entry.state is ConfigEntryState.LOADED:
+            _async_discover_locks(hass)
+
+    @callback
+    def _watch(zha_entry: ConfigEntry) -> None:
+        zha_entry.async_on_state_change(lambda: _on_zha_state_change(zha_entry))
+
+    @callback
+    def _on_config_entry_changed(change: ConfigEntryChange, changed: ConfigEntry) -> None:
+        if change is ConfigEntryChange.ADDED and changed.domain == ZHA_DOMAIN:
+            _watch(changed)
+
+    for zha_entry in hass.config_entries.async_entries(ZHA_DOMAIN):
+        _watch(zha_entry)
+    async_dispatcher_connect(hass, SIGNAL_CONFIG_ENTRY_CHANGED, _on_config_entry_changed)
+    hass.bus.async_listen(dr.EVENT_DEVICE_REGISTRY_UPDATED, _on_device_registry_updated)
+
+
+@callback
+def _async_discover_locks(hass: HomeAssistant) -> None:
+    """Start a discovery flow for every Onesti lock without an entry.
+
+    A lock that already has an entry, or that the user pressed Ignore on,
+    is stopped by the unique id in async_step_integration_discovery, and so
+    is a second flow for a lock already being asked about. The check here
+    only keeps the common case from making a flow at all.
+    """
+    known = {
+        str(entry.data.get(CONF_IEEE, "")).lower()
+        for entry in hass.config_entries.async_entries(DOMAIN)
+    }
+    for ieee, model in iter_onesti_locks(hass):
+        if ieee.lower() in known:
+            continue
+        _LOGGER.debug("Onesti lock %s in ZHA has no config entry, offering it", ieee)
+        hass.async_create_task(
+            hass.config_entries.flow.async_init(
+                DOMAIN,
+                context={"source": SOURCE_INTEGRATION_DISCOVERY},
+                data={CONF_IEEE: ieee, "model": model},
+            )
+        )
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: NimlyConfigEntry) -> bool:

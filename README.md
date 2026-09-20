@@ -67,6 +67,8 @@ Then add the integration:
 
 Or go to **Settings → Devices & Services → Add Integration → Onesti Lock**. The form asks for one thing, **Lock**: pick your lock from the list, where each entry shows the model and the IEEE address ZHA gave it. The list only holds locks that are already paired with ZHA, so there is nothing to look up beforehand. The sensors show up on their own. With more than one lock, see [Multiple locks](#multiple-locks). The master slot setting and the PIN codes are set afterwards, under [Managing access](#managing-access).
 
+This is only needed for the first lock. After that, pairing an Onesti lock with ZHA is enough: it turns up under **Discovered** on the integrations page with its model and IEEE address, and you either set it up from there or press Ignore. Home Assistant does not load a custom integration that has no config entry, which is why the first one cannot be found this way.
+
 ## Entities
 
 ZHA and this integration split the work. ZHA owns the lock itself: the lock entity you lock and unlock with, the battery, and whatever sensors ZHA's quirk adds. This integration adds names, activity and PIN management. That gives two devices per lock in Home Assistant, ZHA's device with the lock entity and a device called Onesti Lock with the sensors below. Entities named `sensor.onesti_products_as_*` come from ZHA's quirk, not from this integration.
@@ -154,7 +156,7 @@ RFID tags and fingerprints are enrolled on the lock itself, with the master code
 
 ## Multiple locks
 
-Add the integration once per lock. The list shows each lock's model and IEEE address, and locks already set up are left out, so with two of the same model you need the IEEE address to tell them apart. ZHA shows it on the lock's device page under Zigbee info, in the form `00:0d:6f:00:11:22:33:44`. Both devices are called Onesti Lock, so rename them to get readable entity IDs.
+There is one entry per lock. With the first one set up, the next lock is offered under **Discovered** as soon as it is paired with ZHA, so you only confirm it; **Add Integration** still works if you would rather do it by hand. Either way the model and the IEEE address are shown, so with two of the same model you need the IEEE address to tell them apart. A lock you press Ignore on is not offered again. Locks already set up are left out of the list. ZHA shows the address on the lock's device page under Zigbee info, in the form `00:0d:6f:00:11:22:33:44`. Both devices are called Onesti Lock, so rename them to get readable entity IDs.
 
 The services take a `device_id`, and the UI shows a lock picker for it. Pick the Onesti Lock device, not the ZHA device. Scripts can pass `ieee` instead, and case does not matter there. With more than one lock and neither given, the call fails with a `multiple_locks` error listing the IEEE addresses, rather than guessing which door to program.
 

@@ -95,11 +95,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: NimlyConfigEntry) -> boo
         # ZHA is still starting, usually in SETUP_RETRY because the
         # coordinator stick came up late. Nothing is wrong yet: the ZHA
         # watch reloads this entry once ZHA is LOADED, and that setup
-        # registers the listener and reads the capabilities.
-        _LOGGER.info(
-            "ZHA is not loaded yet, lock events for %s start when it is",
-            coordinator.ieee,
-        )
+        # registers the listener and reads the capabilities. Until then no
+        # lock event can arrive, which the entities and one log line say.
+        coordinator.set_available(False)
         return True
 
     _start_event_listener(hass, entry, coordinator)
@@ -196,23 +194,33 @@ def _watch_zha_entries(
 
     ZHA entries added while this entry is loaded are watched too, so a ZHA
     that is removed and added again is still followed.
+
+    The watch is also where the entities learn that they are unavailable:
+    while no ZHA entry is loaded, no lock event can arrive, and the
+    coordinator says so until a listener is registered again.
     """
 
     @callback
     def _on_zha_state_change(zha_entry: ConfigEntry) -> None:
-        if zha_entry.state is not ConfigEntryState.LOADED:
-            return
         if entry.state is not ConfigEntryState.LOADED:
+            return
+        if zha_entry.state is not ConfigEntryState.LOADED:
+            if not _zha_entry_loaded(hass):
+                # ZHA stopped under a loaded entry. The listener is still on
+                # a cluster of objects ZHA is tearing down, so no lock event
+                # can arrive until ZHA is back.
+                coordinator.set_available(False)
             return
         if coordinator.listened_cluster is not None:
             if coordinator.transport.cluster() is coordinator.listened_cluster:
+                # The same objects came back, so the listener still fits
+                # and a reload would only throw the entities away.
+                coordinator.set_available(True)
                 return
-            _LOGGER.info(
+            _LOGGER.debug(
                 "ZHA was loaded again with a new Door Lock cluster for %s, reloading",
                 coordinator.ieee,
             )
-        else:
-            _LOGGER.info("ZHA is loaded, setting up lock events for %s", coordinator.ieee)
         hass.config_entries.async_schedule_reload(entry.entry_id)
 
     @callback

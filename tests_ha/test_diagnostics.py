@@ -15,7 +15,7 @@ from pytest_homeassistant_custom_component.components.diagnostics import (
     get_diagnostics_for_config_entry,
 )
 
-from custom_components.onesti_lock.const import CONF_IEEE, DOMAIN
+from custom_components.onesti_lock.const import CONF_IEEE, CONF_MODEL, DOMAIN
 from tests_ha.conftest import DOORLOCK_CLUSTER_ID, LOCK_IEEE, LOCK_MODEL, lock_cluster
 
 TITLE = "Onesti Lock (11:22:33:44)"
@@ -67,8 +67,10 @@ async def test_diagnostics_of_a_running_lock(hass: HomeAssistant, hass_client, m
     assert diagnostics["home_assistant_version"]
     assert diagnostics["entry"]["title"] == "**REDACTED**"
     assert diagnostics["entry"]["unique_id"] == "**REDACTED**"
-    assert diagnostics["entry"]["data"] == {CONF_IEEE: "**REDACTED**"}
-    assert (diagnostics["entry"]["version"], diagnostics["entry"]["minor_version"]) == (2, 2)
+    # The model is not redacted: every lock of a model reports the same
+    # string, and it is what a bug report needs first.
+    assert diagnostics["entry"]["data"] == {CONF_IEEE: "**REDACTED**", CONF_MODEL: "NimlyPRO"}
+    assert (diagnostics["entry"]["version"], diagnostics["entry"]["minor_version"]) == (2, 3)
     # Names become named/unnamed, the PIN flag stays as stored.
     assert diagnostics["entry"]["options"]["slots"] == {
         "3": {"name": "named", "has_pin": True},

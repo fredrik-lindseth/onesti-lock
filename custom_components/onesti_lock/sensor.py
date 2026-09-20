@@ -62,11 +62,11 @@ async def async_setup_entry(
     )
     async_add_entities(entities)
 
-    _remove_orphaned_slot_sensors(hass, entry, coordinator.ieee, slots)
+    _remove_orphaned_slot_sensors(hass, entry, slots)
 
 
 def _remove_orphaned_slot_sensors(
-    hass: HomeAssistant, entry: NimlyConfigEntry, ieee: str, slots: range
+    hass: HomeAssistant, entry: NimlyConfigEntry, slots: range
 ) -> None:
     """Drop registry entries for slot sensors that fell out of the row.
 
@@ -77,7 +77,8 @@ def _remove_orphaned_slot_sensors(
     and whatever the user customised on it.
     """
     registry = er.async_get(hass)
-    prefix = f"{ieee}-slot-"
+    # The same prefix NimlyEntity builds its unique ids from.
+    prefix = f"{entry.entry_id}-slot-"
     for registry_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
         unique_id = registry_entry.unique_id
         if registry_entry.domain != "sensor" or not unique_id.startswith(prefix):

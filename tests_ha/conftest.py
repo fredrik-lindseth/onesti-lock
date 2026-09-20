@@ -135,6 +135,12 @@ from zigpy.zcl.foundation import Status as ZclStatus  # noqa: E402  (after the s
 LOCK_IEEE = "00:0d:6f:00:11:22:33:44"
 LOCK_MANUFACTURER = "Onesti Products AS"
 LOCK_MODEL = "NimlyPRO"
+# Home Assistant builds an entity id from the device name and the entity
+# name, so every entity id of ours starts with the slug of what
+# entity.device_name() calls this lock: "NimlyPRO (3344)". A test that
+# spells out an entity id uses this rather than the string, so the one
+# place it comes from stays visible.
+DEVICE_SLUG = "nimlypro_3344"
 DOORLOCK_CLUSTER_ID = 0x0101
 
 

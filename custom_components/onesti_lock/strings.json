@@ -9,6 +9,13 @@
           "device": "Lock"
         }
       },
+      "reconfigure": {
+        "title": "Replace the Connect Module",
+        "description": "Point this lock at another Zigbee Connect Module, after the old one ({ieee}) was replaced. Slot names and PIN status stay as they are: they describe the codes in the lock, which the new module reaches just as the old one did.",
+        "data": {
+          "device": "Lock"
+        }
+      },
       "discovery_confirm": {
         "title": "Onesti lock found",
         "description": "Set up {model} ({ieee}) for PIN management and activity tracking?"
@@ -18,7 +25,8 @@
       "zha_not_found": "ZHA is not installed or not set up. This integration needs ZHA to decode the lock's custom Zigbee attribute reports, which tell who used the lock. Zigbee2MQTT does not expose these events in the same way.",
       "no_devices_found": "No Onesti locks found in ZHA.",
       "already_configured": "This lock is already configured.",
-      "already_in_progress": "This lock is already being set up."
+      "already_in_progress": "This lock is already being set up.",
+      "reconfigure_successful": "The lock now uses the new Connect Module."
     }
   },
   "options": {

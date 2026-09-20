@@ -107,13 +107,14 @@ def _find_by_ieee(coordinators: list[NimlyCoordinator], ieee: str) -> NimlyCoord
     return next((c for c in coordinators if c.ieee.lower() == wanted), None)
 
 
-def _ieee_for_device(hass: HomeAssistant, device_id: str) -> str:
-    """The IEEE address behind one of this integration's own devices.
+def _entry_id_for_device(hass: HomeAssistant, device_id: str) -> str:
+    """The config entry behind one of this integration's own devices.
 
-    sensor.py registers each lock's device with the identifier
-    (DOMAIN, ieee). A device id that is unknown, or that belongs to some
-    other integration (the ZHA device of the same lock included), is not an
-    Onesti lock as far as the services are concerned.
+    entity.py registers each lock's device with the identifier
+    (DOMAIN, entry_id). A device id that is unknown, or that belongs to
+    some other integration alone (the ZHA device of a lock that is not set
+    up here included), is not an Onesti lock as far as the services are
+    concerned.
     """
     device = dr.async_get(hass).async_get(device_id)
     if device is not None:
@@ -141,7 +142,12 @@ def _get_coordinator(hass: HomeAssistant, call: ServiceCall) -> NimlyCoordinator
     device_id = call.data.get(ATTR_DEVICE_ID)
     ieee = call.data.get(ATTR_IEEE)
     if device_id:
-        ieee = _ieee_for_device(hass, device_id)
+        entry_id = _entry_id_for_device(hass, device_id)
+        coordinator = next((c for c in coordinators if c.entry.entry_id == entry_id), None)
+        if coordinator is None:
+            # The device is ours, but its entry is not loaded.
+            raise _lock_not_found()
+        return coordinator
     if ieee:
         coordinator = _find_by_ieee(coordinators, ieee)
         if coordinator is None:

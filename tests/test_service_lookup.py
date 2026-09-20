@@ -25,9 +25,16 @@ FRONT = "00:0d:6f:00:11:22:33:44"
 BACK = "00:0d:6f:00:55:66:77:88"
 
 
+def _entry_id(ieee: str) -> str:
+    """A stand-in for the config entry id of the lock with this address."""
+    return f"entry-for-{ieee}"
+
+
 class FakeCoordinator:
     def __init__(self, ieee):
         self.ieee = ieee
+        # The device identifier is the config entry, so the fake needs one.
+        self.entry = SimpleNamespace(entry_id=_entry_id(ieee))
         self.lock_capabilities = {}
         self.options = {}
         self.calls = []
@@ -72,7 +79,9 @@ class FakeServiceRegistry:
 
 class FakeConfigEntries:
     def __init__(self, coordinators):
-        self._entries = [SimpleNamespace(runtime_data=c) for c in coordinators]
+        self._entries = [
+            SimpleNamespace(runtime_data=c, entry_id=c.entry.entry_id) for c in coordinators
+        ]
 
     def async_loaded_entries(self, domain):
         return list(self._entries) if domain == DOMAIN else []
@@ -87,13 +96,14 @@ def _device(*identifiers):
     return SimpleNamespace(identifiers=set(identifiers))
 
 
-# Each lock gets a device from this integration. The ZHA device of the same
-# lock carries the same IEEE, but under ZHA's own domain.
+# Each lock gets a device from this integration, identified by its config
+# entry. The ZHA device of the same lock carries the IEEE under ZHA's own
+# domain, which is no identifier of ours.
 DEVICES = {
-    "front_device": _device((DOMAIN, FRONT)),
-    "back_device": _device((DOMAIN, BACK)),
+    "front_device": _device((DOMAIN, _entry_id(FRONT))),
+    "back_device": _device((DOMAIN, _entry_id(BACK))),
     "zha_front_device": _device(("zha", FRONT)),
-    "orphan_device": _device((DOMAIN, "00:0d:6f:00:99:99:99:99")),
+    "orphan_device": _device((DOMAIN, _entry_id("00:0d:6f:00:99:99:99:99"))),
 }
 
 # One valid call per service, so the lookup tests can run on all four.
@@ -181,7 +191,7 @@ class TestLockLookup:
     def test_an_onesti_device_whose_lock_is_not_loaded(self, service):
         handlers, (front,) = _setup(FRONT)
         error = _refused(handlers, service, device_id="orphan_device")
-        assert error.translation_key == "lock_not_found_ieee"
+        assert error.translation_key == "lock_not_found"
         assert front.calls == []
 
     def test_no_lock_loaded(self, service):

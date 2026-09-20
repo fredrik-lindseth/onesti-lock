@@ -33,7 +33,13 @@ from custom_components.onesti_lock.const import (
     SLOT_FIRST_USER,
 )
 from custom_components.onesti_lock.events import ATTR_OPERATION_EVENT
-from tests_ha.conftest import DOORLOCK_CLUSTER_ID, LISTENER_PATHS, LOCK_IEEE
+from tests_ha.conftest import (
+    DEVICE_SLUG,
+    DOORLOCK_CLUSTER_ID,
+    LISTENER_PATHS,
+    LOCK_IEEE,
+    LOCK_MODEL,
+)
 
 USER_SLOTS = range(SLOT_FIRST_USER, SLOT_FIRST_USER + NUM_USER_SLOTS)
 
@@ -76,8 +82,20 @@ def _enabled_entities(hass: HomeAssistant, entry: MockConfigEntry) -> list:
     return [registry_entry for registry_entry in entries if not registry_entry.disabled]
 
 
+def _unique_id(hass: HomeAssistant, unique_suffix: str) -> str:
+    """A unique id of ours: the config entry id and a key.
+
+    Every test here sets up one lock, so the entry is the one entry
+    this integration has.
+    """
+    (entry,) = hass.config_entries.async_entries(DOMAIN)
+    return f"{entry.entry_id}-{unique_suffix}"
+
+
 def _entity_id(hass: HomeAssistant, unique_suffix: str) -> str:
-    entity_id = er.async_get(hass).async_get_entity_id("sensor", DOMAIN, f"{LOCK_IEEE}-{unique_suffix}")
+    entity_id = er.async_get(hass).async_get_entity_id(
+        "sensor", DOMAIN, _unique_id(hass, unique_suffix)
+    )
     assert entity_id is not None, f"no sensor with unique_id suffix {unique_suffix!r}"
     return entity_id
 
@@ -97,8 +115,10 @@ async def test_platform_creates_eleven_enabled_entities(hass: HomeAssistant, moc
     entries = er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
     by_unique_id = {e.unique_id: e.entity_id for e in entries if not e.disabled}
 
-    expected = {f"{LOCK_IEEE}-slot-{slot}": f"sensor.onesti_lock_slot_{slot}" for slot in USER_SLOTS}
-    expected[f"{LOCK_IEEE}-activity"] = "sensor.onesti_lock_last_activity"
+    expected = {
+        _unique_id(hass, f"slot-{slot}"): f"sensor.{DEVICE_SLUG}_slot_{slot}" for slot in USER_SLOTS
+    }
+    expected[_unique_id(hass, "activity")] = f"sensor.{DEVICE_SLUG}_last_activity"
     assert by_unique_id == expected
     for entity_id in expected.values():
         assert hass.states.get(entity_id) is not None
@@ -112,8 +132,8 @@ async def test_every_sensor_sits_on_one_device(hass: HomeAssistant, mock_zha) ->
     assert len(device_ids) == 1
 
     device = dr.async_get(hass).async_get(device_ids.pop())
-    assert device.identifiers == {(DOMAIN, LOCK_IEEE)}
-    assert device.name == "Onesti Lock"
+    assert device.identifiers == {(DOMAIN, entry.entry_id)}
+    assert device.name == f"{LOCK_MODEL} (3344)"
     assert device.manufacturer == "Onesti Products AS"
 
 
@@ -327,7 +347,7 @@ async def test_activity_timestamp_is_utc(hass: HomeAssistant, mock_zha) -> None:
 
 # -- Activity across restarts --
 
-ACTIVITY_ENTITY_ID = "sensor.onesti_lock_last_activity"
+ACTIVITY_ENTITY_ID = f"sensor.{DEVICE_SLUG}_last_activity"
 STORED_ACTIVITY = {
     "user_name": "Kari",
     "user_slot": 5,
@@ -351,9 +371,9 @@ async def test_activity_is_restored_from_the_raw_fields(
     er.async_get(hass).async_get_or_create(
         "sensor",
         DOMAIN,
-        f"{LOCK_IEEE}-activity",
+        f"{entry.entry_id}-activity",
         config_entry=entry,
-        suggested_object_id="onesti_lock_last_activity",
+        suggested_object_id=f"{DEVICE_SLUG}_last_activity",
     )
     hass.config.language = language
     mock_restore_cache_with_extra_data(
@@ -443,7 +463,7 @@ async def test_activity_sensor_deregisters_when_its_entity_is_removed(hass: Home
 
 
 def _slot_unique_ids(hass: HomeAssistant, entry: MockConfigEntry) -> set[int]:
-    prefix = f"{LOCK_IEEE}-slot-"
+    prefix = f"{entry.entry_id}-slot-"
     return {
         int(e.unique_id.removeprefix(prefix))
         for e in er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
@@ -482,7 +502,9 @@ async def test_slot_sensors_outside_the_row_leave_the_registry(hass: HomeAssista
 async def test_cleanup_only_touches_this_entrys_slot_sensors(hass: HomeAssistant, mock_zha) -> None:
     entry = _add_entry(hass, **{CONF_RESERVED_SLOTS: 1})
     registry = er.async_get(hass)
-    stale = registry.async_get_or_create("sensor", DOMAIN, f"{LOCK_IEEE}-slot-12", config_entry=entry)
+    stale = registry.async_get_or_create(
+        "sensor", DOMAIN, f"{entry.entry_id}-slot-12", config_entry=entry
+    )
     other = registry.async_get_or_create("sensor", DOMAIN, "some-other-lock-slot-12")
 
     assert await hass.config_entries.async_setup(entry.entry_id)

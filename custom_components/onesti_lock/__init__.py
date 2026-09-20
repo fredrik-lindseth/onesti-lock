@@ -14,16 +14,17 @@ from homeassistant.config_entries import (
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.typing import ConfigType
 
 from . import pin_rules
-from .const import CONF_IEEE, DEFAULT_SLOT, DOMAIN, ZHA_DOMAIN
+from .const import CONF_IEEE, CONF_MODEL, DEFAULT_SLOT, DOMAIN, ZHA_DOMAIN
 from .coordinator import NimlyConfigEntry, NimlyCoordinator
 from .events import ZhaInternalsMissing, register_event_listener
 from .localize import async_get_strings
-from .zha import is_zha_loaded, iter_device_proxies, iter_onesti_locks
+from .zha import is_zha_loaded, iter_device_proxies, iter_onesti_locks, model_in_zha
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -117,8 +118,37 @@ def _async_discover_locks(hass: HomeAssistant) -> None:
             hass.config_entries.flow.async_init(
                 DOMAIN,
                 context={"source": SOURCE_INTEGRATION_DISCOVERY},
-                data={CONF_IEEE: ieee, "model": model},
+                data={CONF_IEEE: ieee, CONF_MODEL: model},
             )
+        )
+
+
+def _migrate_to_entry_id_keys(hass: HomeAssistant, entry: NimlyConfigEntry) -> None:
+    """Rewrite registry keys from the IEEE address to the config entry id.
+
+    Up to 2.2 the device identifier and every entity unique id held the
+    lock's IEEE address, which made a replaced Connect Module a different
+    lock: new device, new entities, and the user's names, areas and
+    dashboards left behind. Keyed on the entry id instead, the reconfigure
+    flow can point the same entry at a new address and keep all of it.
+
+    Both registries are rewritten in place, so entity ids, user-set names
+    and everything else Home Assistant stores per entity survive.
+    """
+    ieee: str = entry.data[CONF_IEEE]
+    device_registry = dr.async_get(hass)
+    for device in dr.async_entries_for_config_entry(device_registry, entry.entry_id):
+        if (DOMAIN, ieee) in device.identifiers:
+            device_registry.async_update_device(
+                device.id, new_identifiers={(DOMAIN, entry.entry_id)}
+            )
+    entity_registry = er.async_get(hass)
+    for registry_entry in er.async_entries_for_config_entry(entity_registry, entry.entry_id):
+        if not registry_entry.unique_id.startswith(f"{ieee}-"):
+            continue
+        entity_registry.async_update_entity(
+            registry_entry.entity_id,
+            new_unique_id=f"{entry.entry_id}-{registry_entry.unique_id[len(ieee) + 1:]}",
         )
 
 
@@ -126,6 +156,8 @@ async def async_migrate_entry(hass: HomeAssistant, entry: NimlyConfigEntry) -> b
     """Bring a stored entry up to the current config flow version.
 
     2.1 -> 2.2: stored slots lose has_rfid, a field nothing ever set.
+    2.2 -> 2.3: entry.data gains the model string, and the device and
+    entity registry keys move from the IEEE address to the entry id.
     """
     if entry.version > 2:
         # Written by a newer release; this one cannot know its shape.
@@ -144,6 +176,19 @@ async def async_migrate_entry(hass: HomeAssistant, entry: NimlyConfigEntry) -> b
             entry, options=options, version=2, minor_version=2
         )
         _LOGGER.debug("Migrated %s to version 2.2", entry.entry_id)
+
+    if entry.minor_version < 3:
+        _migrate_to_entry_id_keys(hass, entry)
+        # ZHA may not be up yet, and an empty model is no worse than what
+        # 2.2 had. The reconfigure flow fills it in when it is.
+        data = {
+            **entry.data,
+            CONF_MODEL: entry.data.get(CONF_MODEL) or model_in_zha(hass, entry.data[CONF_IEEE]),
+        }
+        hass.config_entries.async_update_entry(
+            entry, data=data, version=2, minor_version=3
+        )
+        _LOGGER.debug("Migrated %s to version 2.3", entry.entry_id)
 
     return True
 

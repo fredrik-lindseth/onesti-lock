@@ -313,7 +313,7 @@ The Zigbee radio module inside all Onesti/Nimly locks, also sold separately as a
 | Frequency             | 2.4 GHz (Zigbee 3.0)                                                   |
 | Certifications        | CE-marked, no FCC ID found (European product)                          |
 
-The unregistered manufacturer code (`0x1234`) points to an OEM module rather than a custom Zigbee implementation. The small buffer and transfer sizes fit a lower-end chip, likely a TI CC2530 or similar.
+The unregistered manufacturer code (`0x1234`) points to an OEM module rather than a custom Zigbee implementation. The small buffer and transfer sizes fit a lower-end chip. An earlier edition of this file guessed at a TI CC2530; that chip has no Bluetooth, and retailers sell the ZMNC010 as a "Zigbee/BLE module" while the module's own installation guide describes a blue Bluetooth LED on the module, so the part is something that carries both radios. Which chip it is has not been established.
 
 ## Alternatives considered
 

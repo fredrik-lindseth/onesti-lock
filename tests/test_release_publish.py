@@ -787,7 +787,7 @@ def test_the_release_workflow_waits_for_the_whole_ci_graph() -> None:
     assert "workflow_call" in ci[True], "ci.yml cannot be called by release.yml"
 
     assert release["jobs"]["ci"]["uses"] == "./.github/workflows/ci.yml"
-    assert release["jobs"]["release"]["needs"] == ["ci"]
+    assert "ci" in release["jobs"]["release"]["needs"]
     assert "workflow_run" not in release[True], (
         "workflow_run gives the release no control over which commit was tested"
     )
@@ -816,6 +816,92 @@ def test_the_release_gate_stops_everything_but_success(job: str, result: str) ->
     assert completed.returncode == (0 if result == "success" else 1), completed.stderr
     assert f"{job}: {result}" in completed.stdout
     assert ("::error::Release blocked:" in completed.stdout) is (result != "success")
+
+
+def test_ci_runs_on_every_push_to_main_and_the_release_only_on_a_manifest_change() -> None:
+    """The timeline has to say what happened. A docs push is CI, never "Release"."""
+    ci = _workflow("ci.yml")
+    release = _workflow("release.yml")
+
+    # PyYAML reads the bare key `on` as True.
+    assert ci[True]["push"]["branches"] == ["main"], "main is not covered by any other trigger"
+    assert "paths" not in ci[True]["push"] and "paths-ignore" not in ci[True]["push"], (
+        "every commit on main has to be tested, whatever it touches"
+    )
+    assert ci[True]["pull_request"]["branches"] == ["main"]
+
+    push = release[True]["push"]
+    assert push["branches"] == ["main"]
+    assert push["paths"] == ["custom_components/onesti_lock/manifest.json"], (
+        "without the path filter a docs push creates a run called Release"
+    )
+    assert "workflow_dispatch" in release[True], "the whole flow must still be runnable by hand"
+
+
+def test_the_version_gate_guards_both_the_ci_call_and_the_publish() -> None:
+    """A manifest edit that is not a bump must not start the release graph."""
+    release = _workflow("release.yml")
+    gate = release["jobs"]["gate"]
+
+    assert gate["outputs"]["proceed"] == "${{ steps.gate.outputs.proceed }}"
+    assert release["jobs"]["ci"]["needs"] == ["gate"]
+    assert release["jobs"]["ci"]["if"] == "needs.gate.outputs.proceed == 'true'"
+    assert "gate" in release["jobs"]["release"]["needs"]
+    assert "needs.gate.outputs.proceed == 'true'" in " ".join(
+        release["jobs"]["release"]["if"].split()
+    )
+
+
+@pytest.mark.parametrize(
+    ("event", "release_state", "proceed"),
+    [
+        # The version is out. Nothing to do, and no CI graph to pay for.
+        ("push", "false", "false"),
+        # No release at all: the ordinary bump.
+        ("push", None, "true"),
+        # A draft from a run that stopped after the tag. Resuming is the point.
+        ("push", "true", "true"),
+        # A hand run decides nothing here; the plan step is the authority.
+        ("workflow_dispatch", "false", "true"),
+    ],
+)
+def test_the_version_gate_script(
+    tmp_path: Path, event: str, release_state: str | None, proceed: str
+) -> None:
+    """Run the gate step itself, with gh answering the way GitHub would."""
+    steps = _workflow("release.yml")["jobs"]["gate"]["steps"]
+    (step,) = [s for s in steps if s.get("id") == "gate"]
+
+    stub_dir = tmp_path / "bin"
+    stub_dir.mkdir()
+    (stub_dir / "jq").write_text("#!/bin/sh\necho 9.9.9\n", encoding="utf-8")
+    gh_body = (
+        "echo 'release not found' >&2\nexit 1\n"
+        if release_state is None
+        else f"echo {release_state}\n"
+    )
+    (stub_dir / "gh").write_text(f"#!/bin/sh\n{gh_body}", encoding="utf-8")
+    for stub in stub_dir.iterdir():
+        stub.chmod(0o755)
+
+    output = tmp_path / "github_output"
+    output.write_text("", encoding="utf-8")
+    completed = subprocess.run(
+        ["bash", "-c", step["run"]],
+        cwd=REPO,
+        env={
+            **os.environ,
+            "PATH": f"{stub_dir}:{os.environ['PATH']}",
+            "GITHUB_EVENT_NAME": event,
+            "GITHUB_OUTPUT": str(output),
+            "GH_TOKEN": "stub",
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert output.read_text(encoding="utf-8").strip() == f"proceed={proceed}"
 
 
 def test_the_release_job_has_a_ref_guard() -> None:

@@ -8,17 +8,38 @@ name: Release
 # release step check out exactly that, so there is no window where main can move
 # between testing, building and tagging.
 #
+# The run only exists when a release is possible: the push trigger is filtered
+# on the manifest, and the gate job below stops a run whose version is already
+# out. Every other commit on main is tested by ci.yml's own push trigger.
+#
 # The flow itself lives in scripts/release_publish.py, which is testable and
 # resumable. The draft is published as the last call; if anything fails before
 # that there is no half release to clean up, and a new run on the same SHA picks
 # up where it stopped.
 
 on:
+  # Two filters, because they catch different things.
+  #
+  # The path filter decides whether a run is created at all. Only a push that
+  # touches the manifest can become a release, so a docs commit leaves no run
+  # called "Release" in the timeline. GitHub matches the filter against every
+  # commit in the push, so a bump in the middle of a push, or one that arrives
+  # through a merge commit, still counts. The candidate stays the head of the
+  # push either way, and that is the tree the manifest version is read from.
+  #
+  # The gate job below decides whether the run does anything. The path filter
+  # cannot tell a version bump from any other edit to the manifest, and it
+  # cannot see that the version was already published (a re-push of the same
+  # tree, or a bump that was reverted later in the push).
   push:
     branches: [ main ]
+    paths:
+      - 'custom_components/onesti_lock/manifest.json'
   # Resuming: "Re-run failed jobs" keeps the SHA, or run the workflow by hand on
   # the tag. The candidate always follows from the ref, never from a free text
-  # field, so it cannot be set to something CI has not seen.
+  # field, so it cannot be set to something CI has not seen. A hand run skips
+  # the gate: it is the way to resume a flow that stopped after the tag, where
+  # the version is by then the one being published.
   workflow_dispatch:
     inputs:
       dry_run:
@@ -39,8 +60,50 @@ concurrency:
 permissions: {}
 
 jobs:
+  # Is there anything here that could become a release? One API read, no
+  # checkout of history, no test run. It answers the same question the plan
+  # step answers later, with the same rule: a version whose release is already
+  # published is done. A tag without a published release is not done, so a run
+  # that stopped after the tag can still be resumed on the same SHA.
+  gate:
+    name: Version gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      proceed: ${{ steps.gate.outputs.proceed }}
+    steps:
+      - name: Checkout the candidate SHA
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Is the manifest version still unpublished?
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version=$(jq -r '.version' custom_components/onesti_lock/manifest.json)
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "Hand run: the gate does not decide, the plan step does."
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          draft=$(gh release view "v$version" --json isDraft --jq '.isDraft' 2>/dev/null || echo missing)
+          if [ "$draft" = "false" ]; then
+            echo "v$version is already published. Nothing to release from this push."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "v$version is not published (state: $draft). Running the flow."
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          fi
+
   ci:
     name: CI
+    needs: [ gate ]
+    if: needs.gate.outputs.proceed == 'true'
     permissions:
       contents: read
     uses: ./.github/workflows/ci.yml
@@ -54,15 +117,19 @@ jobs:
     # through for manifest version 0.0.0, so ticking the box on the wrong branch
     # cannot ship a real version. The same guard checks the candidate against
     # GitHub's own default branch, so it applies when the flow is run by hand too.
+    #
+    # The gate is repeated here rather than inherited: a job whose `needs` were
+    # skipped is only reliably skipped when its own condition says so.
     if: >-
-      github.ref == 'refs/heads/main'
+      needs.gate.outputs.proceed == 'true'
+      && (github.ref == 'refs/heads/main'
       || startsWith(github.ref, 'refs/tags/v')
-      || inputs.trial_release
+      || inputs.trial_release)
     # `needs` on a `uses:` job waits for *every* job in ci.yml, that is test,
     # both HA targets, coverage, hacs, hassfest and the release gate, all for
     # this run's `github.sha`. GitHub holds that guarantee, so the script does
     # not repeat it.
-    needs: [ ci ]
+    needs: [ gate, ci ]
     runs-on: ubuntu-latest
     # Keeps the concurrency lock from being held for hours if an API call hangs.
     timeout-minutes: 30

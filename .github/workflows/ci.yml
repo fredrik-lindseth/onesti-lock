@@ -1,12 +1,20 @@
 name: CI
 
 on:
+  # Every commit on main is tested, under the name of what it is. Before, main
+  # was covered only through release.yml, so a docs commit produced a run called
+  # "Release" that ended in "Nothing to do".
+  push:
+    branches: [ main ]
   pull_request:
     branches: [ main ]
   # release.yml calls this workflow for its own candidate SHA and waits for the
-  # whole graph before it publishes. That is why there is no push trigger: on
-  # main, release.yml starts CI, so there is exactly one run for that commit.
-  # Two runs of the same thing are two answers to choose between.
+  # whole graph before it publishes. A release commit therefore gets two runs of
+  # this workflow: the push run, and the one inside the release graph. That is
+  # deliberate. The candidate is repo + SHA + version, and the release may only
+  # publish behind a CI graph it started and waited for itself; reading the
+  # verdict of a run somebody else started would be a guess. It costs one extra
+  # run per release, against a run per push before.
   workflow_call:
 
 permissions:

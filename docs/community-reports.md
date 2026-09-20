@@ -15,9 +15,103 @@ own, so every claim carries a marker:
 Swept 2026-09-20 across hjemmeautomasjon.no, byggahus.se, hemautomation.se,
 sweclockers, Danish forums and retailers, community.home-assistant.io,
 community.homey.app, community.openhab.org, community.smartthings.com,
-Hubitat, Reddit and YouTube. GitHub, Zigbee2MQTT, ZHA and the vendor's own
-site are covered in `docs/upstream-status.md` and
-`docs/hardware-generations.md` and were deliberately left out here.
+Hubitat, Reddit and YouTube.
+
+Since 2026-09-20 the material is not re-read from the web but from a local
+archive: 105 sources, every one dated, listed in
+[docs/manuals/README.md](manuals/README.md) and fetched by
+`python3 scripts/fetch_manuals.py --living`. That is 24 forum threads, 62
+GitHub issues and pull requests across the four upstream projects, the
+converter and quirk source files, and the vendor's own product pages and app
+listings. The counts below were made by reading that archive, so they can be
+checked and redone. Rerunning the fetch says what has arrived since.
+
+## What people actually complain about
+
+A census rather than a summary: every archived thread read through, one count
+per problem, counting distinct people and not posts. A person who raised the
+same thing in three places counts once. The numbers are a floor, not a
+measurement of the world: they say how many owners wrote it down somewhere
+this archive reaches.
+
+| Problem | People | Where | Solved by, and for how many |
+| ------- | -----: | ----- | --------------------------- |
+| Pairing fails, or the lock drops off and goes unavailable | ~47 | HA thread (40), Homey (6), SmartThings (1), plus 7 more on GitHub | A replacement module from the vendor (about 10), a mains-powered router by the door (about 6), a full module reset (3). Unresolved for at least 8 at their last post |
+| No way to tell who opened the door, or how | ~30 | 19 in the HA thread, 6 on GitHub, 5 on hjemmeautomasjon and Homey | Z2M since 2021 for the source type, never the slot number. ZHA since the 4138 quirk. deCONZ never |
+| Battery percentage is wrong: halved, doubled, or stuck | 16 | 8 in the HA thread, 4 on Z2M, 4 on Homey and hjemmeautomasjon | Found and fixed upstream: the attribute is 0-200 per ZCL. ZHA PRs 3457 and 3465, Z2M converter PRs 6940 and 7237. One user still saw 50 % on a new module months after |
+| Batteries do not last | ~11 | 8 in the HA thread, more on Homey | Firmware 4.7.98 for exactly one person. Nothing else |
+| The vendor gateway and a Zigbee coordinator cannot both have the lock | 10 | 8 in the HA thread, 2 on Homey | Nothing to solve: one Zigbee network per device. Two users found out only after buying |
+| The model string is not in the converter, so the lock is a dumb device | ~10 | Ten separate "new device support" issues, 2021 to 2026 | Each one by hand, each time merged. It keeps happening because the same hardware ships under new strings |
+| Auto-relock cannot be turned off | 6 | 5 on Homey, 1 on hjemmeautomasjon (an older model) | Nothing. A battery pull makes the setting take, sometimes |
+| The PIN is in the log in clear text | 3 | HA thread, ZHA quirk, Z2M converter | Disabling the entity. Still open upstream in both projects |
+| Sensors stopped updating after HA 2026.2 | 3 | HA thread, and zha-device-handlers#5235 | Nothing merged. One user moved to Z2M |
+
+Two of those deserve a word beyond the count.
+
+**Auto-relock is the vendor's own answer to a sleepy device, and it explains
+something we built around.** Five Homey owners set auto-relock off, the lock
+accepted it, and the door relocked a few seconds later anyway. Nimly support,
+quoted by the thread's first poster (**relayed**, the email is pasted in
+full), says why:
+
+> the lock is a battery device [...] there is a difference between a command
+> and a configuration update: the first is always accepted, the second
+> unfortunately is not
+
+That is the vendor saying out loud that a configuration write to a sleeping
+lock is not reliable, which is the same thing `ZhaLockTransport.send()` works
+around and the reason a PIN write is only believed after a delivered send.
+Their own advice is to give up on the setting and rebuild auto-relock in
+automations.
+<https://community.homey.app/t/104305>
+
+**Nobody can set a PIN and be sure it took.** One Homey user's code did not
+work on the keypad and then started working about twelve hours later, with
+nothing changed (**measured**, he gives the timing). Another's never took.
+On the Home Assistant side, one user hit a plain ZCL timeout on Set PIN Code
+(cluster 257, command 5, 10 s) through the Z2M dashboard and got it through
+by publishing the payload by hand, while a second user needed a differently
+shaped payload on a different topic for what is the same operation
+(**measured**, both payloads are in the thread). A third asked and got
+answered, empirically, that PIN, RFID and fingerprint each have their own ID
+range, so the same number in all three is three different credentials.
+<https://community.home-assistant.io/t/nimly-touch-pro/930415>
+
+### Things reported once or twice, worth knowing anyway
+
+- **A mechanical fault that looks exactly like a radio fault.** Two HA thread
+  users (kork123 #220-#222, Mastiff #227) traced intermittent dropouts to the
+  module losing pin contact when the door slams, and fixed it with layers of
+  double-sided tape between module and PCB. If that holds, some part of the
+  range story is not range at all.
+- **No child lock, and it is deliberate.** The handle inside cannot be
+  disabled, and the vendor withholds away-mode from the Homey app on fire
+  escape grounds (Homey thread 147580, one asker, answered by the app
+  author).
+- **Fingerprint and RFID can only be enrolled on the keypad**, not over
+  Zigbee. Two or three reporters, and it is a firmware limit, not an
+  integration one.
+- **The lock declares itself mains powered.** One open Z2M issue (#32772,
+  2026-08-07) and a 2021 deCONZ device record showing `"powerSource":"DC
+  Source"` for the same family. This is the claim in the battery section
+  below, and it has been visible in the record for five years.
+- **Support is inconsistent rather than bad.** In one Homey thread, one owner
+  got no answer at all while another got one within a week and later within
+  24 hours, on the same problem.
+- **A motor that stopped after five months**, replaced under warranty, and a
+  lock that beeps at an unlock command without moving the bolt. One report
+  each, no pattern.
+
+### Where the search found nothing
+
+The GitHub sweep covered every issue and PR mentioning nimly, onesti,
+easyaccess, easycode, easyfinger or e-life in zigbee2mqtt,
+zigbee-herdsman-converters, zha-device-handlers and deconz-rest-plugin: 62 in
+all. `ZMNC010`, the module's own part number, returns zero hits in all four
+repositories. Nobody on GitHub has ever referred to the module by the name
+printed in the manual. Neither `keyfree` nor a lock-related `salus` hit
+exists either; a plain `salus` search returns fifty issues about the
+unrelated thermostat brand.
 
 ## Bluetooth
 
@@ -206,12 +300,14 @@ that declares itself mains-powered is not one a coordinator will queue
 messages for. It costs one attribute read to settle and belongs on the
 hardware checklist in `hacs-onesti-7ldhq4`.
 
-**A claim that could not be verified.** A statement circulating from this
-sweep, that a Homey user named the module "SIGMI" and blamed the drain on it
-advertising as a non-sleepy mains-powered end device, was not found in the
-Homey thread when that thread was read. The power-source half of it is the
-same as uvnikita's verified post above; the module name is unsupported. Do
-not cite it.
+**A claim that could not be verified, and where it comes from.** The story
+that the module is called "SIGMI" and drains the lock because it advertises
+as a non-sleepy mains-powered device turns up once, in the Homey thread
+"[APP] Nimly", post #3, and the poster says himself that he got it from
+ChatGPT. The power-source half is true and independently measured
+(uvnikita's post above, and the open Z2M issue #32772); the module name is
+an invention. Do not cite it.
+<https://community.homey.app/t/143578>
 
 ## Range and coverage
 
@@ -385,6 +481,14 @@ the following could be found in any forum, blog, video or comment thread:
 - Any Reddit discussion at all, in any subreddit, in any language.
 
 ## Sources
+
+Every thread named below is archived locally and dated, along with 62 GitHub
+issues and PRs and the vendor's pages. The list of what exists, when it was
+read and how big it was then is the Living sources table in
+[docs/manuals/README.md](manuals/README.md); the content itself is gitignored.
+Threads found in this sweep and not quoted above are in that table too, among
+them nine more Homey threads (auto-relock, child lock, flows, PIN by flow,
+the gateway) and three smaller Home Assistant ones.
 
 - hjemmeautomasjon.no, thread 3791 "EasyAccess Easycode pinout", 2018-10-17 to
   2021-12, <https://www.hjemmeautomasjon.no/forums/topic/3791-easyaccess-easycode-pinout/>

@@ -4,6 +4,8 @@ Manufacturer PDFs, kept here so the slot-numbering rules can be checked offline,
 
 Run `python3 scripts/fetch_manuals.py` to download it all. Each row in the Sources table carries a type, and the script acts on it: a PDF gets a text extract, a zip or a repo snapshot is unpacked into a folder beside the archive, a `.txt` or `.json` is just stored.
 
+The same script keeps a second table, [Living sources](#living-sources): every forum thread, GitHub issue and code file anyone has written about these locks, dated, with what it looked like when it was last read. That is the one to run when the question is "has anything happened since last time".
+
 The manuals were retrieved 2026-09-19 from the manufacturer's own domains (nimly.se, easyaccess.no); the rest was added 2026-09-20 from the sources named in the table. Date is the date encoded in the manufacturer's filename (DDMMYY), unless marked `*`, which means it is the file's creation date because no date is printed in the document itself.
 
 ## Documents
@@ -95,6 +97,139 @@ python3 scripts/fetch_manuals.py
 ```
 
 The five `fcc-MGW211/` rows are the exception: apps.fcc.gov answers 403 to curl and to urllib whatever headers they send, so the script will report DEAD LINK for them on a fresh checkout and they have to be fetched with a real browser. The route, since the FCC's own search is just as unfriendly to a constructed URL: open `https://apps.fcc.gov/oetcf/eas/reports/GenericSearch.cfm`, type grantee code `2AHNM` (leave the product code empty, a filled one matches nothing), submit the form, and in the result table follow "Summary" on one of the three 12/21/2020 MGW211 rows. That lands on `ViewExhibitReport.cfm` with an `application_id` in the URL; swap `mode=Sum` for `mode=Exhibits` and the attachment links appear. The mirrors that would be easier, fcc.report, fccid.io and electric.garden, all answer 403 or 429.
+
+## Living sources
+
+Everything above is a file that will never change again, pinned by its hash. This table is the opposite: forum threads, GitHub issues and the code other people keep writing about these locks. The point of archiving them is to not do the search a second time, and to see in December what was already read in September.
+
+So the row carries a date and a marker instead of a hash: `Fetched` is the last time the script got it, `Size then` is how big it was at that moment. `python3 scripts/fetch_manuals.py --living` refetches everything, prints `same` or `CHANGED 241 -> 248` per row, and writes the new date and marker back here, so `git diff` on this file is the list of what moved. `--check` does the same without writing.
+
+| Type | What it fetches | Marker |
+| ---- | --------------- | ------ |
+| `discourse` | A whole Discourse topic, every post, as JSON plus a readable `.txt` | posts in the topic |
+| `invision` | A hjemmeautomasjon.no topic, page by page, as `.txt` (no JSON API exists) | posts found |
+| `gh-issue` | One issue or PR with every comment, as JSON plus a `.txt` | comments, `17c` |
+| `gh-file` | One file at the head of a branch | the commit that last touched it |
+| `gh-repo` | A whole repository, unpacked | the head commit |
+| `web` | A vendor page: raw `.html` beside a stripped `.txt` | SHA-256 of the text |
+| `appstore` | Apple's lookup API for one app: version, release date, release notes | the version |
+| `manual` | Nothing. The row says the source exists and cannot be scripted | why not |
+
+The marker for `web` is the hash of the text and not of the HTML on purpose. nimly.se serves a fresh nonce on every request, so the raw bytes differ between two fetches a second apart and every run would claim the page had changed.
+
+Two Swedish forums are in the table as `manual` rows. byggahus.se and sweclockers.com both answer 403 to anything that is not a browser: the block is a Cloudflare challenge served before any HTML, so there is no fallback to parse. Somebody reading them by hand is the only route. hemautomation.se is not in the table at all: the domain is parked at Loopia and the forum no longer exists.
+
+| Local item | Source | Type | Key | Fetched | Size then |
+| ---------- | ------ | ---- | --- | ------- | --------- |
+| forums/ha-523634.json | https://community.home-assistant.io | discourse | 523634 | 2026-09-20 | 241 |
+| forums/ha-930415.json | https://community.home-assistant.io | discourse | 930415 | 2026-09-20 | 5 |
+| forums/ha-796362.json | https://community.home-assistant.io | discourse | 796362 | 2026-09-20 | 2 |
+| forums/ha-1010146.json | https://community.home-assistant.io | discourse | 1010146 | 2026-09-20 | 1 |
+| forums/homey-78867.json | https://community.homey.app | discourse | 78867 | 2026-09-20 | 19 |
+| forums/homey-143578.json | https://community.homey.app | discourse | 143578 | 2026-09-20 | 22 |
+| forums/homey-104305.json | https://community.homey.app | discourse | 104305 | 2026-09-20 | 9 |
+| forums/homey-99133.json | https://community.homey.app | discourse | 99133 | 2026-09-20 | 11 |
+| forums/homey-147580.json | https://community.homey.app | discourse | 147580 | 2026-09-20 | 8 |
+| forums/homey-117371.json | https://community.homey.app | discourse | 117371 | 2026-09-20 | 5 |
+| forums/homey-141138.json | https://community.homey.app | discourse | 141138 | 2026-09-20 | 2 |
+| forums/homey-139743.json | https://community.homey.app | discourse | 139743 | 2026-09-20 | 2 |
+| forums/homey-137354.json | https://community.homey.app | discourse | 137354 | 2026-09-20 | 2 |
+| forums/homey-35333.json | https://community.homey.app | discourse | 35333 | 2026-09-20 | 8 |
+| forums/openhab-125747.json | https://community.openhab.org | discourse | 125747 | 2026-09-20 | 4 |
+| forums/smartthings-86418.json | https://community.smartthings.com | discourse | 86418 | 2026-09-20 | 25 |
+| forums/hja-3791.txt | https://www.hjemmeautomasjon.no/forums/topic/3791-easyaccess-easycode-pinout | invision | 3791 | 2026-09-20 | 72 |
+| forums/hja-6786.txt | https://www.hjemmeautomasjon.no/forums/topic/6786-easy-access-easycodetouch | invision | 6786 | 2026-09-20 | 45 |
+| forums/hja-5766.txt | https://www.hjemmeautomasjon.no/forums/topic/5766-easy-access-easycode-v2-kodel | invision | 5766 | 2026-09-20 | 4 |
+| forums/hja-13667.txt | https://www.hjemmeautomasjon.no/forums/topic/13667-nimly-id-lock-eller-nuki | invision | 13667 | 2026-09-20 | 2 |
+| forums/hja-2869.txt | https://www.hjemmeautomasjon.no/forums/topic/2869-bytte-ut-easyaccess-lås-med-id-lock | invision | 2869 | 2026-09-20 | 4 |
+| forums/hja-10418.txt | https://www.hjemmeautomasjon.no/forums/topic/10418-hvordan-reset-av-easyaccess-dørlås | invision | 10418 | 2026-09-20 | 1 |
+| github/z2m-5884.json | https://github.com/Koenkk/zigbee2mqtt/issues/5884 | gh-issue | Koenkk/zigbee2mqtt#5884 | 2026-09-20 | 17c |
+| github/z2m-6379.json | https://github.com/Koenkk/zigbee2mqtt/issues/6379 | gh-issue | Koenkk/zigbee2mqtt#6379 | 2026-09-20 | 4c |
+| github/z2m-6551.json | https://github.com/Koenkk/zigbee2mqtt/issues/6551 | gh-issue | Koenkk/zigbee2mqtt#6551 | 2026-09-20 | 123c |
+| github/z2m-13768.json | https://github.com/Koenkk/zigbee2mqtt/issues/13768 | gh-issue | Koenkk/zigbee2mqtt#13768 | 2026-09-20 | 2c |
+| github/z2m-14726.json | https://github.com/Koenkk/zigbee2mqtt/issues/14726 | gh-issue | Koenkk/zigbee2mqtt#14726 | 2026-09-20 | 6c |
+| github/z2m-17205.json | https://github.com/Koenkk/zigbee2mqtt/issues/17205 | gh-issue | Koenkk/zigbee2mqtt#17205 | 2026-09-20 | 88c |
+| github/z2m-17546.json | https://github.com/Koenkk/zigbee2mqtt/issues/17546 | gh-issue | Koenkk/zigbee2mqtt#17546 | 2026-09-20 | 1c |
+| github/z2m-18508.json | https://github.com/Koenkk/zigbee2mqtt/issues/18508 | gh-issue | Koenkk/zigbee2mqtt#18508 | 2026-09-20 | 3c |
+| github/z2m-19299.json | https://github.com/Koenkk/zigbee2mqtt/issues/19299 | gh-issue | Koenkk/zigbee2mqtt#19299 | 2026-09-20 | 7c |
+| github/z2m-19627.json | https://github.com/Koenkk/zigbee2mqtt/issues/19627 | gh-issue | Koenkk/zigbee2mqtt#19627 | 2026-09-20 | 5c |
+| github/z2m-19738.json | https://github.com/Koenkk/zigbee2mqtt/issues/19738 | gh-issue | Koenkk/zigbee2mqtt#19738 | 2026-09-20 | 1c |
+| github/z2m-21182.json | https://github.com/Koenkk/zigbee2mqtt/issues/21182 | gh-issue | Koenkk/zigbee2mqtt#21182 | 2026-09-20 | 0c |
+| github/z2m-22319.json | https://github.com/Koenkk/zigbee2mqtt/issues/22319 | gh-issue | Koenkk/zigbee2mqtt#22319 | 2026-09-20 | 13c |
+| github/z2m-23551.json | https://github.com/Koenkk/zigbee2mqtt/issues/23551 | gh-issue | Koenkk/zigbee2mqtt#23551 | 2026-09-20 | 3c |
+| github/z2m-23691.json | https://github.com/Koenkk/zigbee2mqtt/issues/23691 | gh-issue | Koenkk/zigbee2mqtt#23691 | 2026-09-20 | 8c |
+| github/z2m-24503.json | https://github.com/Koenkk/zigbee2mqtt/issues/24503 | gh-issue | Koenkk/zigbee2mqtt#24503 | 2026-09-20 | 2c |
+| github/z2m-26649.json | https://github.com/Koenkk/zigbee2mqtt/issues/26649 | gh-issue | Koenkk/zigbee2mqtt#26649 | 2026-09-20 | 1c |
+| github/z2m-26651.json | https://github.com/Koenkk/zigbee2mqtt/issues/26651 | gh-issue | Koenkk/zigbee2mqtt#26651 | 2026-09-20 | 3c |
+| github/z2m-30704.json | https://github.com/Koenkk/zigbee2mqtt/issues/30704 | gh-issue | Koenkk/zigbee2mqtt#30704 | 2026-09-20 | 1c |
+| github/z2m-31385.json | https://github.com/Koenkk/zigbee2mqtt/issues/31385 | gh-issue | Koenkk/zigbee2mqtt#31385 | 2026-09-20 | 3c |
+| github/z2m-32469.json | https://github.com/Koenkk/zigbee2mqtt/issues/32469 | gh-issue | Koenkk/zigbee2mqtt#32469 | 2026-09-20 | 1c |
+| github/z2m-32772.json | https://github.com/Koenkk/zigbee2mqtt/issues/32772 | gh-issue | Koenkk/zigbee2mqtt#32772 | 2026-09-20 | 0c |
+| github/zhc-4892.json | https://github.com/Koenkk/zigbee-herdsman-converters/issues/4892 | gh-issue | Koenkk/zigbee-herdsman-converters#4892 | 2026-09-20 | 2c |
+| github/zhc-6009.json | https://github.com/Koenkk/zigbee-herdsman-converters/issues/6009 | gh-issue | Koenkk/zigbee-herdsman-converters#6009 | 2026-09-20 | 1c |
+| github/zhc-6010.json | https://github.com/Koenkk/zigbee-herdsman-converters/issues/6010 | gh-issue | Koenkk/zigbee-herdsman-converters#6010 | 2026-09-20 | 4c |
+| github/zhc-6024.json | https://github.com/Koenkk/zigbee-herdsman-converters/issues/6024 | gh-issue | Koenkk/zigbee-herdsman-converters#6024 | 2026-09-20 | 1c |
+| github/zhc-6043.json | https://github.com/Koenkk/zigbee-herdsman-converters/issues/6043 | gh-issue | Koenkk/zigbee-herdsman-converters#6043 | 2026-09-20 | 1c |
+| github/zhc-6096.json | https://github.com/Koenkk/zigbee-herdsman-converters/issues/6096 | gh-issue | Koenkk/zigbee-herdsman-converters#6096 | 2026-09-20 | 1c |
+| github/zhc-6249.json | https://github.com/Koenkk/zigbee-herdsman-converters/issues/6249 | gh-issue | Koenkk/zigbee-herdsman-converters#6249 | 2026-09-20 | 2c |
+| github/zhc-6940.json | https://github.com/Koenkk/zigbee-herdsman-converters/issues/6940 | gh-issue | Koenkk/zigbee-herdsman-converters#6940 | 2026-09-20 | 6c |
+| github/zhc-7237.json | https://github.com/Koenkk/zigbee-herdsman-converters/issues/7237 | gh-issue | Koenkk/zigbee-herdsman-converters#7237 | 2026-09-20 | 3c |
+| github/zhc-7247.json | https://github.com/Koenkk/zigbee-herdsman-converters/issues/7247 | gh-issue | Koenkk/zigbee-herdsman-converters#7247 | 2026-09-20 | 1c |
+| github/zhc-8994.json | https://github.com/Koenkk/zigbee-herdsman-converters/issues/8994 | gh-issue | Koenkk/zigbee-herdsman-converters#8994 | 2026-09-20 | 4c |
+| github/zhc-9018.json | https://github.com/Koenkk/zigbee-herdsman-converters/issues/9018 | gh-issue | Koenkk/zigbee-herdsman-converters#9018 | 2026-09-20 | 6c |
+| github/zhc-9527.json | https://github.com/Koenkk/zigbee-herdsman-converters/issues/9527 | gh-issue | Koenkk/zigbee-herdsman-converters#9527 | 2026-09-20 | 3c |
+| github/zhc-11332.json | https://github.com/Koenkk/zigbee-herdsman-converters/issues/11332 | gh-issue | Koenkk/zigbee-herdsman-converters#11332 | 2026-09-20 | 8c |
+| github/zhc-11874.json | https://github.com/Koenkk/zigbee-herdsman-converters/issues/11874 | gh-issue | Koenkk/zigbee-herdsman-converters#11874 | 2026-09-20 | 1c |
+| github/zhc-13080.json | https://github.com/Koenkk/zigbee-herdsman-converters/issues/13080 | gh-issue | Koenkk/zigbee-herdsman-converters#13080 | 2026-09-20 | 0c |
+| github/zhc-13233.json | https://github.com/Koenkk/zigbee-herdsman-converters/issues/13233 | gh-issue | Koenkk/zigbee-herdsman-converters#13233 | 2026-09-20 | 1c |
+| github/zha-2354.json | https://github.com/zigpy/zha-device-handlers/issues/2354 | gh-issue | zigpy/zha-device-handlers#2354 | 2026-09-20 | 8c |
+| github/zha-2376.json | https://github.com/zigpy/zha-device-handlers/issues/2376 | gh-issue | zigpy/zha-device-handlers#2376 | 2026-09-20 | 10c |
+| github/zha-3095.json | https://github.com/zigpy/zha-device-handlers/issues/3095 | gh-issue | zigpy/zha-device-handlers#3095 | 2026-09-20 | 16c |
+| github/zha-3457.json | https://github.com/zigpy/zha-device-handlers/issues/3457 | gh-issue | zigpy/zha-device-handlers#3457 | 2026-09-20 | 13c |
+| github/zha-3465.json | https://github.com/zigpy/zha-device-handlers/issues/3465 | gh-issue | zigpy/zha-device-handlers#3465 | 2026-09-20 | 16c |
+| github/zha-3580.json | https://github.com/zigpy/zha-device-handlers/issues/3580 | gh-issue | zigpy/zha-device-handlers#3580 | 2026-09-20 | 1c |
+| github/zha-4138.json | https://github.com/zigpy/zha-device-handlers/issues/4138 | gh-issue | zigpy/zha-device-handlers#4138 | 2026-09-20 | 18c |
+| github/zha-4147.json | https://github.com/zigpy/zha-device-handlers/issues/4147 | gh-issue | zigpy/zha-device-handlers#4147 | 2026-09-20 | 1c |
+| github/zha-4244.json | https://github.com/zigpy/zha-device-handlers/issues/4244 | gh-issue | zigpy/zha-device-handlers#4244 | 2026-09-20 | 1c |
+| github/zha-4881.json | https://github.com/zigpy/zha-device-handlers/issues/4881 | gh-issue | zigpy/zha-device-handlers#4881 | 2026-09-20 | 8c |
+| github/zha-5235.json | https://github.com/zigpy/zha-device-handlers/issues/5235 | gh-issue | zigpy/zha-device-handlers#5235 | 2026-09-20 | 3c |
+| github/zha-5345.json | https://github.com/zigpy/zha-device-handlers/issues/5345 | gh-issue | zigpy/zha-device-handlers#5345 | 2026-09-20 | 2c |
+| github/deconz-4252.json | https://github.com/dresden-elektronik/deconz-rest-plugin/issues/4252 | gh-issue | dresden-elektronik/deconz-rest-plugin#4252 | 2026-09-20 | 1c |
+| github/deconz-4253.json | https://github.com/dresden-elektronik/deconz-rest-plugin/issues/4253 | gh-issue | dresden-elektronik/deconz-rest-plugin#4253 | 2026-09-20 | 126c |
+| github/deconz-4540.json | https://github.com/dresden-elektronik/deconz-rest-plugin/issues/4540 | gh-issue | dresden-elektronik/deconz-rest-plugin#4540 | 2026-09-20 | 36c |
+| github/deconz-5042.json | https://github.com/dresden-elektronik/deconz-rest-plugin/issues/5042 | gh-issue | dresden-elektronik/deconz-rest-plugin#5042 | 2026-09-20 | 3c |
+| github/deconz-5870.json | https://github.com/dresden-elektronik/deconz-rest-plugin/issues/5870 | gh-issue | dresden-elektronik/deconz-rest-plugin#5870 | 2026-09-20 | 54c |
+| github/deconz-6334.json | https://github.com/dresden-elektronik/deconz-rest-plugin/issues/6334 | gh-issue | dresden-elektronik/deconz-rest-plugin#6334 | 2026-09-20 | 8c |
+| github/deconz-7125.json | https://github.com/dresden-elektronik/deconz-rest-plugin/issues/7125 | gh-issue | dresden-elektronik/deconz-rest-plugin#7125 | 2026-09-20 | 4c |
+| github/deconz-7525.json | https://github.com/dresden-elektronik/deconz-rest-plugin/issues/7525 | gh-issue | dresden-elektronik/deconz-rest-plugin#7525 | 2026-09-20 | 7c |
+| github/deconz-7534.json | https://github.com/dresden-elektronik/deconz-rest-plugin/issues/7534 | gh-issue | dresden-elektronik/deconz-rest-plugin#7534 | 2026-09-20 | 2c |
+| github/deconz-8514.json | https://github.com/dresden-elektronik/deconz-rest-plugin/issues/8514 | gh-issue | dresden-elektronik/deconz-rest-plugin#8514 | 2026-09-20 | 8c |
+| github/deconz-8515.json | https://github.com/dresden-elektronik/deconz-rest-plugin/issues/8515 | gh-issue | dresden-elektronik/deconz-rest-plugin#8515 | 2026-09-20 | 8c |
+| code/onesti.ts | https://github.com/Koenkk/zigbee-herdsman-converters | gh-file | Koenkk/zigbee-herdsman-converters:src/devices/onesti.ts@master | 2026-09-20 | 61b0b4c77d3e |
+| code/zhaquirks-nimly-lock.py | https://github.com/zigpy/zha-device-handlers | gh-file | zigpy/zha-device-handlers:zhaquirks/nimly/lock.py@dev | 2026-09-20 | e5c7b242efe0 |
+| code/zhaquirks-nimly-init.py | https://github.com/zigpy/zha-device-handlers | gh-file | zigpy/zha-device-handlers:zhaquirks/nimly/__init__.py@dev | 2026-09-20 | 263e68c48778 |
+| vendor/nimly-touch-pro-black.txt | https://nimly.se/product/touch-pro-black/ | web | - | 2026-09-20 | 7638e0ac758e |
+| vendor/nimly-touch-pro-ultimate-black.txt | https://nimly.se/product/touch-pro-ultimate-black/ | web | - | 2026-09-20 | 247400e8f121 |
+| vendor/nimly-touch.txt | https://nimly.se/product/touch/ | web | - | 2026-09-20 | 9e9a2d013d48 |
+| vendor/nimly-code-pro.txt | https://nimly.se/product/code-pro/ | web | - | 2026-09-20 | ffacbb715775 |
+| vendor/nimly-code-swe.txt | https://nimly.se/product/code-swe/ | web | - | 2026-09-20 | 41188dd5dfb9 |
+| vendor/nimly-indoor.txt | https://nimly.se/product/nimly-indoor/ | web | - | 2026-09-20 | 24ee365015b7 |
+| vendor/nimly-connect-module.txt | https://nimly.se/product/connect-module/ | web | - | 2026-09-20 | 27588e0d792b |
+| vendor/nimly-connect-bridge.txt | https://nimly.se/product/connect-bridge/ | web | - | 2026-09-20 | 303bc7273255 |
+| vendor/nimly-connect-gateway.txt | https://nimly.se/product/connect-gateway/ | web | - | 2026-09-20 | 4be67749a207 |
+| vendor/nimly-connect-app.txt | https://nimly.se/product/connect-app/ | web | - | 2026-09-20 | 8dfb6377f860 |
+| vendor/nimly-support.txt | https://nimly.se/support/ | web | - | 2026-09-20 | 01c4c320567e |
+| vendor/nimly-vulnerability-reporting.txt | https://nimly.se/rapportering-av-sarbarheter/ | web | - | 2026-09-20 | fa11b0a60362 |
+| vendor/unloc-install-nimly.txt | https://help.unloc.app/en/article/how-to-install-nimly-touch-protouchcodeindoor-aesdl5 | web | - | 2026-09-20 | 250e48fb5383 |
+| vendor/app-nimly-ble.json | https://apps.apple.com/no/app/nimly-ble/id6451232924 | appstore | 6451232924 | 2026-09-20 | 1.5.0 |
+| vendor/app-nimly-connect.json | https://apps.apple.com/no/app/nimly-connect/id1577797927 | appstore | 1577797927 | 2026-09-20 | 1.28.0 |
+| vendor/app-nimly-home.json | https://apps.apple.com/no/app/nimly-home/id6760764003 | appstore | 6760764003 | 2026-09-20 | 1.0 |
+| vendor/app-unloc.json | https://apps.apple.com/no/app/unloc/id1361534440 | appstore | 1361534440 | 2026-09-20 | 5.11.8 |
+| byggahus-497166 | https://www.byggahus.se/forum/threads/497166 | manual | 497166 | 2026-09-20 | Cloudflare 403 |
+| byggahus-573457 | https://www.byggahus.se/forum/threads/573457 | manual | 573457 | 2026-09-20 | Cloudflare 403 |
+| byggahus-543716 | https://www.byggahus.se/forum/threads/543716 | manual | 543716 | 2026-09-20 | Cloudflare 403 |
+| sweclockers | https://www.sweclockers.com/forum | manual | - | 2026-09-20 | Cloudflare 403 |
+| code/nimly-manager/ | https://github.com/aridder/nimly-manager | gh-repo | aridder/nimly-manager@main | 2026-09-20 | b47b09d4cdac |
 
 ## White-label brands
 

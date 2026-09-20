@@ -24,11 +24,21 @@ The Code Pro column has one capture behind it. A zigpy debug log from a NimlyCod
 
 - [Touch Pro manual](https://nimly.se/wp-content/uploads/2024/09/EN-Touch-Pro-Installation-Manual-150324.pdf) (dated 15.03.2024): "User slot 000 is reserved for your first master code", "User slot 001 and 002 are reservered for more master codes", "User slot 003 to 999 are reservered user codes". The master finger is 000 with 001-002 for more master fingers, user fingers are 003-199, key tags 003-999. "Master codes cannot be deleted, only overwritten to new master codes."
 - [Code installation guide](https://nimly.se/wp-content/uploads/2023/11/EN-Code-Installation-Guide-130922.pdf) (dated 13.09.2022): "User slot 000, 001 and 002 are reserved for the master code(s)", user codes from 003, "Key tags can be added to user slots 000 to 999."
+- [Code installation manual for new firmware](https://nimly.se/wp-content/uploads/2025/09/NO-Code-Installation-Manual-new-firmware-150925.pdf) (Norwegian, dated 15.09.2025): "Brukerplassering 000 er reservert første masterkode. Fabrikkode er 123", "Brukerplassering 001 og 002 er reservert for flere masterkoder", "Brukerplassering 003 til 999 er reservert brukerkoder", "Brukerplassering 000 til 999 er reservert adgangsbrikker". Codes hold up to 8 digits, at least 6 recommended for a master code and 4 for a user code, and connecting the Connect App requires a six-digit master code. The PDF has no text layer; the quotes are OCR read against the rendered pages.
 - [Code Pro product guide](https://nimly.se/wp-content/uploads/2026/04/EN-Code-Pro-Product-Guide-120126.pdf) (dated 12.01.2026): "000 Master codes, 001-999 user codes", "User codes can be added to user slot 001 to 999", "Master codes can not be removed, only overwritten." The master code unlocks by default, but the Code Pro can be set to use it for programming only.
 - Touch installation manual (dated 15.09.2025): "User slot 000 is reserved for your first master code", "User slot 001 and 002 are reservered for more master codes", "User slot 003 to 999 are reservered user codes". Key tags are 003-999 as well.
 - Indoor installation guide (dated 05.10.2022): "Create master code – used for access and programming", "User slot 000, 001 and 002 are reserved for the master code(s)", "User codes can be added to user slots from 003 to 999", "Key tags can be added to user slots 000 to 999."
 - EasyCodeTouch manual (Norwegian, undated): "Masterkodene legges inn på tallene 000 - 001 og 002", "Brukerkodene legges på brukernummer mellom 003-999", key tags on "individuelle tall mellom 000-999", and "Masterkodene kan IKKE slettes, men kun endres til nye masterkoder."
 - EasyFingerTouch manual (Norwegian, undated): codes and key tags as on the EasyCodeTouch, plus fingerprints in a series of their own, "alle fingeravtrykk legges inn på tallene 000 til 199", with master fingers on "000 – 001 – 002" and user fingers on 003-199.
+
+The 2025 Code manual is the first vendor document to state the split as a rule
+instead of leaving it to be read off a programming example, and it confirms
+`reserved_slots = 3` for a Code on that firmware. Nothing in the code follows
+from it: `pin_rules.py` already defaults to three reserved slots, and the wider
+tag range, 000 to 999 against 003 to 999 for codes, is outside anything the
+integration writes, since no ZCL command here touches tags. A tag on slot 1 or 2
+of a Code still reports its own slot in `attrid 0x0100`, and that slot sits below
+the default sensor row.
 
 #### Fingerprints have their own numbering
 

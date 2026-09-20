@@ -65,10 +65,9 @@ The [Keybox installation guide](https://nimly.se/wp-content/uploads/2025/04/EN-K
 (2024-11-29) has a module tray under the battery compartment for the Connect
 Module, the same part as in the locks. So an Onesti Zigbee device that is not a
 door lock exists, and a Keybox with a module in it would answer "Onesti Products
-AS" over Zigbee. Whether it exposes a Door Lock cluster, and so whether the
-config flow would offer it at all, is untested; nobody here owns one. The BLE
-model table has `NimlyKeybox` at byte 26 and `NimlyKeybox2` at 36
-(`docs/nimly-ble-app/ble-protocol.md`), the same old/new split as the locks.
+AS" over Zigbee. The BLE model table has `NimlyKeybox` at byte 26 and
+`NimlyKeybox2` at 36 (`docs/nimly-ble-app/ble-protocol.md`), the same old/new
+split as the locks.
 
 Its slot layout is not the locks': user slot 000 is the only reserved one, the
 factory master code is `123456`, and user codes go in 001 to 999. Master codes
@@ -77,19 +76,33 @@ module later disables every manually registered code and tag until the module is
 removed and the power cycled, and recommends a factory reset before installing
 it.
 
+Whether it exposes a Door Lock cluster is unsettled; nobody here owns one.
+Pointing to yes: the cloud platform counts `keybox` among its `DoorlockTypes`
+([app-architecture.md](nimly-connect-app/app-architecture.md#supported-device-types)),
+a Keybox's codes and tags are managed through the same `/devices/{id}/access`
+call as a lock's, and that call ends in a ZCL `set_pin_code` on the device. Its
+keypad programming grammar is the locks', user slot and all. Pointing the other
+way: no Zigbee sighting of a Keybox exists in anything archived here. Z2M's
+`onesti.ts` carries no `zigbeeModel` for one, and no issue in zigbee2mqtt,
+zigbee-herdsman-converters, zha-device-handlers or the deCONZ plugin names it.
+
+Manufacturer alone would not be the gate in any case. The same converter file
+lists an Onesti Products AS smart plug, `S4RX-110` "Relax", which passes the
+manufacturer filter and fails the cluster one. If a Keybox does answer with the
+cluster, the config flow offers it, and most of what follows holds: events
+decode as on a lock, and `reserved_slots` has to be set to 1, its minimum, since
+only slot 000 is reserved there, which puts the slot sensors on 001 to 010. What
+does not fit is `wake()`, which locks through ZHA's lock entity; on a Keybox that
+is a relock of a lid that relocks itself when shut. None of it has been tried.
+
 ## What the 2025 Code manual says about slots
 
 Nimly publishes a [Code installation manual for new firmware](https://nimly.se/wp-content/uploads/2025/09/NO-Code-Installation-Manual-new-firmware-150925.pdf)
-dated 2025-09-15, alongside the 2023 one. It is the first vendor document that
-spells out the master/user split this integration guesses at:
-
-- Slot 000: first master code, factory code `123`.
-- Slots 001 and 002: further master codes, optional.
-- Slots 003 to 999: user codes.
-- RFID tags: slots 000 to 999, with no reservation at all.
-
-So `reserved_slots = 3` is right for a Code on this firmware for PINs, and the
-tag range is wider than the PIN range on the same lock. Codes are up to 8 digits,
-4 recommended for users and 6 for masters, and the manual notes that connecting
-the Connect App requires a six-digit master code. What the equivalent manual
-says for the Code Pro is unknown: Nimly does not publish one.
+dated 2025-09-15, alongside the 2023 one, and it is the first vendor document to
+state the master/user split as a rule: 000 first master with factory code `123`,
+001 and 002 further masters, 003 to 999 user codes, RFID tags 000 to 999. The
+quotes and what follows for the integration are in
+[slot-numbering.md](slot-numbering.md). What belongs here is that the manual
+exists at all: the vendor split the Code's documentation by firmware and
+publishes nothing equivalent for the Code Pro, so what a new-firmware Code Pro
+does with slots 001 and 002 has no document behind it either way.

@@ -174,6 +174,8 @@ async def test_entities_registered_with_expected_unique_ids(hass: HomeAssistant,
 
     expected = {f"{LOCK_IEEE}-slot-{SLOT_FIRST_USER + i}" for i in range(NUM_USER_SLOTS)}
     expected.add(f"{LOCK_IEEE}-activity")
+    # Registered but disabled by default, see tests_ha/test_sensor.py.
+    expected.update({f"{LOCK_IEEE}-pin-users", f"{LOCK_IEEE}-pin-length-min", f"{LOCK_IEEE}-pin-length-max"})
     assert unique_ids == expected
 
 

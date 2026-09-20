@@ -88,6 +88,15 @@
       },
       "last_activity": {
         "name": "Seneste aktivitet"
+      },
+      "pin_users": {
+        "name": "PIN-pladser"
+      },
+      "pin_length_min": {
+        "name": "Korteste PIN-kode"
+      },
+      "pin_length_max": {
+        "name": "Længste PIN-kode"
       }
     }
   },

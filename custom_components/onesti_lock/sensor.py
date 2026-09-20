@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.components.sensor import SensorEntity
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -29,6 +30,15 @@ PARALLEL_UPDATES = 0
 # attribute.
 _ACTIVITY_KEYS = ("user_name", "user_slot", "action", "source", "timestamp")
 
+# The three numbers the lock reports about itself, as (unique_id key,
+# translation key, key in coordinator.lock_capabilities). They describe
+# the lock, not any one event, so each gets its own diagnostic sensor.
+_CAPABILITY_SENSORS = (
+    ("pin-users", "pin_users", "num_pin_users"),
+    ("pin-length-min", "pin_length_min", "min_pin_length"),
+    ("pin-length-max", "pin_length_max", "max_pin_length"),
+)
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -46,6 +56,10 @@ async def async_setup_entry(
 
     entities: list[SensorEntity] = [NimlySlotSensor(coordinator, entry, slot) for slot in slots]
     entities.append(NimlyActivitySensor(coordinator, entry))
+    entities.extend(
+        NimlyCapabilitySensor(coordinator, entry, key, translation_key, capability)
+        for key, translation_key, capability in _CAPABILITY_SENSORS
+    )
     async_add_entities(entities)
 
     _remove_orphaned_slot_sensors(hass, entry, coordinator.ieee, slots)
@@ -111,6 +125,38 @@ class NimlySlotSensor(NimlyEntity, SensorEntity):
         self.async_write_ha_state()
 
 
+class NimlyCapabilitySensor(NimlyEntity, SensorEntity):
+    """One number the lock reports about itself.
+
+    Off by default: these are the same for every lock of a model and do
+    not change once read, so they are worth having only when a PIN is
+    refused and the limits need checking. No state class, since a
+    capacity is not a measurement, and no stored data, since the answer
+    already lives in the config entry options.
+    """
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
+
+    def __init__(
+        self,
+        coordinator: NimlyCoordinator,
+        entry: NimlyConfigEntry,
+        key: str,
+        translation_key: str,
+        capability: str,
+    ) -> None:
+        super().__init__(coordinator, key)
+        self._capability = capability
+        self._attr_translation_key = translation_key
+
+    @property
+    def native_value(self) -> int | None:
+        """The reported number, or None until the lock has answered."""
+        value = self._coordinator.lock_capabilities.get(self._capability)
+        return value if isinstance(value, int) else None
+
+
 @dataclass
 class ActivityExtraStoredData(ExtraStoredData):
     """The last activity, kept across restarts by the restore cache.
@@ -157,10 +203,9 @@ class NimlyActivitySensor(NimlyEntity, SensorEntity, RestoreEntity):
 
     @property
     def extra_state_attributes(self) -> dict:
-        attrs = dict(self._activity) if self._activity else {}
-        if self._coordinator.lock_capabilities:
-            attrs.update(self._coordinator.lock_capabilities)
-        return attrs
+        # Only the event. What the lock reports about itself has its own
+        # diagnostic sensors, since it never changes with an event.
+        return dict(self._activity) if self._activity else {}
 
     @property
     def extra_restore_state_data(self) -> ActivityExtraStoredData | None:

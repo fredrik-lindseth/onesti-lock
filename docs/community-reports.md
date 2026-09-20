@@ -89,10 +89,12 @@ Bluetooth part of the in-lock module is still under development (**relayed**).
 That dates the BLE side as not yet live in the summer of 2022, on a module
 that was already shipping with Zigbee.
 
-**Correction to something said during this sweep.** A sentence, "Bluetooth is
-only available on the newer versions of the module", was attributed to the
-Connect Module installation guide above. It is not in that file. The PDF was
-downloaded and read in full and contains no such line. Do not cite it.
+**A line the text extract hides.** "*Bluetooth is only available on the newer
+versions of the module" does stand in the Connect Module installation guide,
+printed small under the green "Works with unloc" badge on the English 2024
+edition and repeated in the Norwegian 2026 one. `pdftotext` drops it on the
+English file, so a grep of the extract says it is not there. Render the page
+and read it instead, as [docs/manuals/README.md](manuals/README.md) says.
 
 ### The first-generation Bluetooth module was a different device
 

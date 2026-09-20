@@ -367,7 +367,7 @@ If Reconfigure fails repeatedly, follow "Reconfigure in ZHA" in section 1.
 
 - **Put a Zigbee router near the lock.** A smart plug that works as a Zigbee router, 1-3 meters from the door, makes an enormous difference for sleepy devices.
 - **Don't move the coordinator.** The Zigbee network takes time to find new routes after the topology changes.
-- **Do not wait for a Zigbee firmware update.** The module lists the OTA Upgrade cluster, but no image for it exists in the community zigbee-OTA index, so ZHA has nothing to offer. Whether the vendor's BLE app can update the firmware has not been checked.
+- **Do not wait for a firmware update.** The module lists the OTA Upgrade cluster, but no image for it exists in the community zigbee-OTA index (checked 2026-09-19), so ZHA has nothing to offer. The vendor's BLE app does not update firmware either: a search of the decompiled app's own packages on 2026-09-20 (`reversing/nimly-ble-decompiled/sources/nimly/ekey`, `sources/com/nimly/ekey`, `sources/easyaccess/ekey`, 367 files, plus `resources/AndroidManifest.xml` and the string resources) found no match for DFU, OTA, firmware or bootloader, no Nordic DFU library, and no DFU service UUID. The only BLE UUIDs the app knows are the Nimly service `ba4bfd00-c447-19bf-f38d-4890b3a824c8` with characteristic `ba4bfd03-...` and the standard CCCD `0x2902`. That is evidence the shipped app has no update path, not proof the lock cannot be updated some other way.
 - **Keep an eye on the battery.** An automation that warns about low battery lets you avoid the problems that come with a battery change.
 
 ## 6. Cleanup after versions 1.1.0 through 1.2.0

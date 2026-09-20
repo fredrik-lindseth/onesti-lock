@@ -4,7 +4,7 @@ Two projects decode these locks besides us, and both have open threads that
 started here. This file is the thread, so a later session can pick it up
 without rereading a GitHub tab that has moved on.
 
-Last updated 2026-09-19.
+Last updated 2026-09-20.
 
 ## zigpy/zha-device-handlers (the ZHA quirk)
 
@@ -58,19 +58,66 @@ in the PR thread once someone sets a PIN in slot 300 and captures the event.
 ## Koenkk/zigbee-herdsman-converters (the Zigbee2MQTT converter)
 
 `src/devices/onesti.ts`, converter `nimly_pro_lock_actions`. Read on
-2026-08-23 against `master` and re-read 2026-09-19: unchanged since commit
-`013ebd4` of 2026-05-21, still 266 lines (line numbers are not repeated here
-because the file is small and moves). No open PR touches the file. One open
-issue now describes the first finding below:
-[zigbee-herdsman-converters#13080](https://github.com/Koenkk/zigbee-herdsman-converters/issues/13080)
-(supergregg, 2026-09-02) reports a six-digit PIN coming out as `"*\^R4"` and
-proposes an ASCII-digit check with a hex fallback. Its background is worth
-having: the reporter's older Connect Module sent ASCII, and the replacement
-module Nimly issued for battery drain sends packed BCD, so the format split is
-a module revision, not a lock model. Nobody from this project has written in
-it yet, and none of the findings has been tested against hardware on our side.
+2026-08-23 against `master`, re-read 2026-09-19 (unchanged since commit
+`013ebd4` of 2026-05-21). Our fixes landed on 2026-09-20.
 
-### Findings
+### PR 13233 is merged
+
+[PR 13233](https://github.com/Koenkk/zigbee-herdsman-converters/pull/13233),
+"fix: Onesti Products AS locks: PIN code format, source 0x05, capability
+attributes", was merged by Koenkk on **2026-09-20 05:54Z** as commit
+`61b0b4c` (`gh pr view 13233 -R Koenkk/zigbee-herdsman-converters`, read
+2026-09-20). It touched `src/devices/onesti.ts` and added `test/onesti.test.ts`.
+There were no review comments; the only comment on the PR is Koenkk's "Thanks!"
+at merge. Nothing in it was tested against a lock on our side, which the PR
+text says.
+
+What is now in `master`:
+
+- **Source `0x05` decodes as `unattributed`**, in the lookup and in both
+  `last_lock_source` / `last_unlock_source` enum lists on both definitions
+  (easyCodeTouch and Nimly), so Zigbee2MQTT no longer reports `unknown` for
+  NimlyCodePRO's and NimlyPRO24's everyday Zigbee, auto-relock and interior
+  keypad operations.
+- **PIN format detection.** A new `decodePinCode()` strips trailing NUL, then
+  reads the buffer as ASCII digits only when it is at least as long as the
+  lock's minimum PIN length, otherwise as packed BCD, and falls back to hex
+  instead of the control characters `toString("ascii")` produced before. The
+  minimum comes from the reported `minPinLen`, then from `min_pin_length` in
+  state, then from a constant 4. This closes the cause behind issue 13080.
+- **Capability attributes keyed by name** (`numOfPinUsersSupported`,
+  `minPinLen`, `maxPinLen`) instead of the numeric ids 18/23/24, which never
+  matched, so the three exposes carry a value for the first time. The min/max
+  swap went with it, `max_pin_users` is renamed `num_pin_users`, and the Nimly
+  definition's `configure` now reads the capabilities in a `try` block like
+  easyCodeTouch's.
+- **Dead code removed:** the `voltage` branch (`closuresDoorLock` has no such
+  attribute; `fz.battery` already publishes it from `genPowerCfg`) and the
+  local `result` object that was never returned.
+- **`test/onesti.test.ts`**, covering BCD, ASCII, the `39 39` ambiguity, the
+  `0x05` and keypad captures, and the capability block.
+
+### Still open after the merge
+
+- **`0x0a` is still named `self`, not `auto`.** Held out of 13233 on purpose:
+  `last_lock_source` is an enum expose whose values sit directly in users'
+  automations and Home Assistant states, and Zigbee2MQTT has no deprecation
+  mechanism for enum values. A second PR would be one line plus four enum
+  lists, and should say that zha-device-handlers#4881 does the same rename.
+- **The DC/battery split.** Issue 32772 in `Koenkk/zigbee2mqtt` (2026-08-07, a
+  Nimly lock shown as DC-powered) is still open and unanswered, and issue 32469
+  (200 % battery, `dontDividePercentage`) was closed as stale on 2026-09-09
+  with no fix. Both look like a firmware or module split we cannot settle
+  without more units, so they are a candidate for the same follow-up PR only if
+  a second reporter turns up.
+- **The plaintext PIN.** 13233 made `last_used_pin_code` decode correctly; it
+  did not remove or mask it, and the question of whether it should be there at
+  all is unanswered. See the first finding below.
+
+### Findings as of 2026-09-19
+
+The list below is the reading that produced PR 13233. Everything marked as
+landed above is fixed in `master`; the rest still stands.
 
 **It publishes the PIN in plaintext.** Attribute 257 is read and published as
 `last_used_pin_code`, with the comment "Report exactly what the lock sends".
@@ -166,18 +213,19 @@ closed as stale on 2026-09-09 with no fix. Issue 32772 (2026-08-07, a Nimly
 lock shown as DC-powered) is open and unanswered. Both are a firmware split we
 cannot settle without more units. Leave them alone.
 
-### What the PR needs
+### What the PR needed
 
-Two PRs, so a no on the breaking change does not take the fixes down with it:
+Two PRs, so a no on the breaking change does not take the fixes down with it.
+The first is PR 13233, merged 2026-09-20; the second has not been opened.
 
-1. Bug fixes, nothing breaking: PIN format detection (closes issue 13080,
+1. **Done (PR 13233).** Bug fixes, nothing breaking: PIN format detection (closes issue 13080,
    whose hex fallback would print BCD correctly but keeps the "3939 or 99"
    ambiguity), `0x05` as `unattributed`
    (fills a hole where `unknown` stood), capability keys by name with the
    min/max swap corrected and `max_pin_users` renamed to `num_pin_users`,
    capability reading in Nimly's `configure`, and removal of the dead `voltage`
    branch and the `result` object.
-2. `0x0a` from `self` to `auto`, one line plus four enum lists. Mention that
+2. **Not opened.** `0x0a` from `self` to `auto`, one line plus four enum lists. Mention that
    zha-device-handlers#4881 does the same rename, so the two ecosystems end up
    aligned.
 
@@ -279,6 +327,7 @@ replace `last_used_pin_code` values with `REDACTED` before sending.
 ```bash
 curl -sL https://raw.githubusercontent.com/Koenkk/zigbee-herdsman-converters/master/src/devices/onesti.ts
 gh pr view 4881 --repo zigpy/zha-device-handlers --comments
+gh pr view 13233 --repo Koenkk/zigbee-herdsman-converters --comments
 ```
 
 Our own decoding is canonical in `zigbee-protocol/zigbee-captures.md` and in

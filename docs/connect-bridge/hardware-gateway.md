@@ -58,9 +58,24 @@ in the lock says "E-Life 3.0", and the app is called "Nimly Connect".
   the app bundle and had nothing to do with the lock (see
   `docs/nimly-connect-app/reversing-notes.md`).
 
-The certificate covers the hub. Whether the lock's Connect Module holds a
-certificate of its own has not been checked against the CSA database; its
-manual says "Zigbee 3.0" and nothing about certification.
+The certificate covers the hub, and it is still live: a lookup by certificate
+id on 2026-09-20 returns "Squid.link 2B", Onics A/S / Frient A/S, Zigbee 3.0
+(`https://csa-iot.org/csa-iot_products/?p_certificate=ZIG21356ZB331216-24`).
+
+**The lock's Connect Module has no CSA certificate of its own that we can
+find.** Searched on 2026-09-20 in the Alliance's certified-products database
+(`https://csa-iot.org/csa-iot_products/?p_keywords=<term>`) for `Onesti`,
+`Nimly`, `ZMNC010` and `EasyAccess`. All four return "No Entries Found". The
+same search form does return results for control terms (`Philips` gives
+Signify's EasyAir range, and the certificate lookup above works), so the search
+itself is not broken and the negative is real.
+
+What that does and does not mean: the database is keyword-indexed on product
+and company name, so a module certified under a contract manufacturer's name,
+or under a product name we have not guessed, would not show up. Read it as
+"no certificate found under any Onesti or Nimly name", not as "the module is
+uncertified". The Connect Module manual says "Zigbee 3.0" and nothing about
+certification.
 
 ## Power supply (PSU)
 
@@ -110,6 +125,16 @@ is practically inaccessible unless you can add your own key.
 Everything in this section was observed once, in a Wireshark capture of the
 hub's boot at the end of March 2026. The IPs rotate and the certificates will
 be renewed, so treat the addresses and dates as a snapshot.
+
+**Both TLS certificates were re-checked on 2026-09-20 and are unchanged since
+March**, with `openssl s_client -connect <host> | openssl x509 -noout -subject
+-issuer -dates`. `boot-v2.onesti.io` still serves `CN=*.onesti.io` from Amazon
+RSA 2048 M04, valid 2026-02-03 to 2027-03-04, so it was renewed in February and
+the March capture caught the current certificate. `3.75.35.23:8883` still
+serves the self-signed `CN=onesti.iotiliti.cloud` from `C=PL, O=Internet
+Widgits Pty Ltd`, valid 2024-11-26 to 2034-11-24. The IPs did rotate:
+`boot-v2.onesti.io` resolved to `52.29.171.113` on 2026-09-20, which is not in
+the list below, while the broker answered on the same address as in March.
 
 ### Boot sequence (observed via Wireshark)
 

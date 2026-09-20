@@ -1,27 +1,27 @@
 # Nimly Connect app: reverse engineering
 
-XAPK `com.easyaccess.connect` v1.27.84 (161 MB), a React Native app with Hermes
+XAPK `com.easyaccess.connect` v1.27.84 (161 MB), React Native with Hermes
 bytecode. Decompiled with `jadx` + `hermes-dec` into 3.2M lines of JavaScript
 (`reversing/nimly-connect-decompiled.js`, local and gitignored).
 
 ## Architecture
 
-The app never talks directly to the lock. Everything goes through the cloud and
-the gateway:
+The app never talks to the lock directly. Everything goes through the cloud
+and the gateway:
 
 ```
 Phone → Cloud API (iotiliti.cloud) → ZigBee Gateway (Connect Bridge) → Lock
          ↕ OAuth2/Cognito              ↕ MQTT/TLS                ↕ Zigbee 3.0
 ```
 
-There is no BLE code in this app. BLE lives in a separate app, `nimly BLE`.
+There is no BLE code in this app. BLE lives in the separate `nimly BLE` app.
 
 ## White-label platform
 
 The app is a white-label of iotiliti (formerly NeutrAlClone), and the same
-codebase is used by several brands. The v1.27.84 bundle carries the config for
-all of them, each with `API_URL`, `TEST_API_URL`, `INTERNAL_API_URL` and a
-client secret per environment:
+codebase serves several brands. The v1.27.84 bundle carries every brand's
+config, each with `API_URL`, `TEST_API_URL`, `INTERNAL_API_URL` and a client
+secret per environment:
 
 | Brand                | In the v1.27.84 bundle (verified)  | In the newer builds decompiled 2026-03-30 (not kept)     |
 | -------------------- | ---------------------------------- | -------------------------------------------------------- |
@@ -34,20 +34,20 @@ client secret per environment:
 | LF                   | `api-lf.iotiliti.cloud`            | `api-lf.iotiliti.cloud`                                  |
 | Tryg Smart           | not present                        | `api.tryg.iotiliti.cloud`                                |
 
-Test instances follow the pattern `test-api-<brand>.iotiliti.cloud`. The left
-column can be re-checked with `grep` in the decompiled bundle at any time; the
-right column rests on the March notes, since those decompilations were not
-kept. For Nimly both URLs were confirmed live and equivalent (see "API URL
-migration" below); for Keyfree and Forebygg the newer URL has not been tested.
+Test instances follow `test-api-<brand>.iotiliti.cloud`. The left column can
+be re-checked with `grep` in the decompiled bundle; the right column rests on
+the March notes, since those decompilations were not kept. For Nimly both
+URLs were confirmed live and equivalent (see "API URL migration"); for
+Keyfree and Forebygg the newer URL has not been tested.
 
-The company id for each brand (a GUID: a `companyId` header on every request,
-a body field on a few endpoints, and the predicate the app filters the location
-list on) is listed in the header of `iotiliti-api-spec.yaml`, which also says
-why it is not a secret.
+The company id per brand (a GUID: a `companyId` header on every request, a
+body field on a few endpoints, and the predicate the app filters the location
+list on) is in the header of `iotiliti-api-spec.yaml`, which also says why it
+is not a secret.
 
 ## Authentication
 
-### OAuth2 (primary)
+OAuth2 is the primary route:
 
 ```
 POST /oauth/v2/token
@@ -68,19 +68,9 @@ POST /oauth/v2/refresh-token
 }
 ```
 
-### AWS Cognito (alternative)
-
-```
-Region: eu-central-1
-User Pool (prod): <extracted-from-apk, see secrets.md>
-Client ID (prod): <extracted-from-apk, see secrets.md>
-```
-
-### Header
-
-```
-Authorization: Bearer <access_token>
-```
+AWS Cognito is the alternative: region eu-central-1, prod user pool and
+client ID extracted from the APK (see secrets.md). Requests carry
+`Authorization: Bearer <access_token>`.
 
 ## REST API: door lock endpoints
 
@@ -90,7 +80,7 @@ Authorization: Bearer <access_token>
 | POST   | `/devices/{id}/action`                    | General action          |
 | PATCH  | `/devices/{id}/settings`                  | Change settings         |
 | GET    | `/devices/{id}/access`                    | Get all users/codes     |
-| POST   | `/devices/{id}/access`                    | **Create new PIN/code** |
+| POST   | `/devices/{id}/access`                    | Create new PIN/code     |
 | PATCH  | `/devices/{id}/access`                    | Update access           |
 | DELETE | `/devices/{id}/access`                    | Delete access           |
 | GET    | `/devices/{id}/event-history`             | Event log               |
@@ -106,7 +96,7 @@ Authorization: Bearer <access_token>
 | PATCH  | `/devices/{id}/output-actions/{actionId}` | Update output actions   |
 | GET    | `/devices/{id}/demand`                    | Consumption values      |
 
-### Keybox (crypto keys)
+Keybox (crypto keys):
 
 | Method | Path                                | Function            |
 | ------ | ----------------------------------- | ------------------- |
@@ -146,7 +136,10 @@ DeviceAccessMethodType = {
 
 ## Lock types in the platform
 
-The `DoorlockTypes` enum (Yale, Danalock, Easyaccess, Easycode, Idlock, Easyfinger, Iomodule, Keybox, Dormakaba) is defined with per-type annotations in [app-architecture.md](app-architecture.md#supported-device-types).
+The `DoorlockTypes` enum (Yale, Danalock, Easyaccess, Easycode, Idlock,
+Easyfinger, Iomodule, Keybox, Dormakaba) is in
+[app-architecture.md](app-architecture.md#supported-device-types) with
+per-type annotations.
 
 ## Lock modes
 
@@ -173,23 +166,24 @@ DoorLockEventFeatureState = {
 };
 ```
 
-The `doorlock-*` cloud event types are listed with the full cloud event system in [app-architecture.md](app-architecture.md#event-system).
+The `doorlock-*` cloud event types are in
+[app-architecture.md](app-architecture.md#event-system).
 
 ## The "CAS" error codes are the Ezviz camera SDK, not the lock
 
 The bundle has a table of `CAS_*` error codes (380000 `CAS_MSG_NO_ERROR`,
-380041 `CAS_MSG_PU_BUSY`, 380047 `CAS_SYSTEM_COMMAND_PU_COMMAND_UNSUPPORTED`
-and about a hundred more). Earlier versions of these notes read it as a
-gateway protocol called CAS with AES encryption. It is the error table of the
-Hik-Connect/Ezviz camera SDK that the app bundles for camera support: the same
-table carries `CAS_PREVIEW_*`, `CAS_PTZ_*`, `CAS_TALK_*` and `CAS_PLAYBACK_*`,
-the neighbouring objects are Ezviz `TTS_*` and `ANALYZE_DATA_*` codes, and the
+380041 `CAS_MSG_PU_BUSY`, 380047
+`CAS_SYSTEM_COMMAND_PU_COMMAND_UNSUPPORTED` and about a hundred more).
+Earlier versions of these notes read it as a gateway protocol called CAS
+with AES encryption. It is the error table of the Hik-Connect/Ezviz camera
+SDK the app bundles for camera support: the same table carries
+`CAS_PREVIEW_*`, `CAS_PTZ_*`, `CAS_TALK_*` and `CAS_PLAYBACK_*`, the
+neighbouring objects are Ezviz `TTS_*` and `ANALYZE_DATA_*` codes, and the
 decompiled sources contain `com/ezviz` and `com/hikvision`. The Ezviz SDK is
-also what crashed `apk-mitm` (see `cloud-api-status.md`). Nothing in it
-describes how the cloud talks to the Connect Bridge or how the bridge talks to
-the lock. What is known about those two hops is in
-`../connect-bridge/hardware-gateway.md`: MQTT over TLS to the cloud, Zigbee 3.0
-to the lock.
+also what crashed `apk-mitm` (`cloud-api-status.md`). Nothing in it describes
+the cloud-to-bridge or bridge-to-lock hops; what is known about those is in
+`../connect-bridge/hardware-gateway.md`: MQTT over TLS to the cloud, Zigbee
+3.0 to the lock.
 
 ## Configuration (Nimly-specific)
 
@@ -206,9 +200,8 @@ to the lock.
 
 ## Implications for the integration
 
-### PIN setting via cloud API
-
-The REST API could set PINs without the Zigbee sleepy device timeouts:
+The REST API could set PINs without the Zigbee sleepy-device timeouts, since
+the gateway handles the timing:
 
 ```
 POST https://api-neutralclone.iotiliti.cloud/devices/{deviceId}/access
@@ -220,53 +213,41 @@ Authorization: Bearer <token>
 }
 ```
 
-This bypasses Zigbee entirely. The gateway handles the timing.
+`GET /devices/{deviceId}/event-history` could give a full event log with user
+info, more than the Zigbee attribute reports carry.
 
-### Event history
-
-```
-GET /devices/{deviceId}/event-history
-```
-
-This could give a complete event log with user info, which is more than the
-Zigbee attribute reports carry.
-
-### Prerequisites
-
-- Requires Connect Bridge (gateway), not just Connect Module
-- Requires a Nimly account with an associated lock
-- The API is not officially documented
+Prerequisites: a Connect Bridge (the Connect Module alone is not enough), a
+Nimly account with the lock attached, and an API that is not officially
+documented.
 
 ## Tools
 
-- `apkeep`: APK from Play Store
-- `jadx`: Android APK → Java
-- `hermes-dec`: React Native Hermes bytecode → JavaScript
-- Source: `com.easyaccess.connect.xapk` v1.27.84
+`apkeep` (APK from Play Store), `jadx` (APK to Java), `hermes-dec` (Hermes
+bytecode to JavaScript). Source: `com.easyaccess.connect.xapk` v1.27.84.
 
 ## Security observations
 
-- Client secrets and API URLs are hardcoded in the app
-- Test environment credentials are accessible
+- Client secrets and API URLs hardcoded in the app
+- Test environment credentials accessible
 - Bug reporting goes through Instabug; whatever it carries was not copied out
 - Sentry DSN exposed
 - AWS Cognito pool IDs accessible
 - No certificate pinning observed
 
-What was copied out of the bundle into `secrets.md` (gitignored) is the Nimly
-OAuth2 client secret, the Cognito pool and client ids, and the built-in test
-login. Nothing else was kept; the other brands' secrets are in the brand config
+What was copied into `secrets.md` (gitignored): the Nimly OAuth2 client
+secret, the Cognito pool and client ids, and the built-in test login.
+Nothing else was kept; the other brands' secrets are in the brand config
 block of the decompiled bundle if ever needed.
 
 ## White-label decompilation (2026-03-30)
 
 Seven white-label apps besides Nimly Connect were decompiled with `apkeep` +
-`hbc-decompiler`: Keyfree, Salus, Forebygg, Homely, Copiax, Tekam and iotiliti.
-They share one codebase (React Native/Hermes), and only the config block
-differs. Folklarm, Tryg Smart, Safe4 Care, LF and Larmify were found in those
-apps' brand configuration; their own APKs, where they have one, were not
-decompiled. None of these seven decompilations were kept, not even their
-version numbers, so the table below cannot be re-checked locally.
+`hbc-decompiler`: Keyfree, Salus, Forebygg, Homely, Copiax, Tekam and
+iotiliti. One codebase (React Native/Hermes), only the config block differs.
+Folklarm, Tryg Smart, Safe4 Care, LF and Larmify were found in those apps'
+brand configuration; their own APKs, where they have one, were not
+decompiled. None of the seven decompilations were kept, not even version
+numbers, so the table below cannot be re-checked locally.
 [app-versions.md](app-versions.md) is the baseline the next round compares
 against, and says what to keep this time.
 
@@ -290,41 +271,36 @@ against, and says what to keep this time.
 ### API URL migration
 
 Nimly Connect v1.27.84 (our version) uses `api-neutralclone.iotiliti.cloud`.
-Newer versions (from the iotiliti app) have migrated to `api.customer.prod-neutralclone.onesti.aws.neurosys.pro`.
-Both URLs point to the same database: a fresh token gave identical responses
-from each.
+Newer versions (from the iotiliti app) have moved to
+`api.customer.prod-neutralclone.onesti.aws.neurosys.pro`. Both point to the
+same database: a fresh token gave identical responses from each.
 
 ### Internal test API
 
-`https://test-api-neurosys.iotiliti.cloud` is the internal test instance at
-Neurosys (Poland), configured as `INTERNAL_API_URL` in the bundle. Its client
+`https://test-api-neurosys.iotiliti.cloud` is Neurosys's internal test
+instance (Poland), configured as `INTERNAL_API_URL` in the bundle. Its client
 secret was not kept.
 
 ### Hidden Developer Options
 
-All apps have a hidden "Developer Options" menu:
-
-- Switch between Production / Test / Internal API
-- Enable Instabug (error reporting)
-- Copy Device Token (push notification token)
-- Enable Error Reports
-- Show app version and build number
+Every app has a hidden "Developer Options" menu: switch between Production,
+Test and Internal API, enable Instabug, copy the push device token, enable
+error reports, show app version and build number.
 
 ### LF instance (separate auth)
 
-The LF brand uses its own Keycloak realm,
+LF uses its own Keycloak realm,
 `realms/lftt-kong-oidc/protocol/openid-connect/token`, with external auth at
-`https://test-auth.lfhub.net`. Its credentials were not kept. Users log in
-with a username rather than an email, and cannot change their password or
-delete their account.
+`https://test-auth.lfhub.net`. Credentials not kept. Users log in with a
+username rather than an email, and cannot change their password or delete
+their account.
 
 ### Finding: group-devices empty on all APIs
 
-Tested `GET /locations/{id}/group-devices` with a fresh token against:
-
-- `api-neutralclone.iotiliti.cloud` → `[]`
-- `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` → `[]`
-
-The app shows devices (gateway + touch pro), but the API returns an empty list.
-Possible causes are server-side access control, caching, or devices registered
-through a mechanism we have not reproduced over the API.
+`GET /locations/{id}/group-devices` with a fresh token against
+`api-neutralclone.iotiliti.cloud` and
+`api.customer.prod-neutralclone.onesti.aws.neurosys.pro` both return `[]`,
+while the app shows the gateway and the Touch Pro. Possible causes:
+server-side access control, caching, or devices registered through a
+mechanism we have not reproduced over the API. `cloud-api-status.md` has
+what was tried.

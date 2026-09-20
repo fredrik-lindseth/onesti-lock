@@ -1,6 +1,6 @@
 # Nimly/iotiliti: system architecture
 
-Based on reverse engineering of `com.easyaccess.connect` v1.27.84.
+From reverse engineering of `com.easyaccess.connect` v1.27.84.
 
 ## Overview
 
@@ -45,17 +45,13 @@ Based on reverse engineering of `com.easyaccess.connect` v1.27.84.
 
 ## Apps
 
-### nimly connect (`com.easyaccess.connect`)
+nimly connect (`com.easyaccess.connect`) is a React Native app (Hermes
+bytecode) for lock administration through the cloud. Commands go phone →
+iotiliti cloud → gateway → lock; the app never talks BLE to the lock. It
+authenticates with an OAuth2 password grant or AWS Cognito.
 
-A React Native app (Hermes bytecode) for full lock administration through the
-cloud. Commands go phone → iotiliti cloud → gateway → lock, and the app never
-talks BLE to the lock. It authenticates with either an OAuth2 password grant or
-AWS Cognito.
-
-### nimly BLE (`easyaccess.ekey.app`)
-
-Talks BLE directly to the lock, with no cloud in the path (phone → BLE → lock).
-It is used for basic lock/unlock and setup. Decompiled (v1.5.2) and documented
+nimly BLE (`easyaccess.ekey.app`) talks BLE straight to the lock, no cloud in
+the path, for basic lock/unlock and setup. Decompiled (v1.5.2) and documented
 in [ble-protocol.md](../nimly-ble-app/ble-protocol.md).
 
 ## White-label configuration
@@ -74,12 +70,11 @@ Same codebase, different branding and API URL:
 | Safe Living (health)       | No                | No      | No    | No            | No       | No         |
 | Certified mode             | No                | No      | No    | No            | No       | No         |
 
-The Nimly, Keyfree, Salus, Homely and Forebygg columns are read from the brand
-configuration inside the `com.easyaccess.connect` v1.27.84 bundle, which
-carries every brand's config. The Tryg Smart column is not in that bundle; it
-came from the newer apps decompiled on 2026-03-30, which were not kept.
-
-> Complete API URL overview: docs/nimly-connect-app/reversing-notes.md
+Nimly, Keyfree, Salus, Homely and Forebygg are read from the brand
+configuration inside the v1.27.84 bundle, which carries every brand's
+config. Tryg Smart is not in that bundle; it came from the newer apps
+decompiled on 2026-03-30, which were not kept. The full API URL table is in
+`docs/nimly-connect-app/reversing-notes.md`.
 
 ## Supported device types
 
@@ -121,28 +116,28 @@ DoorlockTypes = {
 8. Lock confirms → Gateway → Cloud → App
 ```
 
-Steps 6 and 7 are presumably why the app has no timeout problems: a gateway
-that sits on the Zigbee network can hold the command until the sleepy lock
-polls, where a ZHA call from HA gets one 7.68-second window. That is an
-inference from the app's behaviour, not something observed on the gateway.
-The MQTT payloads were not captured (TLS), so what the cloud actually sends is
-unknown.
+Steps 6 and 7 are presumably why the app never sees a timeout: a gateway on
+the Zigbee network can hold the command until the sleepy lock polls, where a
+ZHA call from HA gets one 7.68-second window. That is inferred from the app's
+behaviour, not observed on the gateway. The MQTT payloads were never captured
+(TLS), so what the cloud sends is unknown.
 
 ## Not a lock protocol: the "CAS" error codes
 
-The bundle contains a table of `CAS_*` error codes (380000 and up:
-`CAS_MSG_PU_BUSY`, `CAS_PREVIEW_*`, `CAS_PTZ_*`, `CAS_TALK_*`, `CAS_PLAYBACK_*`
-and so on). Earlier versions of these docs took it for a cloud-to-gateway or
-gateway-to-lock protocol. It is not: the codes are the Hik-Connect/Ezviz camera
-SDK's error table (the app ships `com.ezviz` and `com.hikvision` for its camera
-support, and the same object holds Ezviz `TTS_*` and `ANALYZE_DATA_*` codes).
-They say nothing about how the lock platform talks to the gateway or the lock.
+The bundle has a table of `CAS_*` error codes (380000 and up:
+`CAS_MSG_PU_BUSY`, `CAS_PREVIEW_*`, `CAS_PTZ_*`, `CAS_TALK_*`,
+`CAS_PLAYBACK_*`). Earlier versions of these docs took it for a
+cloud-to-gateway or gateway-to-lock protocol. It is the Hik-Connect/Ezviz
+camera SDK's error table (the app ships `com.ezviz` and `com.hikvision` for
+camera support, and the same object holds Ezviz `TTS_*` and `ANALYZE_DATA_*`
+codes). It says nothing about how the platform talks to the gateway or the
+lock.
 
 ## Event system
 
 Door lock events are reported three ways:
 
-1. Zigbee attribute reports (0x0100), directly from lock to coordinator
+1. Zigbee attribute reports (0x0100), lock to coordinator
 2. Cloud event history: `GET /devices/{id}/event-history`
 3. Cloud event stream: `/v1/apps/{id}/eventstream` (real-time)
 
@@ -157,16 +152,16 @@ doorlock-failed-to-lock         locking failed
 doorlock-access-updated         access updated
 ```
 
-> Zigbee-level event format: docs/zigbee-protocol/zigbee-captures.md
+The Zigbee-level format is in `docs/zigbee-protocol/zigbee-captures.md`.
 
 ## App ecosystem
 
 ### Connect apps (cloud, via gateway)
 
-All are white-labels of `com.easyaccess.connect` (React Native/Hermes). The
-URLs are what the newer builds decompiled on 2026-03-30 used; the v1.27.84
-bundle kept locally configures `api-<brand>.iotiliti.cloud` for every brand
-(details in [reversing-notes.md](reversing-notes.md#white-label-platform)):
+All white-labels of `com.easyaccess.connect` (React Native/Hermes). The URLs
+are what the newer builds decompiled on 2026-03-30 used; the v1.27.84 bundle
+kept locally configures `api-<brand>.iotiliti.cloud` for every brand
+([reversing-notes.md](reversing-notes.md#white-label-platform)):
 
 | Package                     | Name           | Prod API                                                 | Brand            |
 | --------------------------- | -------------- | -------------------------------------------------------- | ---------------- |
@@ -211,10 +206,10 @@ Onesti Products AS (hardware)
 
 ## Security notes
 
-- Client secrets hardcoded in APK (can be rotated server-side)
-- No certificate pinning observed in the app
+- Client secrets hardcoded in the APK (can be rotated server-side)
+- No certificate pinning observed
 - Test credentials accessible in the code
 - Cloud to gateway is MQTT over TLS 1.3 against a self-signed CA baked into
-  the hub; gateway to lock is ordinary Zigbee 3.0 (see
-  [hardware-gateway.md](../connect-bridge/hardware-gateway.md))
+  the hub; gateway to lock is ordinary Zigbee 3.0
+  ([hardware-gateway.md](../connect-bridge/hardware-gateway.md))
 - OAuth2 tokens stored in AsyncStorage (Android)

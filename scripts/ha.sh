@@ -61,7 +61,11 @@ if a: print("  attrs:",json.dumps(a,ensure_ascii=False))
     ssh_ha "ha core logs 2>/dev/null | grep -iE '$pat' | grep -ivE 'ezsp_counters|em_poller|polling for updated' | tail -$n"
     ;;
   call)
-    api POST "services/${1/./\/}" "${2:-{}}"; echo
+    # Not ${2:-{}}: that expansion ends at the first }, so a JSON argument
+    # comes back with a } glued on and the API gets invalid JSON.
+    json="${2:-}"
+    [ -n "$json" ] || json='{}'
+    api POST "services/${1/./\/}" "$json"; echo
     ;;
   debug)
     dom="${1:-custom_components.onesti_lock,zha,zigpy,zigpy.zcl}"

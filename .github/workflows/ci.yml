@@ -205,6 +205,13 @@ jobs:
       - name: Set up just
         uses: extractions/setup-just@v4
 
+      # Only on current: the type check needs an environment where every
+      # import resolves at once, and that is this one. It shares the venv
+      # with the tests below, so the packages are installed once.
+      - name: Type check with mypy --strict
+        if: matrix.target == 'current'
+        run: just mypy
+
       - name: Run real-HA tests
         run: just ${{ matrix.recipe }}
 

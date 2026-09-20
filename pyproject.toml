@@ -92,6 +92,11 @@ ha-minimum = [
 # floating: 0.13.366 pins homeassistant==2026.9.3, which needs Python 3.14.
 ha-current = [
     "pytest-homeassistant-custom-component==0.13.366",
+    # The type check runs here and nowhere else. It needs the real Home
+    # Assistant, the real zigpy and bleak to resolve the integration's
+    # imports, and it has to parse HA 2026.9, whose sources are not valid
+    # 3.13. One environment covers the whole component, ble/ included.
+    "mypy==1.18.2",
     "zigpy==2.2.0",
     "bleak==3.0.2",
     "bleak-retry-connector==4.7.0",
@@ -147,8 +152,19 @@ select = ["E", "W", "F", "I", "B", "C4", "UP", "SIM"]
 ignore = ["E501"]
 
 [tool.mypy]
-# Same reason as ruff's target-version: check against the lowest runtime.
-python_version = "3.13"
-warn_return_any = true
+strict = true
+files = ["custom_components/onesti_lock"]
+# Not the runtime floor, unlike ruff's target-version: mypy parses the
+# Home Assistant it checks against, and HA 2026.9 has syntax 3.13 cannot
+# read (a bare except* expression in helpers/dispatcher.py). The floor is
+# covered by the py_compile step in CI, which compiles the integration on
+# the lowest Python its minimum Home Assistant runs.
+python_version = "3.14"
 warn_unused_configs = true
-disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+# Home Assistant's own components/zha imports the zha library, which is
+# not installed here: ZHA brings it, and pinning it would tie the check
+# to a version Home Assistant chooses.
+module = "zha.*"
+ignore_missing_imports = true

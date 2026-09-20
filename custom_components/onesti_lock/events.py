@@ -63,7 +63,7 @@ ACTION_MAP = {
 }
 
 
-def decode_operation_event(coordinator, val: int) -> dict | None:
+def decode_operation_event(coordinator: NimlyCoordinator, val: int) -> dict[str, Any] | None:
     """Decode attrid 0x0100 bitmap32 into action/source/user."""
     if not 0 <= val <= 0xFFFFFFFF:
         return None
@@ -91,7 +91,7 @@ def decode_operation_event(coordinator, val: int) -> dict | None:
     }
 
 
-def is_system_lock(decoded: dict, wake_echo_pending: bool = False) -> bool:
+def is_system_lock(decoded: dict[str, Any], wake_echo_pending: bool = False) -> bool:
     """Whether a decoded event is a lock no person can be credited with.
 
     Only user-attributable events update the activity sensor. Otherwise
@@ -143,7 +143,7 @@ class _AttributeUpdatedListener:
     def __init__(self, handle: Callable[[Any, Any], None]) -> None:
         self._handle = handle
 
-    def attribute_updated(self, attrid, value, timestamp=None) -> None:
+    def attribute_updated(self, attrid: Any, value: Any, timestamp: Any = None) -> None:
         self._handle(attrid, value)
 
 

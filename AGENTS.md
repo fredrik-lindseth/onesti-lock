@@ -256,9 +256,38 @@ in `README.md`, `AGENTS.md`, `justfile` or `pyproject.toml` disagree.
 
 Development and CI run on the newest stable Python (`.python-version`). The
 floor for the integration itself is the lowest Python its minimum HA runs on,
-and `requires-python`, ruff's `target-version` and mypy's `python_version`
-follow that floor, not the dev Python. CI compiles the integration on the
-floor as well.
+and `requires-python` and ruff's `target-version` follow that floor, not the
+dev Python. CI compiles the integration on the floor as well. mypy is the one
+exception; see below.
+
+### Type checking
+
+```bash
+just mypy               # the whole component, 0 errors required
+just mypy --no-incremental
+```
+
+`mypy --strict` covers all of `custom_components/onesti_lock`, `ble/` and
+`bluetooth.py` included, and CI runs the same recipe as a step in the
+`test-ha` job on `current`. The settings are `[tool.mypy]` in
+`pyproject.toml`; `files` is set there, so `just mypy` takes no path.
+
+It runs in the `ha-current` environment because that is the only one where
+every import resolves at once: the real Home Assistant for `bluetooth.py`,
+`zigpy` for `zha.py`, `bleak` and `cryptography` for `ble/`. That also
+settles `python_version`, which is the dev Python and not the runtime floor,
+unlike ruff's: mypy parses the Home Assistant it checks against, and the
+current release has syntax the floor Python cannot read. The floor is proved
+by the `compileall` step in CI instead. `mypy` itself is pinned in the
+`ha-current` group.
+
+Two rules the check enforces that are easy to undo by accident: every config
+and options flow step annotates `user_input: dict[str, Any] | None = None`,
+and `NimlyConfigEntry` rather than a bare `ConfigEntry` is the type in
+`async_get_options_flow` and `NimlyCoordinator.__init__`, which is what
+hassfest's `runtime-data` validator looks for. Objects from the `zha`
+library, which is not installed for the check, are typed `Any` with a
+comment; zigpy's own types (`zigpy.zcl.Cluster`) are used where they exist.
 
 ### Quality scale and the coverage gate
 

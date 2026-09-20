@@ -20,11 +20,13 @@ import voluptuous as vol
 from homeassistant.config_entries import SOURCE_IGNORE
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers import device_registry as dr
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.onesti_lock.const import CONF_IEEE, DOMAIN
+from custom_components.onesti_lock.const import CONF_IEEE, CONF_MODEL, DOMAIN
+from custom_components.onesti_lock.entity import HAS_VIA_DEVICE_ID
 from custom_components.onesti_lock.zha import SEND_DELIVERED, SendOutcome
-from tests_ha.conftest import LOCK_IEEE, make_lock_proxy
+from tests_ha.conftest import LOCK_IEEE, LOCK_MODEL, make_lock_proxy
 
 SECOND_LOCK_IEEE = "00:0d:6f:00:55:66:77:88"
 THIRD_LOCK_IEEE = "00:0d:6f:00:99:aa:bb:cc"
@@ -37,6 +39,13 @@ def _device_choices(result: dict[str, Any]) -> dict[str, str]:
             assert isinstance(validator, vol.In)
             return dict(validator.container)
     raise AssertionError("form has no device field")
+
+
+def _our_device(hass: HomeAssistant, entry: MockConfigEntry):
+    """The one device the entry owns, looked up the way HA 2026.9 allows."""
+    devices = dr.async_entries_for_config_entry(dr.async_get(hass), entry.entry_id)
+    assert len(devices) == 1
+    return devices[0]
 
 
 def _add_entry(hass: HomeAssistant, ieee: str = LOCK_IEEE) -> MockConfigEntry:
@@ -187,6 +196,87 @@ async def test_reconfigure_to_a_lock_that_left_zha_is_asked_for_again(
     assert result["step_id"] == "reconfigure"
     assert result["errors"] == {"device": "device_gone"}
     assert entry.data[CONF_IEEE] == LOCK_IEEE
+
+
+# -- Reconfigure and the device registry --
+
+
+@pytest.mark.skipif(
+    not HAS_VIA_DEVICE_ID, reason="below HA 2026.9 the device carries no connection"
+)
+async def test_reconfigure_drops_the_replaced_modules_address(
+    hass: HomeAssistant, mock_zha
+) -> None:
+    """The old module's zigbee connection goes when the entry moves.
+
+    async_get_or_create only merges connections and never removes one, so
+    without this the device would carry both addresses for good.
+    """
+    mock_zha.device_proxies[SECOND_LOCK_IEEE] = make_lock_proxy(model="NimlyCodePRO")
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=2,
+        minor_version=3,
+        unique_id=LOCK_IEEE,
+        title=f"Onesti Lock ({LOCK_IEEE[-11:]})",
+        data={CONF_IEEE: LOCK_IEEE, CONF_MODEL: LOCK_MODEL},
+        options={"slots": {}},
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    device = _our_device(hass, entry)
+    assert (dr.CONNECTION_ZIGBEE, LOCK_IEEE) in device.connections
+
+    result = await entry.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"device": SECOND_LOCK_IEEE}
+    )
+    await hass.async_block_till_done()
+    assert result["reason"] == "reconfigure_successful"
+
+    device = _our_device(hass, entry)
+    assert (dr.CONNECTION_ZIGBEE, LOCK_IEEE) not in device.connections
+    assert device.connections == {(dr.CONNECTION_ZIGBEE, SECOND_LOCK_IEEE)}
+
+
+@pytest.mark.skipif(
+    HAS_VIA_DEVICE_ID, reason="from HA 2026.9 a device belongs to one config entry"
+)
+async def test_reconfigure_leaves_a_shared_registry_row_alone(
+    hass: HomeAssistant, mock_zha
+) -> None:
+    """Below HA 2026.9 a zigbee connection could merge our device with ZHA's.
+
+    entity.py no longer sends one there, so a merged row can only be left
+    over from an install that did. The connection on it is ZHA's own
+    identity, and taking it off would leave ZHA unable to find its lock.
+    Built here as the merge left it: two config entries and a connection.
+    """
+    mock_zha.device_proxies[SECOND_LOCK_IEEE] = make_lock_proxy()
+    entry = _add_entry(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    zha_entry = MockConfigEntry(domain="zha")
+    zha_entry.add_to_hass(hass)
+    registry = dr.async_get(hass)
+    registry.async_update_device(
+        _our_device(hass, entry).id,
+        add_config_entry_id=zha_entry.entry_id,
+        merge_connections={(dr.CONNECTION_ZIGBEE, LOCK_IEEE)},
+    )
+
+    result = await entry.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"device": SECOND_LOCK_IEEE}
+    )
+    await hass.async_block_till_done()
+    assert result["reason"] == "reconfigure_successful"
+
+    device = _our_device(hass, entry)
+    assert (dr.CONNECTION_ZIGBEE, LOCK_IEEE) in device.connections
 
 
 # -- The options flow, cut off mid-write --

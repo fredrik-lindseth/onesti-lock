@@ -15,9 +15,73 @@ The rest of the design speaks against them, and none of it is ZHA's doing:
 
 Everything on that list is firmware, and Onesti could fix all of it if they cared to: report a credential id instead of the PIN, answer reads without moving the bolt, keep reporting configured across battery changes, publish the attribute documentation, ship OTA over Zigbee. Nothing here needs new hardware: the radio is a Nordic part with Zigbee and Bluetooth on one die, and the module already asks for OTA images nobody publishes.
 
+One thing on the lock is not firmware and cannot be fixed: where the radio sits. That one costs money and effort at the buyer's end, so it gets its own section below.
+
 Real alternatives, measured against the same list: none pass. Matter over Thread comes closest on paper, and Home Assistant manages users, PINs and RFID on Matter locks since 2026.4 (the Aqara U200 works with it), but Matter tells you how the door was operated, not by whom, and per-user attribution is still an open feature discussion. The Nuki Ultra Nordics reports user IDs over local MQTT, but its keypad and fingerprint users can only be managed in Nuki's app with an account. The ID Lock 202 Multi is fully local with per-user attribution for code and RFID over Z-Wave, but has no fingerprint reader. Tedee, Yale Doorman L3, Danalock and SwitchBot fall faster: bridge required, cloud app, no reader to attribute, or users managed in an app.
 
 If you already own a Nimly/Onesti lock, keep it. This integration is the most complete way to run it, fully local on stable ZHA, and a cheap Zigbee door contact covers the one thing the lock cannot tell you.
+
+## Budget for the radio, not just the lock
+
+The radio sits inside an aluminium lock body, bolted to the outermost point
+of the house, with no antenna sticking out anywhere. It runs on 2.4 GHz,
+which it shares with every Wi-Fi network in the street, and it is a sleeping
+end device, so it cannot route for itself and depends entirely on whichever
+mains-powered node is nearest. Every one of those is a design choice, and
+together they mean a plain coordinator in a cupboard across the house is
+often not enough. Plan for extra hardware and an afternoon of work, or plan
+to be annoyed.
+
+**What it took on one door.** A NimlyPRO with a Connect Module in an entry
+hall, on ZHA with a Home Assistant Connect ZBT-2, 13 months of hourly
+recorder statistics, 8830 hours. Getting it stable meant moving the 2.4 GHz
+Wi-Fi off the Zigbee channel, adding mains-powered Zigbee routers to the
+mesh, and putting one of them in the entry hall itself. The numbers before
+and after that work:
+
+| | Before | After |
+| --- | --- | --- |
+| Hours recorded | 2409 | 6421 |
+| Median RSSI | -76 dBm | -61 dBm |
+| 5th percentile RSSI | -87 dBm | -73 dBm |
+| Median LQI | 139 | 156 |
+| Hours with a sample at or below -90 dBm | 187 (7.8 %) | 36 (0.6 %) |
+
+So roughly 15 dB, most of a factor of thirty in received power, bought with
+mains sockets and a channel plan rather than with anything done to the lock.
+It is worth knowing which way that reads: the lock is not weak because
+something is broken, it is weak because of where the radio is, and the only
+lever a buyer has is the mesh around it.
+
+Even after the work the floor is bad. The worst single sample in the 13
+months is -107 dBm, LQI has read 0 in 14 separate hours, and the lock has
+gone silent for 431 hours in one stretch and 117 in another. For scale, the
+only other Zigbee device on the same network with recorded history over the
+last 90 days, an Aqara sensor in a bathroom, averages -78 dBm against the
+lock's -60. After the mitigations the lock is no longer the worst link in
+that house. It took the most work to get there.
+
+**Others report the same thing.** Owners in the Home Assistant thread reach
+the same fix from their own direction: the lock will not pair or will not
+report until a mains-powered router goes in near the door, and battery-powered
+repeaters do not count. One owner two metres from his coordinator through a
+single wooden wall still sees the lock flip between available and unavailable
+every five minutes, on two different coordinators. The LQI values people quote
+as working run from 116 to 196, and nobody has posted a comfortable one. The
+detail and the post numbers are in
+[docs/community-reports.md](community-reports.md#range-and-coverage).
+
+**What we do not know.** Whether a newer module revision has a better radio
+or a different antenna placement: nobody outside the vendor has published a
+board photo at chip level, and users tell the generations apart only by
+behaviour. Whether these numbers are typical or a bad house: they are one
+door, and the same thread has an owner with three locks and no trouble at
+all. And Home Assistant's RSSI and LQI are the coordinator's measurement of
+the last hop, not of the lock's own transmission, so once a router sits by
+the door the number partly describes that router. The improvement above is
+therefore real for the network and flattering to the lock.
+
+[docs/debugging.md](debugging.md#signal-issues) has what to do about it.
 
 ## The field, checked September 2026
 

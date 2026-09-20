@@ -129,7 +129,8 @@ directly. Nobody ever answered that they had done it.
 ## Firmware versions people report
 
 All of these come from the long Home Assistant thread "Nimly lock, with
-Zigbee module", 181 posts between January 2023 and December 2025.
+Zigbee module". The firmware rows come from the first 181 posts,
+January 2023 to December 2025; the thread ran to 241 posts by 2026-09-13.
 <https://community.home-assistant.io/t/nimly-lock-with-zigbee-module/523634>
 
 | Version | Date code | What the poster said | Post, date | Status |
@@ -211,6 +212,75 @@ advertising as a non-sleepy mains-powered end device, was not found in the
 Homey thread when that thread was read. The power-source half of it is the
 same as uvnikita's verified post above; the module name is unsupported. Do
 not cite it.
+
+## Range and coverage
+
+Second only to battery, and often the same thread. All post numbers below are
+from the Home Assistant thread unless another source is named.
+
+**The lock transmits weakly, and owners work it out the hard way.** The
+pattern across three years is the same story told by strangers: the lock
+pairs or reports badly, the owner adds a mains-powered router within a few
+metres of the door, and it starts working.
+
+- Post #54 (erik85, 2023-08-22), **measured**: nothing was found until the
+  coordinator was moved into the same room. "Signal strength is 116 lqi with
+  2m distance which seems a bit low?"
+- Post #112 (haarfagr, 2024-09-21), **anecdote**: pairing only worked after
+  moving the coordinator closer on a USB extension cable.
+- Post #137 (mpcpro, 2024-11-24), **anecdote**: commands timing out after a
+  successful pairing. "Seems like the range was the issue. Fixed with an ikea
+  tretakt smart plug/repeater."
+- Post #148 (MakkaKaplar, 2025-01-03), **anecdote**: a dimmer and a Trådfri
+  repeater put within 2 m of the door before pairing would take.
+- Post #180 (markus-lassfolk, 2025-12-07), **anecdote**: four locks, none
+  stable until a full module reset plus "a Zigbee Repeater connected to the
+  main power and not relying on battery based repeaters. I think this really
+  did the difference."
+- Post #185 (markus-lassfolk, 2026-01-20), **anecdote**: "The range of their
+  hub and zigbee was terrible and unreliable."
+- Post #220 (kork123, 2026-02-26), **anecdote**: an IKEA smart plug as an
+  intermediate router works; an Aqara plug did not, because "the lock
+  preferred to connect directly to the ConBee II and ignored the Aqara plug".
+- Post #224 (endallas1, 2026-03-02), **anecdote**: 5-6 m, wooden walls only,
+  no sensor updates at all until an IKEA switch went in near the door. "I
+  guess it sends a quite weak signal."
+- Post #244 (sebrk, 2026-09-13), **anecdote**: 2 m, one wooden wall, two
+  different coordinators tried, raising transmit power tried. The lock still
+  flips between available and unavailable every five minutes. Post #245
+  (Fumble, same day) answers with three locks that all work, nearest repeater
+  2-3 m away.
+
+**Owners name the metal themselves.** Post #225 (kork123, 2026-03-03),
+**anecdote**: "I would agree that there must be weak signals. The lock is
+metal and the module sits behind the pcb." That is the only place anybody
+outside this repo connects the enclosure to the radio, and it is a guess from
+a user, not a measurement.
+
+**The lock picks its parent badly, and slowly.** Mastiff's sequence in
+February 2026 is the most detailed account anyone has posted (**measured**, he
+gives LQI numbers throughout). Posts #197 and #201: a Sonoff dongle about six
+metres away, the lock goes unavailable after a day to a week, and only a
+battery pull brings it back; he is on Zigbee channel 25 with his own two
+2.4 GHz networks on 1 and 6, in a dense neighbourhood. He adds an IKEA
+Trådfri extender between dongle and lock, and "the lock does not go
+automatically via the extender even after a couple of days". Post #209: moved
+half a metre from the lock, the extender finally gets the pairing, and link
+quality goes from under 100 to 148. Post #210, the next morning: with no
+reboot and no intervention, every device in that flat moved over to the
+Trådfri at once, LQI 196. Post #187 (pyberg, 2026-01-24) says the same thing
+from the other side: a bulb inside the door acting as a router, and an
+SLZB-06 coordinator chosen because it "have a better antenna than the
+Skyconnect".
+
+Two things follow for anyone buying. A router near the door is necessary but
+not sufficient: the lock may keep talking to a distant coordinator for days
+before it re-parents, and nothing in Home Assistant forces it. And the LQI
+numbers people quote as working, 116 to 196, are the whole reported range;
+nobody has posted a comfortable one.
+
+`docs/buying-a-lock.md` has the measurements from Fredrik's own door against
+this, and `docs/debugging.md` says what to do about it.
 
 ## Losing the connection, and getting it back
 
@@ -324,8 +394,8 @@ the following could be found in any forum, blog, video or comment thread:
   2019-12-12, <https://www.hjemmeautomasjon.no/forums/topic/5766-easy-access-easycode-v2-kodel>
 - hjemmeautomasjon.no, thread 13667 "Nimly, ID-lock eller Nuki", 2026-05-12 to
   2026-05-23, <https://www.hjemmeautomasjon.no/forums/topic/13667-nimly-id-lock-eller-nuki/>
-- community.home-assistant.io, "Nimly lock, with Zigbee module", 181 posts,
-  2023-01 to 2025-12, <https://community.home-assistant.io/t/nimly-lock-with-zigbee-module/523634>
+- community.home-assistant.io, "Nimly lock, with Zigbee module", 241 posts,
+  2023-01 to 2026-09, read in full from the thread JSON on 2026-09-20, <https://community.home-assistant.io/t/nimly-lock-with-zigbee-module/523634>
 - community.homey.app, "Can't add Nimly / EasyAccess lock", 2023-07,
   <https://community.homey.app/t/cant-add-nimly-easyaccess-lock/78867>
 - community.openhab.org, "Binding request for Easyaccess EASYCODETOUCH door

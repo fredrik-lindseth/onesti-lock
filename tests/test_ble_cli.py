@@ -839,6 +839,8 @@ def _secrets_of(lock, state_dir):
         enrollment = json.loads(path.read_text())["enrollment"]
         found["server key"] = enrollment["server_private_key"]
         found["device id"] = enrollment["device_id"]
+        found["owner key material"] = enrollment["update_private_key"]
+        found["lock's update key"] = enrollment["lock_update_public_key"]
     return found
 
 

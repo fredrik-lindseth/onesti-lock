@@ -1,7 +1,13 @@
-# Onesti Lock
+# <img src="images/icon.svg" alt="" width="32" align="top"> Onesti Lock
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
+[![CI](https://github.com/fredrik-lindseth/onesti-lock/actions/workflows/ci.yml/badge.svg)](https://github.com/fredrik-lindseth/onesti-lock/actions/workflows/ci.yml)
+[![HACS validation](https://github.com/fredrik-lindseth/onesti-lock/actions/workflows/validate.yml/badge.svg)](https://github.com/fredrik-lindseth/onesti-lock/actions/workflows/validate.yml)
+[![Hassfest](https://github.com/fredrik-lindseth/onesti-lock/actions/workflows/hassfest.yml/badge.svg)](https://github.com/fredrik-lindseth/onesti-lock/actions/workflows/hassfest.yml)
+[![Coverage](https://codecov.io/gh/fredrik-lindseth/onesti-lock/branch/main/graph/badge.svg)](https://codecov.io/gh/fredrik-lindseth/onesti-lock)
+[![Release](https://github.com/fredrik-lindseth/onesti-lock/actions/workflows/release.yml/badge.svg)](https://github.com/fredrik-lindseth/onesti-lock/actions/workflows/release.yml)
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![GitHub release](https://img.shields.io/github/release/fredrik-lindseth/onesti-lock.svg)](https://github.com/fredrik-lindseth/onesti-lock/releases)
+[![SLSA Build L2](https://slsa.dev/images/gh-badge-level2.svg)](SECURITY.md)
 
 Home Assistant integration for Onesti/Nimly smart locks paired through ZHA. Onesti Products AS makes the locks and sells them as [Nimly](https://nimly.io) and under several other brands.
 

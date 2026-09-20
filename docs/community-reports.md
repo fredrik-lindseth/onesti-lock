@@ -279,8 +279,8 @@ before it re-parents, and nothing in Home Assistant forces it. And the LQI
 numbers people quote as working, 116 to 196, are the whole reported range;
 nobody has posted a comfortable one.
 
-`docs/buying-a-lock.md` has the measurements from Fredrik's own door against
-this, and `docs/debugging.md` says what to do about it.
+`docs/debugging.md` has the measurements from Fredrik's own door against this,
+and says what to do about it.
 
 ## Losing the connection, and getting it back
 

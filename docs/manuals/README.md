@@ -4,7 +4,7 @@ Manufacturer PDFs, kept here so the slot-numbering rules can be checked offline.
 
 Run `python3 scripts/fetch_manuals.py` to download every manual and its text extract.
 
-Retrieved 2026-09-19 from the manufacturer's own domains (nimly.se, easyaccess.no). Date is the date encoded in the manufacturer's filename (DDMMYY), unless marked `*`, which means it is the PDF's creation date because no date is printed in the document itself.
+Retrieved 2026-09-19 from the manufacturer's own domains (nimly.se, easyaccess.no), except the E-Life Zigbee module spec, which the manufacturer never published and which is downloaded from a public Zigbee2MQTT issue instead. Date is the date encoded in the manufacturer's filename (DDMMYY), unless marked `*`, which means it is the PDF's creation date because no date is printed in the document itself.
 
 ## Documents
 
@@ -20,12 +20,14 @@ Retrieved 2026-09-19 from the manufacturer's own domains (nimly.se, easyaccess.n
 | Nimly      | Connect Gateway / Bridge        | Installation guide                  | EN       | 2023-06-20  |
 | EasyAccess | easyCodeTouch_v1, EasyCodeTouch | Installation and programming manual | NO/SV    | 2020-10-21* |
 | EasyAccess | EasyFingerTouch                 | Installation and programming manual | NO/SV    | 2020-07-09* |
+| EasyAccess | E-Life Zigbee module            | Zigbee protocol spec, v2.0          | EN       | 2021-01-25  |
 
 Notes on specific rows:
 
 - `docs/slot-numbering.md` quotes the 2024 Touch Pro manual, so that stays the reference edition. The 2025 edition was added because it is the current download on nimly.se; the slot rules are identical (user slot 000 reserved for the first master code, 001-002 for more master codes, 003-199 for user fingerprints, 003-999 for user codes and key tags). Only the page layout changed between the two.
 - The Connect Module guide's `.txt` extract is lossy. `pdftotext -layout` drops the footnote printed under the green "Works with unloc" badge, which reads, verbatim from the rendered page: "*Bluetooth is only available on the newer versions of the module." Read the PDF itself, not the extract, before concluding anything about which modules speak Bluetooth.
 - `EN-Connect-Gateway-Installation-Guide-200623-frontpage.pdf` has no extractable text: it is a one-page vector cover graphic, not a text manual, so `pdftotext -layout` produces an empty `.txt`. Kept for completeness; it carries no slot information.
+- `E-life-Zigbee-Modul-User-Manual-v2.0-260121.pdf` is not from a vendor site at all. A customer attached it to the public issue [Koenkk/zigbee2mqtt#6379](https://github.com/Koenkk/zigbee2mqtt/issues/6379) in February 2021 and GitHub still serves it from that attachment URL, which is what the Sources table points at. It is a Word export, author Andrea Birkheim, created 26.01.2021, title page dated 25.01.2021 (the date used in the table above); the v2.0 comes from the attachment filename, not from anything printed in the document. The `.txt` extract is complete: the only images in the PDF are the e-Life header logo repeated on every page, and `pdftotext -layout` picks up every heading and table. `docs/zigbee-protocol/elife-module-spec.md` summarises what it says.
 - No manual exists for `NimlyShared` or `NimlyTwist`. Both report the same hardware and firmware as the models above rather than being distinct physical products (see the model table in the repo's `README.md` and `docs/slot-numbering.md`).
 
 ## Sources
@@ -42,6 +44,7 @@ Notes on specific rows:
 | EN-Connect-Gateway-Installation-Guide-200623-frontpage.pdf                      | https://nimly.se/wp-content/uploads/2023/08/EN-Connect-Gateway-Installation-Guide-200623-frontpage.pdf                      | 110c6181420580e31535df98d6c4418d898dbcd91e5024498e4cf1af46213651 |
 | EasyCodeT_Manual.pdf                                                            | https://easyaccess.no/wp-content/uploads/2021/02/EasyCodeT_Manual.pdf                                                       | 3040484f95aafedd4fd291620a932a75b695e8c834fe9ac7ef17dca6a761371e |
 | A5_EasyFingerT_Manual-2.pdf                                                     | https://easyaccess.no/wp-content/uploads/2020/08/A5_EasyFingerT_Manual-2.pdf                                                | 350f3775cdfe9010e3ff168907afb1fd62de4ecc15fd3f74667064350b88e1e8 |
+| E-life-Zigbee-Modul-User-Manual-v2.0-260121.pdf                                 | https://github.com/Koenkk/zigbee2mqtt/files/6015013/E-life.Zigbee.Modul.User.Manual.v2.0.pdf                                | 7f7be7949d77fd43c553ac2d79b0892f9793ae0efa751cde990b53373cce9116 |
 
 `scripts/fetch_manuals.py` reads this table, not the one above: it matches rows by a 64-character SHA-256 in the last column, downloads anything missing or changed into `docs/manuals/`, verifies the hash, and runs `pdftotext -layout` for any PDF missing its `.txt`. Safe to run repeatedly.
 

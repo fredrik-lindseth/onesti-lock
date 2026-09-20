@@ -1,13 +1,16 @@
 {
   "domain": "onesti_lock",
   "name": "Onesti Lock",
-  "codeowners": ["@fredrik-lindseth"],
+  "codeowners": [
+    "@fredrik-lindseth"
+  ],
   "config_flow": true,
-  "dependencies": ["zha"],
+  "dependencies": [
+    "zha"
+  ],
   "documentation": "https://github.com/fredrik-lindseth/onesti-lock",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/fredrik-lindseth/onesti-lock/issues",
-  "quality_scale": "platinum",
   "requirements": [],
   "version": "1.4.0"
 }

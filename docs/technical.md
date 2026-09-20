@@ -85,6 +85,16 @@ The change is logged as one INFO line when events stop (`Lock events for <ieee> 
 
 The ZHA entry is often still in `SETUP_RETRY` when this entry sets up, typically because the coordinator's USB stick comes up late. That is not a fault. When ZHA has no gateway and no ZHA entry is `LOADED`, setup logs one info line, skips the listener and the capability read, and leaves the rest to the ZHA watch above: once ZHA reaches `LOADED`, the reload registers the listener, or raises the repair issue if something really is missing.
 
+### Discovering further locks
+
+Home Assistant does not load a custom integration that has no config entry, so the first lock has to be added by hand. Once one entry exists, `async_setup` registers a watch that offers the rest: for every Onesti device in ZHA with a Door Lock cluster that no entry owns, it starts a config flow with `SOURCE_INTEGRATION_DISCOVERY`, and the lock appears under Discovered with its model and IEEE address.
+
+Two things start a look. A device registry entry created or updated for a device with a Zigbee connection that belongs to one of ZHA's config entries, which is what a newly paired device looks like; and a ZHA entry reaching `LOADED`, which covers ZHA starting after this integration, when the registry entries were written before the watch existed. Neither says which device it was: the list always comes from the gateway through `iter_onesti_locks()`, the same one the config flow's own device picker uses.
+
+`async_step_integration_discovery` sets the IEEE as the flow's unique id, which is what the user step sets too. That one line covers three cases: a lock that already has an entry, a lock the user pressed Ignore on (Home Assistant stores an ignored entry with that unique id), and a second flow for a lock already being asked about. All three abort, so the card does not come back. The confirmation step creates the same entry the user step would.
+
+The watch lives for the whole Home Assistant run, like the services, and is registered in `async_setup` rather than per entry, so unloading one lock does not stop the others from being found.
+
 ### Repair issue for missing ZHA internals
 
 A lock that is missing from ZHA altogether, removed or replaced by a Connect Module with a new IEEE, is not a repair issue: `async_setup_entry` raises `ConfigEntryNotReady` before anything is set up, and Home Assistant retries with backoff until the lock is back. Nothing in ZHA is broken in that case.

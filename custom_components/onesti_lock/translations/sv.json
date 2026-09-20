@@ -70,7 +70,7 @@
     "error": {
       "invalid_pin": "PIN-koden måste vara {min}-{max} siffror",
       "invalid_slot": "Platsnumret måste vara mellan 0 och 999",
-      "lock_unreachable": "Kunde inte nå låset. Tryck på knappsatsen och försök igen.",
+      "lock_unreachable": "Kunde inte nå låset. Väck radion genom att vrida på vredet, eller med en giltig kod + # på knappsatsen, vilket också låser upp dörren. Att röra vid knappsatsen tänder bara belysningen. Försök sedan igen.",
       "lock_rejected": "Låset avvisade kommandot (status {status}). Kontrollera plats och kod och försök igen.",
       "lock_rejected_duplicate": "Låset avvisade koden eftersom en annan plats redan använder den. Välj en annan kod.",
       "lock_rejected_memory_full": "Låset avvisade koden eftersom kodminnet är fullt. Töm en plats du inte längre använder och försök igen.",
@@ -93,7 +93,7 @@
   },
   "exceptions": {
     "lock_unreachable": {
-      "message": "Kunde inte nå låset. Tryck på en knapp på låset för att väcka det och försök igen."
+      "message": "Kunde inte nå låset. Väck radion genom att vrida på vredet, eller med en giltig kod + # på knappsatsen, vilket också låser upp dörren. Att röra vid knappsatsen tänder bara belysningen. Försök sedan igen."
     },
     "lock_rejected": {
       "message": "Låset avvisade kommandot (status {status}). Kontrollera plats och kod och försök igen."

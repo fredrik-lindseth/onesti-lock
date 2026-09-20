@@ -21,6 +21,9 @@
         "description": "Vil du sætte {model} ({ieee}) op til PIN-koder og aktivitet?"
       }
     },
+    "error": {
+      "device_gone": "Låsen findes ikke længere i ZHA. Den kan være gået i dvale, eller ZHA kan være genstartet. Vælg fra listen igen."
+    },
     "abort": {
       "zha_not_found": "ZHA blev ikke fundet eller er ikke sat op. Integrationen skal bruge ZHA til at afkode låsens egne Zigbee-attributrapporter, som viser, hvem der brugte låsen. Zigbee2MQTT gør ikke disse hændelser tilgængelige på samme måde.",
       "no_devices_found": "Fandt ingen Onesti-låse i ZHA.",

@@ -96,11 +96,16 @@ class OnestiCoordinator:
         """Whether lock events can reach Home Assistant right now.
 
         True once the event listener is registered on a cluster, false
-        while ZHA is not running or its internals were missing. A sleeping
-        lock stays available: the slot sensors show Home Assistant's own
-        stored data and the activity sensor the last event it saw, and a
-        command that times out on a sleeping radio says nothing about
-        whether events arrive.
+        while ZHA is not running or its internals were missing.
+
+        Only the activity sensor reads this, because it is the only entity
+        whose value comes from the lock. The slot and capability sensors
+        show Home Assistant's own stored data, which is as true with ZHA
+        down as with it up, and still writable through the options flow
+        and the services.
+
+        A sleeping lock stays available either way: a command that times
+        out on a sleeping radio says nothing about whether events arrive.
         """
         return self._available
 

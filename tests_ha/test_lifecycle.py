@@ -638,9 +638,10 @@ async def test_zha_state_listener_is_removed_on_unload(
 # -- Availability --
 
 
-async def test_entities_are_unavailable_while_zha_is_down(
+async def test_the_activity_sensor_is_unavailable_while_zha_is_down(
     hass: HomeAssistant, mock_zha, zha_entry: MockConfigEntry
 ) -> None:
+    """The slot row keeps showing our own stored data: ZHA cannot make it stale."""
     entry = await _setup(hass)
     assert entry.runtime_data.available is True
     assert hass.states.get(ACTIVITY_ENTITY_ID).state != "unavailable"
@@ -651,7 +652,7 @@ async def test_entities_are_unavailable_while_zha_is_down(
     assert entry.state is ConfigEntryState.LOADED
     assert entry.runtime_data.available is False
     assert hass.states.get(ACTIVITY_ENTITY_ID).state == "unavailable"
-    assert hass.states.get(f"sensor.{DEVICE_SLUG}_slot_5").state == "unavailable"
+    assert hass.states.get(f"sensor.{DEVICE_SLUG}_slot_5").state != "unavailable"
 
     new_cluster = FakeDoorLockCluster()
     mock_zha.device_proxies = {LOCK_IEEE: make_lock_proxy(cluster=new_cluster)}

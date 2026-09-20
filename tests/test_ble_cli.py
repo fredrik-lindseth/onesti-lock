@@ -240,12 +240,12 @@ def stored_files(state_dir):
 WRITES = [
     ["operate", ADDRESS, "unlock", "--factory"],
     ["operate", ADDRESS, "lock", "--factory"],
-    ["pin", "set", ADDRESS, "803", "--factory", "--pin-stdin"],
-    ["pin", "clear", ADDRESS, "803", "--factory"],
+    ["pin", "set", ADDRESS, "805", "--factory", "--pin-stdin"],
+    ["pin", "clear", ADDRESS, "805", "--factory"],
     ["rfid", "scan", ADDRESS, "900", "--factory"],
-    ["rfid", "clear", ADDRESS, "900", "--factory"],
+    ["rfid", "clear", ADDRESS, "900", "--factory", cli.UNVERIFIED_SLOT_FLAG],
     ["fingerprint", "scan", ADDRESS, "150", "--factory"],
-    ["fingerprint", "clear", ADDRESS, "150", "--factory"],
+    ["fingerprint", "clear", ADDRESS, "150", "--factory", cli.UNVERIFIED_SLOT_FLAG],
     ["enroll", ADDRESS, "--name", "Door"],
 ]
 
@@ -268,7 +268,7 @@ def test_pin_set_without_yes_does_not_read_the_pin(run_cli):
     radio = FakeRadio(FakeLock())
     out = io.StringIO()
     deps = cli.Deps(radio=radio, stdin=stdin, out=out, err=io.StringIO())
-    code = cli.main(["--no-trace", "pin", "set", ADDRESS, "803", "--factory", "--pin-stdin"], deps)
+    code = cli.main(["--no-trace", "pin", "set", ADDRESS, "805", "--factory", "--pin-stdin"], deps)
     assert code == cli.EXIT_REFUSED
     assert stdin.read() == PIN + "\n"
 
@@ -292,7 +292,7 @@ def test_slots_outside_the_range_are_refused_before_connecting(run_cli, argv):
 
 def test_a_malformed_pin_is_refused_before_connecting(run_cli):
     radio = FakeRadio(FakeLock())
-    result = run_cli("pin", "set", ADDRESS, "803", "--factory", "--pin-stdin", "--yes", radio=radio, stdin="12ab\n")
+    result = run_cli("pin", "set", ADDRESS, "805", "--factory", "--pin-stdin", "--yes", radio=radio, stdin="12ab\n")
     assert result.code == cli.EXIT_REFUSED
     assert radio.connects == []
     assert "12ab" not in result.out + result.err
@@ -302,7 +302,7 @@ def test_the_pin_prompt_asks_twice_and_refuses_a_mismatch(run_cli):
     answers = iter(["80418822", "80418823"])
     radio = FakeRadio(FakeLock())
     result = run_cli(
-        "pin", "set", ADDRESS, "803", "--factory", "--yes", radio=radio, getpass=lambda prompt: next(answers)
+        "pin", "set", ADDRESS, "805", "--factory", "--yes", radio=radio, getpass=lambda prompt: next(answers)
     )
     assert result.code == cli.EXIT_REFUSED
     assert "differ" in result.err
@@ -503,20 +503,20 @@ def test_operate_moves_the_bolt(run_cli):
 
 def test_pin_set_and_clear(run_cli):
     lock = FakeLock()
-    result = run_cli("pin", "set", ADDRESS, "803", "--factory", "--pin-stdin", "--yes", radio=FakeRadio(lock), stdin=PIN)
+    result = run_cli("pin", "set", ADDRESS, "805", "--factory", "--pin-stdin", "--yes", radio=FakeRadio(lock), stdin=PIN)
     assert result.code == 0, result.err
-    assert lock.pins == {803: PIN}
+    assert lock.pins == {805: PIN}
     assert "a PIN of 8 digits" in result.out
     assert "status SUCCESS" in result.out
 
-    result = run_cli("pin", "clear", ADDRESS, "803", "--factory", "--yes", radio=FakeRadio(lock))
+    result = run_cli("pin", "clear", ADDRESS, "805", "--factory", "--yes", radio=FakeRadio(lock))
     assert result.code == 0, result.err
     assert lock.pins == {}
 
 
 def test_pin_set_refuses_old_firmware_before_login(run_cli):
     lock = FakeLock(firmware=b"4.7.10")
-    result = run_cli("pin", "set", ADDRESS, "803", "--factory", "--pin-stdin", "--yes", radio=FakeRadio(lock), stdin=PIN)
+    result = run_cli("pin", "set", ADDRESS, "805", "--factory", "--pin-stdin", "--yes", radio=FakeRadio(lock), stdin=PIN)
     assert result.code == cli.EXIT_REFUSED
     assert "UNAVAILABLE_VERSION" in result.err and "4.7.90" in result.err
     assert fake_const.CommandId.USER_AUTH_BEGIN not in [c.command_id for c in lock.commands]
@@ -548,9 +548,63 @@ def test_rfid_and_fingerprint_scans(run_cli):
     assert result.code == 0, result.err
     assert "slot 150, result OK" in result.out
     assert lock.rfids == {900} and lock.fingerprints == {150}
-    result = run_cli("rfid", "clear", ADDRESS, "900", "--factory", "--yes", radio=FakeRadio(lock))
+    result = run_cli(
+        "rfid", "clear", ADDRESS, "900", "--factory", "--yes", cli.UNVERIFIED_SLOT_FLAG, radio=FakeRadio(lock)
+    )
     assert result.code == 0, result.err
     assert lock.rfids == set()
+
+
+# --- Slots nobody has mapped -----------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("argv", "says"),
+    [
+        (["rfid", "clear", ADDRESS, "900"], "held to the lock again"),
+        (["fingerprint", "clear", ADDRESS, "150"], "with that person present"),
+        (["pin", "set", ADDRESS, "800", "--pin-stdin"], "Zigbee slot 0 under one and 3 under the other"),
+        (["pin", "clear", ADDRESS, "804"], "Zigbee slot 4 under one and 7 under the other"),
+    ],
+    ids=["rfid clear", "fingerprint clear", "pin set", "pin clear"],
+)
+def test_a_blind_slot_write_needs_more_than_yes(run_cli, argv, says):
+    """--yes says send it; this says the slot means what you think it does."""
+    lock = FakeLock()
+    radio = FakeRadio(lock)
+    result = run_cli(*argv, "--factory", "--yes", radio=radio, stdin=PIN + "\n")
+    assert result.code == cli.EXIT_REFUSED
+    assert says in result.err
+    assert cli.UNVERIFIED_SLOT_FLAG in result.err
+    assert radio.connects == []
+    assert lock.commands == []
+
+    # With the flag the command goes out; what the lock answers to a slot
+    # that holds nothing is the lock's business.
+    run_cli(*argv, "--factory", "--yes", cli.UNVERIFIED_SLOT_FLAG, radio=FakeRadio(lock), stdin=PIN + "\n")
+    assert [c.command_id for c in lock.commands][-1] in {
+        fake_const.CommandId.RFID_CODE_CLEAR,
+        fake_const.CommandId.FINGERPRINT_CLEAR,
+        fake_const.CommandId.PIN_CODE_SET,
+        fake_const.CommandId.PIN_CODE_CLEAR,
+    }
+
+
+def test_the_scans_are_not_behind_the_flag(run_cli):
+    """A scan adds a tag or a finger; it deletes nothing, so it stays as it was."""
+    lock = FakeLock()
+    result = run_cli("rfid", "scan", ADDRESS, "900", "--factory", "--yes", radio=FakeRadio(lock))
+    assert result.code == 0, result.err
+    result = run_cli("fingerprint", "scan", ADDRESS, "150", "--factory", "--yes", radio=FakeRadio(lock))
+    assert result.code == 0, result.err
+
+
+def test_a_slot_outside_the_range_is_still_answered_plainly(run_cli):
+    """The range check runs first, so a typo does not read as a safety question."""
+    result = run_cli("fingerprint", "clear", ADDRESS, "900", "--factory", "--yes", radio=FakeRadio(FakeLock()))
+    assert result.code == cli.EXIT_REFUSED
+    assert "Invalid SlotNumber" in result.err
+    assert cli.UNVERIFIED_SLOT_FLAG not in result.err
 
 
 # --- Enrollment --------------------------------------------------------------------------
@@ -848,9 +902,9 @@ def test_no_secret_reaches_the_trace_or_the_output(run_cli, state_dir):
     lock = FakeLock()
     enroll_lock(run_cli, lock)
     radio = FakeRadio(lock)
-    result = run_cli("pin", "set", ADDRESS, "803", "--pin-stdin", "--yes", radio=radio, stdin=PIN)
+    result = run_cli("pin", "set", ADDRESS, "805", "--pin-stdin", "--yes", radio=radio, stdin=PIN)
     assert result.code == 0, result.err
-    assert lock.pins == {803: PIN}
+    assert lock.pins == {805: PIN}
     assert result.trace, "the trace is empty, so this test checks nothing"
     for label, value in _secrets_of(lock, state_dir).items():
         assert value not in result.trace_text, f"{label} in the trace"
@@ -866,7 +920,7 @@ def test_trace_secrets_writes_them(run_cli, state_dir):
     lock = FakeLock()
     enroll_lock(run_cli, lock)
     result = run_cli(
-        "--trace-secrets", "pin", "set", ADDRESS, "803", "--pin-stdin", "--yes", radio=FakeRadio(lock), stdin=PIN
+        "--trace-secrets", "pin", "set", ADDRESS, "805", "--pin-stdin", "--yes", radio=FakeRadio(lock), stdin=PIN
     )
     assert result.code == 0, result.err
     assert "--trace-secrets writes PINs" in result.err

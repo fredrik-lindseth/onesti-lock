@@ -603,7 +603,14 @@ free Zigbee slots. That rules out 800-804, which land on a master slot or on
 a Zigbee slot that may hold a working code; 805 and up is the safe end.
 There is no command that reads a slot back, so every write is blind: try the
 code on the keypad afterwards, and check that the codes that worked before
-still do.
+still do. `pin set` and `pin clear` below slot 805 refuse to run without
+`--i-know-the-slot-mapping-is-unverified`, and so do `rfid clear` and
+`fingerprint clear` at any slot, since nobody has mapped those numberings at
+all and a deleted fingerprint only comes back with the person and the finger
+in front of the lock. `--yes` says the command may go out; the long flag
+says the slot means what you think it means, which is a different thing to
+be sure of. The `scan` variants are not behind it: they add a tag or a
+finger rather than delete one.
 
 What it refuses to do:
 

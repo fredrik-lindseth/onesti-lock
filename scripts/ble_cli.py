@@ -131,6 +131,16 @@ DEFAULT_CONNECT_TIMEOUT_S: Final = 20.0
 FAILED_LOGIN_LIMIT: Final = 2
 FAILED_LOGIN_WINDOW: Final = timedelta(days=1)
 
+# Nobody has mapped BLE slots onto the Zigbee ones, and no command reads a
+# slot back, so every write and every delete is blind. The flag below is the
+# way past that, spelled so it cannot be typed by mistake.
+UNVERIFIED_SLOT_FLAG: Final = "--i-know-the-slot-mapping-is-unverified"
+# docs/slot-numbering.md keeps two readings alive, BLE 800 as Zigbee 3 and
+# BLE 800 as Zigbee 0. Under the second, 800-802 are the master slots and
+# 803-804 the first two user slots, which on a lock in use hold the codes
+# people walk in with. From 805 up both readings land past them.
+FIRST_UNCONTESTED_PIN_SLOT: Final = 805
+
 # Exit codes: 0 done, 1 failed, 2 refused (a missing --yes, a safety check).
 EXIT_OK: Final = 0
 EXIT_FAILED: Final = 1
@@ -1089,6 +1099,18 @@ def _validated[T](build: Callable[[], T]) -> T:
         raise CliError(str(err), EXIT_REFUSED) from None
 
 
+def require_slot_acknowledgement(ctx: Context, what: str) -> None:
+    """Refuse a blind write against an unmapped slot without the long flag.
+
+    --yes only says the command may go out. This says the slot itself is a
+    guess, which is a different thing to be sure of, and the flag is long so
+    it cannot land in a command line by habit.
+    """
+    if getattr(ctx.args, "i_know_the_slot_mapping_is_unverified", False):
+        return
+    raise CliError(f"{what} Pass {UNVERIFIED_SLOT_FLAG} if that is what you mean.", EXIT_REFUSED)
+
+
 async def cmd_operate(ctx: Context) -> int:
     operation = EkeyOperationId.LOCK if ctx.args.operation == "lock" else EkeyOperationId.UNLOCK
     payload = _validated(lambda: commands.ekey_operate(operation))
@@ -1110,11 +1132,19 @@ def read_pin(ctx: Context) -> str:
 
 async def cmd_pin(ctx: Context) -> int:
     slot = ctx.args.slot
+    # The range check first, so a slot outside 800-899 gets the plain answer.
+    _validated(lambda: commands.pin_code_clear(slot))
+    if slot < FIRST_UNCONTESTED_PIN_SLOT:
+        require_slot_acknowledgement(
+            ctx,
+            f"BLE slot {slot} is one of the slots the two readings in docs/slot-numbering.md disagree about: "
+            f"it is Zigbee slot {slot - 800} under one and {slot - 797} under the other, so it can be a master "
+            "slot or a code someone uses to get in. Nothing reads a slot back, so this cannot be checked first. "
+            f"Slot {FIRST_UNCONTESTED_PIN_SLOT} and up is past both.",
+        )
     if ctx.args.action == "clear":
         payload = _validated(lambda: commands.pin_code_clear(slot))
         return await run_write(ctx, Write(payload, f"send PinCodeClear for slot {slot}"))
-    # Refuse a bad slot before asking for a PIN.
-    _validated(lambda: commands.pin_code_clear(slot))
     if not ctx.args.yes:
         login = resolve_login(ctx, ctx.args.address)
         confirm(ctx, ctx.args.address, login, [f"send PinCodeSet for slot {slot} with a PIN you type at a prompt"])
@@ -1130,6 +1160,12 @@ async def cmd_rfid(ctx: Context) -> int:
     slot = ctx.args.slot
     if ctx.args.action == "clear":
         payload = _validated(lambda: commands.rfid_code_clear(slot))
+        require_slot_acknowledgement(
+            ctx,
+            f"RfidCodeClear deletes whatever tag is in slot {slot}, and nobody has mapped the RFID slot "
+            "numbering: no command reads a slot back, so which tag this is cannot be checked first. A deleted "
+            "tag has to be held to the lock again to come back, with the tag in hand.",
+        )
         return await run_write(ctx, Write(payload, f"send RfidCodeClear for slot {slot}"))
     payload = _validated(lambda: commands.scan_rfid_code(slot))
     write = Write(
@@ -1145,6 +1181,12 @@ async def cmd_fingerprint(ctx: Context) -> int:
     slot = ctx.args.slot
     if ctx.args.action == "clear":
         payload = _validated(lambda: commands.fingerprint_clear(slot))
+        require_slot_acknowledgement(
+            ctx,
+            f"FingerprintClear deletes whatever finger is in slot {slot}, and nobody has mapped the fingerprint "
+            "slot numbering: no command reads a slot back, so whose finger this is cannot be checked first. A "
+            "deleted fingerprint only comes back by enrolling it on the lock again, with that person present.",
+        )
         return await run_write(ctx, Write(payload, f"send FingerprintClear for slot {slot}"))
     payload = _validated(lambda: commands.fingerprint_scan(slot))
     write = Write(
@@ -1453,6 +1495,16 @@ def build_parser() -> argparse.ArgumentParser:
     yes = argparse.ArgumentParser(add_help=False)
     yes.add_argument("--yes", action="store_true", help="send it; without this, only print what would be sent")
 
+    # On the commands that write to a slot whose meaning is a guess: the two
+    # slot-numbering readings for PIN slots below 805, and the RFID and
+    # fingerprint deletes, where nothing says what a slot holds.
+    unverified = argparse.ArgumentParser(add_help=False)
+    unverified.add_argument(
+        UNVERIFIED_SLOT_FLAG,
+        action="store_true",
+        help="write to a slot whose meaning nobody has mapped; the command explains what is at stake",
+    )
+
     sub.add_parser("info", parents=[address], help="GATT services, characteristic properties, MTU; no protocol")
     sub.add_parser("handshake", parents=[address], help="firmware, key exchange, model; no login")
     sub.add_parser("login", parents=[address, credentials], help="owner login")
@@ -1463,17 +1515,19 @@ def build_parser() -> argparse.ArgumentParser:
 
     pin = sub.add_parser("pin", help="PIN codes in BLE slots 800-899")
     pin_actions = pin.add_subparsers(dest="action", required=True)
-    pin_set = pin_actions.add_parser("set", parents=[address, credentials, yes])
+    pin_set = pin_actions.add_parser("set", parents=[address, credentials, yes, unverified])
     pin_set.add_argument("slot", type=int)
     pin_set.add_argument("--pin-stdin", action="store_true", help="read the PIN from stdin instead of a prompt")
-    pin_clear = pin_actions.add_parser("clear", parents=[address, credentials, yes])
+    pin_clear = pin_actions.add_parser("clear", parents=[address, credentials, yes, unverified])
     pin_clear.add_argument("slot", type=int)
 
     for kind, slots in (("rfid", "900-999"), ("fingerprint", "150-199")):
         parser_kind = sub.add_parser(kind, help=f"{kind} in BLE slots {slots}")
         actions = parser_kind.add_subparsers(dest="action", required=True)
         for action in ("scan", "clear"):
-            actions.add_parser(action, parents=[address, credentials, yes]).add_argument("slot", type=int)
+            # The delete is the one that needs the slot to mean what you think.
+            shared = [address, credentials, yes] + ([unverified] if action == "clear" else [])
+            actions.add_parser(action, parents=shared).add_argument("slot", type=int)
 
     enroll_parser = sub.add_parser("enroll", parents=[address, yes], help="take over a factory-reset lock")
     enroll_parser.add_argument("--name", help="written to the lock, at most 8 ASCII characters")

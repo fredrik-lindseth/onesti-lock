@@ -17,7 +17,10 @@ times. Everything below the next section describes the first one.
 | Locks | No stated limit | Two |
 | Status on nimly.se | "Utgången produkt", discontinued | Current |
 
-Fredrik's unit is the first one. The Nimly product page for the Connect
+The hub this repo documents is the first one. It was returned to the vendor,
+so nothing here can be re-measured on it: the serial number, the network
+snapshot and the SSH behaviour below are what was read while it was on the
+bench, not something a later session can check. The Nimly product page for the Connect
 Gateway is the one that says discontinued, read 2026-09-20; the Connect Bridge
 page is the one with the wall plug, the two-lock limit and the green/red
 backlight, and its installation guide is dated 17 June 2026
@@ -31,7 +34,8 @@ set: `wlan.set` with ssid/password/encryption, `power`, `status` with
 firmware version and update, and `scan.turnOn` to open joining. What separates
 them is a block of policy, quoted under "What else can join it" below. The app
 picks between them by serial number: one beginning `02000005` is the Connect
-Bridge, anything else the Connect Gateway. Fredrik's begins `02000001`.
+Bridge, anything else the Connect Gateway. The unit documented here began
+`02000001`.
 
 The app also knows one model number per hub: `EGW01` is the Connect Bridge,
 and a list of gateways without "certified mode" names `EGW01` and

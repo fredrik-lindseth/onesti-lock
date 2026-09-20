@@ -122,6 +122,29 @@ class TestFullEnrollment:
         assert enrollment.name == "Door"
         assert enrollment.user_id == 0
 
+    def test_keeps_what_the_owner_key_was_derived_from(self):
+        """A wrong derivation can be redone offline only if both halves are kept."""
+        lock = FakeLock()
+        enrollment, _ = run(enroll_fixed(lock))
+        assert enrollment.update_private_key == PHONE_UPDATE_PRIVATE_KEY
+        assert enrollment.lock_update_public_key == public_key(LOCK_UPDATE_PRIVATE_KEY)
+        assert (
+            crypto.derive_owner_key(enrollment.update_private_key, enrollment.lock_update_public_key)
+            == enrollment.owner_key
+        )
+        stored = enrollment_mod.Enrollment.from_dict(enrollment.to_dict())
+        assert stored.update_private_key == PHONE_UPDATE_PRIVATE_KEY
+        assert stored.lock_update_public_key == public_key(LOCK_UPDATE_PRIVATE_KEY)
+
+    def test_the_material_is_saved_with_the_owner_key_it_made(self):
+        """A run that stops partway keeps it too, since save gets it from the first step."""
+        lock = FakeLock()
+        recorder = SaveRecorder(lock)
+        _enroll_cancelled_at(lock, CommandId.DEVICE_ID_SET, recorder)
+        partial = recorder.saved[-1]
+        assert partial.update_private_key == PHONE_UPDATE_PRIVATE_KEY
+        assert partial.lock_update_public_key == public_key(LOCK_UPDATE_PRIVATE_KEY)
+
     def test_both_ends_share_the_server_secret(self):
         """The stored server key and the lock's answer give the lock's own ECDH secret."""
         lock = FakeLock()
@@ -603,6 +626,8 @@ def enrollment(**overrides):
         "server_private_key": PHONE_SERVER_PRIVATE_KEY,
         "name": "Door",
         "lock_server_public_key": public_key(LOCK_SERVER_PRIVATE_KEY),
+        "update_private_key": PHONE_UPDATE_PRIVATE_KEY,
+        "lock_update_public_key": public_key(LOCK_UPDATE_PRIVATE_KEY),
         "completed": frozenset(Step),
     }
     values.update(overrides)
@@ -613,11 +638,13 @@ class TestEnrollmentValue:
     def test_repr_and_errors_hold_no_secret(self):
         value = enrollment()
         text = repr(value)
-        for secret in (value.owner_key, value.server_private_key):
+        for secret in (value.owner_key, value.server_private_key, value.update_private_key):
             assert secret.hex() not in text
             assert secret.hex().upper() not in text
         assert "owner_key=" not in text
         assert "server_private_key=" not in text
+        assert "update_private_key=" not in text
+        assert "lock_update_public_key=" not in text
         assert DEVICE_ID.hex() in text or repr(DEVICE_ID) in text
 
     def test_owner_credential_follows_the_device_id_step(self):
@@ -634,6 +661,20 @@ class TestEnrollmentValue:
             assert data["format"] == enrollment_mod.ENROLLMENT_FORMAT
             assert enrollment_mod.Enrollment.from_dict(data) == value
 
+    def test_a_format_1_file_reads_back_without_the_owner_key_material(self):
+        """Files written before format 2 have no material; everything else still works."""
+        data = enrollment().to_dict()
+        old = {key: value for key, value in data.items() if "update" not in key} | {"format": 1}
+        value = enrollment_mod.Enrollment.from_dict(old)
+        assert value.update_private_key is None
+        assert value.lock_update_public_key is None
+        assert value.owner_key == EXPECTED_OWNER_KEY
+        assert value.owner_credential == auth.OwnerCredential(0, DEVICE_ID, EXPECTED_OWNER_KEY)
+        written = value.to_dict()
+        assert written["format"] == enrollment_mod.ENROLLMENT_FORMAT
+        assert written["update_private_key"] is None
+        assert enrollment_mod.Enrollment.from_dict(written) == value
+
     @pytest.mark.parametrize(
         ("overrides", "message"),
         [
@@ -642,6 +683,10 @@ class TestEnrollmentValue:
             ({"lock_server_public_key": None}, "server key step"),
             ({"completed": frozenset({Step.OWNER_KEY})}, "server key step"),
             ({"lock_server_public_key": b"\x01" * 63}, "must be 64 bytes"),
+            ({"update_private_key": None}, "both halves or neither"),
+            ({"lock_update_public_key": None}, "both halves or neither"),
+            ({"lock_update_public_key": b"\x01" * 63}, "Lock update public key must be 64 bytes"),
+            ({"update_private_key": b"\xff" * 32}, "not a valid secp256r1 scalar"),
             ({"user_id": 300}, "User id must be 0-255"),
             ({"device_id": bytes(6)}, "all zero"),
             ({"name": "Much too long"}, "does not fit"),
@@ -655,7 +700,9 @@ class TestEnrollmentValue:
     @pytest.mark.parametrize(
         ("change", "message"),
         [
-            ({"format": 2}, "Unsupported enrollment format"),
+            ({"format": 3}, "Unsupported enrollment format"),
+            ({"update_private_key": "zz" * 32}, "update_private_key is not a hex string"),
+            ({"lock_update_public_key": 12}, "lock_update_public_key is not a hex string"),
             ({"completed": "all"}, "completed is not a list"),
             ({"completed": ["owner_key", "dance"]}, "unknown step"),
             ({"name": 7}, "name is not a string"),

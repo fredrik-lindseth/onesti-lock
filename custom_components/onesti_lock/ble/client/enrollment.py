@@ -70,8 +70,10 @@ _LOGGER = logging.getLogger(__name__)
 # credentials value would grant is not traced.
 OWNER_CREDENTIALS: Final = 0
 
-# Bumped when the stored shape of Enrollment.to_dict changes.
-ENROLLMENT_FORMAT: Final = 1
+# Bumped when the stored shape of Enrollment.to_dict changes. Format 2 added
+# the owner key material (update_private_key, lock_update_public_key).
+ENROLLMENT_FORMAT: Final = 2
+READABLE_ENROLLMENT_FORMATS: Final = frozenset({1, ENROLLMENT_FORMAT})
 
 
 class EnrollmentStep(StrEnum):
@@ -93,6 +95,16 @@ class Enrollment:
     the owner key, since before that step there is nothing worth keeping.
     lock_server_public_key is the lock's answer to ServerKeyUpdate, None
     until that step is done.
+
+    update_private_key and lock_update_public_key are the two halves the
+    owner key was derived from: our UserAuthUpdate key pair's private key
+    and the lock's answer. derive_owner_key() rests on three untested
+    conventions (keys on the wire as little-endian X||Y, the ECDH secret
+    reversed, the owner key the first 16 bytes of it). Keeping the material
+    means a wrong convention can be recomputed offline afterwards instead of
+    costing a module reset, so they are kept even though nothing reads them.
+    Both are secrets: the pair is the owner key. They are None only in an
+    enrollment stored before format 2.
     """
 
     device_id: bytes
@@ -100,6 +112,8 @@ class Enrollment:
     server_private_key: bytes = field(repr=False)
     name: str
     lock_server_public_key: bytes | None = None
+    update_private_key: bytes | None = field(default=None, repr=False)
+    lock_update_public_key: bytes | None = field(default=None, repr=False)
     completed: frozenset[EnrollmentStep] = frozenset({EnrollmentStep.OWNER_KEY})
     user_id: int = DEFAULT_ADMIN_USER_ID
 
@@ -118,6 +132,16 @@ class Enrollment:
         if self.lock_server_public_key is not None and len(self.lock_server_public_key) != PUBLIC_KEY_LENGTH:
             raise BleValidationError(
                 f"Lock server public key must be {PUBLIC_KEY_LENGTH} bytes, got {len(self.lock_server_public_key)}"
+            )
+        if (self.update_private_key is None) != (self.lock_update_public_key is None):
+            raise BleValidationError(
+                "The owner key material is both halves or neither: update_private_key and lock_update_public_key"
+            )
+        if self.update_private_key is not None:
+            key_pair_from_private_key(self.update_private_key)
+        if self.lock_update_public_key is not None and len(self.lock_update_public_key) != PUBLIC_KEY_LENGTH:
+            raise BleValidationError(
+                f"Lock update public key must be {PUBLIC_KEY_LENGTH} bytes, got {len(self.lock_update_public_key)}"
             )
         # The credential validates the user id.
         OwnerCredential(self.user_id, self.device_id, self.owner_key)
@@ -155,16 +179,25 @@ class Enrollment:
             "owner_key": self.owner_key.hex(),
             "server_private_key": self.server_private_key.hex(),
             "lock_server_public_key": None if self.lock_server_public_key is None else self.lock_server_public_key.hex(),
+            "update_private_key": None if self.update_private_key is None else self.update_private_key.hex(),
+            "lock_update_public_key": None if self.lock_update_public_key is None else self.lock_update_public_key.hex(),
             "name": self.name,
             "completed": [step.value for step in EnrollmentStep if step in self.completed],
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Enrollment:
-        """Read what to_dict wrote. Errors name the field, never its value."""
-        if data.get("format") != ENROLLMENT_FORMAT:
-            raise BleValidationError(f"Unsupported enrollment format, expected {ENROLLMENT_FORMAT}")
+        """Read what to_dict wrote, including a format 1 file. Errors name the field, never its value.
+
+        Format 1 has no owner key material (update_private_key,
+        lock_update_public_key); it reads back with both None, and writes
+        out again as format 2 without them.
+        """
+        if data.get("format") not in READABLE_ENROLLMENT_FORMATS:
+            raise BleValidationError(f"Unsupported enrollment format, expected one of {sorted(READABLE_ENROLLMENT_FORMATS)}")
         lock_key = data.get("lock_server_public_key")
+        update_key = data.get("update_private_key")
+        lock_update_key = data.get("lock_update_public_key")
         completed = data.get("completed")
         if not isinstance(completed, list):
             raise BleValidationError("Enrollment field completed is not a list")
@@ -184,6 +217,8 @@ class Enrollment:
             server_private_key=_hex_field(data, "server_private_key"),
             name=name,
             lock_server_public_key=None if lock_key is None else _hex_field(data, "lock_server_public_key"),
+            update_private_key=None if update_key is None else _hex_field(data, "update_private_key"),
+            lock_update_public_key=None if lock_update_key is None else _hex_field(data, "lock_update_public_key"),
             completed=steps,
             user_id=user_id,
         )
@@ -299,6 +334,10 @@ async def enroll(
         owner_key=owner_key,
         server_private_key=server_private_key,
         name=name,
+        # Kept so a wrong derivation can be recomputed without touching the
+        # lock; see the Enrollment docstring.
+        update_private_key=update_key.private_key,
+        lock_update_public_key=answer.public_key,
     )
     _save(save, EnrollmentStep.OWNER_KEY, enrollment)
     return await _run_remaining(session, enrollment, now, save)

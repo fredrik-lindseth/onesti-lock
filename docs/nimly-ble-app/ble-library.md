@@ -155,6 +155,16 @@ retry runs on the same connection, and whether the lock allows a second
 mark the step done by hand (`replace(partial, completed=partial.completed |
 {EnrollmentStep.DEVICE_ID})`) and resume that.
 
+The `Enrollment` also keeps what the owner key was derived from: the private
+half of the `UserAuthUpdate` key pair and the lock's answer to it
+(`update_private_key`, `lock_update_public_key`). Nothing reads them. They
+are there because the derivation rests on three conventions no lock has
+confirmed, and if one of them is wrong the lock holds an owner key that
+cannot be recomputed from the result alone. With both halves stored, another
+reading of the same bytes can be tried offline; without them the way back is
+a module reset, which takes the Zigbee pairing with it. They are as secret as
+the owner key, since together they are the owner key.
+
 `err.enrollment` is `None` only when `UserAuthUpdate` itself failed. The lock
 then usually still has its factory key; if it took the new key and only its
 answer was lost, only a factory reset recovers it. A failed factory login
@@ -411,11 +421,15 @@ captured over the air, so the format is the app's reading of it.
 `Enrollment.to_dict()` gives a JSON-safe dict with bytes as hex, and
 `Enrollment.from_dict()` reads it back and validates every field. Error
 messages name a bad field, never its value. The `format` field is bumped when
-the shape changes.
+the shape changes; `from_dict` still reads the formats before it, and
+`to_dict` always writes the current one. Format 2 added the owner key
+material, so a format 1 file reads back with both those fields `None`.
 
 | Field                    | Secret | What it is                                                                     |
 | ------------------------ | ------ | ------------------------------------------------------------------------------ |
 | `owner_key`              | Yes    | The 16-byte AES key that answers the owner challenge. Whoever holds it owns the lock. |
+| `update_private_key`     | Yes    | Private half of the `UserAuthUpdate` key pair. With the field below it gives the owner key again, under another reading of the derivation. |
+| `lock_update_public_key` | Yes    | The lock's answer to `UserAuthUpdate`, the other half of that derivation       |
 | `server_private_key`     | Yes    | Private half of the key pair sent in `ServerKeyUpdate`. Nothing uses it yet, but it would let its holder act as the server the lock trusts. |
 | `device_id`              | No, but sensitive | Sent in every login, and the only way to recognise the lock's advertisement, so it lets someone track the lock. |
 | `lock_server_public_key` | No     | The lock's answer to `ServerKeyUpdate`                                         |

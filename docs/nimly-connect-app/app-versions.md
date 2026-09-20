@@ -238,7 +238,7 @@ Homely 1.28.61 and zero times in Tekam 1.22.44:
 
 | Kind | In Homely only |
 | ---- | -------------- |
-| Model ids | `NimlyCodePRO`, `NimlyIn`, `NimlyShared`, `NimlyKeybox`, `NimlyGatewayWifiPro` |
+| Model ids | `NimlyCodePRO`, `NimlyIn`, `NimlyShared`, `NimlyKeybox` |
 | Event types | `DoorlockAccessScanRequested`, `DoorlockLockedByPinchGesture`, `DoorlockTampered`, `DoorlockUnintegrated`, `DoorlockWithKeypadLink` |
 | Endpoints | the whole `/keybox/…` family, eight literals against none |
 

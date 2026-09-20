@@ -40,3 +40,56 @@ The firmware on the Nordic module has changed in ways that matter here. `SWBuild
 A lock on 2021-era firmware would pair, expose a Door Lock cluster, be offered by the config flow, and never produce an activity event. No such report has come in, and nothing in the code would tell such a user what is wrong.
 
 `EasyCode903G2` (no trailing `.1`) is a different string: the `ModelIdentifier` default documented in Onesti's own 2021 module spec (`docs/zigbee-protocol/elife-module-spec.md`), next to `easyCodeTouch_v1`, for a device whose `ManufacturerName` the same spec gives as "Onesti Products AS". Nobody has reported a lock answering it, but it passes the manufacturer filter and is listed in `SUPPORTED_MODELS` on that basis. Whether it maps to a still-sold product, and whether it is the same hardware family as `EasyCode903G2.1` under a similar name, is unknown.
+
+## Which app model ids reach a shop
+
+The app bundles carry model ids for product nobody here had seen sold
+(`docs/nimly-connect-app/app-versions.md`). Checking the shops and the vendor's
+own document page on 2026-09-20 places three of the four.
+
+| Model id in the app | Product | Evidence |
+| --- | --- | --- |
+| `NimlyIn` | Nimly Indoor, a keypad lock for interior doors | Sold, 2590 at Elektroimportøren (art. 5800458), own installation manual |
+| `NimlyKeybox` | Nimly Keybox Black, a wall-mounted key safe | Vendor product guide and installation guide, EAN 5704571195077; no retailer found |
+| `NimlyGatewayWifiPro` | Connect Bridge, most likely | Unverified. The Bridge is the only Nimly wifi gateway: 2.4 GHz wifi to the cloud, Zigbee 3.0 to the module, set up over Bluetooth, two locks maximum |
+| `NimlyShared` | nothing named | The Entrance panel (12-24 V, IP65, for a shared entrance or garage door, [product page](https://nimly.no/product/entrance/)) fits the name, but nothing connects the two |
+
+`NimlyTwist` has no manual either, and EasyAccess sells an EasyTwist, so that
+name is probably the same product under the other brand. Nimly's own document
+page lists Touch Pro, Touch, Code, Indoor, Entrance and Keybox, and no Code Pro,
+although every retailer sells the Code Pro.
+
+## The Keybox takes the same module
+
+The [Keybox installation guide](https://nimly.se/wp-content/uploads/2025/04/EN-Keybox-Installation-Guide-291124.pdf)
+(2024-11-29) has a module tray under the battery compartment for the Connect
+Module, the same part as in the locks. So an Onesti Zigbee device that is not a
+door lock exists, and a Keybox with a module in it would answer "Onesti Products
+AS" over Zigbee. Whether it exposes a Door Lock cluster, and so whether the
+config flow would offer it at all, is untested; nobody here owns one. The BLE
+model table has `NimlyKeybox` at byte 26 and `NimlyKeybox2` at 36
+(`docs/nimly-ble-app/ble-protocol.md`), the same old/new split as the locks.
+
+Its slot layout is not the locks': user slot 000 is the only reserved one, the
+factory master code is `123456`, and user codes go in 001 to 999. Master codes
+are 6 to 8 digits, user codes 4 to 8. The guide also says that fitting the
+module later disables every manually registered code and tag until the module is
+removed and the power cycled, and recommends a factory reset before installing
+it.
+
+## What the 2025 Code manual says about slots
+
+Nimly publishes a [Code installation manual for new firmware](https://nimly.se/wp-content/uploads/2025/09/NO-Code-Installation-Manual-new-firmware-150925.pdf)
+dated 2025-09-15, alongside the 2023 one. It is the first vendor document that
+spells out the master/user split this integration guesses at:
+
+- Slot 000: first master code, factory code `123`.
+- Slots 001 and 002: further master codes, optional.
+- Slots 003 to 999: user codes.
+- RFID tags: slots 000 to 999, with no reservation at all.
+
+So `reserved_slots = 3` is right for a Code on this firmware for PINs, and the
+tag range is wider than the PIN range on the same lock. Codes are up to 8 digits,
+4 recommended for users and 6 for masters, and the manual notes that connecting
+the Connect App requires a six-digit master code. What the equivalent manual
+says for the Code Pro is unknown: Nimly does not publish one.

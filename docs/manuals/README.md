@@ -113,9 +113,12 @@ So the row carries a date and a marker instead of a hash: `Fetched` is the last 
 | `gh-repo` | A whole repository, unpacked | the head commit |
 | `web` | A vendor page: raw `.html` beside a stripped `.txt` | SHA-256 of the text |
 | `appstore` | Apple's lookup API for one app: version, release date, release notes | the version |
+| `android` | APKPure's package page for one app: version, versionCode, publication date | `version (versionCode)` |
 | `manual` | Nothing. The row says the source exists and cannot be scripted | why not |
 
 The marker for `web` is the hash of the text and not of the HTML on purpose. nimly.se serves a fresh nonce on every request, so the raw bytes differ between two fetches a second apart and every run would claim the page had changed.
+
+The `appstore` and `android` rows cover every app in the white-label family, one row per store, and they are the trigger for the work described in [app-versions.md](../nimly-connect-app/app-versions.md): the rows say which app moved, that file says what was in it last time we looked. An `appstore` key is the numeric track id, with `@se` appended when the app is sold in Sweden and not in Norway. An `android` key is the package name, read off APKPure because Google's own listing no longer prints a version anywhere in its HTML; APKPure mirrors on its own schedule and can sit one release behind Play, so the row dates the mirror, not the store.
 
 Two Swedish forums are in the table as `manual` rows. byggahus.se and sweclockers.com both answer 403 to anything that is not a browser: the block is a Cloudflare challenge served before any HTML, so there is no fallback to parse. Somebody reading them by hand is the only route. hemautomation.se is not in the table at all: the domain is parked at Loopia and the forum no longer exists.
 
@@ -225,6 +228,30 @@ Two Swedish forums are in the table as `manual` rows. byggahus.se and sweclocker
 | vendor/app-nimly-connect.json | https://apps.apple.com/no/app/nimly-connect/id1577797927 | appstore | 1577797927 | 2026-09-20 | 1.28.0 |
 | vendor/app-nimly-home.json | https://apps.apple.com/no/app/nimly-home/id6760764003 | appstore | 6760764003 | 2026-09-20 | 1.0 |
 | vendor/app-unloc.json | https://apps.apple.com/no/app/unloc/id1361534440 | appstore | 1361534440 | 2026-09-20 | 5.11.8 |
+| vendor/app-keyfree.json | https://apps.apple.com/no/app/keyfree/id1537398768 | appstore | 1537398768 | 2026-09-20 | 1.27.0 |
+| vendor/app-salus-immunity.json | https://apps.apple.com/no/app/salus-immunity/id6449595598 | appstore | 6449595598 | 2026-09-20 | 1.28.0 |
+| vendor/app-forebygg.json | https://apps.apple.com/se/app/forebygg/id1543671043 | appstore | 1543671043@se | 2026-09-20 | 1.27.45 |
+| vendor/app-tekam.json | https://apps.apple.com/no/app/tekam-smarthus/id1465331491 | appstore | 1465331491 | 2026-09-20 | 1.28.0 |
+| vendor/app-iotiliti.json | https://apps.apple.com/no/app/iotiliti/id1465138939 | appstore | 1465138939 | 2026-09-20 | 1.28.0 |
+| vendor/app-homely.json | https://apps.apple.com/no/app/homely/id1447485754 | appstore | 1447485754 | 2026-09-20 | 1.28.0 |
+| vendor/app-tryg-smart.json | https://apps.apple.com/no/app/tryg-smart/id1495994587 | appstore | 1495994587 | 2026-09-20 | 1.24.1 |
+| vendor/app-confi-care.json | https://apps.apple.com/no/app/confi-care/id1525530018 | appstore | 1525530018 | 2026-09-20 | 1.28.1 |
+| vendor/app-copiapp.json | https://apps.apple.com/se/app/copiapp/id6467866084 | appstore | 6467866084@se | 2026-09-20 | 1.3.11 |
+| vendor/app-larmify.json | https://apps.apple.com/se/app/larmify/id6748140535 | appstore | 6748140535@se | 2026-09-20 | 1.28.0 |
+| vendor/apk-nimly-connect.json | https://apkpure.com/x/com.easyaccess.connect | android | com.easyaccess.connect | 2026-09-20 | 1.28.46 (292) |
+| vendor/apk-nimly-ble.json | https://apkpure.com/x/easyaccess.ekey.app | android | easyaccess.ekey.app | 2026-09-20 | 1.5.1 (12) |
+| vendor/apk-unloc.json | https://apkpure.com/x/ai.unloc.unloc | android | ai.unloc.unloc | 2026-09-20 | 5.9.0 (2318) |
+| vendor/apk-iotiliti.json | https://apkpure.com/x/io.iotiliti.home | android | io.iotiliti.home | 2026-09-20 | 1.28.46 (906) |
+| vendor/apk-copiax.json | https://apkpure.com/x/com.copiax.homesecurity | android | com.copiax.homesecurity | 2026-09-20 | 1.28.46 (333) |
+| vendor/apk-tekam.json | https://apkpure.com/x/no.tekam.smarthus | android | no.tekam.smarthus | 2026-09-20 | 1.22.44 (192) |
+| vendor/apk-folklarm.json | https://apkpure.com/x/com.folklarm.appsolutsakerhet | android | com.folklarm.appsolutsakerhet | 2026-09-20 | 1.25.49 (183) |
+| vendor/apk-keyfree.json | https://apkpure.com/x/com.safe4.keyfree | android | com.safe4.keyfree | 2026-09-20 | 1.27.23 (474) |
+| vendor/apk-forebygg.json | https://apkpure.com/x/se.forebygg.forebygg | android | se.forebygg.forebygg | 2026-09-20 | 1.24.78 (121) |
+| vendor/apk-homely.json | https://apkpure.com/x/io.homely.home | android | io.homely.home | 2026-09-20 | 1.28.61 (627) |
+| vendor/apk-salus.json | https://apkpure.com/x/com.salusprotekt.immunity | android | com.salusprotekt.immunity | 2026-09-20 | 1.25.62 (56) |
+| vendor/apk-tryg-smart.json | https://apkpure.com/x/com.tryg.smart | android | com.tryg.smart | 2026-09-20 | 1.24.73 (156) |
+| vendor/apk-confi-care.json | https://apkpure.com/x/com.safelyteam.safely | android | com.safelyteam.safely | 2026-09-20 | 1.20.9 (72) |
+| vendor/apk-larmify.json | https://apkpure.com/x/se.larmify.larmify | android | se.larmify.larmify | 2026-09-20 | 1.27.84 (43) |
 | byggahus-497166 | https://www.byggahus.se/forum/threads/497166 | manual | 497166 | 2026-09-20 | Cloudflare 403 |
 | byggahus-573457 | https://www.byggahus.se/forum/threads/573457 | manual | 573457 | 2026-09-20 | Cloudflare 403 |
 | byggahus-543716 | https://www.byggahus.se/forum/threads/543716 | manual | 543716 | 2026-09-20 | Cloudflare 403 |

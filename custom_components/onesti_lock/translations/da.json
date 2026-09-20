@@ -70,7 +70,7 @@
     "error": {
       "invalid_pin": "PIN-koden skal være {min}-{max} cifre",
       "invalid_slot": "Pladsnummeret skal være mellem 0 og 999",
-      "lock_unreachable": "Kunne ikke nå låsen. Tryk på tastaturet og prøv igen.",
+      "lock_unreachable": "Kunne ikke nå låsen. Væk radioen ved at dreje på vrideren, eller med en gyldig kode + # på tastaturet, som også låser døren op. At røre ved tastaturet tænder kun lyset. Prøv så igen.",
       "lock_rejected": "Låsen afviste kommandoen (status {status}). Tjek plads og kode, og prøv igen.",
       "lock_rejected_duplicate": "Låsen afviste koden, fordi en anden plads allerede bruger den. Vælg en anden kode.",
       "lock_rejected_memory_full": "Låsen afviste koden, fordi kodehukommelsen er fuld. Ryd en plads, du ikke længere bruger, og prøv igen.",
@@ -93,7 +93,7 @@
   },
   "exceptions": {
     "lock_unreachable": {
-      "message": "Kunne ikke nå låsen. Tryk på en knap på låsen for at vække den og prøv igen."
+      "message": "Kunne ikke nå låsen. Væk radioen ved at dreje på vrideren, eller med en gyldig kode + # på tastaturet, som også låser døren op. At røre ved tastaturet tænder kun lyset. Prøv så igen."
     },
     "lock_rejected": {
       "message": "Låsen afviste kommandoen (status {status}). Tjek plads og kode, og prøv igen."

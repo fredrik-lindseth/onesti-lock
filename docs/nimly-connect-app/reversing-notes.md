@@ -38,7 +38,12 @@ Test instances follow `test-api-<brand>.iotiliti.cloud`. The left column can
 be re-checked with `grep` in the decompiled bundle; the right column rests on
 the March notes, since those decompilations were not kept. For Nimly both
 URLs were confirmed live and equivalent (see "API URL migration"); for
-Keyfree and Forebygg the newer URL has not been tested.
+Keyfree and Forebygg the other URL has not been tested.
+
+The right column is mislabelled as newer. The `api.customer.*` form in it is
+the older scheme, so those March builds were behind v1.27.84, not ahead of it.
+Their version numbers were not kept, so that is inferred from the host form
+alone. See "API URL migration" below.
 
 The company id per brand (a GUID: a `companyId` header on every request, a
 body field on a few endpoints, and the predicate the app filters the location
@@ -270,10 +275,19 @@ against, and says what to keep this time.
 
 ### API URL migration
 
-Nimly Connect v1.27.84 (our version) uses `api-neutralclone.iotiliti.cloud`.
-Newer versions (from the iotiliti app) have moved to
-`api.customer.prod-neutralclone.onesti.aws.neurosys.pro`. Both point to the
-same database: a fresh token gave identical responses from each.
+Both hosts point to the same database: on 2026-03-30 a fresh token gave
+identical responses from `api-neutralclone.iotiliti.cloud` and
+`api.customer.prod-neutralclone.onesti.aws.neurosys.pro`, so both were live
+then. That is the only measurement here.
+
+The direction was read backwards until 2026-09-20. This note said the
+`onesti.aws.neurosys.pro` form was the newer one, from the iotiliti build of
+the day. Reading the host literals in thirteen builds shows the opposite:
+`api.customer.*`, partly on `onesti.aws.neurosys.pro`, is the old scheme and
+`api-*.iotiliti.cloud` the new one, rolled out brand by brand and done by
+1.27.x. Nimly Connect v1.27.84 has no `onesti.aws.neurosys.pro` literal at all.
+The table and the ordering are in
+[app-versions.md](app-versions.md#the-api-host-scheme-read-across-thirteen-builds-2026-09-20).
 
 ### Internal test API
 

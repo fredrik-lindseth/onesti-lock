@@ -24,6 +24,7 @@ Retrieved 2026-09-19 from the manufacturer's own domains (nimly.se, easyaccess.n
 Notes on specific rows:
 
 - `docs/slot-numbering.md` quotes the 2024 Touch Pro manual, so that stays the reference edition. The 2025 edition was added because it is the current download on nimly.se; the slot rules are identical (user slot 000 reserved for the first master code, 001-002 for more master codes, 003-199 for user fingerprints, 003-999 for user codes and key tags). Only the page layout changed between the two.
+- The Connect Module guide's `.txt` extract is lossy. `pdftotext -layout` drops the footnote printed under the green "Works with unloc" badge, which reads, verbatim from the rendered page: "*Bluetooth is only available on the newer versions of the module." Read the PDF itself, not the extract, before concluding anything about which modules speak Bluetooth.
 - `EN-Connect-Gateway-Installation-Guide-200623-frontpage.pdf` has no extractable text: it is a one-page vector cover graphic, not a text manual, so `pdftotext -layout` produces an empty `.txt`. Kept for completeness; it carries no slot information.
 - No manual exists for `NimlyShared` or `NimlyTwist`. Both report the same hardware and firmware as the models above rather than being distinct physical products (see the model table in the repo's `README.md` and `docs/slot-numbering.md`).
 

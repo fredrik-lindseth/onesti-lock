@@ -9,8 +9,14 @@ where it is still downloadable:
 https://github.com/Koenkk/zigbee2mqtt/files/6015013/E-life.Zigbee.Modul.User.Manual.v2.0.pdf
 ```
 
+`python3 scripts/fetch_manuals.py` downloads it with the other vendor documents,
+as `docs/manuals/E-life-Zigbee-Modul-User-Manual-v2.0-260121.pdf` plus a text
+extract; both are gitignored.
+
 Word metadata says it was created 2021-01-26 by Andrea Birkheim, and the title
-page is dated 25.01.2021. It is the only vendor-written description of the
+page is dated 25.01.2021 and headed "Easy Access E-Life Zigbee Module"; the
+"v2.0" is only in the attachment filename, nothing in the document carries a
+version. It is 15 pages. It is the only vendor-written description of the
 Zigbee side anyone has found. It describes the module as it was in early 2021,
 so treat it as the baseline, not as the current firmware: our lock answers
 things this document does not mention, and does not answer some it does.
@@ -32,6 +38,11 @@ which our module does not list, so it either went away or was never on this
 model. The document names the two clusters and then says nothing more about
 them: no attributes, no commands. So this closes the "what is 0xFEA2 called"
 question and leaves "what is in it" exactly as open as before.
+
+Identify (0x0003), Groups (0x0004) and Scenes (0x0005) get a page each, and
+each page is the plain ZCL attribute set with no commands supported:
+IdentifyTime, NameSupport, and SceneCount, CurrentScene, CurrentGroup,
+SceneValid, NameSupport. Nothing about the lock is in them.
 
 ## Basic cluster (0x0000)
 
@@ -56,9 +67,10 @@ vendor started filling it in somewhere in between.
 
 ## Power Configuration (0x0001)
 
-BatteryVoltage 0x0020, BatteryPercentageRemaining 0x0021 (reporting),
-BatterySize 0x0031 = 3, BatteryQuantity 0x0033 = 3, BatteryRatedVoltage 0x0034
-= 15. Three AA cells at 1.5 V. No commands.
+BatteryVoltage 0x0020 = 45 (100 mV steps, so 4.5 V), BatteryPercentageRemaining
+0x0021 = 100 and the only reporting attribute here, BatterySize 0x0031 = 3,
+BatteryQuantity 0x0033 = 3, BatteryRatedVoltage 0x0034 = 15. Three AA cells at
+1.5 V. No commands.
 
 ## Door Lock (0x0101)
 
@@ -66,7 +78,7 @@ Attributes the module is documented to support:
 
 | Attribute                   | Id     | Documented value |
 | --------------------------- | ------ | ---------------- |
-| LockState                   | 0x0000 | reporting; no notion of the state at power-on |
+| LockState                   | 0x0000 | reporting; LOCKED 0x01, UNLOCKED 0x02, no notion of the state at power-on |
 | LockType                    | 0x0001 | 0x00, dead bolt  |
 | ActuatorEnabled             | 0x0002 | true             |
 | NumberOfTotalUsersSupported | 0x0011 | 100 (PIN and RFID together) |
@@ -92,14 +104,21 @@ Commands it says are the only ones supported:
 - **Clear PIN Code** 0x07, user id 1-50.
 
 Nothing else. No schedules, no user status or user type, no get_pin_code, no
-get_log_record. That matches the manuals, which describe no schedules either.
+get_log_record, and no RFID command of any kind. That matches the manuals,
+which describe no schedules either. Sound volume and auto-relock are changed
+by writing their attributes, not by a command, and the document says so in two
+short sections of its own.
 
 Server-to-client:
 
 - Lock/Unlock Response 0x00/0x01: status FAILURE 0x00 or SUCCESS 0x01.
 - Set PIN Code Response 0x05, Clear PIN Code Response 0x07, Set RFID Code
-  Response 0x16, Clear RFID Code Response 0x18: same two statuses. Memory full
-  (2) and duplicate code (3) are explicitly **not** implemented.
+  Response 0x16, Clear RFID Code Response 0x18: same two statuses. For the two
+  Set responses it adds that memory full (2) and duplicate code (3) are
+  explicitly **not** implemented; the Clear responses only get the two
+  statuses. The RFID responses are documented even though no RFID command is,
+  and the Clear RFID section labels its id `CLEAR_PIN_CODE_RESPONSE 0x18`,
+  which reads as a copy-paste slip in the document rather than a real name.
 
 A one-byte status is not what plain ZCL expects, and a response body shorter
 than the reader assumes is exactly the shape that produces the `IndexError`

@@ -15,6 +15,7 @@ from homeassistant.config_entries import (
     OptionsFlow,
 )
 from homeassistant.core import callback
+from homeassistant.helpers import device_registry as dr
 
 from . import pin_rules
 from .const import (
@@ -76,18 +77,30 @@ class OnestiLockConfigFlow(ConfigFlow, domain=DOMAIN):
             options={"slots": {}},
         )
 
-    def _locks_on_offer(self, skip_entry_id: str | None = None) -> dict[str, str]:
+    def _locks_on_offer(
+        self, skip_entry_id: str | None = None, *, offer_ignored: bool = False
+    ) -> dict[str, str]:
         """{ieee: model} for the Onesti locks in ZHA no config entry owns.
 
         skip_entry_id leaves one entry's own lock in the list, which the
         reconfigure step needs: the entry being pointed somewhere else
         must not rule out the lock it points at today.
+
+        offer_ignored keeps the locks an Ignore entry holds. Reconfigure
+        wants them, because it removes that entry before taking the
+        address. The user step does not: choosing one there ends in
+        already_configured with no hint that the way out is to unignore.
         """
-        taken = {
-            entry.data.get(CONF_IEEE)
-            for entry in self._async_current_entries()
-            if entry.entry_id != skip_entry_id
-        }
+        taken: set[str | None] = set()
+        for entry in self._async_current_entries(include_ignore=True):
+            if entry.entry_id == skip_entry_id:
+                continue
+            if entry.source == SOURCE_IGNORE:
+                # An ignored entry carries no data, only the unique id.
+                if not offer_ignored:
+                    taken.add(entry.unique_id)
+                continue
+            taken.add(entry.data.get(CONF_IEEE))
         locks: dict[str, str] = {}
         for ieee_str, model in iter_onesti_locks(self.hass):
             if model not in SUPPORTED_MODELS:
@@ -114,17 +127,30 @@ class OnestiLockConfigFlow(ConfigFlow, domain=DOMAIN):
         if not locks:
             return self.async_abort(reason="no_devices_found")
 
+        errors: dict[str, str] = {}
         if user_input is not None:
             ieee = user_input["device"]
             await self.async_set_unique_id(ieee)
             self._abort_if_unique_id_configured()
-            return self._create_lock_entry(ieee, locks[ieee])
+            # Home Assistant validates the submitted value against the
+            # schema of the form that was shown, so a lock ZHA lost
+            # meanwhile still passes vol.In and is missing from the list
+            # recomputed above. Asking for it again is the answer; reading
+            # it out of the list would be a KeyError. After the unique id
+            # check, so a lock that gained an entry instead still aborts
+            # already_configured.
+            model = locks.get(ieee)
+            if model is None:
+                errors["device"] = "device_gone"
+            else:
+                return self._create_lock_entry(ieee, model)
 
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema(
                 {vol.Required("device"): vol.In(self._device_labels(locks))}
             ),
+            errors=errors,
         )
 
     async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
@@ -141,18 +167,13 @@ class OnestiLockConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="zha_not_found")
 
         entry = self._get_reconfigure_entry()
-        locks = self._locks_on_offer(skip_entry_id=entry.entry_id)
+        locks = self._locks_on_offer(skip_entry_id=entry.entry_id, offer_ignored=True)
         if not locks:
             return self.async_abort(reason="no_devices_found")
 
+        errors: dict[str, str] = {}
         if user_input is not None:
             ieee = user_input["device"]
-            # raise_on_progress=False: pairing the new module is what the
-            # user did to get here, and that put a Discovered card for the
-            # same address on screen. The default would abort reconfigure
-            # with already_in_progress and leave only the card, which is a
-            # second entry for the same door.
-            await self.async_set_unique_id(ieee, raise_on_progress=False)
             # Not _abort_if_unique_id_configured: this entry's own unique
             # id is the one being set, and that is not a collision. Only
             # another entry holding the address is, which the list above
@@ -160,13 +181,27 @@ class OnestiLockConfigFlow(ConfigFlow, domain=DOMAIN):
             for other in self._async_current_entries():
                 if other.entry_id != entry.entry_id and other.data.get(CONF_IEEE) == ieee:
                     return self.async_abort(reason="already_configured")
-            await self._clear_the_way_for(ieee)
-            return self.async_update_reload_and_abort(
-                entry,
-                unique_id=ieee,
-                title=f"Onesti Lock ({ieee[-8:]})",
-                data_updates={CONF_IEEE: ieee, CONF_MODEL: locks[ieee]},
-            )
+            # The module left ZHA between the form and the submit. See
+            # async_step_user: the schema still accepts it, so the list
+            # has to be asked rather than indexed.
+            model = locks.get(ieee)
+            if model is None:
+                errors["device"] = "device_gone"
+            else:
+                # raise_on_progress=False: pairing the new module is what
+                # the user did to get here, and that put a Discovered card
+                # for the same address on screen. The default would abort
+                # reconfigure with already_in_progress and leave only the
+                # card, which is a second entry for the same door.
+                await self.async_set_unique_id(ieee, raise_on_progress=False)
+                await self._clear_the_way_for(ieee)
+                self._drop_replaced_address(entry, ieee)
+                return self.async_update_reload_and_abort(
+                    entry,
+                    unique_id=ieee,
+                    title=f"Onesti Lock ({ieee[-8:]})",
+                    data_updates={CONF_IEEE: ieee, CONF_MODEL: model},
+                )
 
         # Prefilled with the module in use, where ZHA still has it: a
         # module that is gone is exactly the case this step is for.
@@ -180,7 +215,40 @@ class OnestiLockConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="reconfigure",
             data_schema=vol.Schema({field: vol.In(self._device_labels(locks))}),
             description_placeholders={"ieee": str(current)},
+            errors=errors,
         )
+
+    @callback
+    def _drop_replaced_address(self, entry: OnestiConfigEntry, ieee: str) -> None:
+        """Take the replaced module's address off our device.
+
+        async_get_or_create only ever merges connections, so without this
+        the device would carry both addresses for good: the reload right
+        after adds the new one, and nothing removes the old. Below HA
+        2026.9 a zigbee connection is unique across the whole registry,
+        so the stale one also means our device owns an address that the
+        old module takes with it wherever it is paired next.
+
+        Only our own row is touched. Below 2026.9 the registry may have
+        merged our device with ZHA's, and on that row the connection is
+        ZHA's own to keep.
+        """
+        registry = dr.async_get(self.hass)
+        # async_entries_for_config_entry rather than async_get_device,
+        # which HA 2026.9 deprecated: identifiers are no longer unique
+        # across config entries.
+        for device in dr.async_entries_for_config_entry(registry, entry.entry_id):
+            if device.config_entries != {entry.entry_id}:
+                # A row this entry shares is the merged one, and the
+                # connection on it is ZHA's own to keep.
+                continue
+            kept = {
+                connection
+                for connection in device.connections
+                if connection[0] != dr.CONNECTION_ZIGBEE or connection[1] == ieee.lower()
+            }
+            if kept != device.connections:
+                registry.async_update_device(device.id, new_connections=kept)
 
     async def _clear_the_way_for(self, ieee: str) -> None:
         """Free the address this entry is about to take.

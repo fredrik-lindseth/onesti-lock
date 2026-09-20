@@ -21,6 +21,9 @@
         "description": "Set up {model} ({ieee}) for PIN management and activity tracking?"
       }
     },
+    "error": {
+      "device_gone": "That lock is no longer in ZHA. It may have gone to sleep, or ZHA may have restarted. Pick from the list again."
+    },
     "abort": {
       "zha_not_found": "ZHA is not installed or not set up. This integration needs ZHA to decode the lock's custom Zigbee attribute reports, which tell who used the lock. Zigbee2MQTT does not expose these events in the same way.",
       "no_devices_found": "No Onesti locks found in ZHA.",

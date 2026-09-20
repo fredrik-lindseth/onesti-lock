@@ -277,7 +277,7 @@ def test_a_packed_module_reaching_for_an_excluded_one_stops_the_build(repo: Path
 
 def test_an_excluded_name_from_another_package_is_not_ours(repo: Path, tmp_path: Path) -> None:
     """`from homeassistant.components import bluetooth` is somebody else's module."""
-    head = commit_ble_stack(repo)
+    commit_ble_stack(repo)
     path = repo / COMPONENT / "sensor.py"
     path.write_text("from homeassistant.components import bluetooth\nimport ble\n" + path.read_text())
     _git(repo, "commit", "-qam", "an absolute import")

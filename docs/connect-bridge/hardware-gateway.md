@@ -147,6 +147,24 @@ listing exists in public under any Onesti, Nimly, EasyAccess or ZMNC010 name
 (searched 2026-09-20), and nobody has published a teardown. The one board
 photo is the mounting guide above, and the part is under an RF shield in it.
 
+The shield itself is off the shelf. Fredrik's lock was opened on 2026-09-20,
+and the can over the radio carries `2118706-2`, which is a TE Connectivity
+catalogue number: a one-piece board level shield in cold rolled steel,
+13.66 x 12.70 x 2.54 mm, described as "1 PC STD SHIELD,
+CRS-13.66X12.70X2.54MM", drawing `ENG_CD_2118706_A2`, status active but not
+orderable direct from TE
+(`https://www.te.com/en/product-2118706-2.html`, read 2026-09-20). One-piece
+means it is soldered down with no removable lid, so getting to the chip means
+hot air or cutting the can.
+
+That is all it says. The number belongs to the shield, not to the radio, the
+module or any certification, so it names no silicon and no vendor beyond the
+stamping shop. Its one use is size: a 13.66 x 12.70 mm footprint leaves room
+for a 7 x 7 mm aQFN73 nRF52840 with its crystal and matching network, and
+rules out nothing among the Nordic candidates. The number does not appear in
+any vendor manual in `docs/manuals/`, in the decompiled apps, or in the cloud
+API.
+
 ### What the module tells you about itself over Zigbee
 
 The Basic cluster on endpoint 11 answers the version attributes. Z2M reads

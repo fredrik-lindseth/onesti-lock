@@ -72,6 +72,22 @@ coverage-gate:
     UV_PROJECT_ENVIRONMENT=.venv-unit uv run --frozen --python 3.14 --group unit \
         coverage report --data-file=.coverage --show-missing --fail-under=95
 
+# The release ZIP in a real Home Assistant container, installed the way HACS
+# installs it. Needs Docker. target=minimum is the release hacs.json promises,
+# target=current the newest one; both tags are read from uv.lock, so they
+# follow the same pins as `just test-ha`. Builds from committed HEAD: an
+# uncommitted change is not in the ZIP. tests_e2e/README.md says what the run
+# proves and what it cannot.
+e2e target="current" *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    target="{{target}}"; target="${target#target=}"
+    python3 tests_e2e/run.py run --target "$target" {{args}}
+
+# The host-side harness itself, without Docker.
+e2e-harness:
+    python3 -m unittest discover -s tests_e2e -p 'test_*.py'
+
 # The same core .github/workflows/release.yml runs, that is
 # scripts/release_publish.py. None of the recipes below write anything on
 # GitHub; publishing happens in the workflow, where the attestation is made.

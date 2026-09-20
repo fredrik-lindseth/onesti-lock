@@ -26,10 +26,18 @@
 #   2. An ESP-IDF core dump written to its own flash partition on a panic,
 #      readable over USB afterwards. See the "esp32" block for how to pull it
 #      out and read it.
+#
+# Raw advertisement logging is off by default and switched on from Home
+# Assistant for a few minutes at a time, so a session at the lock needs no
+# reflash. See the "logger" block and the two switches at the bottom.
 
 substitutions:
   name: esp32-bluetooth-proxy
   friendly_name: Bluetooth Proxy
+  # How long each of the two log switches stays on before it turns itself off
+  # again. The lock's pairing window is four minutes, so this covers one window
+  # with slack; flip the switch again to restart the countdown.
+  log_window: 6min
   # Service data UUID the lock advertises: [seed:2][identifier:6]
   lock_service_uuid: "0xFD00"
   # Control UUID: a 16-bit service data UUID that something in this house
@@ -151,12 +159,27 @@ esp32:
       CONFIG_ESP_COREDUMP_STACK_SIZE: "1024"
 
 logger:
-  level: DEBUG
+  # "level" is the compile-time ceiling, not what gets printed: anything more
+  # verbose than this is compiled out of the image and can never be switched on
+  # later. It is VERY_VERBOSE so esp32_ble_tracker's per-advertisement
+  # "gap_scan_result" line is in the build at all. That line moved from DEBUG
+  # to VERY_VERBOSE in ESPHome 2025.9.0 (esphome#10917), which is why a DEBUG
+  # build shows our own 0xFD00 filter and nothing else, and why "no FD00 in the
+  # log" cannot be told apart from "no advertisements at all".
+  level: VERY_VERBOSE
+  # What is actually printed from boot. Every tag not named under logs: sits
+  # here, so the ceiling above costs flash, not log volume.
+  initial_level: DEBUG
+  # Lets logger.set_level raise one tag at runtime. The BLE tracker switch at
+  # the bottom of this file uses it; without this the switch could not exist.
+  runtime_tag_levels: true
   logs:
     esp32_ble_tracker: DEBUG
     bluetooth_proxy: DEBUG
     # The 0xFD00 lines below are tagged "lock_adv".
     lock_adv: DEBUG
+    # Every field of every advertisement, while the raw switch is on: "raw_adv".
+    raw_adv: DEBUG
     # The restored-from-NVS summary at boot is tagged "persist".
     persist: DEBUG
     # Periodic sensors would drown the lock lines.
@@ -215,6 +238,47 @@ esp32_ble_tracker:
   on_ble_advertise:
     - then:
         - lambda: |-
+            // address_str() is deprecated since ESPHome 2026.8.0
+            // (esphome#18092) and goes away in 2027.2.0; address_str_to()
+            // writes into a caller-owned buffer instead of returning a
+            // std::string, so the scan path allocates nothing.
+            char addr[esphome::MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+            x.address_str_to(addr);
+
+            // Everything this advertisement carries, while the raw switch is
+            // armed. Nothing is filtered here: the point is to see what the
+            // lock sends, not only what we expected it to send.
+            if (id(raw_adv_log).state) {
+              char raw_hex[2 * 31 + 1];
+              char uuid_str[esphome::ble_device_base::UUID_STR_LEN];
+              auto to_hex = [&raw_hex](const std::vector<uint8_t> &d) -> const char * {
+                size_t n = std::min<size_t>(d.size(), 31);
+                for (size_t i = 0; i < n; i++) {
+                  sprintf(raw_hex + 2 * i, "%02X", d[i]);
+                }
+                raw_hex[2 * n] = '\0';
+                return raw_hex;
+              };
+              ESP_LOGD("raw_adv",
+                       "%s type=%s rssi=%d name=%s uuids=%u sd=%u md=%u",
+                       addr, x.address_type_str(), x.get_rssi(),
+                       x.get_name().c_str(),
+                       (unsigned) x.get_service_uuids().size(),
+                       (unsigned) x.get_service_datas().size(),
+                       (unsigned) x.get_manufacturer_datas().size());
+              for (auto &u : x.get_service_uuids()) {
+                ESP_LOGD("raw_adv", "  %s uuid %s", addr, u.to_str(uuid_str));
+              }
+              for (auto &sd : x.get_service_datas()) {
+                ESP_LOGD("raw_adv", "  %s svc %s data=%s", addr,
+                         sd.uuid.to_str(uuid_str), to_hex(sd.data));
+              }
+              for (auto &md : x.get_manufacturer_datas()) {
+                ESP_LOGD("raw_adv", "  %s mfr %s data=%s", addr,
+                         md.uuid.to_str(uuid_str), to_hex(md.data));
+              }
+            }
+
             for (auto &sd : x.get_service_datas()) {
               // Any service data at all on a 16-bit UUID: proof that this
               // trigger runs and that the parser hands us 16-bit UUIDs.
@@ -233,11 +297,10 @@ esp32_ble_tracker:
                 sprintf(hex + 2 * i, "%02X", sd.data[i]);
               }
               ESP_LOGD("lock_adv", "FD00 from %s rssi=%d len=%u data=%s",
-                       x.address_str().c_str(), x.get_rssi(),
-                       (unsigned) sd.data.size(), hex);
+                       addr, x.get_rssi(), (unsigned) sd.data.size(), hex);
               id(lock_adv_count) += 1;
               id(lock_adv_rssi).publish_state(x.get_rssi());
-              std::string summary = x.address_str() + " " + hex;
+              std::string summary = std::string(addr) + " " + hex;
               if (id(lock_adv_last).state != summary) {
                 id(lock_adv_last).publish_state(summary);
               }
@@ -582,6 +645,96 @@ button:
   - platform: safe_mode
     id: button_safe_mode
     name: Safe Mode Boot
+
+# Two log switches, both off after every boot and both self-cancelling after
+# ${log_window}. They exist so a session at the lock can be turned up and down
+# from Home Assistant without a reflash, and so nobody can leave the firehose
+# running by accident.
+#
+# Neither switch is free. DEBUG logging with Home Assistant subscribed to the
+# log stream is the exact load that turned a 185 ms CCCD write into a 19 s
+# failure in esphome#16036, on a chip that shares one radio between BLE and
+# Wi-Fi like this C3 does. Passive scanning at the lock is fine; a GATT session
+# through the proxy is not. Turn both off before connecting to anything.
+#
+# Each switch runs its window as a restartable script rather than stopping it
+# from turn_off_action: a script that stops itself from inside its own last
+# action is asking for trouble. Switching off by hand therefore leaves the
+# script running, and it finds the switch already off and does nothing.
+script:
+  - id: raw_adv_window
+    mode: restart
+    then:
+      - delay: ${log_window}
+      - if:
+          condition:
+            switch.is_on: raw_adv_log
+          then:
+            - switch.turn_off: raw_adv_log
+  - id: tracker_verbose_window
+    mode: restart
+    then:
+      - delay: ${log_window}
+      - if:
+          condition:
+            switch.is_on: tracker_verbose_log
+          then:
+            - switch.turn_off: tracker_verbose_log
+
+switch:
+  # Our own dump, one block per advertisement from every device in range:
+  # address, address type, RSSI, advertised name, every service UUID, every
+  # service data payload in hex and every manufacturer data payload in hex.
+  # This is the one to use while the lock's battery is pulled: it costs no
+  # flash beyond the lambda and it says what the lock actually sends, not only
+  # whether it matched 0xFD00.
+  - platform: template
+    id: raw_adv_log
+    name: "Raw advertisement log"
+    icon: mdi:bug-outline
+    entity_category: config
+    optimistic: true
+    restore_mode: ALWAYS_OFF
+    turn_on_action:
+      - logger.log:
+          level: INFO
+          tag: raw_adv
+          format: "raw advertisement logging on for ${log_window}"
+      - script.execute: raw_adv_window
+    turn_off_action:
+      - logger.log:
+          level: INFO
+          tag: raw_adv
+          format: "raw advertisement logging off"
+  # esp32_ble_tracker's own per-advertisement line (gap_scan_result), raised to
+  # VERY_VERBOSE at runtime. Louder and less readable than the switch above,
+  # and it includes the scanner's internal state, so it is the second thing to
+  # reach for: it answers "is the radio delivering anything at all" when even
+  # the raw dump above stays silent.
+  - platform: template
+    id: tracker_verbose_log
+    name: "BLE tracker verbose log"
+    icon: mdi:bug-play-outline
+    entity_category: config
+    optimistic: true
+    restore_mode: ALWAYS_OFF
+    turn_on_action:
+      - logger.set_level:
+          tag: esp32_ble_tracker
+          level: VERY_VERBOSE
+      - logger.log:
+          level: INFO
+          tag: raw_adv
+          format: "esp32_ble_tracker at VERY_VERBOSE for ${log_window}"
+      - script.execute: tracker_verbose_window
+    turn_off_action:
+      - logger.set_level:
+          tag: esp32_ble_tracker
+          level: DEBUG
+      - logger.log:
+          level: INFO
+          tag: raw_adv
+          format: "esp32_ble_tracker back at DEBUG"
 
 # No web_server: on a C3 the RAM goes to BLE connection slots, and HA plus
 # the API log stream already give everything the web UI would.

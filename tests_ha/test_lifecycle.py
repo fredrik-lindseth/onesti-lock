@@ -278,6 +278,31 @@ async def test_migration_without_zha_leaves_the_model_empty(
     assert entry.data[CONF_MODEL] == ""
 
 
+async def test_the_model_is_filled_in_once_zha_answers(
+    hass: HomeAssistant, zha_dependency
+) -> None:
+    """The migration can run before ZHA is up, and then nothing else fills it.
+
+    A slow Zigbee stick puts ZHA in SETUP_RETRY at the first start after
+    the upgrade, so the migration finds no model. Setup reads it the next
+    time the entry loads, rather than leaving the device named after its
+    address until the user runs a reconfigure nothing asks for.
+    """
+    entry = await _setup(hass, _entry(minor_version=2, data={CONF_IEEE: LOCK_IEEE}))
+    assert entry.data[CONF_MODEL] == ""
+
+    hass.data["zha"] = SimpleNamespace(
+        gateway_proxy=SimpleNamespace(device_proxies={LOCK_IEEE: make_lock_proxy()})
+    )
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.data[CONF_MODEL] == LOCK_MODEL
+    device = dr.async_get(hass).async_get_device({(DOMAIN, entry.entry_id)})
+    assert device is not None
+    assert device.name == "NimlyPRO (3344)"
+
+
 async def test_entry_from_a_newer_major_version_is_refused(hass: HomeAssistant, mock_zha) -> None:
     entry = await _setup(hass, _entry(version=3, minor_version=1))
 

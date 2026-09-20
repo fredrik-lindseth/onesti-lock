@@ -221,6 +221,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: OnestiConfigEntry) -> bo
             translation_placeholders={"ieee": ieee},
         )
 
+    if not entry.data.get(CONF_MODEL) and (model := model_in_zha(hass, ieee)):
+        # The 2.3 migration reads the model off ZHA, but it runs whenever
+        # the entry loads, and ZHA can still be in SETUP_RETRY behind a
+        # slow Zigbee stick. Nothing else fills it in short of a
+        # reconfigure the user has no reason to run, so the device would
+        # stay "Onesti Lock (3344)" for good. Written to data rather than
+        # options, and before the update listener is registered.
+        hass.config_entries.async_update_entry(
+            entry, data={**entry.data, CONF_MODEL: model}
+        )
+
     coordinator = OnestiCoordinator(hass, entry)
     coordinator.strings = await async_get_strings(hass, hass.config.language)
     entry.runtime_data = coordinator

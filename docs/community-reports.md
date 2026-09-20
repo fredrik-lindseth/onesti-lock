@@ -456,6 +456,38 @@ product listings and the vendor's own manuals rebadged, no user discussion
 with technical content, and no Salus-specific material at all despite Salus
 having its own hub ecosystem.
 
+## The vendor's hub
+
+Owners who bought the Connect Gateway write about it in the same tone as the
+module: it works, until the radio does not reach. One HA thread user could get
+only one of his four locks onto the hub, and that one dropped off after a few
+days, so he moved all four to Z2M with a mains-powered repeater by the door
+(#180, **anecdote**). Another put it plainly: "the range of their hub and
+Zigbee was terrible and unreliable, made me switch to Z2M" (#185,
+**anecdote**). A third bought the gateway for the sole purpose of getting a
+module firmware update through it, and got no update (#42, **anecdote**). The
+one contented report is from a user who has run the lock only on the hub and
+had not changed batteries in over a year, though the app never showed him a
+battery level (#171, **anecdote**).
+
+**Nobody has integrated the hub itself with anything.** Two people asked
+outright in the Home Assistant thread whether the Nimly gateway could be
+reached from HA, in November 2023 (#62) and December 2024 (#146). Neither got
+a reply, then or since. A Homey owner asked the same about his hub and was
+told by the app author that the Homey integration is Zigbee straight to the
+lock, because the Nimly gateway offers no cloud path to connect to (Homey
+thread 141138, **relayed**). The technical reason is in
+[docs/connect-bridge/hardware-gateway.md](connect-bridge/hardware-gateway.md):
+no local API, no LAN discovery in the app, everything over MQTT to the
+vendor's cloud.
+
+The "gateway or coordinator, not both" question in the census table is the
+most-asked thing about the hub, and a Nimly support reply quoted in the thread
+adds a twist: support said one home central at a time, "but that people on
+forums had gotten it working" (#80, **relayed**). Nobody in the archive ever
+has, and one Zigbee device joins one network, so read that as support being
+vague rather than as a hint.
+
 ## What does not exist anywhere
 
 Listing this is the point of the sweep as much as the findings are. None of
@@ -478,6 +510,15 @@ the following could be found in any forum, blog, video or comment thread:
   any other visible mark. Users tell them apart only by behaviour, which
   means the Ember/Datek against Nordic/E-Life split in
   `docs/hardware-generations.md` is ours alone.
+- Anyone who has reached the Connect Gateway or the Connect Bridge from
+  Home Assistant, Homey, openHAB or Hubitat, by any route. Two people asked
+  and were never answered.
+- Anyone who has joined a non-Onesti Zigbee device to either hub, or reported
+  trying. The Nimly Connect app's own configuration allows it on the older
+  hub, which makes the silence a gap in the record rather than a no.
+- A "pro" hub of any kind. No Connect Bridge Pro, no gateway Pro, nowhere:
+  not on the vendor's sites, not at a retailer, not in a manual, not in the
+  app, which carries exactly two gateway models and no third.
 - Any Reddit discussion at all, in any subreddit, in any language.
 
 ## Sources

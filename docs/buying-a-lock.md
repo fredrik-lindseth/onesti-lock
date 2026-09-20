@@ -21,6 +21,20 @@ Real alternatives, measured against the same list: none pass. Matter over Thread
 
 If you already own a Nimly/Onesti lock, keep it. This integration is the most complete way to run it, fully local on stable ZHA, and a cheap Zigbee door contact covers the one thing the lock cannot tell you.
 
+## Skip the vendor's hub
+
+The lock can be run two ways: through Home Assistant, or through Nimly's own hub and app. You have to pick one, because the lock talks to one system at a time, and this integration exists for the first way. If you are buying for Home Assistant, you do not need the hub and should not buy it.
+
+Three things about it come up often enough to answer here.
+
+It only does locks. The box itself is a general-purpose smart home hub built by someone else, with radios for far more than that, but the software Nimly puts on it is set up for their own locks. The newest version is capped at two locks and three smart plugs and will not show you anything from another brand. Do not buy it expecting a hub for the rest of the house.
+
+Home Assistant cannot talk to it. There is no local connection of any kind: no setting, no address, no port that answers. Everything it does goes out to Nimly's servers and back, so with the hub you get their app and nothing else. Two people have asked on the Home Assistant forum whether it could be integrated, in 2023 and in 2024, and nobody has ever answered them.
+
+There is no "pro" version to hold out for. It does not exist, under any name, anywhere. What does exist is two hubs: an older one that could do more, which Nimly has now discontinued, and the plug-in one that replaced it and does less. If somebody told you the better one is out there, that is probably what they meant, and you cannot buy it.
+
+Owners who do use the hub complain about the same thing as everyone else: range. Several moved their locks off it and onto Home Assistant for that reason alone.
+
 ## The field, checked September 2026
 
 Every lock we evaluated, so the next round does not start from scratch. "Who in HA" means per-user attribution reaching Home Assistant events, fully locally.

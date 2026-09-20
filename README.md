@@ -34,7 +34,7 @@ One thing to know about the stock quirk: it has a last PIN code sensor of its ow
 
 ## Supported devices
 
-All Onesti Products AS locks with the Zigbee Connect Module (ZMNC010):
+All Onesti Products AS locks with the Connect Module (ZMNC010, the Zigbee and Bluetooth radio module; only its Zigbee side is used here):
 
 | Zigbee model     | Product                    | Status                                        |
 | ---------------- | -------------------------- | --------------------------------------------- |
@@ -325,6 +325,9 @@ ZHA's device and its lock entity are not touched, so you can still lock and unlo
 | [Slot numbering](docs/slot-numbering.md)                   | Zigbee vs BLE vs cloud slot mapping                              |
 | [Zigbee captures](docs/zigbee-protocol/zigbee-captures.md) | Raw ZCL frames and verified protocol values                      |
 | [Upstream status](docs/upstream-status.md)                 | Open threads in the ZHA quirk and the Z2M converter              |
+| [Vendor Zigbee spec](docs/zigbee-protocol/elife-module-spec.md) | Onesti's own 2021 spec for the module, and where it disagrees with what we measure |
+| [Hardware generations](docs/hardware-generations.md)       | Every lock seen in public reports: model string, radio, firmware fields |
+| [Community reports](docs/community-reports.md)             | What owners on the forums have measured, relayed and claimed, marked as such |
 | [Feature parity](docs/feature-parity.md)                   | What the vendor app and hub do that this does not, and why       |
 | [Vendor manuals](docs/manuals/README.md)                   | Which manuals exist per model and brand, and where to get them   |
 | [Cloud API status](docs/cloud-api-status.md)               | Reverse engineering of the vendor cloud, progress and next steps |

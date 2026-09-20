@@ -9,10 +9,11 @@ The rest of the design speaks against them, and none of it is ZHA's doing:
 - A battery change can silently stop all event reporting until you re-pair.
 - Pairing takes keypad choreography and sometimes many attempts.
 - The Zigbee module is a separate purchase and sometimes reports the wrong model string.
-- No firmware updates over Zigbee, and no documentation of the event protocol.
+- No firmware updates over Zigbee, and no documentation of the event protocol. The only vendor-written Zigbee spec anyone has found dates from 2021 and does not mention the event attribute at all.
 - The lock does not know whether the door is open, only where the bolt is.
+- The module has a Bluetooth radio too, which the vendor's own app uses for fingerprint and tag enrollment, but whether a given module actually advertises is undocumented ("newer versions" only, says the guide), and nothing local can use it yet.
 
-Everything on that list is firmware, and Onesti could fix all of it if they cared to: report a credential id instead of the PIN, answer reads without moving the bolt, keep reporting configured across battery changes, publish the attribute documentation, ship OTA over Zigbee. Nothing here needs new hardware.
+Everything on that list is firmware, and Onesti could fix all of it if they cared to: report a credential id instead of the PIN, answer reads without moving the bolt, keep reporting configured across battery changes, publish the attribute documentation, ship OTA over Zigbee. Nothing here needs new hardware: the radio is a Nordic part with Zigbee and Bluetooth on one die, and the module already asks for OTA images nobody publishes.
 
 Real alternatives, measured against the same list: none pass. Matter over Thread comes closest on paper, and Home Assistant manages users, PINs and RFID on Matter locks since 2026.4 (the Aqara U200 works with it), but Matter tells you how the door was operated, not by whom, and per-user attribution is still an open feature discussion. The Nuki Ultra Nordics reports user IDs over local MQTT, but its keypad and fingerprint users can only be managed in Nuki's app with an account. The ID Lock 202 Multi is fully local with per-user attribution for code and RFID over Z-Wave, but has no fingerprint reader. Tedee, Yale Doorman L3, Danalock and SwitchBot fall faster: bridge required, cloud app, no reader to attribute, or users managed in an app.
 

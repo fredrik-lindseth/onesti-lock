@@ -30,11 +30,27 @@ says what the app sends. It does not say what the lock answers.
 
 **Unresolved** means nobody has the answer. The largest single unresolved item
 sits under the whole BLE column: no advertisement has ever been observed from
-this lock. The BLE library has never exchanged a byte with real hardware, and
-Home Assistant only knows about Bluetooth devices it has heard from in the last
-few minutes, so if the Connect Module only advertises inside a pairing window,
-everything in that column is dead for this hardware. That question costs one
-scan to answer and has not been answered.
+this lock, not by an ESPHome proxy 50 cm away, not by the Home Assistant host,
+not by a Shelly scanner, awake lock included. The one report from anyone else
+([upstream-status.md](upstream-status.md#another-implementation-ariddernimly-manager))
+says the same about normal use and adds that the lock appeared the moment the
+vendor's BLE app opened "Add device", with a device name and ten bytes of
+service data where the app's own code reads eight. The BLE library has never
+exchanged a byte with real hardware, and Home Assistant only knows about
+Bluetooth devices it has heard from in the last few minutes, so if the Connect
+Module only advertises inside a pairing window, or only when something
+provokes it, everything in that column becomes a flow the user has to start
+at the lock, or is dead for this hardware. The best reading so far comes from
+the unloc app ([unloc-app.md](nimly-ble-app/unloc-app.md)), which opens doors
+by scanning for an enrolled lock during ordinary use: an enrolled module
+presumably advertises all the time, an unenrolled one, which Fredrik's has
+always been, perhaps only in the pairing window after a power cycle. Three
+cheap measurements settle it (a phone scan, a scan with the app's Add device
+open, and a scan across a power cycle), and none has been run yet. The
+vendor's module guide also says
+Bluetooth is only on "newer versions" of the module, without saying which;
+the radio itself is a Nordic part with BLE on the die, so that line is more
+likely about firmware than about missing hardware.
 
 ## The table
 
@@ -46,10 +62,10 @@ merged.
 | Who unlocked, and how | Cloud event history through the hub | Activity sensor with name and source, locally and without delay | Unchanged, Zigbee is the right channel for this | |
 | Setting and clearing PINs | Cloud, or BLE `PinCodeSet` 0x52 | Works over ZCL, but without confirmation and with the bolt throw as the wake-up | `StatusId` gives a real receipt, and the code travels encrypted | |
 | Fingerprint enrollment | BLE `FingerprintScan` 0x57, or the keypad | Nothing | An interactive step in the options flow | |
-| RFID enrollment | BLE `ScanRfidCode` 0x56, or the keypad | Nothing | The same step. Deleting possibly over Zigbee | |
-| The lock's own event log | Cloud history. BLE `DeviceLogGet` 0x44 exists, but the app throws the answer away | Only what Home Assistant hears while it is listening | The blob has to be reversed. ZCL `get_log_record` may give it for free if the firmware answers | |
+| RFID enrollment | BLE `ScanRfidCode` 0x56, or the keypad | Nothing | The same step. The 2021 vendor spec documents no RFID command over Zigbee, only responses, so deleting over Zigbee is doubtful | |
+| The lock's own event log | Cloud history. BLE `DeviceLogGet` 0x44 exists, but the app throws the answer away | Only what Home Assistant hears while it is listening | The blob has to be reversed. ZCL `get_log_record` is not in the 2021 vendor spec's command list, so do not count on it | |
 | Waking without throwing the bolt | The BLE connection is the wake-up. The hub queues against Zigbee | We throw the bolt | Solved for administration. Zigbee-only users are left where they are | |
-| Name, clock, volume, auto-lock, keypad | BLE 0x32, 0x41, 0x5A, 0x5B, 0x5C, and the cloud app | Nothing | All of it, with model gates. Volume, auto-lock and keypad may sit on Zigbee attributes we have never read | Master PIN and the keypad switch on NimlyPRO, which lacks the model flags |
+| Name, clock, volume, auto-lock, keypad | BLE 0x32, 0x41, 0x5A, 0x5B, 0x5C, and the cloud app | Nothing from us. Volume and auto-lock are ZHA's already: the stock quirk exposes `sound_volume` 0x0024 and `auto_relock_time` 0x0023, both writable per the 2021 vendor spec | Name, clock and the keypad switch, with model gates. Keypad may be `operating_mode` 0x0025 on Zigbee, never read | Master PIN and the keypad switch on NimlyPRO, which lacks the model flags |
 | Sharing with other people | Ekeys to the guest's phone, through the ekey cloud. The cloud app shares users | A PIN per person, a Home Assistant user with an unlock button | An RFID tag per person | The vendor's ekeys to their app. The receiving end is theirs, not ours |
 | One-time codes and schedules | The cloud app has OTP | Setting and clearing a PIN from an automation, which covers much of the need | | Real schedules in the lock, unless the firmware answers ZCL 0x0014-0x0016 |
 | Remote access | Cloud, from anywhere | Home Assistant from outside gives the same, without a cloud | A BLE proxy at the door extends the range | |
@@ -87,19 +103,28 @@ by throwing the bolt, which can physically lock an open door. Both are described
 in the README under Limitations, and both are BLE-shaped problems with
 Zigbee-shaped workarounds.
 
-A good part of the middle of the table may turn out to be Zigbee work rather
-than BLE work. Standard ZCL has `auto_relock_time` 0x0023, `sound_volume`
-0x0024, `operating_mode` 0x0025 and `supported_operating_modes` 0x0026, plus
-`wrong_code_entry_limit` 0x0030 and `user_code_temporary_disable_time` 0x0031,
-which line up neatly with the five-minute lockout the manuals describe. The
-module also carries a manufacturer-specific cluster 0xFEA2 that nobody has ever
-read, and Datek's comparable lock puts master PIN mode, RFID enable, lock mode
-and relock settings in its equivalent. `get_log_record` 0x04 is standard too.
-None of these have been read from the lock. If the firmware answers them,
-volume, auto-lock, keypad enable and possibly the event log become plain Home
-Assistant entities over Zigbee with no Bluetooth involved, which would be the
-largest gain per hour of work on this page. If it does not answer, those
-features move to the BLE column and inherit its one unresolved question.
+A good part of the middle of the table is Zigbee work rather than BLE work,
+and some of it is done by others. The vendor's own 2021 spec
+([elife-module-spec.md](zigbee-protocol/elife-module-spec.md)) documents
+`auto_relock_time` 0x0023 (a boolean there, not a time) and `sound_volume`
+0x0024 as writable and reporting attributes, and the stock ZHA quirk already
+exposes them as a switch and a number; a ZHA diagnostics dump from a
+NimlyCodePRO shows both cached. So volume and auto-lock are available in Home
+Assistant today through ZHA's own entities, without this integration and
+without Bluetooth. Standard ZCL also has `operating_mode` 0x0025 and
+`supported_operating_modes` 0x0026, plus `wrong_code_entry_limit` 0x0030 and
+`user_code_temporary_disable_time` 0x0031, which line up neatly with the
+five-minute lockout the manuals describe; none of those four is in the 2021
+spec and none has been read from a lock. The module also carries a
+manufacturer-specific cluster 0xFEA2, "EA v2" in the spec, whose contents the
+spec does not describe and nobody has ever read; Datek's comparable lock puts
+master PIN mode, RFID enable, lock mode and relock settings in its
+equivalent. `get_log_record` 0x04 is standard ZCL but absent from the spec's
+short command list (lock, unlock, set PIN, clear PIN and nothing else), so
+the event log over Zigbee is unlikely on that firmware. Reading 0x0025,
+0x0030, 0x0031 and 0xFEA2 once, while the lock is awake, is still the
+cheapest experiment on this page. Whatever does not answer moves to the BLE
+column and inherits its one unresolved question.
 
 ## What BLE could give, if the hardware allows it
 
@@ -178,9 +203,10 @@ the one that needs BLE enrollment first.
 
 What we cannot give without firmware support is real one-time codes and real
 schedules held by the lock itself. ZCL defines schedule commands 0x0B to 0x13
-and `set_user_status` 0x09, but no vendor manual describes either feature, so
-they are probably not implemented. Reading the capacity attributes 0x0014 to
-0x0016 settles it cheaply and has not been done.
+and `set_user_status` 0x09, but no vendor manual describes either feature, and
+the vendor's 2021 Zigbee spec lists lock, unlock, set PIN and clear PIN as the
+only commands the module implements. Reading the capacity attributes 0x0014
+to 0x0016 would settle it for current firmware and has not been done.
 
 ## Remote access, and what goes down with Home Assistant
 
@@ -212,8 +238,12 @@ the firmware version from GATT Device Information 0x2A28 and refuses to connect
 below 4.6.0, so it can see that firmware is too old and do nothing about it.
 That is a negative finding from static analysis, not proof. The likely route is
 the hub, which updates itself and can be told to update from the app. On the
-Zigbee side the module advertises the OTA cluster 0x0019 as a client, so the
-receiving machinery exists in the firmware; what is missing is an image.
+Zigbee side the module advertises the OTA cluster 0x0019 as a client and does
+send Query Next Image requests (a ZHA dump from a NimlyCodePRO records one,
+with manufacturer code 0, image type 0, version 0 and hardware version 52),
+so the receiving machinery exists in the firmware and runs; what is missing
+is an image, and the zeros in that request are their own puzzle for anyone
+who ever gets one.
 Koenkk's zigbee-OTA index has over nine hundred images and not one for Nimly,
 Onesti, EasyAccess or manufacturer code 4660, and zigpy's vendor providers have
 no Onesti either. We cannot build a firmware image and should not try: a bricked

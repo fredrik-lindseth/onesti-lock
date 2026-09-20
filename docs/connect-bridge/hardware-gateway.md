@@ -11,7 +11,7 @@ in the lock says "E-Life 3.0", and the app is called "Nimly Connect".
 
 | Level       | Entity                                                            | Role                                |
 | ----------- | ----------------------------------------------------------------- | ----------------------------------- |
-| Chipmaker   | Develco Products / Onics A/S                                      | HW manufacturer (Aarhus, Denmark)   |
+| Hub maker   | Develco Products / Onics A/S                                      | Gateway hardware (Aarhus, Denmark)  |
 | Platform    | Squid.Link 2B                                                     | Gateway platform (MGW211)           |
 | Cloud       | iotiliti (Safe4 Security Group)                                   | IoT platform, MQTT broker, REST API |
 | White-label | EasyAccess / E-Life / Nimly / Keyfree / Salus / Forebygg / Homely | End-user brands                     |
@@ -56,12 +56,17 @@ ManufacturerName and the lock model ("NimlyPRO", "EasyFingerTouch",
 apps, in the cloud API or in any vendor manual mentions E-Life at all. Read it
 off the board, or not at all.
 
-EasyAccess's own mounting guide photographs the mark: `e-Life` next to the RF
-shield on the black daughterboard, on a lock mainboard silkscreened
-`PL943_Back05 2020.06.02`
+EasyAccess's own mounting guide photographs the mark: `e-Life` in white on
+the black module board, to the right of the RF shield, with a small logo
+after it, seated on a green lock mainboard silkscreened `MODULE` at the
+connector, `KEY` below it and `PL943_Back05 2020.06.02` along the edge
 (`https://easyaccess.no/wp-content/uploads/2021/04/ZigBee-modul-montering.pdf`,
-read 2026-09-20). Whether the `3.0` on Fredrik's module is a module generation
-or just "Zigbee 3.0" is unknown; that photo's suffix is too blurred to read.
+kept in `docs/manuals/`, rendered at 500 dpi and read 2026-09-20). A note
+elsewhere in the project's own history put the word on the mainboard; the
+close-up says module. Whether the `3.0` on Fredrik's module is a module
+generation or just "Zigbee 3.0" is unknown; the 2021 photo shows no version
+number after the name at all. The module in that photo has one visible LED,
+lit blue, next to the button; the 2024 guide's drawing shows two.
 
 The name also titles the vendor's own Zigbee protocol spec, *E-life Zigbee
 Modul User Manual v2.0*, written in Word by Andrea Birkheim on 2021-01-26 and
@@ -75,16 +80,20 @@ contents are summarised in `docs/zigbee-protocol/elife-module-spec.md`.
 
 ### Which silicon
 
-The EUI64 of every Onesti lock seen in public issues from 2022 to 2026 starts
+The EUI64 of every Onesti lock seen in public issues from 2021 to 2026 starts
 with `f4:ce:36`, which the IEEE registry assigns to **Nordic Semiconductor
 ASA**. Fredrik's own lock (`f4:ce:36:88:61:9c:f4:6f`) and the NimlyCodePRO
 interview in
 [Z2M#31385](https://github.com/Koenkk/zigbee2mqtt/issues/31385) are in the same
 range, as are the addresses posted in Z2M issues 14726, 17205, 18508, 19627,
-19738, 23551 and 32772. The only Nordic parts with an 802.15.4 radio are the
-nRF52840, the nRF52833 and the nRF5340, and all three carry a Bluetooth LE
-radio on the same die. An earlier note here guessed at a TI CC2530, which has
-no Bluetooth at all and cannot be it.
+19738, 23551 and 32772, and the EasyCodeTouch in the March 2021 deCONZ sniff
+(`f4:ce:36:32:a2:96:09:ab`, `docs/manuals/`). The manufacturer code in the
+node descriptor points the same way: 4660 (0x1234) is the default an
+unconfigured ZBOSS stack reports, and ZBOSS is the Zigbee stack in Nordic's
+nRF Connect SDK, so the vendor never set its own. The only Nordic parts with
+an 802.15.4 radio are the nRF52840, the nRF52833 and the nRF5340, and all
+three carry a Bluetooth LE radio on the same die. An earlier note here
+guessed at a TI CC2530, which has no Bluetooth at all and cannot be it.
 
 So the hardware is very likely able to do BLE whatever the revision, and the
 footnote in the Connect Module guide ("Bluetooth is only available on the newer
@@ -99,8 +108,11 @@ so it does not settle which Nordic device it is either.
 
 ### What the module tells you about itself over Zigbee
 
-The Basic cluster on endpoint 11 answers the version attributes, which ZHA
-never reads but Z2M reads at interview. From the NimlyCodePRO dump in
+The Basic cluster on endpoint 11 answers the version attributes. Z2M reads
+them all at interview; ZHA reads only `SWBuildID`, which is cached as
+`4.8.02` in the diagnostics of the Code Pro in zha-device-handlers#5235 and
+missing from Fredrik's cache, most likely because his lock was asleep when
+asked. From the NimlyCodePRO dump in
 [Z2M#31385](https://github.com/Koenkk/zigbee2mqtt/issues/31385):
 
 | Attribute | Name         | Value        |
@@ -351,5 +363,9 @@ directly to the lock. The hub is only needed for:
 - PIN setting via cloud (bypasses the Zigbee sleepy device timeout)
 - Event history via the cloud API
 
-The optimal setup uses both: ZHA for local control (lock/unlock, state
-monitoring), and the cloud API via the hub for PIN setting and event history.
+An earlier edition of this file recommended running both, ZHA for control
+and the cloud through the hub for PIN setting and history. That is no longer
+the plan: the hub cannot share the lock with ZHA (the lock pairs with one
+coordinator), and the cloud tracks were set aside because they put the cloud
+back in the path (`docs/feature-parity.md`, `docs/upstream-status.md`). The
+hub is documented here so nobody has to buy one to understand the system.

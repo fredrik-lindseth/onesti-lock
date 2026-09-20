@@ -225,3 +225,11 @@ then Y, 32 bytes each, little endian. (app code, JDK run)
 - Firmware floor: 4.6.0 to connect, 4.7.90 for model detection and the admin
   commands (PIN, fingerprint, RFID, keypad, auto-lock, volume, battery). The
   enrollment commands themselves are offered from 4.6.0.
+- Which reset puts a lock back into the factory state this flow needs is not
+  known. The lock has two: the module's own button (about 15 s, which also
+  drops the Zigbee pairing) and the lock body's gold reset button (which
+  deletes every code, tag and fingerprint). The owner key presumably lives in
+  the module, so the module reset is the likely one, but nobody has watched
+  the seed go back to `00 00` after either. A lock already enrolled in the
+  vendor's BLE app (or unloc) has to go through that reset first, and after
+  our enrollment that app no longer has the lock.

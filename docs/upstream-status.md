@@ -32,9 +32,13 @@ and has not answered. The sensor is `entity_registry_enabled_default=False`
 there, which is better than what we had, but it is enabled on at least one
 real instance (Fredrik's), so the default is not protection. The hardware
 session of 2026-09-19 made that concrete: the sensor showed the test code in
-clear text in its state, and the recorder kept it. That is worth saying in the
-thread, but not one day after our last comment. Save it for the next time the
-PR needs a nudge.
+clear text in its state, and the recorder kept it. The zigpy debug log
+attached to issue 5235 (kept in `docs/manuals/`) adds a second point: on that
+Code Pro, a manufacturer-specific `Read_Attributes([0x0101])` went out right
+after every 0x0100 report, so the PIN was fetched into zigpy's attribute
+cache on every operation, whatever the sensor's state. Both are worth saying
+in the thread, but not one day after our last comment. Save them for the next
+time the PR needs a nudge.
 
 **matthiasnielsen1 reported that live reports never reach the quirk's
 entities.** Tested on a NimlyPRO24 (2026-08-18), which also confirmed that
@@ -303,16 +307,18 @@ not a PR.
 "Still open after the merge". It belongs in the deferred breaking PR together
 with the `self` to `auto` rename, and the spec link is the evidence.
 
-**Hold: the one-byte command response.** The spec says every Lock, Unlock, Set
-PIN and Clear PIN response carries a single status byte, FAILURE 0x00 or
-SUCCESS 0x01, and that memory-full and duplicate-code statuses are deliberately
-not implemented. That is the first vendor statement consistent with the
-`IndexError` the stock quirk raises when the lock's answer is read, which we
-have long suspected comes from reading `response[1]`. It is not yet a bug
-report: we have not read the ZHA or zigpy code that does the indexing, and
-neither repo has an open issue about it (searched 2026-09-20). Nail the code
-path first, then file it in the right repo with the spec as the why. Filed
-half-done it would just be a theory with a PDF attached.
+**Nothing to send: the one-byte command response.** The spec says every Lock,
+Unlock, Set PIN and Clear PIN response carries a single status byte, FAILURE
+0x00 or SUCCESS 0x01, and that memory-full and duplicate-code statuses are
+deliberately not implemented. That is the standard one-field ZCL response,
+which zigpy parses fine. The `IndexError` came from zha, and it is already
+fixed there: zha 0.0.59's `Device.issue_cluster_command` checks
+`response[1] is not ZclStatus.SUCCESS`, which assumes the two-field Default
+Response, and zha 2.2.2 reads `getattr(response, "status", None)` with a
+comment explaining why (read on 2026-09-20). Home Assistant 2025.6 ships the
+old line and 2026.9 the new one; our own `send()` reads the field by name
+on both. So there is no bug to report and no spec to attach; the spec only
+confirms that the lock was never the problem.
 
 **Not worth sending: 0xFEA2 is "EA v2".** The spec names the cluster and says
 nothing else about it: no attributes, no commands. It closes a naming question
@@ -336,12 +342,21 @@ unconfigured ZBOSS stack reports. Both are in
 `connect-bridge/hardware-gateway.md`. Neither changes anything a converter
 does, so neither is worth a comment.
 
-**Basic reports `dateCode`, `hwVersion` and `swBuildId`, and ZHA never reads
-them.** Z2M picks them up at interview, ZHA does not, which is ZHA core
-behaviour rather than anything the quirk can fix. It becomes interesting only
-if the DC or the 200 % battery split turns out to follow a firmware version:
-then `swBuildId` (4.x.yy on the modules we have seen) is the field to ask
-reporters for. Keep it in the pocket for the next reporter on 32469.
+**Basic reports `dateCode`, `hwVersion` and `swBuildId`, and ZHA reads only
+the last.** Z2M picks them all up at interview; ZHA's cache on the Code Pro in
+issue 5235 holds `sw_build_id` `4.8.02` and nothing else of the set, which is
+ZHA core behaviour rather than anything the quirk can fix. It becomes
+interesting only if the DC or the 200 % battery split turns out to follow a
+firmware version: then `swBuildId` (4.x.yy on the modules we have seen) is
+the field to ask reporters for, and ZHA users can find it in their own
+diagnostics download. Keep it in the pocket for the next reporter on 32469.
+
+**The 2021 sniff and spec have no 0x0100 at all.** The deCONZ#4253 capture
+of an EasyCodeTouch on the Nordic OUI (kept in `docs/manuals/`) has lock
+state reports and no manufacturer-specific frame in five minutes, and the
+spec lists neither custom attribute. Both converters key everything on
+0x0100, so a lock on that firmware pairs and then never reports who. Nobody
+has reported one; if someone does, that is the first thing to ask about.
 
 **Source 0x0A may be Zigbee-initiated rather than auto-lock, and the evidence
 is too thin to send.** Every 0x0100 report our lock produced after the

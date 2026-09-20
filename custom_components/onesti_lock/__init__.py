@@ -342,7 +342,10 @@ def _watch_zha_entries(
                 coordinator.set_available(False)
             return
         if coordinator.listened_cluster is not None:
-            if coordinator.transport.cluster() is coordinator.listened_cluster:
+            # quiet: a lock missing from ZHA here ends in the reload below,
+            # which raises ConfigEntryNotReady and is retried. Nothing is
+            # broken, so the lookup must not log an error on the way.
+            if coordinator.transport.cluster(quiet=True) is coordinator.listened_cluster:
                 # The same objects came back, so the listener still fits
                 # and a reload would only throw the entities away.
                 coordinator.set_available(True)

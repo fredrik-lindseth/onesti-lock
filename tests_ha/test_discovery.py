@@ -234,3 +234,68 @@ async def test_a_device_from_another_integration_is_not_a_look(
     await hass.async_block_till_done()
 
     assert not _discovery_flows(hass)
+
+
+async def test_reconfigure_goes_through_with_the_card_on_screen(
+    hass: HomeAssistant, mock_zha
+) -> None:
+    """The case Reconfigure exists for, in the order it really happens.
+
+    Swapping the Connect Module means pairing the new one with ZHA first,
+    which puts a Discovered card for it on screen. Reconfigure has to win
+    over that card: confirming the card instead is a second entry for the
+    same door, with the names and PIN status left on the old one.
+    """
+    zha_entry = _zha_entry(hass)
+    entry = await _setup_first_lock(hass)
+    await _pair_in_zha(hass, mock_zha, zha_entry, model="NimlyCodePRO")
+    assert len(_discovery_flows(hass)) == 1
+
+    result = await entry.start_reconfigure_flow(hass)
+    assert result["type"] is FlowResultType.FORM
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"device": SECOND_LOCK_IEEE}
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data[CONF_IEEE] == SECOND_LOCK_IEEE
+    assert entry.unique_id == SECOND_LOCK_IEEE
+    # The card goes with it: nothing is left to confirm.
+    assert not _discovery_flows(hass)
+    assert len(hass.config_entries.async_entries(DOMAIN, include_ignore=True)) == 1
+
+
+async def test_reconfigure_takes_the_address_back_from_an_ignored_entry(
+    hass: HomeAssistant, mock_zha
+) -> None:
+    """Ignore, then Reconfigure: the other way out of the card.
+
+    The ignored entry holds the unique id. Home Assistant lets the real
+    entry take it anyway and only logs an error asking for a bug report,
+    leaving two entries on one address.
+    """
+    zha_entry = _zha_entry(hass)
+    entry = await _setup_first_lock(hass)
+    await _pair_in_zha(hass, mock_zha, zha_entry)
+    hass.config_entries.flow.async_abort(_discovery_flows(hass)[0]["flow_id"])
+    ignored = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": SOURCE_IGNORE},
+        data={"unique_id": SECOND_LOCK_IEEE, "title": "Onesti Lock"},
+    )
+    await hass.async_block_till_done()
+    assert ignored["type"] is FlowResultType.CREATE_ENTRY
+
+    result = await entry.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"device": SECOND_LOCK_IEEE}
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.unique_id == SECOND_LOCK_IEEE
+    entries = hass.config_entries.async_entries(DOMAIN, include_ignore=True)
+    assert [e.entry_id for e in entries] == [entry.entry_id], "one entry on the address"

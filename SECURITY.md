@@ -6,6 +6,10 @@ From 1.4.0 on, every release carries an [artifact attestation](https://docs.gith
 
 `onesti_lock.zip` is also the file HACS downloads and installs (`zip_release` is set in `hacs.json`), not just an attachment on the release page. The attestation therefore covers exactly what ends up in `custom_components/onesti_lock/` on your system.
 
+### What the ZIP leaves out
+
+The ZIP is not the whole component directory. `ZIP_EXCLUDE` in `scripts/release_publish.py` leaves out `ble/` and `bluetooth.py`, the Bluetooth library written from the vendor's app. Nothing the integration loads imports it, and `ble/client` holds the credential a factory-reset lock accepts as its owner, so installing it would put an admin client for such a lock on every user's system for a feature that does not exist. The code is still in the repo and in the tag's source tree, and the build refuses to pack a module that imports something it leaves out.
+
 ### Why
 
 A custom integration in Home Assistant runs with full access to your system. You should be able to check that the code you install really comes from the source you can read on GitHub.

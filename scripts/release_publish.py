@@ -51,6 +51,7 @@ Locally:
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 import os
@@ -72,6 +73,16 @@ import release_notes  # noqa: E402
 REPO_ROOT = Path(__file__).resolve().parent.parent
 COMPONENT = "custom_components/onesti_lock"
 ASSET_NAME = "onesti_lock.zip"
+
+# Tracked component paths that are deliberately left out of the ZIP. Nothing
+# Home Assistant loads imports the BLE stack yet, and `ble/client` carries the
+# credential a factory-reset lock accepts as its owner. Packing it would put a
+# working admin client for such a lock on every HACS user's disk for a feature
+# that does not exist. The code stays in the repo and in the tag's source tree,
+# so it is still public and reviewable; it just is not installed. Remove the
+# entry in the same change that first imports it, which `packed_imports_excluded`
+# makes impossible to forget. A name ending in "/" is a directory.
+ZIP_EXCLUDE: tuple[str, ...] = ("ble/", "bluetooth.py")
 
 # The workflow allowed to have signed the attestation. Verification is
 # worthless without this: without it we accept an attestation made by any
@@ -174,6 +185,43 @@ def read_version(git: Git, sha: str) -> str:
     return version
 
 
+def is_excluded(name: str) -> bool:
+    """Is this component-relative path one of the ZIP_EXCLUDE paths?"""
+    return any(name == entry or (entry.endswith("/") and name.startswith(entry)) for entry in ZIP_EXCLUDE)
+
+
+def excluded_modules() -> set[str]:
+    """The top-level module names behind ZIP_EXCLUDE: ble/ -> ble, x.py -> x."""
+    return {entry.rstrip("/").removesuffix(".py").split("/")[0] for entry in ZIP_EXCLUDE}
+
+
+def packed_imports_excluded(git: Git, files: list[tuple[str, str, str]]) -> list[str]:
+    """Packed modules that import something the ZIP leaves out, as "file:line".
+
+    Excluding a directory is safe only as long as nothing that ships reaches
+    for it: the ZIP would install a package that raises ImportError on the
+    first setup, and no test in the repo would see it, because the repo has
+    the files. Only relative imports count, since that is how the component
+    imports itself; `from homeassistant.components import bluetooth` is
+    someone else's module with the same name.
+    """
+    modules = excluded_modules()
+    offenders: list[str] = []
+    for _mode, blob, name in files:
+        if not name.endswith(".py"):
+            continue
+        try:
+            tree = ast.parse(git.raw("cat-file", "blob", blob))
+        except SyntaxError as err:
+            raise Failure(f"{name} does not parse as Python: {err}") from err
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.level:
+                reached = {(node.module or "").split(".")[0]} | {alias.name for alias in node.names}
+                if reached & modules:
+                    offenders.append(f"{name}:{node.lineno}")
+    return sorted(offenders)
+
+
 def component_files(git: Git, sha: str) -> list[tuple[str, str, str]]:
     """(mode, blob sha, name inside the ZIP) for every tracked component file.
 
@@ -181,6 +229,8 @@ def component_files(git: Git, sha: str) -> list[tuple[str, str, str]]:
     unpacks the ZIP straight into `custom_components/onesti_lock/` without
     stripping a prefix. The order is sorted, which is what `git ls-tree` gives
     anyway, but we sort explicitly so determinism does not rest on git's.
+
+    ZIP_EXCLUDE is dropped here, so what the build sees is what users get.
     """
     raw = git.text("ls-tree", "-r", "-z", sha, "--", COMPONENT)
     files: list[tuple[str, str, str]] = []
@@ -196,7 +246,10 @@ def component_files(git: Git, sha: str) -> list[tuple[str, str, str]]:
             )
         if mode not in ZIP_PERMISSIONS:
             raise Failure(f"{path} has git mode {mode}, which cannot be packed deterministically")
-        files.append((mode, blob, path[len(COMPONENT) + 1 :]))
+        name = path[len(COMPONENT) + 1 :]
+        if is_excluded(name):
+            continue
+        files.append((mode, blob, name))
     if not files:
         raise Failure(f"{COMPONENT} has no tracked files at {sha}")
     return sorted(files, key=lambda row: row[2])
@@ -211,6 +264,12 @@ def build_zip(git: Git, sha: str, target: Path) -> str:
     downloaded.
     """
     files = component_files(git, sha)
+    reaching = packed_imports_excluded(git, files)
+    if reaching:
+        raise Failure(
+            "the ZIP leaves out " + ", ".join(ZIP_EXCLUDE) + ", but " + ", ".join(reaching) + " imports it. "
+            "Drop the path from ZIP_EXCLUDE, or the import."
+        )
     target.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
         for mode, blob, name in files:

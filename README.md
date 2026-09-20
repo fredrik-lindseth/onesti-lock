@@ -11,11 +11,26 @@
 
 Home Assistant integration for Onesti/Nimly smart locks paired through ZHA. Onesti Products AS makes the locks and sells them as [Nimly](https://nimly.io) and under several other brands.
 
-The lock reports every event on a custom Zigbee attribute. ZHA's stock quirk exposes it as raw numbers at most, and an open upstream report says those entities do not update live. This integration decodes it into who locked or unlocked the door, by the name you gave the slot, and how (keypad, RFID, fingerprint). You can also manage PIN codes from Home Assistant and name every slot. You get an activity sensor, an event for automations and three automation blueprints.
+The lock reports every event on a custom Zigbee attribute. ZHA's stock quirk exposes it as raw numbers at most, and an open upstream report says those entities do not update live. This integration decodes it into who locked or unlocked the door, by the name you gave the slot, and how (keypad, RFID, fingerprint).
 
 The vendor's own route to the same data is the Nimly Connect app, which needs a Connect Bridge gateway and sends every lock event through the iotiliti cloud ([docs/nimly-connect-app/app-architecture.md](docs/nimly-connect-app/app-architecture.md)). This integration talks to the lock over the Zigbee network you already run, so events stay on your own hardware.
 
 Requires ZHA and Home Assistant 2025.6 or newer. Zigbee2MQTT is not supported, see [Limitations](#limitations).
+
+## Why this, when the lock is already in ZHA
+
+ZHA alone gives you a working lock: the lock entity you lock and unlock with, the battery level, and whatever sensors its quirk adds. What it does not give you is who opened the door, or any way to manage the codes. That is what this integration adds:
+
+- **Who and how.** The operation event on attribute 0x0100 is decoded into the name you gave the slot and the method used, keypad, RFID or fingerprint, instead of raw numbers.
+- **Slot names that stay put.** Names are stored in Home Assistant, survive restarts and updates, and the master slots sit below a floor that nothing here writes a PIN to.
+- **PIN management in the UI.** Set, clear and name slots under Configure. The options flow sends the command straight to the lock, so the code does not land in the recorder the way an action call does.
+- **Codes kept out of the log.** The integration never reads the attribute where the lock reports the last used PIN, and it masks digit runs in the error text it logs. What it cannot cover is in [Security](#security).
+- **A lock that sleeps.** A command that times out wakes the lock and is retried, and the answer is told apart as delivered, refused by the lock, or never reached.
+- **Activity worth looking back at.** The activity sensor survives a restart, and system relocking is kept off it, so "Kari unlocked with code" is not overwritten two seconds later.
+- **An event and blueprints.** Every decoded operation fires `onesti_lock_activity`, and three blueprints are ready to import.
+- **When there is more than one, and when it breaks.** Further locks are offered as discoveries from ZHA, a repair issue appears if ZHA stops delivering events, and the diagnostics download holds no PIN, no address and no slot names.
+
+One thing to know about the stock quirk: it has a last PIN code sensor of its own. It is disabled by default, but if it is enabled, the code last typed on the door sits in clear text in Home Assistant's state and recorder.
 
 ## Supported devices
 
@@ -93,7 +108,9 @@ All the sensors go unavailable while ZHA is not running, since no lock event can
 
 The sensor text and the "Slot 5" and "Master" fallbacks follow the server language. The raw values in `action` and `source` do not, so use those in automations. The last activity survives a restart.
 
-Auto-lock does not change the sensor, so "Kari unlocked with code" stays visible after the door relocks. Locking from a dashboard does change it, to "Locked via Zigbee". The lock command the integration sends to wake a sleeping lock (see [Limitations](#limitations)) does not: a Zigbee lock within 30 seconds of a wake is taken to be that command. NimlyCodePRO reports Zigbee commands, auto-relock and the interior keypad with the same source code, so there `source` is `unattributed` and the sensor reads plain "Locked" or "Unlocked". An unattributed lock with no user is treated as auto-relock.
+A lock the integration reads as system-initiated does not change the sensor, so "Kari unlocked with code" stays visible after the door relocks. Locking from a dashboard does change it, to "Locked via Zigbee". The lock command the integration sends to wake a sleeping lock (see [Limitations](#limitations)) does not: a Zigbee lock within 30 seconds of a wake is taken to be that command. NimlyCodePRO reports Zigbee commands, auto-relock and the interior keypad with the same source code, so there `source` is `unattributed` and the sensor reads plain "Locked" or "Unlocked". An unattributed lock with no user is treated as auto-relock.
+
+All of that rests on the source byte the lock sends, and the reading of `auto` is not settled. It is taken to mean the lock relocking itself, but in one NimlyPRO session every Zigbee command came back with that source as well, so on some firmware it may mean no more than "no user to attribute this to" ([upstream status](docs/upstream-status.md)).
 
 Every decoded event also fires `onesti_lock_activity`, auto-lock included. The payload is `ieee`, `user_slot`, `user_name`, `action` and `source`, with the same values as above. Automation examples are in [docs/technical.md](docs/technical.md#onesti_lock_activity-event).
 
@@ -105,7 +122,7 @@ The integration never polls. When someone locks or unlocks the door, whether at 
 
 The lock wakes up when it is used, so sleep does not delay events. It does get in the way of commands, since Home Assistant can only reach the lock while its radio is awake. A PIN change may therefore need the wake-up described under [Limitations](#limitations).
 
-The PIN capacity and allowed code length are read from the lock once, the first time it is awake after setup, and kept after that. The slot sensors show what Home Assistant has written to the lock, and the lock is never asked what it holds, so a code changed on the keypad does not show up here. The lock state and the battery level come from ZHA's own entities, which ZHA keeps up to date on its own terms.
+The PIN capacity and allowed code length are read from the lock once, the first time it is awake after setup, and kept after that. The slot sensors show what Home Assistant has sent to the lock and had accepted, and the lock is never asked what it holds, so a code changed on the keypad does not show up here. What the lock reports back on a PIN write has not been checked on real hardware either, so a slot shown as set is worth trying on the keypad. The lock state and the battery level come from ZHA's own entities, which ZHA keeps up to date on its own terms.
 
 ## Managing access
 
@@ -142,7 +159,7 @@ data:
 | `onesti_lock.set_name`   | Sets the name, touches no code       | 0-999                  |
 | `onesti_lock.clear_slot` | Removes the PIN code and the name    | first user slot to 999 |
 
-The first user slot is the Settings value, 3 by default. N is the number of PIN users the lock reports. NimlyPRO and NimlyCodePRO report 50, so the highest slot `set_pin` takes is 49, and until the lock has reported, the ceiling is 999. `clear_pin` and `clear_slot` go to 999 so a slot filled before the limit was known can still be emptied.
+The first user slot is the Settings value, 3 by default. N is the number of PIN users the lock reports. A NimlyPRO reports 50, and a NimlyCodePRO interview posted upstream shows the same, so the highest slot `set_pin` takes there is 49, and until the lock has reported, the ceiling is 999. `clear_pin` and `clear_slot` go to 999 so a slot filled before the limit was known can still be emptied.
 
 A mistake in the call itself, a slot out of range, a PIN of the wrong length or a lock that is not set up, fails as a validation error: the message appears where the call was made and nothing is logged as an error. When the call was fine but the lock was unreachable or refused the write, the service fails with the lock's answer instead, and that one does reach the log.
 
@@ -216,7 +233,7 @@ Imported blueprints are copies that nothing updates. The unlock notification and
 
 A PIN code opens your door, and several parts of Home Assistant can write them to disk.
 
-This integration does not. It never reads the attribute where the lock reports the last used PIN, it masks digit runs of 4 or more when it logs a failed command, and it never accepts a PIN shorter than 4 digits, so the mask always covers a real code. These can still leak one:
+This integration keeps codes out of its own states and its own log lines: it never reads the attribute where the lock reports the last used PIN, it masks digit runs of 4 or more when it logs a failed command, and it never accepts a PIN shorter than 4 digits, so the mask always covers a real code. It cannot keep a code out of everything, and one of the paths below is its own action:
 
 - ZHA's quirk has its own last PIN code sensor. It is disabled by default, but if it is enabled, the recorder stores every code used.
 - ZHA's **Download diagnostics** on the lock's device dumps zigpy's attribute cache, last used PIN included.
@@ -265,13 +282,13 @@ English, Norwegian (bokmål), Swedish and Danish. Sensor states, entity names, o
 
 7. **ZHA internals**: ZHA has no public API for what this integration reads, so a Home Assistant update can break it. If that happens, a repair issue titled "Lock events are not being received" appears under Settings → System → Repairs. PIN codes may still work, but the activity sensor and the event go quiet. Open an issue with your Home Assistant version. When ZHA restarts with the lock, the integration reconnects by itself, and a ZHA that is still starting when Home Assistant boots is simply waited for.
 
-8. **Dashboard locks right after a wake**: a lock from a dashboard within 30 seconds of the integration waking the lock looks the same as the wake itself, so the activity sensor does not show it. The `onesti_lock_activity` event still fires.
+8. **Dashboard locks right after a wake**: a lock from a dashboard within 30 seconds of the integration waking the lock looks the same as the wake itself, so the activity sensor does not show it. The `onesti_lock_activity` event still fires. The 30 seconds is a chosen window, not one measured on a lock.
 
 9. **Going back to an older version is untested.** From 1.4.0 on, HACS installs the ZIP attached to the release instead of the tag's source tree. The ZIPs on the 1.0.0 to 1.3.0 releases hold the same flat layout, so picking one of them in HACS should land the right files, but nobody has tried it. If a downgrade leaves Home Assistant without the integration, delete `config/custom_components/onesti_lock`, install the version you want again and restart. Releases before 1.0.0 are the old `nimly_pro` integration and are not a rollback target at all. Upgrading is not affected.
 
 ## If you're buying a new lock
 
-Short version: no lock on the market meets the full list of local, Home-Assistant-native, with per-user attribution for code, tag and fingerprint, on a Scandinavian door. These locks come closest, and with this integration they are the only one that does all three credential types locally, but the firmware has real flaws worth knowing before you buy. The honest case for and against, a table of every lock we checked, and what owners report is in [docs/buying-a-lock.md](docs/buying-a-lock.md).
+Short version: none of the locks we checked meets the full list of local, Home-Assistant-native, with per-user attribution for code, tag and fingerprint, on a Scandinavian door. These locks come closest, and with this integration they are the only one we found that does all three credential types locally, but the firmware has real flaws worth knowing before you buy. The honest case for and against, a table of every lock we checked, and what owners report is in [docs/buying-a-lock.md](docs/buying-a-lock.md).
 
 ## Troubleshooting
 

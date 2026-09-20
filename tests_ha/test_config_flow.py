@@ -17,6 +17,7 @@ from typing import Any
 
 import pytest
 import voluptuous as vol
+from homeassistant.config_entries import SOURCE_IGNORE
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -107,6 +108,31 @@ async def test_second_setup_of_the_same_lock_aborts_already_configured(
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
     assert len(hass.config_entries.async_entries(DOMAIN)) == 1
+
+
+async def test_an_ignored_lock_is_not_offered_under_add_integration(
+    hass: HomeAssistant, mock_zha
+) -> None:
+    """Ignore takes the lock off the list, rather than off the end of it.
+
+    An ignore entry holds the unique id, so picking the lock here would
+    abort already_configured with nothing said about unignoring it.
+    """
+    mock_zha.device_proxies[SECOND_LOCK_IEEE] = make_lock_proxy()
+    mock_zha.device_proxies[THIRD_LOCK_IEEE] = make_lock_proxy()
+    _add_entry(hass)
+    ignored = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": SOURCE_IGNORE},
+        data={"unique_id": SECOND_LOCK_IEEE, "title": "Onesti Lock"},
+    )
+    await hass.async_block_till_done()
+    assert ignored["type"] is FlowResultType.CREATE_ENTRY
+
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+
+    assert result["type"] is FlowResultType.FORM
+    assert set(_device_choices(result)) == {THIRD_LOCK_IEEE}
 
 
 # -- The lock leaving ZHA with the form open --

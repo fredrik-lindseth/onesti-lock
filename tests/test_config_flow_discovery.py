@@ -47,16 +47,29 @@ class FakeProxy:
         )
 
 
-def _make_flow(proxies, existing_ieees=()):
+def _make_flow(proxies, existing_ieees=(), ignored_ieees=()):
     flow = config_flow.OnestiLockConfigFlow()
     gateway = types.SimpleNamespace(
         gateway_proxy=types.SimpleNamespace(device_proxies=proxies)
     )
     flow.hass = types.SimpleNamespace(data={"zha": gateway})
-    flow._async_current_entries = lambda: [
-        types.SimpleNamespace(entry_id=f"entry-{ieee}", data={"ieee": ieee})
+    entries = [
+        types.SimpleNamespace(
+            entry_id=f"entry-{ieee}", source="user", unique_id=ieee, data={"ieee": ieee}
+        )
         for ieee in existing_ieees
     ]
+    # An ignored entry carries no data at all, only the unique id.
+    entries += [
+        types.SimpleNamespace(
+            entry_id=f"ignored-{ieee}",
+            source=config_flow.SOURCE_IGNORE,
+            unique_id=ieee,
+            data={},
+        )
+        for ieee in ignored_ieees
+    ]
+    flow._async_current_entries = lambda include_ignore=None: entries
     return flow
 
 
@@ -121,6 +134,17 @@ class TestDiscovery:
         }
         result = asyncio.run(
             _make_flow(proxies, existing_ieees=("aa:bb",)).async_step_user()
+        )
+        assert result["type"] == "abort"
+        assert result["reason"] == "no_devices_found"
+
+    def test_ignored_lock_not_offered_again(self):
+        """Picking it would abort already_configured with no way forward."""
+        proxies = {
+            "aa:bb": FakeProxy(FakeZigpyDevice("Onesti Products AS", "NimlyPRO"))
+        }
+        result = asyncio.run(
+            _make_flow(proxies, ignored_ieees=("aa:bb",)).async_step_user()
         )
         assert result["type"] == "abort"
         assert result["reason"] == "no_devices_found"

@@ -70,7 +70,7 @@
     "error": {
       "invalid_pin": "PIN code must be {min}-{max} digits",
       "invalid_slot": "Slot number must be between 0 and 999",
-      "lock_unreachable": "Could not reach the lock. Press the keypad and try again.",
+      "lock_unreachable": "Could not reach the lock. Wake the radio by turning the knob, or with a valid code + # on the keypad, which also unlocks the door. Touching the keypad only lights it up. Then try again.",
       "lock_rejected": "The lock refused the command (status {status}). Check the slot and the code, then try again.",
       "lock_rejected_duplicate": "The lock refused the code because another slot already uses it. Pick a different code.",
       "lock_rejected_memory_full": "The lock refused the code because its code memory is full. Clear a slot you no longer use, then try again.",
@@ -93,7 +93,7 @@
   },
   "exceptions": {
     "lock_unreachable": {
-      "message": "Could not reach the lock. Press a button on the lock to wake it and try again."
+      "message": "Could not reach the lock. Wake the radio by turning the knob, or with a valid code + # on the keypad, which also unlocks the door. Touching the keypad only lights it up. Then try again."
     },
     "lock_rejected": {
       "message": "The lock refused the command (status {status}). Check the slot and the code, then try again."

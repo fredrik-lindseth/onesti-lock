@@ -94,7 +94,7 @@ These locks are battery-powered Zigbee EndDevices, and the radio sleeps most of 
 
 These wake the Zigbee radio:
 
-- Entering a complete PIN code + `#` on the keypad
+- Entering a complete PIN code + `#` on the keypad, which also unlocks the door
 - Physical lock/unlock (turning the knob)
 - Lock/unlock command from HA (ZHA uses extended timeout)
 
@@ -172,7 +172,7 @@ Any other Zigbee error fails at once, without a wake or a retry, and the log lin
 
 What to try:
 
-- Enter a PIN + `#` on the keypad to wake the lock by hand.
+- Wake the lock by hand: turn the knob, or enter a PIN + `#` on the keypad, which unlocks the door as well.
 - Retry within 5 seconds, while the radio is awake.
 - Check that the ZHA lock entity works (lock/unlock from the dashboard). If that doesn't respond either, the problem is Zigbee connectivity, not the integration.
 

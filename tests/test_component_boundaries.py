@@ -124,3 +124,31 @@ def test_bluetooth_adapters_is_a_dependency_exactly_when_bluetooth_py_is_importe
             f"manifest.json lists {BLUETOOTH_DEPENDENCY!r}, but nothing in the integration imports "
             f"bluetooth.py. It would set the Bluetooth stack up on every installation for nothing."
         )
+
+
+# Registry lookups Home Assistant deprecated because an identifier or a
+# connection is only unique within one config entry from HA 2026.9. Calling
+# one logs a warning that names this integration and asks the user to file a
+# bug against it, and HA 2027.8 removes them. The replacements take the config
+# entry, but they do not exist on the minimum HA, so the way out is to look in
+# the entry's own devices (dr.async_entries_for_config_entry) or to reach the
+# replacement through getattr with that fallback, as zha.py does.
+DEPRECATED_REGISTRY_CALLS = ("async_get_device",)
+
+
+@pytest.mark.parametrize("path", MODULES, ids=_name)
+def test_no_deprecated_registry_lookups(path: Path):
+    called = [
+        (node.lineno, node.func.attr)
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr in DEPRECATED_REGISTRY_CALLS
+    ]
+    assert not called, (
+        f"{path.name} calls {', '.join(f'{name} (line {line})' for line, name in called)}. "
+        f"Home Assistant deprecated it: the call logs a warning naming this integration and "
+        f"telling the user to report a bug, and it stops working in 2027.8. Look the device up "
+        f"among the entry's own devices instead, or reach the per-entry replacement through "
+        f"getattr with that fallback, since the minimum HA does not have it."
+    )

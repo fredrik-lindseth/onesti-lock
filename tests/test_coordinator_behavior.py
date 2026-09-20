@@ -1,4 +1,4 @@
-"""Behavioral tests for NimlyCoordinator persistence and clear_slot.
+"""Behavioral tests for OnestiCoordinator persistence and clear_slot.
 
 coordinator.py imports homeassistant only for the HomeAssistant and
 ConfigEntry type hints, so minimal stub modules are enough to execute the
@@ -111,7 +111,7 @@ class FakeHass:
 def _make_coordinator(options=None, fail_services=False, transport=None):
     hass = FakeHass(fail_services=fail_services)
     entry = FakeConfigEntry(options)
-    return hass, entry, coordinator_mod.NimlyCoordinator(hass, entry, transport)
+    return hass, entry, coordinator_mod.OnestiCoordinator(hass, entry, transport)
 
 
 class TestSaveSlotsPersistence:

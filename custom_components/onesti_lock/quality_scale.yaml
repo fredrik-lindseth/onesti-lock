@@ -48,14 +48,14 @@ rules:
   entity-unavailable:
     status: done
     comment: |
-      The entities follow NimlyCoordinator.available, which is false while no
+      The entities follow OnestiCoordinator.available, which is false while no
       event listener is registered. A lock that is merely asleep stays
       available.
   integration-owner: done
   log-when-unavailable:
     status: done
     comment: |
-      NimlyCoordinator.set_available logs one INFO line when lock events stop
+      OnestiCoordinator.set_available logs one INFO line when lock events stop
       and one when they are back, never the same one twice in a row.
   parallel-updates: done
   reauthentication-flow:

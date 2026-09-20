@@ -17,7 +17,7 @@ class MockCoordinator:
         self._slots = slots or {}
 
     def get_slot_name(self, slot: int) -> str:
-        # Mirrors NimlyCoordinator: unnamed slot 0 falls back to "Master".
+        # Mirrors OnestiCoordinator: unnamed slot 0 falls back to "Master".
         if slot in self._slots:
             return self._slots[slot]
         return "Master" if slot == 0 else f"Slot {slot}"

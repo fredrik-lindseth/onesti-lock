@@ -21,7 +21,7 @@ from homeassistant.helpers.typing import ConfigType
 
 from . import pin_rules
 from .const import CONF_IEEE, CONF_MODEL, DEFAULT_SLOT, DOMAIN, ZHA_DOMAIN
-from .coordinator import NimlyConfigEntry, NimlyCoordinator
+from .coordinator import OnestiConfigEntry, OnestiCoordinator
 from .events import ZhaInternalsMissing, register_event_listener
 from .localize import async_get_strings
 from .zha import is_zha_loaded, iter_device_proxies, iter_onesti_locks, model_in_zha
@@ -125,7 +125,7 @@ def _async_discover_locks(hass: HomeAssistant) -> None:
         )
 
 
-def _migrate_to_entry_id_keys(hass: HomeAssistant, entry: NimlyConfigEntry) -> None:
+def _migrate_to_entry_id_keys(hass: HomeAssistant, entry: OnestiConfigEntry) -> None:
     """Rewrite registry keys from the IEEE address to the config entry id.
 
     Up to 2.2 the device identifier and every entity unique id held the
@@ -154,7 +154,7 @@ def _migrate_to_entry_id_keys(hass: HomeAssistant, entry: NimlyConfigEntry) -> N
         )
 
 
-async def async_migrate_entry(hass: HomeAssistant, entry: NimlyConfigEntry) -> bool:
+async def async_migrate_entry(hass: HomeAssistant, entry: OnestiConfigEntry) -> bool:
     """Bring a stored entry up to the current config flow version.
 
     2.1 -> 2.2: stored slots lose has_rfid, a field nothing ever set.
@@ -195,7 +195,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: NimlyConfigEntry) -> b
     return True
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: NimlyConfigEntry) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: OnestiConfigEntry) -> bool:
     """Set up Onesti Lock from a config entry.
 
     Raises ConfigEntryNotReady when ZHA is running without this lock, so
@@ -212,7 +212,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: NimlyConfigEntry) -> boo
             translation_placeholders={"ieee": ieee},
         )
 
-    coordinator = NimlyCoordinator(hass, entry)
+    coordinator = OnestiCoordinator(hass, entry)
     coordinator.strings = await async_get_strings(hass, hass.config.language)
     entry.runtime_data = coordinator
 
@@ -240,7 +240,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: NimlyConfigEntry) -> boo
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: NimlyConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: OnestiConfigEntry) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
@@ -261,13 +261,13 @@ def _zha_entry_loaded(hass: HomeAssistant) -> bool:
     )
 
 
-def _zha_issue_id(entry: NimlyConfigEntry) -> str:
+def _zha_issue_id(entry: OnestiConfigEntry) -> str:
     return f"{ISSUE_ZHA_INTERNALS}_{entry.entry_id}"
 
 
 @callback
 def _start_event_listener(
-    hass: HomeAssistant, entry: NimlyConfigEntry, coordinator: NimlyCoordinator
+    hass: HomeAssistant, entry: OnestiConfigEntry, coordinator: OnestiCoordinator
 ) -> None:
     """Register the lock event listener, or raise a repair issue saying why not.
 
@@ -306,7 +306,7 @@ def _start_event_listener(
 
 @callback
 def _watch_zha_entries(
-    hass: HomeAssistant, entry: NimlyConfigEntry, coordinator: NimlyCoordinator
+    hass: HomeAssistant, entry: OnestiConfigEntry, coordinator: OnestiCoordinator
 ) -> None:
     """Reload when ZHA comes up with a Door Lock cluster we do not listen to.
 
@@ -374,7 +374,7 @@ def _watch_zha_entries(
     )
 
 
-async def _async_options_updated(hass: HomeAssistant, entry: NimlyConfigEntry) -> None:
+async def _async_options_updated(hass: HomeAssistant, entry: OnestiConfigEntry) -> None:
     """Reload only when the first user slot changed.
 
     The coordinator writes slot data and capabilities to the same options,

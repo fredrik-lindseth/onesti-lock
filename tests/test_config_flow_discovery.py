@@ -48,7 +48,7 @@ class FakeProxy:
 
 
 def _make_flow(proxies, existing_ieees=()):
-    flow = config_flow.NimlyProConfigFlow()
+    flow = config_flow.OnestiLockConfigFlow()
     gateway = types.SimpleNamespace(
         gateway_proxy=types.SimpleNamespace(device_proxies=proxies)
     )

@@ -1,0 +1,58 @@
+name: E2E
+
+# The release ZIP in an official Home Assistant container, installed the way
+# HACS installs it. See tests_e2e/README.md for what a green run proves.
+#
+# Its own workflow, not a job in ci.yml, and therefore not part of the release
+# gate: it needs Docker and a 600 MB image pull per target, and the graph the
+# release waits for should not wait for that. It runs beside CI on pull
+# requests, so it never delays anything.
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: Release ZIP in Home Assistant (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # minimum is the release hacs.json promises, current the newest
+        # pinned one. Both tags come from uv.lock at run time.
+        target: [minimum, current]
+    steps:
+      # A shallow checkout is enough: release_publish.py packs the ZIP from
+      # the git objects at HEAD, which is the commit this run belongs to.
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Check the harness itself
+        run: python3 -m unittest discover -s tests_e2e -p 'test_*.py'
+
+      - name: Run the lab
+        run: python3 tests_e2e/run.py run --target ${{ matrix.target }}
+
+      # A cancelled or killed job leaves containers behind on a self-hosted
+      # runner. Harmless on a fresh GitHub runner, and free insurance.
+      - name: Stop anything left behind
+        if: always()
+        run: python3 tests_e2e/run.py cleanup
+
+      - name: Keep the evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-${{ matrix.target }}-${{ github.sha }}
+          path: |
+            tests_e2e/artifacts/*/ha.log
+            tests_e2e/artifacts/*/report.json
+            tests_e2e/artifacts/*/version.json
+          if-no-files-found: warn
+          retention-days: 7

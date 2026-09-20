@@ -1,0 +1,27 @@
+services:
+  ha:
+    image: ${E2E_IMAGE:?}
+    environment:
+      TZ: Europe/Oslo
+    ports:
+      # Loopback only. The driver talks to 127.0.0.1:8123 from inside the
+      # container; the host port is there for looking at the lab by hand.
+      - "127.0.0.1:${E2E_PORT:?}:8123"
+    volumes:
+      - type: bind
+        source: ${E2E_RUN_DIR:?}/config
+        target: /config
+      # The unpacked release ZIP, where HACS would have put it. Read-only, so
+      # a test can never write back into what it is supposed to be testing.
+      - type: bind
+        source: ${E2E_RUN_DIR:?}/integration
+        target: /config/custom_components/onesti_lock
+        read_only: true
+      - type: bind
+        source: ${E2E_HARNESS:?}
+        target: /harness
+        read_only: true
+    stop_grace_period: 30s
+    restart: "no"
+    # No host network, no devices, no Docker socket, no privileges: this
+    # container has a radio-less Home Assistant and nothing else.

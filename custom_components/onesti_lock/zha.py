@@ -243,10 +243,20 @@ def has_door_lock_cluster(obj: Any) -> bool:
     return _walk_to_door_lock_cluster(obj) is not None
 
 
-def find_door_lock_cluster(hass: HomeAssistant, ieee: str) -> Cluster | None:
-    """Get the Door Lock cluster for one device from ZHA, or None."""
+def find_door_lock_cluster(
+    hass: HomeAssistant, ieee: str, *, quiet: bool = False
+) -> Cluster | None:
+    """Get the Door Lock cluster for one device from ZHA, or None.
+
+    With quiet, a miss is logged at debug level instead of error. Callers
+    that only ask whether the cluster they hold is still the right one pass
+    it: the lock missing from ZHA is a state setup raises
+    ConfigEntryNotReady for and Home Assistant retries, so the log should
+    not claim something is broken.
+    """
+    level = logging.DEBUG if quiet else logging.ERROR
     if _gateway_proxy(hass) is None:
-        _LOGGER.error("ZHA has no running gateway, so the lock cannot be reached")
+        _LOGGER.log(level, "ZHA has no running gateway, so the lock cannot be reached")
         return None
 
     for dev_ieee, proxy in iter_device_proxies(hass):
@@ -256,7 +266,7 @@ def find_door_lock_cluster(hass: HomeAssistant, ieee: str) -> Cluster | None:
         if cluster is not None:
             return cluster
 
-    _LOGGER.error("Door Lock cluster not found for %s", ieee)
+    _LOGGER.log(level, "Door Lock cluster not found for %s", ieee)
     return None
 
 
@@ -325,9 +335,12 @@ class ZhaLockTransport:
         # time.monotonic() of the last wake actuation, for wake_echo_pending.
         self._last_wake: float | None = None
 
-    def cluster(self) -> Cluster | None:
-        """The lock's zigpy Door Lock cluster, or None."""
-        return find_door_lock_cluster(self.hass, self.ieee)
+    def cluster(self, *, quiet: bool = False) -> Cluster | None:
+        """The lock's zigpy Door Lock cluster, or None.
+
+        With quiet, a miss is only logged at debug level.
+        """
+        return find_door_lock_cluster(self.hass, self.ieee, quiet=quiet)
 
     def wake_echo_pending(self) -> bool:
         """Whether a Zigbee lock event now may be the echo of our own wake.

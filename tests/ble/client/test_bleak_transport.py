@@ -326,18 +326,22 @@ class TestStartNotify:
 
 
 class TestWrite:
-    def test_with_response_when_the_characteristic_allows_it(self, caplog):
+    def test_with_response_only_when_that_is_all_it_allows(self, caplog):
         caplog.set_level(logging.DEBUG)
-        client = connected_client(properties=("write-without-response", "write", "notify"))
+        client = connected_client(properties=("write", "notify"))
         transport = wrap(client)
         run(transport.write(ACK))
         assert client.write_calls == [(ACK, True)]
         assert transport.write_with_response
         assert "writing with response" in caplog.text
 
-    def test_without_response_when_that_is_all_it_allows(self, caplog):
+    @pytest.mark.parametrize(
+        "properties",
+        [("write-without-response", "write", "notify"), ("write-without-response", "notify")],
+    )
+    def test_without_response_whenever_the_characteristic_offers_it(self, caplog, properties):
         caplog.set_level(logging.DEBUG)
-        client = connected_client(properties=("write-without-response", "notify"))
+        client = connected_client(properties=properties)
         transport = wrap(client)
         run(transport.write(ACK))
         run(transport.write(ACK_2))

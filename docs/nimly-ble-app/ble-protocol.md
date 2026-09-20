@@ -476,10 +476,84 @@ contains is not traced.
 12. Send commands (lock/unlock/pinSet/etc.)
 ```
 
+## Scanning
+
+(app code, `scanner/BleScanner.startScanning`, line 64-67) The app sets no
+scan filter at all. It calls the one-argument
+`BluetoothLeScanner.startScan(ScanCallback)`, so Android's defaults apply:
+`SCAN_MODE_LOW_POWER`, `CALLBACK_TYPE_ALL_MATCHES`, legacy advertisements
+only, 1M PHY. No `ScanFilter.Builder`, `ScanSettings.Builder`, `setLegacy` or
+`setPhy` appears anywhere in the APK. Before scanning it requires the GPS
+provider to be enabled (`verifyLocationEnabled`, line 38-43).
+
+Everything is filtered in the callback. `NimlyEkeyDeviceScannerBase.onScanResult`
+(line 60-74) runs every result past every device id the caller has set, and
+`BleScanner.getNimlyEkeyScanResult` (line 75-104) drops the result unless
+`scanRecord.getServiceData(0000fd00-0000-1000-8000-00805f9b34fb)` is non-null.
+Nothing is matched on device name, address or manufacturer data; the one name
+check in that method rewrites the display name `GlennI` to `Nimly` after the
+result has already been accepted.
+
+The two UI entry points differ only in which device ids they hand the scanner
+(app code):
+
+- `AddLockScannerFragment` (line 151-199) sets the single all-zero
+  `Constants.DefaultDeviceId` and shows only results with
+  `isInitialized == false`: a factory-reset lock.
+- `ConnectLockScannerFragment` (smali, `refreshScan$1`, line 649) sets the
+  device ids of the locks the account owns, from the cloud, and shows only
+  `isInitialized == true`.
+
+Both scan for exactly 10 seconds (`delay(10000)`, `0x2710` in the smali) and
+then stop. There is no retry, no backoff and no timeout message: the user
+presses "Scan" again. The only advice the app offers is the "How to activate
+pairing mode" popup (`popup_module_setup_help.xml`), quoted under
+[When the lock advertises](#when-the-lock-advertises).
+
+A connection is always built from a live scan result:
+`NimlyEkeyDeviceScanner.createDevice` passes
+`scanResult.getScanResult().getDevice()` into `BleConnection`, and
+`BleConnection.connect` calls `connectGatt(context, false, this, TRANSPORT_LE)`
+with `autoConnect = false` (line 274). `BluetoothAdapter.getRemoteDevice` and
+`createBond` are not called anywhere. The app therefore cannot reach a lock it
+has not just seen advertise, and never bonds or whitelists one.
+
+## When the lock advertises
+
+The app assumes an enrolled lock advertises whenever it is scanned for: the
+connect screen just scans for 10 seconds and expects to find it. Nothing in
+the app code says under what conditions the lock actually does so
+(app code, not answered).
+
+The vendor documentation is the only source on that, and it ties advertising
+to pairing mode. The app's own help popup
+(`resources/res/layout/popup_module_setup_help.xml`, line 24):
+
+> To activate pairing mode, remove and reinsert the batteries/power while the
+> inside and outside unit are connected. The module will enter pairing mode
+> for about four minutes (indicated by blue LED blinking for bluetooth or
+> orange blinking for Zigbee 3.0).
+
+And the Connect Module installation guide (`docs/manuals/`,
+`EN-Connect-Module-Installation-Guide-231024`), for the same module:
+
+> The module enters pairing mode automatically for four minutes, indicated by
+> orange (zigbee) and blue (bluetooth) flashing from the module. Did you use
+> too long to connect? To re-enter pairing mode, remove and reinsert the
+> batteries/power while the units are connected.
+
+Same Connect Module, one radio stack, two roles. Whether a module already
+joined to a Zigbee network still advertises 0xFD00 outside that four-minute
+window is not stated anywhere in the app, the manuals or the Nimly Connect
+app, and no advertisement has been captured from a Zigbee-paired lock. The
+Nimly Connect app never scans for locks over BLE at all: its only
+`BluetoothLeScanner` use is the bundled Espressif provisioning library for the
+Connect Gateway.
+
 ## Scan identification
 
-(app code, `scanner/BleScanner.getNimlyEkeyScanResult`) The 0xFD00 service
-data is read as:
+(app code, `scanner/BleScanner.getNimlyEkeyScanResult`, line 77-99) The 0xFD00
+service data is read as:
 
 ```
 [seed: 2B] [identifier: 6B]
@@ -493,4 +567,8 @@ data is read as:
   during enrollment. The app recognises its own lock by computing that hash
   for each device id it knows. An enrolled lock never shows its device id.
 
-No advertisement has been captured yet (untested on a lock).
+No advertisement has been captured yet (untested on a lock). Scans from an
+ESP32 proxy 50 cm from a Zigbee-paired NimlyPRO, from the Home Assistant host
+and from a Shelly scanner, awake lock included, saw no 0xFD00 service data at
+all. The layout above is what the app reads, so a capture would settle it; the
+open question is whether that lock advertises in the first place.

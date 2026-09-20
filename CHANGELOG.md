@@ -6,6 +6,7 @@ All notable changes to Onesti Lock. The format is based on [Keep a Changelog](ht
 
 ### Features
 
+- **Lock number two is found on its own.** Once one lock is set up, pairing another Onesti lock with ZHA makes it turn up under Discovered on the integrations page, with its model and IEEE address, and you confirm or ignore it there. The first lock still has to be added with Add Integration: Home Assistant does not load a custom integration that has no config entry. <!--short-->
 - **The sensors say when they are not being updated.** While ZHA is not running, no lock event can reach Home Assistant, and the slot and activity sensors show as unavailable until it is back. A lock that is only asleep is not unavailable: the sensors keep what they have. The log gets one line when events stop and one when they are back, in place of the line that only ever said they had started. <!--short-->
 
 ### Security

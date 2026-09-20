@@ -21,7 +21,6 @@ from .const import (
     CONF_IEEE,
     CONF_RESERVED_SLOTS,
     DOMAIN,
-    MANUFACTURER,
     MAX_SLOTS,
     NUM_USER_SLOTS,
     RESERVED_SLOTS_MAX,
@@ -33,10 +32,8 @@ from .redact import redact_digits
 from .zha import (
     Delivery,
     SendOutcome,
-    device_metadata,
-    has_door_lock_cluster,
     is_zha_loaded,
-    iter_device_proxies,
+    iter_onesti_locks,
 )
 
 if TYPE_CHECKING:
@@ -61,10 +58,22 @@ class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 2
     MINOR_VERSION = 2
 
+    # Set by async_step_integration_discovery, read by the confirmation step.
+    _discovered_ieee: str = ""
+    _discovered_model: str = ""
+
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
         return NimlyProOptionsFlow()
+
+    def _create_lock_entry(self, ieee: str) -> ConfigFlowResult:
+        """The entry for one lock, however the flow got to it."""
+        return self.async_create_entry(
+            title=f"Onesti Lock ({ieee[-8:]})",
+            data={CONF_IEEE: ieee},
+            options={"slots": {}},
+        )
 
     async def async_step_user(self, user_input=None) -> ConfigFlowResult:
         """Handle user step: select a Nimly lock from ZHA."""
@@ -76,22 +85,13 @@ class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
             entry.data.get(CONF_IEEE)
             for entry in self._async_current_entries()
         }
-        for ieee, proxy in iter_device_proxies(self.hass):
-            manufacturer, model = device_metadata(proxy)
-            # The model string is informational, not a gate. All Onesti
-            # locks share hardware and the ZMNC010 Zigbee module, and a
-            # module can report a sibling model name (issue #5: a CodePRO
-            # presenting as Twist), so any Onesti device with a Door Lock
-            # cluster is offered.
-            if manufacturer != MANUFACTURER or not has_door_lock_cluster(proxy):
-                continue
+        for ieee_str, model in iter_onesti_locks(self.hass):
             if model not in SUPPORTED_MODELS:
                 _LOGGER.warning(
                     "Unrecognized Onesti model %r, offering it anyway. "
                     "Please report the model string on GitHub",
                     model,
                 )
-            ieee_str = str(ieee)
             if ieee_str not in existing:
                 devices[ieee_str] = f"{model} ({ieee_str})"
 
@@ -102,17 +102,54 @@ class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
             ieee = user_input["device"]
             await self.async_set_unique_id(ieee)
             self._abort_if_unique_id_configured()
-            return self.async_create_entry(
-                title=f"Onesti Lock ({ieee[-8:]})",
-                data={CONF_IEEE: ieee},
-                options={"slots": {}},
-            )
+            return self._create_lock_entry(ieee)
 
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema(
                 {vol.Required("device"): vol.In(devices)}
             ),
+        )
+
+    async def async_step_integration_discovery(
+        self, discovery_info: Mapping[str, Any]
+    ) -> ConfigFlowResult:
+        """A lock ZHA knows about that no entry owns yet.
+
+        Started from __init__.py whenever ZHA gains a device, so the second
+        lock shows up as Discovered instead of having to be added by hand.
+        The first one cannot: Home Assistant does not load a custom
+        integration that has no config entry.
+
+        The IEEE is the unique id, the same one the user step sets, so a
+        lock that is already set up or that the user pressed Ignore on is
+        aborted here and never asked about again.
+        """
+        ieee = str(discovery_info[CONF_IEEE])
+        await self.async_set_unique_id(ieee)
+        self._abort_if_unique_id_configured()
+
+        self._discovered_ieee = ieee
+        self._discovered_model = str(discovery_info.get("model") or "")
+        # What the Discovered card is titled, through config.flow_title.
+        self.context["title_placeholders"] = {
+            "model": self._discovered_model,
+            "ieee": ieee,
+        }
+        return await self.async_step_discovery_confirm()
+
+    async def async_step_discovery_confirm(self, user_input=None) -> ConfigFlowResult:
+        """Ask before setting up a discovered lock."""
+        if user_input is not None:
+            return self._create_lock_entry(self._discovered_ieee)
+
+        self._set_confirm_only()
+        return self.async_show_form(
+            step_id="discovery_confirm",
+            description_placeholders={
+                "model": self._discovered_model,
+                "ieee": self._discovered_ieee,
+            },
         )
 
 

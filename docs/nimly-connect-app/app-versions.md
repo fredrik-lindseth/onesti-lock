@@ -57,12 +57,14 @@ files they describe.
 
 Paths are relative to `reversing/`. Two file kinds: `.apk` is a single
 Play-style APK, `.xapk` is APKPure's zip of a split install, and the sha256 is
-of the file as downloaded.
+of the file as downloaded. `reversing/apks/inventory.json` is the machine
+version of the table, written by `reversing/tools/apkmeta.py` from the files
+themselves; every row in it was re-hashed on 2026-09-20 with no mismatch.
 
 | Brand | Package | Version | versionCode | Size | Path | sha256 |
 | ----- | ------- | ------- | ----------- | ---- | ---- | ------ |
 | Nimly Connect | `com.easyaccess.connect` | 1.28.46 | 292 | 161.9 MB | `apks/nimly-connect/com.easyaccess.connect-1.28.46-292.xapk` | `f3eb582c62428873ceef2c46902215564afd504cf99780e6303b7eb53f9315c6` |
-| nimly BLE | `easyaccess.ekey.app` | 1.5.2 | 13 | 15.4 MB | `nimly-ble-apks/easyaccess.ekey.app-1.5.2-13.apk` | `8589c7c0c8c448971f6ce540d1bdc04b32ca99cf1a111575db8ce900d9918c70` |
+| nimly BLE | `easyaccess.ekey.app` | 1.5.2 | 13 | 15.4 MB | `apks/nimly-ble/easyaccess.ekey.app-1.5.2-13.apk` | `8589c7c0c8c448971f6ce540d1bdc04b32ca99cf1a111575db8ce900d9918c70` |
 | unloc | `ai.unloc.unloc` | 5.9.0 | 2318 | 31.6 MB | `apks/unloc/ai.unloc.unloc-5.9.0-2318.xapk` | `c1ee02695d0cc4b8d2eacbab925f166157c4c670656f2211fe7213f54ca2ae98` |
 | iotiliti | `io.iotiliti.home` | 1.28.46 | 906 | 161.3 MB | `apks/iotiliti/io.iotiliti.home-1.28.46-906.xapk` | `4d525adda6c2a59adf8691d4b760f22d20cab2c997c2a241c74cff2a71516b1f` |
 | Copiax | `com.copiax.homesecurity` | 1.28.46 | 333 | 160.7 MB | `apks/copiax/com.copiax.homesecurity-1.28.46-333.xapk` | `0b03e569c73821a13e41c00442dc3f61bdb7652bcd5e00acef50e44176956c68` |
@@ -80,6 +82,32 @@ The unloc file is byte for byte the one already recorded above, so that fetch
 reproduced. `reversing/com.easyaccess.connect.xapk` is still the 1.27.84 build
 the cloud readings came from; the 1.28.46 one beside it is newer and not yet
 read.
+
+### The BLE app is the one file that cannot be refetched
+
+`easyaccess.ekey.app` is where the whole of
+[ble-protocol.md](../nimly-ble-app/ble-protocol.md) was read out, and the copy
+in `reversing/apks/nimly-ble/` is the only one. Where the routes to it stood on
+2026-09-20:
+
+| Route | State |
+| ----- | ----- |
+| APKPure | dead for this package. `apkeep -l` prints an empty version list, a download writes no file, and the versions page answers 403. The other thirteen fetched the same day |
+| Google Play | alive. Page loads, developer Easy Access AS, version 1.5.2, updated 2025-11-16 |
+| APKCombo | has 1.5.1 (12), dated 2025-07-07, a release behind. A Play proxy rather than an archive; not downloaded from |
+| APKMirror | does not carry the package |
+| `ai.unloc.unloc` 5.9.0 | second source for the SDK, not for the app: the same `com/nimly/ekey/ble/` at 1.1.1 against 1.1.0 |
+
+Play still serving 1.5.2 means the March copy is the current build, so there is
+nothing to diff and no reason to pull from a device. The app is unmirrored, not
+withdrawn. Why APKPure dropped it is unknown.
+
+The copy is four files, the base APK and three `split_config.*`, each named for
+version and versionCode, hashed and listed in `inventory.json`. That is as far
+as a working directory goes: one disk, one machine, a gitignored path, so it is
+not a backup. A real backup has to live off this machine, and where is Fredrik's
+call, not something to do quietly. No APK, no decompiled tree and no extracted
+key goes into git wherever it ends up.
 
 ### nimly home has no Android build
 

@@ -144,38 +144,77 @@ def _migrate_to_entry_id_keys(hass: HomeAssistant, entry: OnestiConfigEntry) -> 
     Both registries are rewritten in place, so entity ids, user-set names
     and everything else Home Assistant stores per entity survive.
 
+    Called from setup rather than from the version step, so what drives it
+    is the state of the registries and not the stored version. A config
+    entry is written to disk a second after it changes; the registries use
+    the long delay during startup, which is three minutes, and a migration
+    runs during startup. An entry saved at 2.3 whose registry write never
+    landed would otherwise keep IEEE-keyed rows that nothing ever looks at
+    again. It is also what repairs a rollback to a release that keyed on
+    the address: that one registers the old keys a second time, and the
+    next load of this release folds them back in.
+
     Only our own identifier is swapped, never the whole set. Through HA
     2026.8 a zigbee connection is unique across config entries, so this
-    device and ZHA's are one registry entry holding both identifiers.
+    device and ZHA's can be one registry entry holding both identifiers.
     Replacing the set would drop ("zha", ieee), and ZHA looks its device
     up by exactly that in device triggers, device actions, logbook and
     its own diagnostics.
+
+    The IEEE is matched without regard to case, as services.py does: the
+    address is stored as the user's Zigbee stack spelled it.
     """
     ieee: str = entry.data[CONF_IEEE]
+    prefix = f"{ieee.lower()}-"
     device_registry = dr.async_get(hass)
     for device in dr.async_entries_for_config_entry(device_registry, entry.entry_id):
-        if (DOMAIN, ieee) in device.identifiers:
-            device_registry.async_update_device(
-                device.id,
-                new_identifiers=(device.identifiers - {(DOMAIN, ieee)})
-                | {(DOMAIN, entry.entry_id)},
-            )
+        stale = {
+            identifier
+            for identifier in device.identifiers
+            if identifier[0] == DOMAIN and identifier[1].lower() == ieee.lower()
+        }
+        if not stale:
+            continue
+        owner = device_registry.async_get_device(identifiers={(DOMAIN, entry.entry_id)})
+        if owner is not None and owner.id != device.id:
+            # A rollback re-registered the old key as a second device. The
+            # entry-id one is the user's own row, with their name, area and
+            # entity ids, so the duplicate is what goes. Dropping our entry
+            # from it removes the row entirely unless ZHA shares it.
+            _LOGGER.debug("Removing the duplicate device %s of %s", device.id, entry.entry_id)
+            device_registry.async_update_device(device.id, remove_config_entry_id=entry.entry_id)
+            continue
+        device_registry.async_update_device(
+            device.id,
+            new_identifiers=(device.identifiers - stale) | {(DOMAIN, entry.entry_id)},
+        )
     entity_registry = er.async_get(hass)
     for registry_entry in er.async_entries_for_config_entry(entity_registry, entry.entry_id):
-        if not registry_entry.unique_id.startswith(f"{ieee}-"):
+        if not registry_entry.unique_id.lower().startswith(prefix):
             continue
-        entity_registry.async_update_entity(
-            registry_entry.entity_id,
-            new_unique_id=f"{entry.entry_id}-{registry_entry.unique_id[len(ieee) + 1:]}",
-        )
+        unique_id = f"{entry.entry_id}-{registry_entry.unique_id[len(prefix):]}"
+        if entity_registry.async_get_entity_id(
+            registry_entry.domain, registry_entry.platform, unique_id
+        ):
+            # Taken: a rollback, or a registry restored from a backup
+            # newer than the config entries. Rewriting onto it raises, and
+            # the exception would take the whole setup with it, so the
+            # stale row goes instead and the user keeps their entity id.
+            _LOGGER.debug("Removing the duplicate entity %s", registry_entry.entity_id)
+            entity_registry.async_remove(registry_entry.entity_id)
+            continue
+        entity_registry.async_update_entity(registry_entry.entity_id, new_unique_id=unique_id)
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: OnestiConfigEntry) -> bool:
     """Bring a stored entry up to the current config flow version.
 
     2.1 -> 2.2: stored slots lose has_rfid, a field nothing ever set.
-    2.2 -> 2.3: entry.data gains the model string, and the device and
-    entity registry keys move from the IEEE address to the entry id.
+    2.2 -> 2.3: entry.data gains the model string. The registry keys move
+    from the IEEE address to the entry id as well, but that half is done
+    by _migrate_to_entry_id_keys() from setup, on every load, because a
+    registry write outlives this bump by up to three minutes. See its
+    docstring.
     """
     if entry.version > 2:
         # Written by a newer release; this one cannot know its shape.
@@ -196,7 +235,6 @@ async def async_migrate_entry(hass: HomeAssistant, entry: OnestiConfigEntry) -> 
         _LOGGER.debug("Migrated %s to version 2.2", entry.entry_id)
 
     if entry.minor_version < 3:
-        _migrate_to_entry_id_keys(hass, entry)
         # ZHA may not be up yet, and an empty model is no worse than what
         # 2.2 had. The reconfigure flow fills it in when it is.
         data = {
@@ -218,6 +256,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: OnestiConfigEntry) -> bo
     Home Assistant retries with backoff until the lock is back in ZHA.
     """
     ieee: str = entry.data[CONF_IEEE]
+    # Before anything registers an entity, and on every load: the rewrite
+    # is driven by what the registries hold, not by the stored version.
+    _migrate_to_entry_id_keys(hass, entry)
     if is_zha_loaded(hass) and not _lock_in_zha(hass, ieee):
         # Removed from ZHA, or replaced by a Connect Module with a new
         # IEEE. Nothing in ZHA is broken, so this is not a repair issue.

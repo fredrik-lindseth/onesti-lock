@@ -41,3 +41,6 @@ tests/ble/java/out/
 
 # Agent worktrees created by Claude Code
 .claude/worktrees/
+
+# Evidence from `just e2e`: container logs, check reports and what was built
+tests_e2e/artifacts/

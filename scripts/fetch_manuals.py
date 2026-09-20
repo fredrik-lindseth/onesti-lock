@@ -30,6 +30,7 @@ stays gitignored; the row in git is the record of when we looked and at what.
     python3 scripts/fetch_manuals.py            # everything
     python3 scripts/fetch_manuals.py --living   # only the living sources
     python3 scripts/fetch_manuals.py --check    # living sources, no README write
+    python3 scripts/fetch_manuals.py --only appstore --only android   # just the apps
 """
 import argparse
 import datetime
@@ -182,7 +183,7 @@ def ensure_unpacked(archive_path, kind):
 # Living sources: forum threads, GitHub issues, code that keeps moving
 # --------------------------------------------------------------------------
 
-LIVING_TYPES = {"discourse", "invision", "gh-issue", "gh-file", "gh-repo", "web", "appstore", "manual"}
+LIVING_TYPES = {"discourse", "invision", "gh-issue", "gh-file", "gh-repo", "web", "appstore", "android", "manual"}
 LIVING_ROW_RE = re.compile(
     r"^\|(?P<item>[^|]+)\|(?P<source>[^|]+)\|(?P<type>[^|]+)\|"
     r"(?P<key>[^|]+)\|(?P<retrieved>[^|]+)\|(?P<marker>[^|]+)\|\s*$"
@@ -476,14 +477,49 @@ def fetch_appstore(row, dest):
 
     The store page itself is a JavaScript shell; the lookup endpoint answers
     JSON with the current version, its release date and the release notes,
-    which is the part worth keeping.
+    which is the part worth keeping. The key is the numeric track id, and
+    `id@cc` picks another storefront than the Norwegian one: several of these
+    brands sell in Sweden only.
     """
-    data = get_json(f"https://itunes.apple.com/lookup?id={row.key}&country=no")
+    app_id, _, country = row.key.partition("@")
+    country = country or "no"
+    data = get_json(f"https://itunes.apple.com/lookup?id={app_id}&country={country}")
     if not data.get("results"):
-        raise RuntimeError(f"App Store knows no id {row.key} in the Norwegian store")
+        raise RuntimeError(f"App Store knows no id {app_id} in the {country.upper()} store")
     app = data["results"][0]
     write_json(dest, {"fetched": today(), "app": app})
     return app.get("version", "?"), f"{app.get('trackName')} by {app.get('sellerName')}, {app.get('currentVersionReleaseDate', '')[:10]}"
+
+
+APKPURE_FIELDS = {
+    "version": re.compile(r'"version"\s*:\s*"([^"]+)"'),
+    "versionCode": re.compile(r'versionCode"?\s*:\s*"?(\d+)'),
+    "datePublished": re.compile(r'"datePublished"\s*:\s*"([^"]+)"'),
+    "name": re.compile(r'"name"\s*:\s*"([^"]+)"'),
+}
+
+
+def fetch_android(row, dest):
+    """An Android listing, read off APKPure's package page, marked `version (versionCode)`.
+
+    Google's own listing no longer prints a version number anywhere in the
+    HTML, so Play can only answer "this package exists". APKPure's package
+    page carries version, versionCode and publication date in its embedded
+    JSON, which is what a later diff needs. Two caveats that belong in any
+    conclusion drawn from this row: APKPure mirrors on its own schedule and
+    can sit a release behind Play (it had the BLE app on 1.5.1 while Play
+    served 1.5.2), and its search pages are behind a Cloudflare challenge, so
+    only this per-package page is scriptable.
+    """
+    req = request(f"https://apkpure.com/x/{row.key}")
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        page = resp.read().decode("utf-8", "replace")
+    found = {name: (m.group(1) if (m := rx.search(page)) else None) for name, rx in APKPURE_FIELDS.items()}
+    if not found["version"]:
+        raise RuntimeError(f"no version in the APKPure page for {row.key} (layout changed, or a challenge page)")
+    write_json(dest, {"fetched": today(), "package": row.key, **found})
+    code = found["versionCode"] or "?"
+    return f"{found['version']} ({code})", f"{found['name'] or row.key}, published {found['datePublished'] or 'unknown'}"
 
 
 FETCHERS = {
@@ -494,6 +530,7 @@ FETCHERS = {
     "gh-repo": fetch_gh_repo,
     "web": fetch_web,
     "appstore": fetch_appstore,
+    "android": fetch_android,
 }
 
 
@@ -506,10 +543,16 @@ def write_json(dest, payload):
     dest.write_text(json.dumps(payload, indent=1, ensure_ascii=False))
 
 
-def fetch_living(write_back=True):
-    """Fetch every living source, report what moved, and update the README rows."""
+def fetch_living(write_back=True, only=None):
+    """Fetch every living source, report what moved, and update the README rows.
+
+    `only` narrows the run to one or more types, so "have the apps moved" does
+    not mean refetching two hundred forum posts and rewriting their dates too.
+    """
     text = README.read_text()
     rows = parse_living_table(text)
+    if only:
+        rows = [row for row in rows if row.kind in only]
     if not rows:
         print("No living-source rows found in the README")
         return 0
@@ -572,6 +615,12 @@ def main(argv=None):
     parser.add_argument("--living", action="store_true", help="only the living sources")
     parser.add_argument("--pinned", action="store_true", help="only the hash-pinned sources")
     parser.add_argument("--check", action="store_true", help="living sources, without rewriting the README")
+    parser.add_argument(
+        "--only",
+        action="append",
+        choices=sorted(LIVING_TYPES),
+        help="limit the living fetch to one type; repeatable (--only appstore --only android)",
+    )
     args = parser.parse_args(argv)
 
     if not README.exists():
@@ -580,12 +629,12 @@ def main(argv=None):
     MANUALS_DIR.mkdir(parents=True, exist_ok=True)
 
     status = 0
-    if not (args.living or args.check):
+    if not (args.living or args.check or args.only):
         status |= fetch_pinned()
     if not args.pinned:
-        if not (args.living or args.check):
+        if not (args.living or args.check or args.only):
             print()
-        status |= fetch_living(write_back=not args.check)
+        status |= fetch_living(write_back=not args.check, only=set(args.only or ()))
     return status
 
 

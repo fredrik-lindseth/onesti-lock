@@ -11,7 +11,9 @@ integration or run against a lock; see [ble-library.md](ble-library.md).
 
 The same SDK, version 1.1.1 against this app's 1.1.0, ships inside the unloc
 app, which confirms the protocol from a second vendor and uses only its guest
-half; see [unloc-app.md](unloc-app.md).
+half; see [unloc-app.md](unloc-app.md). Which build every reading came from,
+and how to tell whether a newer one changed any of it, is in
+[app-versions.md](../nimly-connect-app/app-versions.md).
 
 Each claim carries one of three labels:
 

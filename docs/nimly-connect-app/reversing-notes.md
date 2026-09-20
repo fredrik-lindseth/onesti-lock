@@ -265,8 +265,10 @@ Seven white-label apps besides Nimly Connect were decompiled with `apkeep` +
 They share one codebase (React Native/Hermes), and only the config block
 differs. Folklarm, Tryg Smart, Safe4 Care, LF and Larmify were found in those
 apps' brand configuration; their own APKs, where they have one, were not
-decompiled. None of these seven decompilations were kept, so the table below
-cannot be re-checked locally.
+decompiled. None of these seven decompilations were kept, not even their
+version numbers, so the table below cannot be re-checked locally.
+[app-versions.md](app-versions.md) is the baseline the next round compares
+against, and says what to keep this time.
 
 ### All API instances (prod)
 

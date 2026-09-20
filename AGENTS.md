@@ -124,6 +124,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 | `custom_components/onesti_lock/const.py`       | Constants, source/action enums, known models, slot ranges, wake echo window                                      |
 | `custom_components/onesti_lock/localize.py`    | Runtime string lookup (reads the `common` section of translations/*.json)                                        |
 | `custom_components/onesti_lock/strings.json`   | English source for every string; identical to `translations/en.json`                                             |
+| `custom_components/onesti_lock/icons.json`     | Entity and service icons, keyed by translation key; no entity sets `_attr_icon`                                  |
 | `custom_components/onesti_lock/ble/`           | BLE protocol library, unused by the integration so far; layers and API in `docs/nimly-ble-app/ble-library.md`    |
 | `ble/protocol/`                                | Wire format: `const`, `packet`, `blob`, `command`, `commands` (builders), `response`, `responses` (parsers), `advertisement` |
 | `ble/crypto.py`                                | Key exchange, link and owner keys, owner challenge answer, AES in the app's two modes                            |

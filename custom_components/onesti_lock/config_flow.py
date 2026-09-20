@@ -76,18 +76,30 @@ class OnestiLockConfigFlow(ConfigFlow, domain=DOMAIN):
             options={"slots": {}},
         )
 
-    def _locks_on_offer(self, skip_entry_id: str | None = None) -> dict[str, str]:
+    def _locks_on_offer(
+        self, skip_entry_id: str | None = None, *, offer_ignored: bool = False
+    ) -> dict[str, str]:
         """{ieee: model} for the Onesti locks in ZHA no config entry owns.
 
         skip_entry_id leaves one entry's own lock in the list, which the
         reconfigure step needs: the entry being pointed somewhere else
         must not rule out the lock it points at today.
+
+        offer_ignored keeps the locks an Ignore entry holds. Reconfigure
+        wants them, because it removes that entry before taking the
+        address. The user step does not: choosing one there ends in
+        already_configured with no hint that the way out is to unignore.
         """
-        taken = {
-            entry.data.get(CONF_IEEE)
-            for entry in self._async_current_entries()
-            if entry.entry_id != skip_entry_id
-        }
+        taken: set[str | None] = set()
+        for entry in self._async_current_entries(include_ignore=True):
+            if entry.entry_id == skip_entry_id:
+                continue
+            if entry.source == SOURCE_IGNORE:
+                # An ignored entry carries no data, only the unique id.
+                if not offer_ignored:
+                    taken.add(entry.unique_id)
+                continue
+            taken.add(entry.data.get(CONF_IEEE))
         locks: dict[str, str] = {}
         for ieee_str, model in iter_onesti_locks(self.hass):
             if model not in SUPPORTED_MODELS:
@@ -154,7 +166,7 @@ class OnestiLockConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="zha_not_found")
 
         entry = self._get_reconfigure_entry()
-        locks = self._locks_on_offer(skip_entry_id=entry.entry_id)
+        locks = self._locks_on_offer(skip_entry_id=entry.entry_id, offer_ignored=True)
         if not locks:
             return self.async_abort(reason="no_devices_found")
 

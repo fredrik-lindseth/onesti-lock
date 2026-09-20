@@ -506,17 +506,27 @@ async def test_zha_in_setup_retry_then_loaded_starts_the_listener(
 
 
 async def test_zha_reloaded_without_the_lock_retries_setup(
-    hass: HomeAssistant, mock_zha, zha_entry: MockConfigEntry
+    hass: HomeAssistant,
+    mock_zha,
+    zha_entry: MockConfigEntry,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """The lock is removed from ZHA while we listen: the watch reloads us into
     SETUP_RETRY, and the retry sets it up again once the lock is re-paired."""
     entry = await _setup(hass)
     lock_proxy = mock_zha.device_proxies.pop(LOCK_IEEE)
 
+    caplog.clear()
     await _reload_zha(hass, zha_entry)
 
     assert entry.state is ConfigEntryState.SETUP_RETRY
     assert _zha_issue(hass, entry) is None
+    # The watch looks the cluster up to see whether the one it listens to
+    # is still the right one. Not finding it is the retried state above,
+    # so the lookup must not log an error on the way there.
+    assert not [
+        r for r in caplog.records if r.levelname == "ERROR" and r.name.startswith("custom_components.onesti_lock")
+    ]
 
     mock_zha.device_proxies[LOCK_IEEE] = lock_proxy
     await _retry_setup(hass)

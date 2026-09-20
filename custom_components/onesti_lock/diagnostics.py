@@ -111,7 +111,7 @@ def _last_activity(hass: HomeAssistant, coordinator: NimlyCoordinator) -> dict[s
     it is these fields rendered as a sentence with the name in it.
     """
     entity_id = er.async_get(hass).async_get_entity_id(
-        "sensor", DOMAIN, f"{coordinator.ieee}-activity"
+        "sensor", DOMAIN, f"{coordinator.entry.entry_id}-activity"
     )
     state = hass.states.get(entity_id) if entity_id else None
     if state is None or "action" not in state.attributes:

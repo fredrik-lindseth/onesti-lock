@@ -51,7 +51,8 @@ async def _report(hass: HomeAssistant, mock_zha, raw_value: Any) -> None:
 
 
 def _activity(hass: HomeAssistant) -> Any:
-    entity_id = er.async_get(hass).async_get_entity_id("sensor", DOMAIN, f"{LOCK_IEEE}-activity")
+    (entry,) = hass.config_entries.async_entries(DOMAIN)
+    entity_id = er.async_get(hass).async_get_entity_id("sensor", DOMAIN, f"{entry.entry_id}-activity")
     assert entity_id is not None
     return hass.states.get(entity_id)
 
@@ -163,8 +164,10 @@ async def test_reserved_slots_from_storage(
 
     assert entry.runtime_data.first_user_slot() == first_user_slot
     registry = er.async_get(hass)
-    assert registry.async_get_entity_id("sensor", DOMAIN, f"{LOCK_IEEE}-slot-{first_user_slot}")
-    assert not registry.async_get_entity_id("sensor", DOMAIN, f"{LOCK_IEEE}-slot-{first_user_slot - 1}")
+    assert registry.async_get_entity_id("sensor", DOMAIN, f"{entry.entry_id}-slot-{first_user_slot}")
+    assert not registry.async_get_entity_id(
+        "sensor", DOMAIN, f"{entry.entry_id}-slot-{first_user_slot - 1}"
+    )
 
 
 # -- PIN lengths, as the lock and the store can report them --

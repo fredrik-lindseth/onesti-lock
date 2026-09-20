@@ -16,8 +16,8 @@ from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import device_registry as dr
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.onesti_lock.const import CONF_IEEE, DOMAIN
-from tests_ha.conftest import LOCK_IEEE, make_lock_proxy
+from custom_components.onesti_lock.const import CONF_IEEE, CONF_MODEL, DOMAIN
+from tests_ha.conftest import LOCK_IEEE, LOCK_MODEL, make_lock_proxy
 
 SECOND_LOCK_IEEE = "00:0d:6f:00:55:66:77:88"
 
@@ -102,7 +102,7 @@ async def test_confirming_a_discovery_creates_the_entry(
     await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["data"] == {CONF_IEEE: SECOND_LOCK_IEEE}
+    assert result["data"] == {CONF_IEEE: SECOND_LOCK_IEEE, CONF_MODEL: LOCK_MODEL}
     entry = result["result"]
     assert entry.unique_id == SECOND_LOCK_IEEE
     assert entry.state is ConfigEntryState.LOADED

@@ -18,7 +18,9 @@ only into raw numbers.
 ```
 __init__.py (entry lifecycle)
   ├── async_setup: registers the four services once, for all locks; never removed on unload
-  ├── async_migrate_entry: 2.1 -> 2.2 strips has_rfid from stored slots
+  ├── async_migrate_entry: 2.1 -> 2.2 strips has_rfid from stored slots;
+  │   2.2 -> 2.3 stores the model in entry.data and rewrites device
+  │   identifiers and entity unique ids from the IEEE to the entry id
   ├── async_setup_entry: coordinator on entry.runtime_data, sensor platform,
   │   event listener, ZHA watch, update listener, background capability read;
   │   ConfigEntryNotReady (retried by HA) when ZHA runs without the lock's IEEE
@@ -75,6 +77,16 @@ Event listener (events.py, no HA imports at module level)
   ├── Updates activity sensor unless is_system_lock(decoded, wake_echo_pending) (gotcha 4)
   └── Fires onesti_lock_activity HA event (always, including auto-lock and wake echo)
 
+NimlyEntity (entity.py, the base class of every sensor)
+  ├── unique_id <entry_id>-<key>, device identifiers {(DOMAIN, entry_id)}: a
+  │   replaced Connect Module changes the IEEE, the entry id it does not
+  └── build_device_info: model from entry.data, serial_number = IEEE,
+      connections {(CONNECTION_ZIGBEE, ieee)}, name "<model> (<last four)";
+      via_device_id to ZHA's device where DeviceInfo has the field (HA
+      2026.9 and up), where a connection is unique per config entry; below
+      that the shared connection makes the two one device and there is no
+      link to draw (HAS_VIA_DEVICE_ID in entity.py is the switch)
+
 Sensors (sensor.py)
   ├── Slot row: range(first_user_slot, first_user_slot + NUM_USER_SLOTS); registry
   │   entries for slots that fell out of the row are removed on setup
@@ -115,7 +127,8 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 | `custom_components/onesti_lock/zha.py`         | All ZHA/zigpy internals: gateway lookup, chain walk, `ZhaLockTransport` (send, wake, wake echo, capability read) |
 | `custom_components/onesti_lock/bluetooth.py`   | Home Assistant Bluetooth and bleak-retry-connector: find the lock by its 0xFD00 advertisement, connect, open a `ble` Session; unused so far |
 | `custom_components/onesti_lock/events.py`      | Operation event decoding, system-lock rule, event listener (no HA imports)                                       |
-| `custom_components/onesti_lock/config_flow.py` | Config flow (device selection) + Options flow (PIN management UI, reserved-slots setting)                        |
+| `custom_components/onesti_lock/config_flow.py` | Config flow (device selection, discovery, reconfigure) + Options flow (PIN management UI, reserved-slots setting) |
+| `custom_components/onesti_lock/entity.py`      | NimlyEntity and the device every entity hangs on: keys, model, serial number, link to ZHA's device               |
 | `custom_components/onesti_lock/sensor.py`      | Slot sensor row that follows `reserved_slots` + restored Activity sensor                                         |
 | `custom_components/onesti_lock/services.py`    | set_pin, clear_pin, set_name, clear_slot; lock picked by device_id or ieee                                       |
 | `custom_components/onesti_lock/services.yaml`  | Service fields, including the device selector                                                                    |
@@ -154,7 +167,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 7. **No user-facing strings in Python**: sensor states and options flow labels come from the `common` section of `translations/*.json` via `localize.py` (`common` because hassfest rejects top-level keys outside HA's strings schema). Entity names and service errors go through HA's own `entity`/`exceptions` sections. `tests/test_no_hardcoded_language.py` fails the build if a Norwegian literal reappears. `strings.json` is the English source and must stay identical to `translations/en.json`.
 8. **PIN length floor**: `pin_rules.PIN_LENGTH_SANE_MIN` (4) is the shortest PIN accepted, whatever the lock reports, because `redact.py` masks digit runs of that length and up. Lowering either one alone lets a PIN reach the log in clear text. Anything that logs an exception on the send path uses `redact_digits` and no `exc_info`: an error from zigpy or from building the frame can quote `pin_code`.
 9. **Services live for the whole HA run**: they are registered in `async_setup` (hence `CONFIG_SCHEMA = cv.config_entry_only_config_schema`) and never removed on unload. Each call looks the lock up among loaded entries, by `device_id` (our own device, not the ZHA one), then `ieee`, and only falls back to the single lock when there is exactly one.
-10. **Entry version**: config flow `VERSION = 2`, `MINOR_VERSION = 2`. A change to the stored shape bumps the minor version and gets a step in `async_migrate_entry`; an entry from a newer major version refuses to load.
+10. **Entry version**: config flow `VERSION = 2`, `MINOR_VERSION = 3`, so entries are at 2.3. A change to the stored shape bumps the minor version and gets a step in `async_migrate_entry`; an entry from a newer major version refuses to load. The stored shape is not only `entry.data` and `entry.options`: the 2.3 step also rewrites the device and entity registries, where identifiers and unique ids moved from the IEEE to the entry id.
 11. **Repair issue `zha_internals`**: raised when ZHA runs and lists the lock, but the gateway, the Door Lock cluster or both listener hooks are missing. A zigpy without `on_event` is not a fault: the `add_listener` fallback covers it, and no release has neither. PIN writes still work then, but no activity arrives. The issue is per entry and removed when the listener registers or the entry unloads. A lock entirely missing from ZHA is not a repair issue: setup raises `ConfigEntryNotReady` and Home Assistant retries until the lock is back.
 12. **Options writes trigger the update listener**: slot and capability writes go to `entry.options` too, so the listener compares the first user slot and reloads only when it moved. A listener that reloads on any change reloads after every PIN operation.
 13. **BLE library boundaries**: nothing in `ble/` imports `homeassistant`, `zigpy` or `voluptuous`, and no relative import leaves `ble/`, not even for `redact.py`. Inside, `protocol/` imports neither `crypto.py` nor `client/`, and `crypto.py` not `client/`. Everything raised is a `BleError`. `tests/ble/test_package.py` enforces all of it. A Home Assistant Bluetooth transport therefore lives outside `ble/`.

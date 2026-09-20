@@ -7,6 +7,7 @@
   "documentation": "https://github.com/fredrik-lindseth/onesti-lock",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/fredrik-lindseth/onesti-lock/issues",
+  "quality_scale": "platinum",
   "requirements": [],
   "version": "1.4.0"
 }

@@ -15,6 +15,7 @@ from homeassistant.config_entries import (
     OptionsFlow,
 )
 from homeassistant.core import callback
+from homeassistant.helpers import device_registry as dr
 
 from . import pin_rules
 from .const import (
@@ -194,6 +195,7 @@ class OnestiLockConfigFlow(ConfigFlow, domain=DOMAIN):
                 # card, which is a second entry for the same door.
                 await self.async_set_unique_id(ieee, raise_on_progress=False)
                 await self._clear_the_way_for(ieee)
+                self._drop_replaced_address(entry, ieee)
                 return self.async_update_reload_and_abort(
                     entry,
                     unique_id=ieee,
@@ -215,6 +217,38 @@ class OnestiLockConfigFlow(ConfigFlow, domain=DOMAIN):
             description_placeholders={"ieee": str(current)},
             errors=errors,
         )
+
+    @callback
+    def _drop_replaced_address(self, entry: OnestiConfigEntry, ieee: str) -> None:
+        """Take the replaced module's address off our device.
+
+        async_get_or_create only ever merges connections, so without this
+        the device would carry both addresses for good: the reload right
+        after adds the new one, and nothing removes the old. Below HA
+        2026.9 a zigbee connection is unique across the whole registry,
+        so the stale one also means our device owns an address that the
+        old module takes with it wherever it is paired next.
+
+        Only our own row is touched. Below 2026.9 the registry may have
+        merged our device with ZHA's, and on that row the connection is
+        ZHA's own to keep.
+        """
+        registry = dr.async_get(self.hass)
+        # async_entries_for_config_entry rather than async_get_device,
+        # which HA 2026.9 deprecated: identifiers are no longer unique
+        # across config entries.
+        for device in dr.async_entries_for_config_entry(registry, entry.entry_id):
+            if device.config_entries != {entry.entry_id}:
+                # A row this entry shares is the merged one, and the
+                # connection on it is ZHA's own to keep.
+                continue
+            kept = {
+                connection
+                for connection in device.connections
+                if connection[0] != dr.CONNECTION_ZIGBEE or connection[1] == ieee.lower()
+            }
+            if kept != device.connections:
+                registry.async_update_device(device.id, new_connections=kept)
 
     async def _clear_the_way_for(self, ieee: str) -> None:
         """Free the address this entry is about to take.

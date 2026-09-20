@@ -2,6 +2,18 @@
 
 All notable changes to Onesti Lock. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Features
+
+- **The sensors say when they are not being updated.** While ZHA is not running, no lock event can reach Home Assistant, and the slot and activity sensors show as unavailable until it is back. A lock that is only asleep is not unavailable: the sensors keep what they have. The log gets one line when events stop and one when they are back, in place of the line that only ever said they had started. <!--short-->
+
+### Security
+
+### Bug fixes
+
+### Breaking changes
+
 ## [1.4.0] - 2026-09-19
 
 ### Action required

@@ -111,6 +111,34 @@ async def test_every_sensor_sits_on_one_device(hass: HomeAssistant, mock_zha) ->
     assert device.manufacturer == "Onesti Products AS"
 
 
+async def test_every_sensor_is_available_once_the_listener_is_registered(
+    hass: HomeAssistant, mock_zha
+) -> None:
+    entry = await _setup_entry(hass)
+
+    assert _coordinator(hass, entry).available is True
+    for entity in er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id):
+        assert hass.states.get(entity.entity_id).state != "unavailable", entity.entity_id
+
+
+async def test_every_sensor_is_unavailable_without_a_listener(hass: HomeAssistant, mock_zha) -> None:
+    """No listener means no lock event arrives, so nothing here is kept up to date."""
+    entry = await _setup_entry(hass)
+    coordinator = _coordinator(hass, entry)
+
+    coordinator.set_available(False)
+    await hass.async_block_till_done()
+
+    for entity in er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id):
+        assert hass.states.get(entity.entity_id).state == "unavailable", entity.entity_id
+
+    coordinator.set_available(True)
+    await hass.async_block_till_done()
+
+    for entity in er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id):
+        assert hass.states.get(entity.entity_id).state != "unavailable", entity.entity_id
+
+
 # -- Slot sensors --
 
 
@@ -140,7 +168,9 @@ async def test_slot_listeners_registered_on_setup_and_removed_on_unload(hass: Ho
     entry = await _setup_entry(hass)
     coordinator = _coordinator(hass, entry)
 
-    assert len(coordinator._listeners) == NUM_USER_SLOTS
+    # One per slot sensor for the slot data, and one for the activity
+    # sensor, which follows the coordinator for availability only.
+    assert len(coordinator._listeners) == NUM_USER_SLOTS + 1
 
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()

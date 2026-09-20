@@ -213,7 +213,7 @@ Input clusters (server):
   0x0004  Groups
   0x0005  Scenes
   0x0101  Door Lock ← main cluster
-  0xFEA2  Manufacturer Specific (unknown)
+  0xFEA2  Manufacturer Specific ("EA v2", contents unknown)
 
 Output clusters (client):
   0x0019  OTA Upgrade

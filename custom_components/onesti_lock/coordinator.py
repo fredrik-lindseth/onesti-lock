@@ -14,7 +14,7 @@ from .const import CONF_IEEE, DEFAULT_SLOT
 from .zha import SendOutcome, ZhaLockTransport
 
 if TYPE_CHECKING:
-    from .sensor import NimlyActivitySensor
+    from .sensor import OnestiActivitySensor
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,13 +30,13 @@ OPTION_CAPABILITIES = "capabilities"
 _LOSS_LOGGED: set[str] = set()
 
 
-class NimlyCoordinator:
+class OnestiCoordinator:
     """Manages slot data and PIN operations for one Nimly lock."""
 
     def __init__(
         self,
         hass: HomeAssistant,
-        entry: NimlyConfigEntry,
+        entry: OnestiConfigEntry,
         transport: ZhaLockTransport | None = None,
     ) -> None:
         self.hass = hass
@@ -46,7 +46,7 @@ class NimlyCoordinator:
         self.transport = transport or ZhaLockTransport(hass, self.ieee)
         self._slots: dict[str, dict[str, Any]] = {}
         self._listeners: list[Callable[[], None]] = []
-        self._activity_sensor: NimlyActivitySensor | None = None
+        self._activity_sensor: OnestiActivitySensor | None = None
         # One PIN operation at a time per lock. The options flow and the
         # services can both write, and interleaved sends and saves would let
         # local state end up describing the older of two writes.
@@ -70,7 +70,7 @@ class NimlyCoordinator:
         # A ZHA reload replaces it, which __init__.py watches for.
         self._listened_cluster: Any = None
         # No listener yet, so no lock event can arrive. The entities read
-        # this through NimlyEntity.available.
+        # this through OnestiEntity.available.
         self._available = False
         self._load_slots()
 
@@ -166,7 +166,7 @@ class NimlyCoordinator:
         # sensors read, so it takes the change over instead of showing the
         # slot as it was until something else writes.
         current = getattr(self.entry, "runtime_data", None)
-        if isinstance(current, NimlyCoordinator) and current is not self:
+        if isinstance(current, OnestiCoordinator) and current is not self:
             current.adopt_stored_slots()
 
     def adopt_stored_slots(self) -> None:
@@ -243,7 +243,7 @@ class NimlyCoordinator:
 
     # -- Activity sensor --
 
-    def set_activity_sensor(self, sensor: NimlyActivitySensor | None) -> None:
+    def set_activity_sensor(self, sensor: OnestiActivitySensor | None) -> None:
         """Register the activity sensor for updates."""
         self._activity_sensor = sensor
 
@@ -393,4 +393,4 @@ class NimlyCoordinator:
 
 # The entry's runtime_data is its coordinator. HA drops runtime_data on
 # unload, so nothing outlives the entry that owns it.
-type NimlyConfigEntry = ConfigEntry[NimlyCoordinator]
+type OnestiConfigEntry = ConfigEntry[OnestiCoordinator]

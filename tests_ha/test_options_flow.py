@@ -1,6 +1,6 @@
 """The options flow, driven through a real Home Assistant.
 
-Each test runs NimlyProOptionsFlow through hass.config_entries.options, so
+Each test runs OnestiLockOptionsFlow through hass.config_entries.options, so
 HA's own flow manager handles menus, forms, schema validation, progress
 tasks and entry updates. The coordinator is the real one created by
 async_setup_entry. Only its transport is swapped for a fake, which stands

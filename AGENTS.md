@@ -191,6 +191,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 | `docs/nimly-ble-app/ble-auth-provisioning.md`   | Owner enrollment over BLE: local ECDH owner key, factory-reset default cred, cloud only for guests |
 | `docs/nimly-ble-app/ble-library.md`             | The `ble/` library: layers, API, transports, Enrollment storage, errors, vector provenance, verified vs lock-only |
 | `tools/esphome/README.md`                       | The BLE debug proxy: board and output power, secrets, USB-first flashing, core dumps, NVS counters, Active scanning |
+| `docs/nimly-ble-app/unloc-app.md`               | The unloc app: same ekey BLE SDK, guest half only, how it scans and where its keys come from   |
 | `docs/connect-bridge/hardware-gateway.md`       | Connect Bridge hardware, network stack, firmware                                              |
 | `docs/hardware-generations.md`                  | Per-report log of model string, IEEE OUI, module name and firmware fields, one row per observed lock |
 | `docs/slot-numbering.md`                        | Slot numbering across Zigbee, BLE and cloud, verified and unverified                          |

@@ -9,6 +9,10 @@ protocol is documented as a possible future channel. A Python implementation
 of it lives in `custom_components/onesti_lock/ble/`, not yet wired into the
 integration or run against a lock; see [ble-library.md](ble-library.md).
 
+The same SDK, version 1.1.1 against this app's 1.1.0, ships inside the unloc
+app, which confirms the protocol from a second vendor and uses only its guest
+half; see [unloc-app.md](unloc-app.md).
+
 Each claim carries one of three labels:
 
 - **(app code)**: read directly in the decompiled Java or the smali.

@@ -359,6 +359,59 @@ would need changing if that held. Do not raise it with either project before a
 session where a keypad event and a Zigbee command are captured minutes apart on
 a lock that is reporting properly.
 
+## Another implementation: aridder/nimly-manager
+
+A second Home Assistant integration for these locks appeared on GitHub in
+August 2026: [`aridder/nimly-manager`](https://github.com/aridder/nimly-manager),
+MIT, Norwegian, five commits, last pushed 2026-08-10. It sits on top of
+Zigbee2MQTT (it subscribes to one device topic through HA's MQTT integration
+and never talks Zigbee itself) and adds an admin panel for fingerprint slots.
+It cites our `docs/nimly-ble-app/ble-protocol.md`, our README limitations and
+our `zigbee-captures.md` as sources. Read 2026-09-20 at commit `b47b09d`.
+
+**Its "guided local enrollment" is not a Zigbee enrollment.** The name reads
+like a fingerprint command over Zigbee; the code sends nothing. `start_fingerprint_enrollment`
+creates an in-memory session and returns a list of keypad instructions
+(`###`, master finger, `NNN*`, three reads) that the user performs at the lock.
+`confirm_fingerprint_enrollment` only moves the session state. Verification is
+passive: `runtime.observe_mqtt_state` watches for a `locked` to `unlocked`
+transition whose `last_unlock_source` is fingerprint and whose
+`last_unlock_user` equals the chosen slot, then fires
+`nimly_fingerprint_enrollment_verified`. That is our attribute `0x0100` event,
+decoded by the Z2M converter instead of by us. Their own
+`docs/fingerprint-enrollment.md` states it plainly: BLE `0x57`/`0x58` exist,
+"dagens kjente Zigbee- og Zigbee2MQTT-kontrakt har ingen tilsvarende kommando",
+and their capability matrix in `docs/zigbee-door-lock.md` lists "Fingerprint
+enrollment/delete" as "nei / UNKNOWN". So the finding does not move fingerprint
+enrolment from BLE to Zigbee. It confirms the opposite from an independent
+reading.
+
+What is genuinely new there is a UX idea we do not have: name the person and
+the slot in HA *before* the user programmes the finger on the keypad, then let
+the next fingerprint unlock from that slot confirm it and write the name. That
+works on ZHA today with nothing new on the wire, because the confirming event
+is the one `events.py` already decodes.
+
+Their RFID position is the one our vendor spec contradicts. `zigbee-door-lock.md`
+tabulates ZCL `0x16`/`0x17`/`0x18` from zigbee-herdsman and marks RFID
+create/read/delete "EXTENSION + PHYSICAL TEST", i.e. worth trying. The E-life
+spec (`zigbee-protocol/elife-module-spec.md`) says the module implements
+lock, unlock, set PIN and clear PIN and nothing else, and documents Set/Clear
+RFID *responses* without a command to produce them. A physical test is still
+the only proof either way, but the spec says what to expect.
+
+**Hardware evidence, and one observation worth keeping.** Their tester runs a
+Touch Pro on Zigbee2MQTT, firmware `4.7.79`. No issue or commit in the repo
+shows an end-to-end enrolment being run, and the two merged PRs are both
+`codex/*` branches. Their BLE section, dated 2026-08-09, is the useful part:
+a read-only scan during physical lock and unlock saw no Nimly service and no
+`0xFD00` service data at all, on two adapters, but the device appeared
+immediately (`name "Dør"`, service data 10 bytes where the reversed protocol
+describes 8) the moment **Add device** was opened in the official BLE app. If
+that holds, the module does not advertise in normal operation and BLE
+discovery has to be provoked, which is exactly the question our own BLE work
+is blocked on.
+
 ## What we decided, and why we are not building a second transport
 
 Supporting Zigbee2MQTT inside this integration alongside ZHA was assessed on

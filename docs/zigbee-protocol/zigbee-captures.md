@@ -8,7 +8,7 @@ and the log was not kept, so the header bytes (frame control, TSN) cannot be
 re-checked. The value bytes can: they match the table of observed values at
 the end of this file and the captures in `tests/test_event_properties.py`.
 Frames with headers straight out of a kept log exist for one other lock, a
-NimlyCodePRO, in [Captures from other locks](#captures-from-other-locks).
+NimlyCodePRO, under [Captures from other locks](#captures-from-other-locks).
 
 ## DoorLock cluster (0x0101, endpoint 11)
 
@@ -139,22 +139,21 @@ Value in seconds. 0 = disabled.
 ### PIN commands (0x0005, 0x0006, 0x0007)
 
 The responses to Set PIN Code (0x0005) and Clear PIN Code (0x0007) have
-raised `IndexError` before any payload was available. The command is still
+raised `IndexError` before any payload was available; the command is still
 carried out. The source is ZHA, found in code on 2026-09-20: zha 0.0.59's
 `Device.issue_cluster_command` reads `response[1]` from a one-field response
-(see technical.md), and zha 2.2.2 reads the field by name instead. Whether
-the error still occurs now that commands go to the zigpy cluster directly is
-untested on hardware, but nothing in the path indexes the answer any more.
-Per ZCL, a Set PIN Code Response carries one status byte: 0 = success,
-1 = general failure, 2 = memory full, 3 = duplicate code. The vendor's 2021
-spec ([elife-module-spec.md](elife-module-spec.md)) says the module sends
-exactly that one byte, as SUCCESS or FAILURE only, with memory full and
-duplicate code deliberately not implemented. That byte is exactly the
-confirmation the integration lacks, and `send()` now reads it. No raw 0x0005
-response has been captured from a lock yet: the 2021 sniff below contains no
-PIN command at all, and the NimlyCodePRO log below has only reports. What a
-current lock actually answers, and whether it ever says FAILURE, is still to
-be seen on hardware.
+(see technical.md), and zha 2.2.2 reads the field by name. Whether the error
+still occurs now that commands go to the zigpy cluster directly is untested
+on hardware, but nothing in the path indexes the answer any more. Per ZCL, a
+Set PIN Code Response carries one status byte: 0 = success, 1 = general
+failure, 2 = memory full, 3 = duplicate code. The vendor's 2021 spec
+([elife-module-spec.md](elife-module-spec.md)) says the module sends that one
+byte as SUCCESS or FAILURE only, with memory full and duplicate code not
+implemented. That byte is the confirmation the integration lacks, and
+`send()` now reads it. No raw 0x0005 response has been captured from a lock:
+the 2021 sniff below has no PIN command, and the NimlyCodePRO log below has
+only reports. What a current lock answers, and whether it ever says FAILURE,
+is still to be seen on hardware.
 
 Get PIN Code (0x0006) has never been sent to a lock from this project, so
 whether its response parses is unknown. A successful response would contain
@@ -207,9 +206,8 @@ Three primary sources from other people's locks are kept locally
 A zigpy debug log and a ZHA diagnostics dump from
 [zha-device-handlers#5235](https://github.com/zigpy/zha-device-handlers/issues/5235),
 a Code Pro nobody here owns, with `sw_build_id` `4.8.02` in the Basic cluster
-cache. The log holds six frames in nine seconds, headers included, which
-makes them the only raw operation events on file whose headers were not
-reconstructed:
+cache. The log holds six frames in nine seconds, headers included, the only
+raw operation events on file whose headers were not reconstructed:
 
 ```
 22:47:41.668  08 c5 0a 00 00 30 01              lock_state = 1 (locked)
@@ -220,30 +218,29 @@ reconstructed:
 22:47:50.234  1c 34 12 0a 01 01 01 00 41 03 ..  Read Attributes Response for 0x0101, 3 bytes
 ```
 
-Four things to take from it:
+What it shows:
 
-- **Slot 1 holds a user credential on a Code Pro.** A fingerprint on slot 1
-  locked the door and a keypad code on slot 1 unlocked it, which is what the
-  Code Pro guide's "001-999 user codes" predicts and the first capture that
+- Slot 1 holds a user credential on a Code Pro. A fingerprint on slot 1
+  locked the door and a keypad code on slot 1 unlocked it, as the Code Pro
+  guide's "001-999 user codes" predicts, and this is the first capture that
   shows it. It says nothing about whether ZCL `set_pin_code` accepts slot 1,
   only that the lock reports it.
-- **The sequence is lock state, then the operation event 120 ms later, and
-  no unsolicited 0x0101 report.** The 0x0101 frames are answers: the stock
-  quirk's stack sends a manufacturer-specific `Read_Attributes([0x0101])`
-  right after every 0x0100 report (`1c 34 12` is a manufacturer-specific
-  server-to-client frame, manufacturer 0x1234), so on that instance the last
-  PIN was fetched after every operation. Which part of ZHA issues the read,
-  and whether it depends on the PIN sensor being enabled, was not traced.
-  The NimlyPRO captured above sent 0x0101 on its own; the
-  order may differ per firmware, or the Code Pro's reporting may not have
-  been configured for it.
-- **The PIN is packed BCD on this firmware too**: 3 bytes for the six-digit
-  code, the same encoding as the NimlyPRO's `54 78`.
-- **The diagnostics dump lists a cluster 0xFEA2 with attributes 0xFF01 to
-  0xFF04** (`last_action`, `last_action_source`, `last_action_user`,
+- The sequence is lock state, then the operation event 120 ms later, and no
+  unsolicited 0x0101 report. The 0x0101 frames are answers: the stock quirk's
+  stack sends a manufacturer-specific `Read_Attributes([0x0101])` right after
+  every 0x0100 report (`1c 34 12` is a manufacturer-specific server-to-client
+  frame, manufacturer 0x1234), so on that instance the last PIN was fetched
+  after every operation. Which part of ZHA issues the read, and whether it
+  depends on the PIN sensor being enabled, was not traced. The NimlyPRO
+  captured above sent 0x0101 on its own; the order may differ per firmware,
+  or the Code Pro's reporting may not have been configured for it.
+- The PIN is packed BCD on this firmware too: 3 bytes for the six-digit code,
+  the same encoding as the NimlyPRO's `54 78`.
+- The diagnostics dump lists a cluster 0xFEA2 with attributes 0xFF01 to
+  0xFF04 (`last_action`, `last_action_source`, `last_action_user`,
   `last_pin_code`). Those are defined by the quirk in that ZHA release, not
-  read from the lock; the real cluster has still never been read. The same
-  dump shows the module's last OTA `QueryNextImage` request with
+  read from the lock; the real cluster has never been read. The same dump
+  shows the module's last OTA `QueryNextImage` request with
   `manufacturer_code 0`, `image_type 0`, `current_file_version 0` and
   `hardware_version 52`, so the module does ask for images, and identifies
   itself with zeros when it does.

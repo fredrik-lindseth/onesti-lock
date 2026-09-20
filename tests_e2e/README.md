@@ -39,6 +39,14 @@ architecture and this has to run on an amd64 runner and an arm64 laptop.
 | `translations_load` | Every English string in the ZIP is served by `frontend/get_translations` |
 | `blueprints_parse` | Home Assistant loads all three blueprints without an error |
 | `blueprints_instantiate` | An automation built from each blueprint validates and runs |
+| `blueprint_goodnight_locks` | Triggering the goodnight automation locks the stand-in lock |
+| `blueprint_connectivity_notifies` | A lock coming back from unavailable produces the blueprint's notification |
+| `blueprint_unlock_notifies` | An unlock on the activity sensor notifies who did it and how, a lock does not |
+| `migration_reaches_current_version` | The 2.1 and 2.2 entries are stored at the installed version and set up |
+| `migration_2_1_strips_has_rfid` | An entry that skipped a step keeps its slot and loses `has_rfid` |
+| `migration_rewrites_registry_keys` | Entity unique ids and the device identifier are keyed on the entry id, nothing duplicated |
+| `migration_keeps_what_the_user_set` | Entity ids, a rename, a disabled entity, the device name and the slot data survive |
+| `newer_entry_refused` | An entry from a newer major version does not load and creates nothing |
 
 On top of that the host fails the run on any `ERROR` line naming
 `onesti_lock`, and on the handful of messages that mean nothing of ours could
@@ -53,21 +61,50 @@ never finds.
 
 There is no Zigbee radio in the container, so ZHA has no gateway and no lock.
 Nothing here says anything about talking to a lock: no PIN write, no attribute
-report, no auto-wake, no event decoding. The config entry is seeded by the
-harness rather than created through the flow, because the flow correctly
-refuses to make one without a lock; the entry is written in the oldest config
-entry store format so Home Assistant's own migration fills in the rest, which
-also means this is not a test of *our* `async_migrate_entry` (that is
-`tests_ha/test_lifecycle.py`).
+report, no auto-wake, no event decoding. The sensors are therefore unavailable
+and carry no attributes, so what a slot holds is read out of the entry rather
+than off the sensor.
+
+A green run means: what HACS installs loads, migrates a user's stored state
+without losing any of it, names itself correctly, offers its services and
+dialogs, and its blueprints run. It is a test of the package, not of the lock.
+
+## The four seeded entries
+
+The entries are seeded by the harness rather than created through the flow,
+because the flow correctly refuses to make one without a lock. Each of the
+four is a stored shape a user can start Home Assistant with, and three of them
+exist to be migrated on the way up:
+
+| Entry | Shape | What it proves |
+| --- | --- | --- |
+| current | the version the ZIP writes | an entry that needs no migration loads |
+| 2.2 | registry keys on the IEEE address, an entity renamed by hand, one disabled by hand, the user's slot data | `async_migrate_entry` rewrites both registries in place: entity ids, names, the disabled flag, the device name and the slots all survive, and nothing is duplicated |
+| 2.1 | slots still carry `has_rfid` | an installation that skipped a release still comes all the way up |
+| one major version ahead | written by a release this one does not know | it is refused, loads nothing, and the ERROR Home Assistant logs about it is the only one this run allows |
+
+The store files are written at storage version 1.1, the oldest format, so
+Home Assistant's own migrations fill in every key added since and the harness
+does not track a schema that is not ours. What is ours is the entry version
+and the registry keys. `tests_ha/test_lifecycle.py` covers the same migration
+against a mocked ZHA; this is the same code against a real registry store on
+disk, which is where the risk of a 2.3 migration actually sits.
+
+## The blueprints
 
 The blueprints are repo files a user imports by hand, not part of the ZIP, so
-they are copied from the working tree. `blueprints_instantiate` proves each
-one validates and starts; it does not fire the triggers, so nothing here says
-the notification text or the lock action is right.
+they are copied from the working tree. Each one is instantiated through the
+config API and then triggered: the goodnight automation by hand, since its own
+trigger is a time of day, and the other two by the state changes they listen
+for. The notifications they send are read back out of Home Assistant, so the
+templates and the text in them are covered.
 
-A green run means: what HACS installs loads, names itself correctly, offers
-its services and dialogs, and its blueprints are usable. It is a smoke test of
-the package, not of the lock.
+What triggers them is a state, not the `onesti_lock_activity` event: none of
+the blueprints listen for the event. The activity sensor's state is written
+over the API here, because nothing else can move it without a radio.
+
+`lock.e2e_stand_in` is a template lock in `configuration.yaml`, standing in
+for the ZHA lock entity the blueprints would be pointed at on a real system.
 
 ## Evidence
 
@@ -92,14 +129,17 @@ once the run has some history behind it.
 just e2e-harness
 ```
 
-Runs without Docker: version resolution, the seeded entry, the log filter, the
-redaction and the guard that refuses to drive a Compose project this harness
-did not create. It says nothing about container cleanup; that is only shown by
-a real run.
+Runs without Docker: version resolution, the four seeded entries and their
+registry rows, the log filter and its one allowance, the redaction and the
+guard that refuses to drive a Compose project this harness did not create. It
+says nothing about container cleanup; that is only shown by a real run.
 
 The harness has been checked against a broken release as well: an import error
 planted in the unpacked ZIP fails `component_loaded` and lights up the log
-filter, and a blueprint whose action does not validate fails
-`blueprints_instantiate` with Home Assistant's own message. Run one of those
-again after changing what a check asserts, or you have a test that cannot
-fail.
+filter, a blueprint whose action does not validate fails
+`blueprints_instantiate` with Home Assistant's own message, and a
+`_migrate_to_entry_id_keys` that skips the entity half fails
+`migration_rewrites_registry_keys` with 18 entities where 14 belong, the four
+seeded ones still on the IEEE address and a `sensor.front_door_slot_3_2`
+beside the one the user had. Run one of those again after changing what a
+check asserts, or you have a test that cannot fail.

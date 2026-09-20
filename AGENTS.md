@@ -19,7 +19,7 @@ only into raw numbers.
 Three layers, each described in full in `docs/technical.md`; the file names below are the map.
 
 - **Entry lifecycle and ZHA access**: `__init__.py` (setup, migration, services, ZHA watch, repair issue), `zha.py` (`ZhaLockTransport`: cluster lookup, `send()` and its `SendOutcome`, `wake()`, wake echo, capability read), `entity.py` (the device and unique ids, keyed on the entry id). Sections "Reaching the lock through ZHA", "Sending commands" and "Auto-wake mechanism".
-- **Coordinator, events and sensors**: `coordinator.py` (one `OnestiCoordinator` per lock on `entry.runtime_data`, slot storage in `entry.options`, PIN operations, capabilities), `events.py` (attrid 0x0100 decoding, the two zigpy listener hooks, the system-lock rule), `sensor.py` (slot row and restored activity sensor). Sections "How user identification works", "Listening for reports" and "Coordinator pattern".
+- **Coordinator, events and sensors**: `coordinator.py` (one `OnestiCoordinator` per lock on `entry.runtime_data`, slot storage in `entry.options`, PIN operations, capabilities), `events.py` (attrid 0x0100 decoding, the two zigpy listener hooks, the system-lock rule), `sensor.py` (slot row, restored activity sensor, three capability sensors off by default). Sections "How user identification works", "Listening for reports" and "Coordinator pattern".
 - **BLE library**: `ble/` (protocol, crypto, client; never run against a lock) and `bluetooth.py`, which nothing imports yet. Layers and the rules the code keeps are in `docs/nimly-ble-app/ble-library.md`; the Home Assistant side is "Reaching the lock over Bluetooth" in `docs/technical.md`.
 
 `SOURCE_MAP` in `events.py` is the canonical decoder of the source byte in attrid 0x0100; `docs/zigbee-protocol/zigbee-captures.md` has the table with what verified each value. Session notes and old plans contain earlier wrong guesses. The code is authoritative.
@@ -35,7 +35,7 @@ Three layers, each described in full in `docs/technical.md`; the file names belo
 | `custom_components/onesti_lock/events.py`      | Operation event decoding, system-lock rule, event listener (no HA imports)                                       |
 | `custom_components/onesti_lock/config_flow.py` | Config flow (device selection, discovery, reconfigure) + Options flow (PIN management UI, reserved-slots setting) |
 | `custom_components/onesti_lock/entity.py`      | OnestiEntity and the device every entity hangs on: keys, model, serial number, link to ZHA's device              |
-| `custom_components/onesti_lock/sensor.py`      | Slot sensor row that follows `reserved_slots` + restored Activity sensor                                         |
+| `custom_components/onesti_lock/sensor.py`      | Slot sensor row that follows `reserved_slots`, restored Activity sensor, three diagnostic capability sensors off by default |
 | `custom_components/onesti_lock/services.py`    | set_pin, clear_pin, set_name, clear_slot; lock picked by device_id or ieee                                       |
 | `custom_components/onesti_lock/services.yaml`  | Service fields, including the device selector                                                                    |
 | `custom_components/onesti_lock/pin_rules.py`   | Slot/PIN validation, reserved slots, PIN length floor (pure logic, no HA imports)                                |

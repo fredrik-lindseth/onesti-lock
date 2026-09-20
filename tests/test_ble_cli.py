@@ -637,6 +637,10 @@ def test_enroll_saves_the_enrollment_and_later_logins_use_it(run_cli, state_dir)
     assert path.name == f"lock-{device_hash}.json"
     assert lock.name == "Door"
     assert "Enrolled" in result.out
+    # Said before the first command, not only after the last one.
+    assert result.out.index("only copy of the owner key") < result.out.index("Connecting to")
+    assert bytes.fromhex(enrollment["update_private_key"])
+    assert bytes.fromhex(enrollment["lock_update_public_key"])
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
     assert stat.S_IMODE(state_dir.stat().st_mode) == 0o700
 
@@ -1111,9 +1115,11 @@ def test_the_cli_source_never_builds_a_forbidden_command():
     ServerKeyUpdate inside the library; the CLI itself must not name them,
     nor the master PIN or the unchecked PIN slot.
 
-    keypad_enable_set is here for a different reason: a KeypadEnableSet(0)
-    against the front door takes the keypad away from everyone who has only
-    a PIN, and nothing in this tool needs to send it.
+    The last three are here for a different reason: they change how the lock
+    behaves for everyone who uses it. A KeypadEnableSet(0) against the front
+    door takes the keypad away from anyone who has only a PIN, and an
+    AutoLockSet(0) leaves the door unlocked after someone walks through.
+    Nothing in this tool needs to send any of them.
     """
     tree = ast.parse(CLI_PATH.read_text())
     forbidden = {
@@ -1122,6 +1128,8 @@ def test_the_cli_source_never_builds_a_forbidden_command():
         "server_key_update",
         "master_pin_code_set",
         "keypad_enable_set",
+        "auto_lock_set",
+        "volume_set",
     }
     names = {node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)}
     names |= {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}

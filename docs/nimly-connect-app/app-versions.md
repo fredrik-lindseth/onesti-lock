@@ -57,12 +57,14 @@ files they describe.
 
 Paths are relative to `reversing/`. Two file kinds: `.apk` is a single
 Play-style APK, `.xapk` is APKPure's zip of a split install, and the sha256 is
-of the file as downloaded.
+of the file as downloaded. `reversing/apks/inventory.json` is the machine
+version of the table, written by `reversing/tools/apkmeta.py` from the files
+themselves; every row in it was re-hashed on 2026-09-20 with no mismatch.
 
 | Brand | Package | Version | versionCode | Size | Path | sha256 |
 | ----- | ------- | ------- | ----------- | ---- | ---- | ------ |
 | Nimly Connect | `com.easyaccess.connect` | 1.28.46 | 292 | 161.9 MB | `apks/nimly-connect/com.easyaccess.connect-1.28.46-292.xapk` | `f3eb582c62428873ceef2c46902215564afd504cf99780e6303b7eb53f9315c6` |
-| nimly BLE | `easyaccess.ekey.app` | 1.5.2 | 13 | 15.4 MB | `nimly-ble-apks/easyaccess.ekey.app-1.5.2-13.apk` | `8589c7c0c8c448971f6ce540d1bdc04b32ca99cf1a111575db8ce900d9918c70` |
+| nimly BLE | `easyaccess.ekey.app` | 1.5.2 | 13 | 15.4 MB | `apks/nimly-ble/easyaccess.ekey.app-1.5.2-13.apk` | `8589c7c0c8c448971f6ce540d1bdc04b32ca99cf1a111575db8ce900d9918c70` |
 | unloc | `ai.unloc.unloc` | 5.9.0 | 2318 | 31.6 MB | `apks/unloc/ai.unloc.unloc-5.9.0-2318.xapk` | `c1ee02695d0cc4b8d2eacbab925f166157c4c670656f2211fe7213f54ca2ae98` |
 | iotiliti | `io.iotiliti.home` | 1.28.46 | 906 | 161.3 MB | `apks/iotiliti/io.iotiliti.home-1.28.46-906.xapk` | `4d525adda6c2a59adf8691d4b760f22d20cab2c997c2a241c74cff2a71516b1f` |
 | Copiax | `com.copiax.homesecurity` | 1.28.46 | 333 | 160.7 MB | `apks/copiax/com.copiax.homesecurity-1.28.46-333.xapk` | `0b03e569c73821a13e41c00442dc3f61bdb7652bcd5e00acef50e44176956c68` |
@@ -80,6 +82,32 @@ The unloc file is byte for byte the one already recorded above, so that fetch
 reproduced. `reversing/com.easyaccess.connect.xapk` is still the 1.27.84 build
 the cloud readings came from; the 1.28.46 one beside it is newer and not yet
 read.
+
+### The BLE app is the one file that cannot be refetched
+
+`easyaccess.ekey.app` is where the whole of
+[ble-protocol.md](../nimly-ble-app/ble-protocol.md) was read out, and the copy
+in `reversing/apks/nimly-ble/` is the only one. Where the routes to it stood on
+2026-09-20:
+
+| Route | State |
+| ----- | ----- |
+| APKPure | dead for this package. `apkeep -l` prints an empty version list, a download writes no file, and the versions page answers 403. The other thirteen fetched the same day |
+| Google Play | alive. Page loads, developer Easy Access AS, version 1.5.2, updated 2025-11-16 |
+| APKCombo | has 1.5.1 (12), dated 2025-07-07, a release behind. A Play proxy rather than an archive; not downloaded from |
+| APKMirror | does not carry the package |
+| `ai.unloc.unloc` 5.9.0 | second source for the SDK, not for the app: the same `com/nimly/ekey/ble/` at 1.1.1 against 1.1.0 |
+
+Play still serving 1.5.2 means the March copy is the current build, so there is
+nothing to diff and no reason to pull from a device. The app is unmirrored, not
+withdrawn. Why APKPure dropped it is unknown.
+
+The copy is four files, the base APK and three `split_config.*`, each named for
+version and versionCode, hashed and listed in `inventory.json`. That is as far
+as a working directory goes: one disk, one machine, a gitignored path, so it is
+not a backup. A real backup has to live off this machine, and where is Fredrik's
+call, not something to do quietly. No APK, no decompiled tree and no extracted
+key goes into git wherever it ends up.
 
 ### nimly home has no Android build
 
@@ -190,7 +218,7 @@ it.
 
 | What | Baseline value |
 | ---- | -------------- |
-| Prod API (Nimly) | `api-neutralclone.iotiliti.cloud`, migrating to `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` |
+| Prod API (Nimly) | `api-neutralclone.iotiliti.cloud`. The `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` form is not in this build at all; it is the older scheme, see "The API host scheme" below |
 | Per-brand API hosts | 12 hosts, the table in reversing-notes |
 | Internal test API | `test-api-neurosys.iotiliti.cloud` |
 | Auth | OAuth2 `POST /oauth/v2/token`, client_id `account`; AWS Cognito eu-central-1 as the alternative |
@@ -250,8 +278,7 @@ dead code is stripped, and a brand that sells no keyboxes gets no keybox screens
 A name present in the leader is evidence; a name missing from the laggard is
 only a hint.
 
-**The API host scheme differs between the two, in the direction nobody
-expected.** For brands both builds know:
+**The API host scheme differs between the two.** For brands both builds know:
 
 | Brand | Homely 1.28.61 (newer) | Tekam 1.22.44 (older) |
 | ----- | ---------------------- | --------------------- |
@@ -259,12 +286,8 @@ expected.** For brands both builds know:
 | Förebygg | `api-forebygg.iotiliti.cloud` | `api.customer.forebygg.iotiliti.cloud` |
 | neutralclone | `api-neutralclone.iotiliti.cloud` | `api.customer.prod-neutralclone.onesti.aws.neurosys.pro` |
 
-The `onesti.aws.neurosys.pro` migration the baseline records from nimly connect
-1.27.84 is in the older Tekam build (five hosts) and completely absent from the
-newer Homely one (zero). Either the migration was rolled back, or the two
-builds were cut from branches that disagree, or the app version string does not
-order these builds the way it looks like it does. This is unresolved and should
-not be written down anywhere as "they moved to AWS".
+Two builds made that look like a contradiction. Thirteen do not; see the next
+section.
 
 **One brand nobody had on the list.** Tekam's host block names `waoo`
 (`api.customer.waoo.iotiliti.cloud` and its test host), eight literals, and
@@ -274,12 +297,68 @@ written down and a tenant roster that shrinks from build to build; the table is
 under "The tenant roster" in
 [app-architecture.md](app-architecture.md#the-tenant-roster).
 
-One loose end worth noting for the next round: the Homely build has no
-production host for its own brand in the bundle, only `stage-api-homely` and
-`test-api-homely`, and the Tekam build has no Tekam host at all. Their own
-brand's endpoint is presumably in the native config rather than the JS, which
-means a brand's own prod host is the one thing you cannot read out of its own
-bundle.
+## The API host scheme, read across thirteen builds, 2026-09-20
+
+Read: the host literals in every Hermes bundle in `reversing/apks/`, plus the
+kept 1.27.84 nimly connect, found by raw byte search for
+`api-*.iotiliti.cloud`, `api.customer.*` and `*.onesti.aws.neurosys.pro`.
+`reversing/tools/host_forms.py` prints the table. Raw bytes rather than the
+string table because `hbc_strings.py` does not parse the older bundles, and the
+host literals are plain ASCII in the storage blob either way.
+
+| Build | Hermes bytecode | `api-*` | `api.customer.*` | `onesti.aws.neurosys.pro` |
+| ----- | --------------- | ------- | ---------------- | ------------------------- |
+| Confi.care 1.20.9 | 74 | 0 | 14 | 9 |
+| Tekam 1.22.44 | 84 | 0 | 11 | 5 |
+| Tryg 1.24.73 | 90 | 10 | 4 | 1 |
+| Förebygg 1.24.78 | 90 | 10 | 4 | 1 |
+| Folklarm 1.25.49 | 94 | 9 | 3 | 1 |
+| Salus 1.25.62 | 94 | 9 | 3 | 1 |
+| Keyfree 1.27.23 | 96 | 9 | 0 | 0 |
+| Larmify 1.27.84 | 96 | 8 | 0 | 0 |
+| nimly connect 1.27.84 | 96 | 8 | 0 | 0 |
+| Copiax 1.28.46 | 96 | 8 | 0 | 0 |
+| iotiliti 1.28.46 | 96 | 8 | 0 | 0 |
+| nimly connect 1.28.46 | 96 | 8 | 0 | 0 |
+| Homely 1.28.61 | 96 | 8 | 0 | 0 |
+
+Counts are distinct literals.
+
+The migration runs the other way from what the baseline said. `api.customer.*`,
+partly on `onesti.aws.neurosys.pro`, is the old scheme and `api-*.iotiliti.cloud`
+the new one. The move went brand by brand and took several releases: Tryg
+1.24.73 already has ten new-form hosts and four old ones, and the last
+`api.customer.prod-neutralclone.onesti.aws.neurosys.pro` literal survives in
+every build up to 1.25.62 and is gone by 1.27.23.
+
+All three explanations in the two-build reading are out. Every build fits one
+order with no exception, so nothing was rolled back and no two branches
+disagree, and that order is the version string's own: 1.20.9, 1.22.44, 1.24.7x,
+1.25.x, 1.27.x, 1.28.x, with the Hermes bytecode version rising in step (74, 84,
+90, 94, 96) as an independent check. So the version string does order these
+builds. versionCode does not: it restarts per brand, so Larmify's 43 and
+iotiliti's 906 say nothing about each other.
+
+What broke the two-build reading was the pair, not the method. Homely 1.28.61
+and Tekam 1.22.44 sit at the two ends of the rollout with the middle missing.
+The 1.27.84 attribution was wrong on top of that: the `onesti.aws.neurosys.pro`
+hosts are not in the nimly connect 1.27.84 bundle, nor in
+`nimly-connect-decompiled.js`. The March note that recorded them says they came
+from the iotiliti build of the day, not from nimly connect.
+
+Inferred, not measured: that the app config tracks where the platform actually
+serves from. The one measurement is the March one in
+[reversing-notes.md](reversing-notes.md#api-url-migration), where a fresh token
+gave identical responses from the old host and the new, so both were live then.
+Nothing here says which host a running app picks today. That needs MITM against
+a live app.
+
+The same read closes the loose end about a brand's own host. `api.homely.no` is
+in every bundle, Confi.care 1.20.9 included, so Homely's production host is in
+the JS after all, on its own domain rather than an iotiliti subdomain, which is
+what the March table said. Keyfree 1.27.23 carries `api-keyfree` and Tryg
+1.24.73 carries `api.tryg`. Tekam is the one brand with no host of its own in
+its own bundle.
 
 ## Diffing a new decompilation
 

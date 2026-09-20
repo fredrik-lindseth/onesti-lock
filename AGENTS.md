@@ -162,7 +162,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
    - BLE uses 800-899. The sensor row is `NUM_USER_SLOTS` (10) slots from the first user slot, so 3-12 by default and 1-10 with one reserved slot. Changing `reserved_slots` reloads the entry and removes the sensors that fell out of the row.
 3. **Options flow progress**: when the `progress_task` passed to `async_show_progress` finishes, HA calls the same progress step again. Nothing named `*_done` is ever called for you. The step must check `task.done()` and, once it is, return `async_show_progress_done(next_step_id=...)`, which HA follows to that step (`set_pin_done` on success, back to the `set_pin` form with the error on failure). HA starts tasks eagerly, so a task can already be done on the first call, and the step it routes to then receives the submitted `user_input` again: form steps check a pending error before `user_input`, or they would send the command a second time.
 4. **Activity sensor suppression**: system-initiated locking (source `auto`, and on NimlyCodePRO an `unattributed` lock with no user slot) fires the HA event but does NOT update the activity sensor, so "Kari unlocked with code" is not overwritten by "Auto-lock". A `zigbee` lock with no user is someone locking from HA and stays visible, except within `WAKE_ECHO_WINDOW_S` of our own auto-wake, which the lock reports the same way. The window is a guess nobody has measured on hardware.
-5. **CI/release workflows**: both `.github/workflows/` files must reference `custom_components/onesti_lock/` (not `nimly_pro`), and so must `COMPONENT`/`ASSET_NAME` in `scripts/release_publish.py` and `filename` in `hacs.json`. The ZIP HACS installs is named from the domain.
+5. **CI/release workflows**: `ci.yml` and `release.yml` in `.github/workflows/` must reference `custom_components/onesti_lock/` (not `nimly_pro`), and so must `COMPONENT`/`ASSET_NAME` in `scripts/release_publish.py` and `filename` in `hacs.json`. The ZIP HACS installs is named from the domain. `e2e.yml`, `hassfest.yml` and `validate.yml` are not part of the release gate.
 6. **NimlyCoordinator is NOT a DataUpdateCoordinator**: it is a custom, event-driven pattern with no polling, on purpose for a battery-powered device.
 7. **No user-facing strings in Python**: sensor states and options flow labels come from the `common` section of `translations/*.json` via `localize.py` (`common` because hassfest rejects top-level keys outside HA's strings schema). Entity names and service errors go through HA's own `entity`/`exceptions` sections. `tests/test_no_hardcoded_language.py` fails the build if a Norwegian literal reappears. `strings.json` is the English source and must stay identical to `translations/en.json`.
 8. **PIN length floor**: `pin_rules.PIN_LENGTH_SANE_MIN` (4) is the shortest PIN accepted, whatever the lock reports, because `redact.py` masks digit runs of that length and up. Lowering either one alone lets a PIN reach the log in clear text. Anything that logs an exception on the send path uses `redact_digits` and no `exc_info`: an error from zigpy or from building the frame can quote `pin_code`.
@@ -180,7 +180,9 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 
 | Doc                                             | Content                                                                                       |
 | ----------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `README.md`                                     | User-facing: features, comparison, install, setup, supported devices                          |
+| `README.md`                                     | User-facing: why this on top of ZHA, supported devices, install, setup, PIN management, links to the rest |
+| `docs/user-guide.md`                            | Entities, actions, the event, multiple locks, automation examples, limitations, removal        |
+| `docs/buying-a-lock.md`                         | The case for and against these locks, and every alternative checked                           |
 | `docs/technical.md`                             | Integration internals: event decoding, coordinator, auto-wake, sleepy device, community refs  |
 | `docs/zigbee-protocol/zigbee-captures.md`       | Raw ZCL frames and verified protocol values (canonical for attrid 0x0100)                     |
 | `docs/zigbee-protocol/elife-module-spec.md`     | Onesti's own 2021 Zigbee spec for the module, and where it disagrees with what we measure     |
@@ -212,7 +214,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 | `tests/test_version_sync.py` | `hacs.json`, `uv.lock`, prose in README/AGENTS/justfile/pyproject                     | part of `pytest tests/`                         | The minimum HA version agrees everywhere it is written                                              |
 | `tests/ble/`                 | The `ble/` package alone, with `tests/ble/fake_lock.py` as the lock; no HA stubs needed | part of `pytest tests/`, or `pytest tests/ble`  | Every builder and parser, framing, crypto against NIST and app-executed vectors, session, owner login, full enrollment, package boundary |
 | `tests/ble/java/`            | The app's decompiled crypto classes on a JDK (sources local only)                     | by hand, see `docs/nimly-ble-app/ble-library.md` | Prints the `executed` vectors in `tests/ble/crypto_vectors.py`; rerun when crypto code or vectors change |
-| `tests_e2e/`                 | The release ZIP unpacked into an official HA container, no radio and no ZHA gateway    | `just e2e`, `just e2e target=minimum`           | That what HACS installs loads: component, seeded entry, 14 sensors with translated names, services, config and options flow, translations, and the blueprints validating and running. Not a word about talking to a lock; `tests_e2e/README.md` has the limits |
+| `tests_e2e/`                 | The release ZIP unpacked into an official HA container, no radio and no ZHA gateway    | `just e2e`, `just e2e target=minimum`           | That what HACS installs loads: component, seeded entry, the whole sensor row with translated names (`EXPECTED_ENTITIES` in `driver.py`), services, config and options flow, translations, and the blueprints validating and running. Not a word about talking to a lock; `tests_e2e/README.md` has the limits |
 
 ```bash
 just test-unit              # tests/ in the unit group, as CI runs it
@@ -300,7 +302,9 @@ comment; zigpy's own types (`zigpy.zcl.Cluster`) are used where they exist.
 
 `custom_components/onesti_lock/quality_scale.yaml` is the self-declaration
 against Home Assistant's Integration Quality Scale: every rule is `done`,
-`todo` or `exempt` with a comment saying why. hassfest does not validate the
+`todo` or `exempt` with a comment saying why. No tier is declared:
+`manifest.json` has no `quality_scale` key, and the test only checks a tier's
+rules once one is written there. hassfest does not validate the
 file for custom integrations (`validate_iqs_file` returns early when the
 integration is not core), so `tests/test_quality_scale.py` does it instead,
 with the same rule list and schema hassfest uses for core. Solving a rule
@@ -393,7 +397,7 @@ are byte-identical and anyone can rebuild and compare. `hide_default_branch` is
 required alongside `zip_release`; without it, installing the default branch
 404s because there is no ZIP there.
 
-1. Run the gates: `just test-unit`, `python3 scripts/ci_sim.py`, `just test-ha minimum`, `just test-ha current`, `uv lock --check`.
+1. Run the gates CI runs: `just test-unit`, `python3 scripts/ci_sim.py`, `just test-ha minimum`, `just mypy`, `just coverage`, `uv lock --check`. `just e2e` runs on pull requests only and is not in the release gate.
 2. Write the release note in `CHANGELOG.md` under `## [X.Y.Z]`, and mark the bullets a user would notice with `<!--short-->`. The marked ones become the release body; CI fails without them.
 3. Bump `version` in `custom_components/onesti_lock/manifest.json`. It is the only version that counts: `pyproject.toml` holds a `0.0.0` placeholder that nothing reads, so leave it.
 4. Commit as `chore: release X.Y.Z`, without `[skip ci]`. GitHub skips every workflow for a push whose head commit carries it, the release included. That happened with 1.3.0: the bump commit had `[skip ci]`, so the tag landed on the next push, a docs commit.

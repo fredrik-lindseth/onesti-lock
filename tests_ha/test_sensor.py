@@ -147,22 +147,51 @@ async def test_every_sensor_is_available_once_the_listener_is_registered(
         assert hass.states.get(entity.entity_id).state != "unavailable", entity.entity_id
 
 
-async def test_every_sensor_is_unavailable_without_a_listener(hass: HomeAssistant, mock_zha) -> None:
-    """No listener means no lock event arrives, so nothing here is kept up to date."""
-    entry = await _setup_entry(hass)
+async def test_only_the_activity_sensor_goes_unavailable_without_a_listener(
+    hass: HomeAssistant, mock_zha
+) -> None:
+    """No listener means no lock event arrives, so only that value goes stale.
+
+    Slot names, PIN status and the lock's reported numbers are Home
+    Assistant's own stored data. They are as true with ZHA down as with it
+    up, and the options flow and the services still write them, so hiding
+    them empties the user's dashboard for no reason.
+    """
+    entry = await _setup_entry(hass, slots={"5": {"name": "Kari", "has_pin": True}})
     coordinator = _coordinator(hass, entry)
+    activity = _entity_id(hass, "activity")
 
     coordinator.set_available(False)
     await hass.async_block_till_done()
 
+    assert hass.states.get(activity).state == "unavailable"
     for entity in _enabled_entities(hass, entry):
-        assert hass.states.get(entity.entity_id).state == "unavailable", entity.entity_id
+        if entity.entity_id == activity:
+            continue
+        assert hass.states.get(entity.entity_id).state != "unavailable", entity.entity_id
+    slot_five = hass.states.get(_entity_id(hass, "slot-5"))
+    assert slot_five.state == "Kari"
+    assert slot_five.attributes["has_pin"] is True
 
     coordinator.set_available(True)
     await hass.async_block_till_done()
 
     for entity in _enabled_entities(hass, entry):
         assert hass.states.get(entity.entity_id).state != "unavailable", entity.entity_id
+
+
+async def test_capability_sensors_stay_available_without_a_listener(
+    hass: HomeAssistant, mock_zha
+) -> None:
+    """Their value is read out of entry.options, so ZHA cannot make it stale."""
+    entry = await _setup_entry(hass)
+    await _enable_capability_sensors(hass, entry)
+
+    _coordinator(hass, entry).set_available(False)
+    await hass.async_block_till_done()
+
+    for suffix, value in CAPABILITY_SENSORS.items():
+        assert hass.states.get(_entity_id(hass, suffix)).state == str(value)
 
 
 # -- Slot sensors --

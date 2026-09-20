@@ -15,6 +15,8 @@ Where master slots end and user slots begin depends on the model. According to t
 | 1-2        | Additional master codes             | User codes                          | Manuals, see quotes below. Code Pro: a fingerprint and a keypad code on slot 1 captured in a Code Pro's own log, see below |
 | 3-999      | User codes, RFID tags, fingerprints | User codes, RFID tags, fingerprints | Manuals. Slots 3-4 verified via `attrid 0x0100` events                  |
 
+What that means at the keypad: change the factory code straight away. According to the manuals, master codes cannot be deleted, only overwritten, and the master code also opens the door (the Code Pro can be set to use it for programming only). Fingerprints and key tags have their own ranges in each manual (the Touch Pro takes user fingerprints on 003-199, see [below](#fingerprints-have-their-own-numbering)), so check yours before naming those slots. The integration's default of three reserved slots is safe on every model.
+
 The vendor's own 2021 Zigbee spec ([zigbee-protocol/elife-module-spec.md](zigbee-protocol/elife-module-spec.md))
 documents Set PIN Code and Clear PIN Code with `user id 1-50`. Read
 literally, slot 0 is not writable over Zigbee and slots 1 and 2 are, on the

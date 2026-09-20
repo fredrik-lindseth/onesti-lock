@@ -120,6 +120,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 | `ble/client/`                                  | `transport` (the seam), `session`, `auth` (owner login), `enrollment` (factory-reset takeover, `Enrollment` storage form) |
 | `tests/ble/fake_lock.py`                       | A lock played in software behind `Transport`; lists what it assumes about the real lock                           |
 | `scripts/ble_cli.py`                           | Runs the BLE library against a real lock over bleak (`just ble`): scan to enroll, `--yes` for writes, redacted frame trace; see "Running it against a lock" in `ble-library.md` |
+| `tools/esphome/ble-debug-proxy.yaml`           | ESPHome firmware for the BLE debug proxy by the door: 0xFD00 logging, persistent NVS diagnostics, core dump partition; `tools/esphome/README.md` covers flashing |
 | `blueprints/automation/`                       | Blueprints users import by hand; HACS never updates imported copies                                              |
 | `scripts/release_publish.py`                   | The release state machine: deterministic ZIP, tag, draft, attestation check, publish (see Releasing)             |
 | `.github/workflows/release.yml`                | Runs CI for the candidate SHA, then builds, attests and publishes through `release_publish.py`                  |
@@ -164,6 +165,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 | `docs/nimly-ble-app/ble-protocol.md`            | BLE protocol from decompiled nimly BLE app (not used by integration)                          |
 | `docs/nimly-ble-app/ble-auth-provisioning.md`   | Owner enrollment over BLE: local ECDH owner key, factory-reset default cred, cloud only for guests |
 | `docs/nimly-ble-app/ble-library.md`             | The `ble/` library: layers, API, transports, Enrollment storage, errors, vector provenance, verified vs lock-only |
+| `tools/esphome/README.md`                       | The BLE debug proxy: board and output power, secrets, USB-first flashing, core dumps, NVS counters, Active scanning |
 | `docs/connect-bridge/hardware-gateway.md`       | Connect Bridge hardware, network stack, firmware                                              |
 | `docs/slot-numbering.md`                        | Slot numbering across Zigbee, BLE and cloud, verified and unverified                          |
 | `docs/manuals/README.md`                        | Index of vendor manuals per model and brand, fetched locally by `scripts/fetch_manuals.py`    |

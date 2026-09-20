@@ -364,7 +364,11 @@ integrations do, then wrap the client as above. An ESPHome Bluetooth proxy
 needs nothing extra: Home Assistant routes the connection through it when the
 proxy is the closest adapter, as long as the proxy has active connections
 enabled. A proxy has only a few connection slots, so the session should be
-closed as soon as the work is done. That glue imports Home Assistant, so it
+closed as soon as the work is done. `tools/esphome/README.md` is the proxy
+used here: an ESP32-C3 by the door, flashed with a debug build that logs the
+lock's `0xFD00` advertisements and keeps its counters across reboots, so
+"does the lock advertise at all" can be answered before anything tries to
+connect to it. That glue imports Home Assistant, so it
 lives outside `ble/`, in the integration's `bluetooth.py`
 ([technical.md](../technical.md#reaching-the-lock-over-bluetooth)). Read the
 client class off `bleak_retry_connector` at call time, as above, rather than

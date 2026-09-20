@@ -1,0 +1,587 @@
+# Bluetooth proxy by the front door, turned into a debug proxy for the
+# Onesti/Nimly lock. README.md next to this file covers building, flashing
+# and reading the diagnostics back.
+#
+# Based on esphome/bluetooth-proxies esp32-generic/esp32-generic-c3.yaml,
+# which is what the device runs today (ready-made firmware 26.4.0, ESPHome
+# 2026.4.0, flashed from the web installer and never adopted, so there was no
+# YAML on the HA host). Name and suffix are kept so Home Assistant keeps the
+# same device (esp32-bluetooth-proxy-06ef8c) and config entry.
+#
+# The ready-made firmware has no API encryption and no OTA password, so there
+# is nothing to carry over. Wi-Fi credentials came from Improv and live in
+# NVS; this build takes them from the ESPHome secrets.yaml instead.
+#
+# Deliberately dropped from the ready-made build: the http_request update
+# entity (it would offer the stock firmware and overwrite this build),
+# improv_serial, dashboard_import and the factory reset button.
+#
+# Two things here outlive a power cut, so an outage can be investigated after
+# the fact instead of only while it happens:
+#
+#   1. A set of restoring globals in NVS (counters, last sighting, Wi-Fi and
+#      API drops, boot count, uptime and reset reason of the previous boot),
+#      each exposed as a diagnostic entity. See the "globals" block for the
+#      flash-wear reasoning.
+#   2. An ESP-IDF core dump written to its own flash partition on a panic,
+#      readable over USB afterwards. See the "esp32" block for how to pull it
+#      out and read it.
+
+substitutions:
+  name: esp32-bluetooth-proxy
+  friendly_name: Bluetooth Proxy
+  # Service data UUID the lock advertises: [seed:2][identifier:6]
+  lock_service_uuid: "0xFD00"
+  # Control UUID: a 16-bit service data UUID that something in this house
+  # advertises on all the time (0xFCF1 is Google; three phones/trackers here
+  # carry it). Matched with exactly the same expression as the lock UUID, so
+  # a counter that keeps climbing proves the FD00 path is alive and that
+  # 16-bit service data UUIDs compare the way we think. Without it, "counter
+  # stuck at 0" cannot be told apart from "lambda never runs".
+  control_service_uuid: "0xFCF1"
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  min_version: 2025.8.0
+  name_add_mac_suffix: true
+  on_boot:
+    # Priority -100 (LATE) so every component has finished setup(): the
+    # restoring globals have loaded from NVS (they set up at HARDWARE
+    # priority) and the debug component has published this boot's reset
+    # reason. Everything read here is the state from *before* the reset, and
+    # it is read before it gets overwritten.
+    - priority: -100
+      then:
+        - lambda: |-
+            // Carried over from the previous boot, then overwritten below.
+            id(prev_uptime).publish_state(id(p_uptime_now));
+            id(prev_reset_reason).publish_state(id(p_reset_reason).empty()
+                                                ? "unknown"
+                                                : id(p_reset_reason));
+            // Put the last FD00 sighting back on the live entities, so they
+            // are not "unknown" after a reboot.
+            if (id(p_adv_total) > 0) {
+              id(lock_adv_rssi).publish_state(id(p_adv_last_rssi));
+              id(lock_adv_last).publish_state(id(p_adv_last));
+            }
+            ESP_LOGI("persist",
+                     "restored: boots=%u fd00_total=%u last_rssi=%d "
+                     "runtime_total=%us prev_uptime=%us prev_reset=%s "
+                     "wifi_drops=%u api_drops=%u wifi_rssi_min=%.0f",
+                     (unsigned) id(p_boot_count), (unsigned) id(p_adv_total),
+                     id(p_adv_last_rssi), (unsigned) id(p_runtime_total),
+                     (unsigned) id(p_uptime_now), id(p_reset_reason).c_str(),
+                     (unsigned) id(p_wifi_drops), (unsigned) id(p_api_drops),
+                     id(p_wifi_rssi_min));
+            // Now claim this boot.
+            id(p_boot_count) += 1;
+            id(p_uptime_now) = 0;
+            id(rt_last_tick) = 0;
+            // p_reset_reason is not written here: the debug component only
+            // publishes this boot's reason from dump_config(), which runs
+            // after every on_boot trigger, so the state is still empty at
+            // this point. The on_value hook on that text sensor writes it.
+
+esp32:
+  variant: esp32c3
+  flash_size: 4MB
+  # A core dump partition of its own. ESPHome appends custom partitions after
+  # the built-in ones and shrinks app0/app1 to pay for it, so OTA keeps
+  # working by construction: both slots stay the same size as each other and
+  # the build fails if the firmware no longer fits. 64 KB is far more than a
+  # C3 dump needs (task TCBs plus stacks, DRAM capture is off).
+  #
+  # NOTE: the partition table only changes over USB. An OTA update from a
+  # build without this partition to one with it will NOT move the table, so
+  # the first flash with this config has to go over the serial port.
+  #
+  # Reading a dump out afterwards, with the device on USB. The offset below
+  # is where it landed on 2026-09-20; it moves if any partition size changes,
+  # and the running device prints the whole table at boot
+  # ("[C][debug:159]: Partition table:"), so read it there rather than
+  # trusting this number.
+  #
+  #   # 1. pull the raw partition off the chip (esptool 5.x spelling):
+  #   python -m esptool --chip esp32c3 -p /dev/cu.usbmodem2101 \
+  #       read-flash 0x3E0000 0x10000 coredump.bin
+  #
+  #   # 2. decode it (pip install esp-coredump; the PyPI entry point is
+  #   #    called esp-coredump, not espcoredump.py):
+  #   esp-coredump --chip esp32c3 info_corefile -t raw -c coredump.bin \
+  #       .esphome/build/<name>/.pioenvs/<name>/firmware.elf
+  #
+  # An erased partition reads back as all 0xFF and esp-coredump answers
+  # 'Core dump version "0xffff" is not supported', which is the healthy case
+  # and also proves the read works. Verified that way on 2026-09-20.
+  #
+  # Two things esp-coredump needs for a real dump: the ELF has to be the
+  # exact build that crashed, or the backtrace is fiction, and unwinding
+  # wants a RISC-V gdb on PATH, e.g.
+  #   PATH=~/.platformio/packages/tool-riscv32-esp-elf-gdb/bin:$PATH
+  # Its other mode, reading straight off the port
+  # (esp-coredump -p <port> info_corefile <elf>), refuses to run without a
+  # full ESP-IDF environment, so the two-step route above is the one to use.
+  #
+  #   # erase a dump once it has been read, so the next crash is unambiguous:
+  #   python -m esptool --chip esp32c3 -p /dev/cu.usbmodem2101 \
+  #       erase-region 0x3E0000 0x10000
+  partitions:
+    - name: coredump
+      type: data
+      subtype: coredump
+      size: 0x10000
+  framework:
+    type: esp-idf
+    advanced:
+      # ESPHome excludes the espcoredump IDF component by default (its own
+      # debug component covers the common cases). Put it back.
+      include_builtin_idf_components:
+        - espcoredump
+    sdkconfig_options:
+      CONFIG_BT_BLE_42_FEATURES_SUPPORTED: y
+      CONFIG_BT_BLE_50_FEATURES_SUPPORTED: n
+      # Core dump to the flash partition above, ELF format (so espcoredump
+      # can name tasks and unwind stacks), CRC32 so a half-written dump is
+      # detected rather than decoded into fiction.
+      CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH: y
+      CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF: y
+      CONFIG_ESP_COREDUMP_CHECKSUM_CRC32: y
+      CONFIG_ESP_COREDUMP_MAX_TASKS_NUM: "32"
+      CONFIG_ESP_COREDUMP_STACK_SIZE: "1024"
+
+logger:
+  level: DEBUG
+  logs:
+    esp32_ble_tracker: DEBUG
+    bluetooth_proxy: DEBUG
+    # The 0xFD00 lines below are tagged "lock_adv".
+    lock_adv: DEBUG
+    # The restored-from-NVS summary at boot is tagged "persist".
+    persist: DEBUG
+    # Periodic sensors would drown the lock lines.
+    sensor: INFO
+    text_sensor: INFO
+
+api:
+  # Default is 15 min. Shorter so a proxy that lost HA recovers by itself
+  # within a debug session.
+  reboot_timeout: 5min
+  on_client_disconnected:
+    - lambda: id(p_api_drops) += 1;
+
+ota:
+  - platform: esphome
+    id: ota_esphome
+
+safe_mode:
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  # BLE and Wi-Fi share one radio on the C3 and time-slice it through
+  # ESP-IDF coexistence, which as far as I know relies on modem sleep.
+  # ESPHome accepts "none" here, but it is untested with BLE on this chip,
+  # so stay on the default and try "none" only if the drops continue.
+  power_save_mode: light
+  # 20 dB is the default. Lowered because many cheap C3 boards brown out or
+  # detune at full power. 8.5dB because the board is a "C3 Super Mini":
+  # esptool reports a bare ESP32-C3 QFN32 rev v0.4 with embedded 4MB XMC
+  # flash, and the only USB port is the chip's own USB-Serial/JTAG. A
+  # DevKitM-1/DevKitC would carry an ESP32-C3-MINI-1 module and a second
+  # port on a CP2102N bridge, which does not enumerate here.
+  output_power: 8.5dB
+  # Reboot if Wi-Fi stays down, instead of the default 15 min.
+  reboot_timeout: 5min
+  # No fast_connect: the SSID is served by more than one AP, and fast_connect
+  # takes the first one found rather than the strongest.
+  # No static IP: pin 192.168.3.125 as a DHCP reservation in UniFi instead.
+  ap:
+  on_disconnect:
+    - lambda: id(p_wifi_drops) += 1;
+
+captive_portal:
+
+esp32_ble_tracker:
+  scan_parameters:
+    # Home Assistant overrides active/passive at runtime (the ESPHome entry's
+    # "Bluetooth scanning mode" option, currently Auto). Set that to Active.
+    active: true
+    # Default window is 30 ms of 320 ms (~9 %). 120 ms (~37 %) catches far
+    # more of a sparse advertiser without starving Wi-Fi. Do not set
+    # window = interval on a C3: Wi-Fi gets no airtime and the device drops.
+    interval: 320ms
+    window: 120ms
+  on_ble_advertise:
+    - then:
+        - lambda: |-
+            for (auto &sd : x.get_service_datas()) {
+              // Any service data at all on a 16-bit UUID: proof that this
+              // trigger runs and that the parser hands us 16-bit UUIDs.
+              if (sd.uuid.get_uuid().len == ESP_UUID_LEN_16) {
+                id(sd16_count) += 1;
+                if (sd.uuid == esp32_ble_tracker::ESPBTUUID::from_uint16(${control_service_uuid})) {
+                  id(ctrl_adv_count) += 1;
+                }
+              }
+              if (!(sd.uuid == esp32_ble_tracker::ESPBTUUID::from_uint16(${lock_service_uuid}))) {
+                continue;
+              }
+              char hex[2 * 32 + 1] = {0};
+              size_t n = std::min<size_t>(sd.data.size(), 32);
+              for (size_t i = 0; i < n; i++) {
+                sprintf(hex + 2 * i, "%02X", sd.data[i]);
+              }
+              ESP_LOGD("lock_adv", "FD00 from %s rssi=%d len=%u data=%s",
+                       x.address_str().c_str(), x.get_rssi(),
+                       (unsigned) sd.data.size(), hex);
+              id(lock_adv_count) += 1;
+              id(lock_adv_rssi).publish_state(x.get_rssi());
+              std::string summary = x.address_str() + " " + hex;
+              if (id(lock_adv_last).state != summary) {
+                id(lock_adv_last).publish_state(summary);
+              }
+              // Persisted copies. Writing to a restoring global only touches
+              // RAM; the component flushes to NVS on its own schedule, so a
+              // burst of advertisements costs no flash writes.
+              id(p_adv_total) += 1;
+              id(p_adv_last_rssi) = x.get_rssi();
+              id(p_adv_last) = summary;
+              id(p_adv_last_seen) = id(p_runtime_total) +
+                                    (millis() / 1000 - id(rt_last_tick));
+            }
+
+bluetooth_proxy:
+  active: true
+  cache_services: true
+  # Default 3. The lock work needs one; more slots cost RAM on the C3.
+  connection_slots: 3
+
+# Persistent diagnostics.
+#
+# Flash wear: every global below is a PollingComponent that writes to NVS
+# only from its update() tick, and only when the value actually changed
+# (RestoringGlobalsComponent::store_value_ memcmps first). update_interval is
+# 60s on all of them, so the worst case is twelve small NVS writes per
+# minute, about 17k/day. ESP-IDF NVS is log-structured with 126 entries per
+# 4 KB page and this build gives it a 448 KB partition (112 sectors), so that
+# is roughly one erase per sector per day against a 100k-cycle endurance.
+# Decades, not months. Do not lower update_interval here: the hot paths
+# (every BLE advertisement) write to RAM and rely on this throttle.
+globals:
+  # --- runtime only, not persisted ---
+  - id: lock_adv_count
+    type: uint32_t
+    restore_value: false
+    initial_value: "0"
+  # Control counters, see control_service_uuid above. Not persisted: they are
+  # only there to answer "is the FD00 path alive right now".
+  - id: sd16_count
+    type: uint32_t
+    restore_value: false
+    initial_value: "0"
+  - id: ctrl_adv_count
+    type: uint32_t
+    restore_value: false
+    initial_value: "0"
+  # Seconds of this boot at the last runtime tick, used to extrapolate the
+  # cumulative runtime between ticks.
+  - id: rt_last_tick
+    type: uint32_t
+    restore_value: false
+    initial_value: "0"
+
+  # --- persisted in NVS ---
+  - id: p_adv_total
+    type: uint32_t
+    restore_value: true
+    update_interval: 60s
+    initial_value: "0"
+  - id: p_adv_last
+    type: std::string
+    restore_value: true
+    update_interval: 60s
+    max_restore_data_length: 63
+  - id: p_adv_last_rssi
+    type: int
+    restore_value: true
+    update_interval: 60s
+    initial_value: "0"
+  # Cumulative device runtime (see p_runtime_total) at the last FD00 sighting.
+  - id: p_adv_last_seen
+    type: uint32_t
+    restore_value: true
+    update_interval: 60s
+    initial_value: "0"
+  # Seconds this device has been powered, summed over every boot. There is no
+  # RTC and no time source that survives a power cut, so "how long since the
+  # lock was last heard" is measured in device runtime, not wall clock: time
+  # spent powered off is not counted. Good enough to answer "did it go quiet
+  # before or after the outage".
+  - id: p_runtime_total
+    type: uint32_t
+    restore_value: true
+    update_interval: 60s
+    initial_value: "0"
+  - id: p_wifi_rssi_min
+    type: float
+    restore_value: true
+    update_interval: 60s
+    initial_value: "0.0f"
+  - id: p_wifi_rssi_last
+    type: float
+    restore_value: true
+    update_interval: 60s
+    initial_value: "0.0f"
+  - id: p_wifi_drops
+    type: uint32_t
+    restore_value: true
+    update_interval: 60s
+    initial_value: "0"
+  - id: p_api_drops
+    type: uint32_t
+    restore_value: true
+    update_interval: 60s
+    initial_value: "0"
+  - id: p_boot_count
+    type: uint32_t
+    restore_value: true
+    update_interval: 60s
+    initial_value: "0"
+  # Uptime of the boot that is running now, rewritten once a minute. After a
+  # reset the value left here is how far the previous boot got, which is what
+  # "Uptime before last reset" reports.
+  - id: p_uptime_now
+    type: uint32_t
+    restore_value: true
+    update_interval: 60s
+    initial_value: "0"
+  # Reset reason of the boot that is running now, written once at boot. After
+  # a reset the value left here is the previous boot's reason, so a crash can
+  # still be named after the reboot that followed it.
+  - id: p_reset_reason
+    type: std::string
+    restore_value: true
+    update_interval: 60s
+    max_restore_data_length: 31
+
+interval:
+  # The one periodic writer. Everything it touches is compared before it is
+  # stored, so a quiet minute costs nothing.
+  - interval: 60s
+    then:
+      - lambda: |-
+          uint32_t now = millis() / 1000;
+          id(p_runtime_total) += now - id(rt_last_tick);
+          id(rt_last_tick) = now;
+          id(p_uptime_now) = now;
+          float rssi = id(wifi_rssi).state;
+          if (!std::isnan(rssi) && rssi < 0.0f) {
+            id(p_wifi_rssi_last) = rssi;
+            if (id(p_wifi_rssi_min) >= 0.0f || rssi < id(p_wifi_rssi_min)) {
+              id(p_wifi_rssi_min) = rssi;
+            }
+          }
+
+debug:
+  update_interval: 30s
+
+sensor:
+  - platform: template
+    id: lock_adv_rssi
+    name: "Lock FD00 RSSI"
+    unit_of_measurement: dBm
+    device_class: signal_strength
+    state_class: measurement
+    entity_category: diagnostic
+    update_interval: never
+    filters:
+      # The lock may advertise several times a second; keep the recorder sane.
+      - throttle: 5s
+  - platform: template
+    name: "Lock FD00 advertisements"
+    icon: mdi:counter
+    state_class: total_increasing
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    update_interval: 10s
+    lambda: return id(lock_adv_count);
+  - platform: template
+    name: "Service data 16-bit advertisements"
+    icon: mdi:counter
+    state_class: total_increasing
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    update_interval: 10s
+    lambda: return id(sd16_count);
+  - platform: template
+    name: "Control ${control_service_uuid} advertisements"
+    icon: mdi:counter
+    state_class: total_increasing
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    update_interval: 10s
+    lambda: return id(ctrl_adv_count);
+  - platform: template
+    name: "Lock FD00 total"
+    icon: mdi:counter
+    state_class: total_increasing
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    update_interval: 60s
+    lambda: return id(p_adv_total);
+  - platform: template
+    name: "Lock FD00 age"
+    icon: mdi:clock-alert-outline
+    unit_of_measurement: s
+    device_class: duration
+    state_class: measurement
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    update_interval: 60s
+    lambda: |-
+      if (id(p_adv_total) == 0) {
+        return NAN;
+      }
+      uint32_t now = id(p_runtime_total) + (millis() / 1000 - id(rt_last_tick));
+      return now - id(p_adv_last_seen);
+  - platform: uptime
+    name: Uptime
+    entity_category: diagnostic
+  - platform: template
+    id: prev_uptime
+    name: "Uptime before last reset"
+    unit_of_measurement: s
+    device_class: duration
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    update_interval: never
+  - platform: template
+    name: "Runtime total"
+    icon: mdi:timer-outline
+    unit_of_measurement: s
+    device_class: duration
+    state_class: total_increasing
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    update_interval: 60s
+    lambda: return id(p_runtime_total) + (millis() / 1000 - id(rt_last_tick));
+  - platform: template
+    name: "Boot count"
+    icon: mdi:restart
+    state_class: total_increasing
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    update_interval: 60s
+    lambda: return id(p_boot_count);
+  - platform: template
+    name: "WiFi disconnects"
+    icon: mdi:wifi-off
+    state_class: total_increasing
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    update_interval: 60s
+    lambda: return id(p_wifi_drops);
+  - platform: template
+    name: "API disconnects"
+    icon: mdi:lan-disconnect
+    state_class: total_increasing
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    update_interval: 60s
+    lambda: return id(p_api_drops);
+  - platform: template
+    name: "WiFi signal minimum"
+    unit_of_measurement: dBm
+    device_class: signal_strength
+    state_class: measurement
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    update_interval: 60s
+    lambda: |-
+      if (id(p_wifi_rssi_min) >= 0.0f) {
+        return NAN;
+      }
+      return id(p_wifi_rssi_min);
+  - platform: template
+    name: "WiFi signal stored"
+    unit_of_measurement: dBm
+    device_class: signal_strength
+    state_class: measurement
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    update_interval: 60s
+    lambda: |-
+      if (id(p_wifi_rssi_last) >= 0.0f) {
+        return NAN;
+      }
+      return id(p_wifi_rssi_last);
+  - platform: wifi_signal
+    id: wifi_rssi
+    name: WiFi signal
+    update_interval: 30s
+    entity_category: diagnostic
+  - platform: copy
+    source_id: wifi_rssi
+    name: WiFi signal %
+    unit_of_measurement: "%"
+    icon: mdi:wifi
+    entity_category: diagnostic
+    filters:
+      - lambda: return min(max(2 * (x + 100.0), 0.0), 100.0);
+  - platform: internal_temperature
+    name: Chip temperature
+    entity_category: diagnostic
+  - platform: debug
+    free:
+      name: Heap free
+    block:
+      name: Heap largest block
+    loop_time:
+      name: Loop time
+
+text_sensor:
+  - platform: template
+    id: lock_adv_last
+    name: "Lock FD00 last"
+    icon: mdi:lock-question
+    entity_category: diagnostic
+    update_interval: never
+  - platform: template
+    id: prev_reset_reason
+    name: "Reset reason before last"
+    icon: mdi:history
+    entity_category: diagnostic
+    update_interval: never
+  - platform: version
+    name: ESPHome version
+    hide_timestamp: false
+  - platform: wifi_info
+    ip_address:
+      name: IP address
+    bssid:
+      # Tells which AP it is on; the SSID has several.
+      name: WiFi BSSID
+  - platform: debug
+    device:
+      name: Device info
+    reset_reason:
+      id: debug_reset_reason
+      name: Reset reason
+      on_value:
+        # Published once, from dump_config(), after on_boot has read the
+        # previous boot's value out of p_reset_reason. Overwriting it here is
+        # what makes "Reset reason before last" work on the next boot.
+        - lambda: |-
+            id(p_reset_reason) = x;
+            ESP_LOGI("persist", "stored reset reason for next boot: %s", x.c_str());
+
+button:
+  - platform: restart
+    name: Restart
+  - platform: safe_mode
+    id: button_safe_mode
+    name: Safe Mode Boot
+
+# No web_server: on a C3 the RAM goes to BLE connection slots, and HA plus
+# the API log stream already give everything the web UI would.

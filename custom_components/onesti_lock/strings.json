@@ -88,6 +88,15 @@
       },
       "last_activity": {
         "name": "Last activity"
+      },
+      "pin_users": {
+        "name": "PIN slots"
+      },
+      "pin_length_min": {
+        "name": "Shortest PIN code"
+      },
+      "pin_length_max": {
+        "name": "Longest PIN code"
       }
     }
   },

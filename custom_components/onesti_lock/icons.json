@@ -6,6 +6,15 @@
       },
       "last_activity": {
         "default": "mdi:door-closed-lock"
+      },
+      "pin_users": {
+        "default": "mdi:account-multiple"
+      },
+      "pin_length_min": {
+        "default": "mdi:arrow-collapse-horizontal"
+      },
+      "pin_length_max": {
+        "default": "mdi:arrow-expand-horizontal"
       }
     }
   },

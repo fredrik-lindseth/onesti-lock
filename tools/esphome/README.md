@@ -52,12 +52,16 @@ device ran before. Do not commit a `secrets.yaml` here.
 ## Building and flashing
 
 ESPHome is not a dependency of this repository. Built and flashed with 2026.9.0
-last; nothing in the config has been renamed or deprecated since 2026.4.0, and
-`min_version` in the YAML is only a floor. Use a throwaway virtualenv and
-a throwaway working directory, because `secrets.yaml` has to sit next to the
-config:
+last, and `min_version` in the YAML is only a floor. Use a throwaway virtualenv
+and a throwaway working directory, because `secrets.yaml` has to sit next to
+the config.
+
+ESPHome 2026.9.0 requires Python 3.12 or newer and refuses 3.15 and up
+(`Requires-Python: >=3.12,<3.15`). 3.11 was dropped in 2026.7.0. Built on 3.14
+last, which is what a current Homebrew `python3` gives:
 
 ```bash
+python3 --version     # must be 3.12, 3.13 or 3.14
 python3 -m venv /tmp/esphome-venv
 /tmp/esphome-venv/bin/pip install esphome==2026.9.0
 mkdir -p /tmp/bleproxy-flash
@@ -98,6 +102,63 @@ and only does active sweeps for four minutes after a connection and then every
 twelve hours, which is not enough to say whether the lock advertises. The
 change needs no reflash; the serial log confirms it with
 `Setting scanner mode to active`.
+
+## Seeing every advertisement during a session
+
+At `DEBUG` the log shows our own `0xFD00` filter and nothing else, so a quiet
+log does not mean a quiet radio. `esp32_ble_tracker`'s per-advertisement
+`gap_scan_result` line moved from `DEBUG` to `VERY_VERBOSE` in ESPHome 2025.9.0
+([esphome#10917](https://github.com/esphome/esphome/pull/10917)). The control
+counters ("Service data 16-bit advertisements" and "Control 0xFCF1
+advertisements") prove the scanner is alive, but they say nothing about what
+the lock sends.
+
+Two switches turn that on mid-session, no reflash, both off after every boot
+and both turning themselves off again after six minutes (`log_window` in the
+YAML). Flip a switch again to restart the countdown.
+
+- **Raw advertisement log**: our own dump, one block per advertisement from
+  every device in range, with address, address type, RSSI, advertised name,
+  every service UUID, every service data payload in hex and every manufacturer
+  data payload in hex. This is the one to use while the lock's battery is
+  pulled. Its lines are tagged `raw_adv` at `DEBUG`.
+- **BLE tracker verbose log**: raises the `esp32_ble_tracker` tag to
+  `VERY_VERBOSE` at runtime through `logger.set_level`, which brings back
+  `gap_scan_result` plus the scanner's internal state. Louder and harder to
+  read than the switch above; reach for it when even the raw dump stays
+  silent, to see whether the radio delivers anything at all.
+
+On Fredrik's instance the entities are
+`switch.stuen_esp32_c3_mini_bt_proxy_raw_advertisement_log` and
+`switch.stuen_esp32_c3_mini_bt_proxy_ble_tracker_verbose_log`.
+
+The runtime switch only works because `logger:` compiles `VERY_VERBOSE` into
+the image (`level: VERY_VERBOSE`) while printing at `DEBUG`
+(`initial_level: DEBUG`), with `runtime_tag_levels: true` so a single tag can
+be raised later. Anything above `level:` is compiled out and can never be
+switched on. The price is flash: 79.4 % against 77.5 % for the same config with
+a `DEBUG` ceiling, roughly 34 KB. RAM is unchanged at 44.6 %. A suppressed log
+call costs a level compare and returns before any formatting, so the ceiling
+does not slow down the scan path.
+
+Expect one warning line at every boot:
+
+```
+[W][logger:251]: VERY_VERBOSE logging is active — significant performance impact, short-term debugging only
+```
+
+That is about the compiled ceiling, not about what is being printed, and it is
+the price of having the switch at all.
+
+**What is safe to leave on.** Passive scanning with both switches on is fine;
+that is what the session at the lock is for. A GATT session through the proxy
+is not. Heavy logging with Home Assistant subscribed to the log stream is the
+exact load that turned a 185 ms characteristic write into a 19 second failure
+in [esphome#16036](https://github.com/esphome/esphome/pull/16036), on a chip
+that shares one radio between BLE and Wi-Fi like this C3 does. Turn both off
+before anything connects to the lock. If the log drowns
+`home-assistant.log`, read it over USB or the API with `esphome logs` instead
+and turn off the log subscription on the ESPHome entry in Home Assistant.
 
 ## Persistent counters
 

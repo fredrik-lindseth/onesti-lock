@@ -488,6 +488,39 @@ forums had gotten it working" (#80, **relayed**). Nobody in the archive ever
 has, and one Zigbee device joins one network, so read that as support being
 vague rather than as a hint.
 
+## The two Swedish forums, half opened
+
+Both had stood in the archive as "Cloudflare 403" since the sweep. On
+2026-09-20 two of the four rows were read, one through the public r.jina.ai
+text reader, which sweclockers serves and byggahus does not, and one by
+rendering the page in a browser and reading the screenshots. Neither yielded
+anything that changes a line in this repo, and saying so is most of the
+value: the guess that the Swedish threads would be more technical than the
+Norwegian ones does not hold for these two.
+
+sweclockers thread 1713551 (April 2024) is two posts and no answers. A Touch
+Pro owner tired of running a hub per brand asks whether Homey Pro gives him
+Nimly's full feature set, meaning cloud control for remote unlock and code
+management, and whether the lock can be put in Apple's keys so a phone tap
+opens the door (**anecdote**, both questions). A second member asks whether
+Nimly's own gateway is needed at all next to a Homey. Nobody replied to
+either, in two and a half years.
+
+byggahus thread 543716 (March 2025) is seven posts about Z2M against ZHA,
+five of which could be read. The buyer has a Connect Module and a SkyConnect
+dongle and has been told the module works with both bridges, "but not
+simultaneously" (**relayed**, source not named, and it matches the one
+Zigbee network per device the rest of this file describes). The answers are
+the usual preference argument: both work, Homey works too, Z2M exposes more
+detail and more devices at the price of more setup and can be moved off Home
+Assistant later. No frames, no payloads, no firmware versions.
+
+Nothing in either thread touches Bluetooth, unloc, the Connect Bridge, date
+codes or module revisions, and nothing contradicts anything written here.
+byggahus 497166, the 37-page Touch/Touch Pro thread, and 573457, the Code
+thread, are still unread; `docs/manuals/README.md` says what stopped each
+route and what would open them.
+
 ## What does not exist anywhere
 
 Listing this is the point of the sweep as much as the findings are. None of
@@ -547,11 +580,15 @@ the gateway) and three smaller Home Assistant ones.
   lock", 2021-08-21, <https://community.openhab.org/t/binding-request-for-easyaccess-easycodetouch-door-lock/125747>
 - community.smartthings.com, "Easy Access EasyCode door lock zigbee module",
   2018-04 to 2018-05, <https://community.smartthings.com/t/easy-access-easycode-door-lock-zigbee-module-compatible-with-smartthings-hub/86418>
-- byggahus.se, "Nimly Touch / Touch Pro -tråd" (497166), "Nimly Code / Code
-  Pro -tråd" (573457) and "Nimly Zigbee - Z2M eller ZHA?" (543716). All three
-  block automated fetching and were only reachable through search engine
-  summaries, so nothing from them is cited above as fact. Someone reading them
-  by hand, logged in, is the obvious next step.
+- byggahus.se, "Nimly Zigbee - Z2M eller ZHA?" (543716), 7 posts, 2-3 March
+  2025, five of them read in a browser on 2026-09-20,
+  <https://www.byggahus.se/forum/threads/nimly-zigbee-z2m-eller-zha.543716/>
+- byggahus.se, "Nimly Touch / Touch Pro -tråd" (497166) and "Nimly Code /
+  Code Pro -tråd" (573457). Still unread: both block automated fetching and
+  are too long to read as screenshots. Nothing from them is cited above.
+- sweclockers.com, "Homey Pro med Eufy och Nimly" (thread 1713551), 2 posts,
+  April 2024, read in full on 2026-09-20,
+  <https://www.sweclockers.com/forum/trad/1713551-homey-pro-med-eufy-och-nimly>
 - nimly.se, Connect Module installation guide, file dated 2024-10-23,
   <https://nimly.se/wp-content/uploads/2024/10/EN-Connect-Module-Installation-Guide-231024-bluetooth-app-and-nimly-connect.pdf>
 - App Store, nimly BLE, Easy Access AS, <https://apps.apple.com/no/app/nimly-ble/id6451232924>

@@ -9,9 +9,9 @@ only into raw numbers.
 1. The domain is `onesti_lock`, NOT `nimly_pro`. Classes still use the `Nimly` prefix (the brand name).
 2. Credentials, API keys and secrets do NOT go in git. They belong in `secrets.md` (gitignored). Docs hold API URLs and technical references only, never secrets.
 3. The lock is a battery-powered Zigbee EndDevice that sleeps. Every ZCL command must handle timeouts and go through `ZhaLockTransport.send()` in `zha.py`, which handles the timeout and the auto-wake.
-4. The Nimly response quirk (`IndexError` when the lock's answer is read) is expected. The command reaches the lock despite the error, so `send()` counts it as delivered. Do not "fix" it. The likely source was ZHA reading `response[1]` (see `docs/technical.md`).
+4. The Nimly response quirk (`IndexError` when the lock's answer is read) is expected on HA 2025.x. The command reaches the lock despite the error, so `send()` counts it as delivered. Do not "fix" it. The source is zha 0.0.x's `issue_cluster_command` reading `response[1]` from a one-field Set PIN Code Response; zha 2.x reads the field by name, and so does `send()` (see `docs/technical.md`).
 5. The repo is public and written in English: code, comments, docs and commit messages. Work is tracked outside the repo, so no tracker ids or tracker names in files or commits. GitHub issue numbers (#6) are fine.
-6. Vendor manuals are the source for slot rules and lock behaviour. Run `python3 scripts/fetch_manuals.py` once, then read the `.txt` extracts in `docs/manuals/`. The files are gitignored, and `docs/manuals/README.md` lists what exists and where it came from.
+6. Vendor manuals are the source for slot rules and lock behaviour. Run `python3 scripts/fetch_manuals.py` once, then read the `.txt` extracts in `docs/manuals/`. The same script fetches the vendor's 2021 Zigbee spec, two 2021 Zigbee sniffs, a Z2M log and a ZHA diagnostics dump plus debug log from a Code Pro nobody here owns; `docs/zigbee-protocol/zigbee-captures.md` says what each of them answers. The files are gitignored, and `docs/manuals/README.md` lists what exists and where it came from. `pdftotext` drops footnotes from some of the PDFs, so render the page before concluding that a sentence is not there.
 
 ## Architecture
 
@@ -194,6 +194,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 | `docs/nimly-ble-app/unloc-app.md`               | The unloc app: same ekey BLE SDK, guest half only, how it scans and where its keys come from   |
 | `docs/connect-bridge/hardware-gateway.md`       | Connect Bridge hardware, network stack, firmware                                              |
 | `docs/hardware-generations.md`                  | Per-report log of model string, IEEE OUI, module name and firmware fields, one row per observed lock |
+| `docs/community-reports.md`                     | Forum sweep: what owners measured, relayed or claimed about Bluetooth, firmware, battery and pairing |
 | `docs/slot-numbering.md`                        | Slot numbering across Zigbee, BLE and cloud, verified and unverified                          |
 | `docs/manuals/README.md`                        | Index of vendor manuals per model and brand, fetched locally by `scripts/fetch_manuals.py`    |
 | `docs/debugging.md`                             | Troubleshooting guide for common problems                                                     |
@@ -416,8 +417,14 @@ cannot review it, so change `CHANGELOG.md` instead.
 ## White-label context
 
 Onesti Products AS makes all the locks, with identical hardware and firmware,
-and the Zigbee Connect Module (ZMNC010) is the same across all brands. The
-cloud platform, iotiliti by Safe4 Security Group, developed by Neurosys in
-Poland, runs Nimly, EasyAccess, Keyfree, Salus, Homely, Forebygg, Copiax,
-Tekam, Folklarm, Tryg Smart, Safe4 Care, LF, Larmify and others. See
+and the Connect Module (ZMNC010) is the same across all brands: a Nordic
+nRF5x part with Zigbee and Bluetooth LE on one die, silkscreened "e-Life",
+manufacturer code 4660 left at the ZBOSS default. Its firmware is not one
+thing: the 2021 vendor spec and a 2021 sniff have no operation event
+attribute, and the source byte and PIN encoding differ between later builds
+(`docs/hardware-generations.md`). An older EasyAccess lock generation on a
+Datek/Ember module answers "Datek Wireless" and is not covered. The cloud
+platform, iotiliti by Safe4 Security Group, developed by Neurosys in Poland,
+runs Nimly, EasyAccess, Keyfree, Salus, Homely, Forebygg, Copiax, Tekam,
+Folklarm, Tryg Smart, Safe4 Care, LF, Larmify and others. See
 `docs/nimly-connect-app/app-architecture.md` for the full ecosystem.

@@ -550,13 +550,29 @@ And the Connect Module installation guide (`docs/manuals/`,
 > too long to connect? To re-enter pairing mode, remove and reinsert the
 > batteries/power while the units are connected.
 
-Same Connect Module, one radio stack, two roles. Whether a module already
-joined to a Zigbee network still advertises 0xFD00 outside that four-minute
-window is not stated anywhere in the app, the manuals or the Nimly Connect
-app, and no advertisement has been captured from a Zigbee-paired lock. The
-Nimly Connect app never scans for locks over BLE at all: its only
-`BluetoothLeScanner` use is the bundled Espressif provisioning library for the
-Connect Gateway.
+Same Connect Module, one Nordic part with both radios on the die, two roles.
+Whether a module already joined to a Zigbee network still advertises 0xFD00
+outside that four-minute window is not stated anywhere in the app, the
+manuals or the Nimly Connect app, and no advertisement has been captured from
+a Zigbee-paired lock by this project. The one outside observation
+(aridder/nimly-manager, 2026-08-09, a Touch Pro on firmware 4.7.79 paired
+with Zigbee2MQTT, see `docs/upstream-status.md`) saw nothing during physical
+lock and unlock on two adapters, and then saw the lock at once when the
+vendor's BLE app opened "Add device". How an app could make a peripheral
+start advertising is not explained by anything in this app's code, which
+only scans. The unloc app gives the best reading so far
+([unloc-app.md](unloc-app.md)): it opens doors by scanning for an *enrolled*
+lock during ordinary use, with no pairing window, so an enrolled module
+presumably advertises all the time, while an unenrolled one (Fredrik's,
+never enrolled over BLE) may only do so in the four-minute pairing window
+after a power cycle. That is consistent with every empty scan so far, and it
+makes the battery-pull window the measurement most likely to show a first
+advertisement. The 2024 and 2026 module guides also say Bluetooth is only
+available on newer versions of the module, without saying which; older
+editions from 2022 already describe the blue LED, so the LED text is no
+evidence either way. The Nimly Connect app never scans for locks over BLE at
+all: its only `BluetoothLeScanner` use is the bundled Espressif provisioning
+library for the Connect Gateway.
 
 ## Scan identification
 
@@ -575,8 +591,20 @@ service data is read as:
   during enrollment. The app recognises its own lock by computing that hash
   for each device id it knows. An enrolled lock never shows its device id.
 
-No advertisement has been captured yet (untested on a lock). Scans from an
-ESP32 proxy 50 cm from a Zigbee-paired NimlyPRO, from the Home Assistant host
-and from a Shelly scanner, awake lock included, saw no 0xFD00 service data at
-all. The layout above is what the app reads, so a capture would settle it; the
-open question is whether that lock advertises in the first place.
+No advertisement has been captured by this project (untested on a lock).
+Scans from an ESP32 proxy 50 cm from a Zigbee-paired NimlyPRO, from the Home
+Assistant host and from a Shelly scanner, awake lock included, saw no 0xFD00
+service data at all. The layout above is what the app reads: `BleScanner`
+takes the first 8 bytes and never looks past them, so an advertisement that
+carries more would still be accepted by the app. The one advertisement
+anyone has described, from aridder/nimly-manager (see above), had **10 bytes**
+of 0xFD00 service data and a device name, `Dør`. Their probe left the two
+extra bytes uninterpreted, and the raw hex is not public. The likeliest
+reading, from the unloc app which ships the same SDK and finds Nimly locks
+in the field with the same 8-byte parse, is a tool counting the whole AD
+structure (2 bytes of UUID plus 8 of payload), and the name is expected: the
+SDK reads the device name, special-cases the factory name `GlennI`, and
+`DeviceNameSet` lets an owner store one ([unloc-app.md](unloc-app.md)). Until
+a capture exists, the 8-byte reading stands as the apps', not as the
+module's, and a parser must not assume the extra bytes come after the
+identifier rather than before or inside it.

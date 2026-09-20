@@ -422,7 +422,13 @@ A factory-reset lock shows seed `00 00` and an id of its own. An enrolled lock
 shows a seed and the first 6 bytes of SHA-1(seed || device id), so it never
 reveals its device id, and only someone who stored the device id can tell
 which lock it is. That is why `Enrollment` keeps it. Nothing has been
-captured over the air, so the format is the app's reading of it.
+captured over the air by this project, so the format is the app's reading of
+it, and the one outside description of a real advertisement had 10 bytes and
+a device name ([ble-protocol.md](ble-protocol.md#scan-identification)),
+most likely the 2-byte UUID counted in, but nobody has seen the hex.
+`parse_advertisement` accepts 8 bytes or more and reads the first 8, as both
+vendor apps do; if the extra bytes sit anywhere but at the end, `matches()`
+is silently wrong. Do not build device recognition on it before a capture.
 
 ## Storing an enrollment
 

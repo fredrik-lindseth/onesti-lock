@@ -1,6 +1,16 @@
 # Cloud API reversing: status and the road ahead
 
-## Goal
+**Status, September 2026: parked.** The project's goal is full local
+functionality without the vendor cloud or app ([feature-parity.md](feature-parity.md)),
+and this track buys parity only by putting the cloud back in the path. It is
+kept as a record of what was tried and what the API looks like, for anyone
+who needs the cloud for their own reasons. The one part of it still worth
+running is a capture of the *BLE* app's cloud (`api.ekey.nimly.io`, see
+[nimly-ble-app/ble-protocol.md](nimly-ble-app/ble-protocol.md#ble-api-nimly-ekey-cloud)),
+which would confirm the owner-key format the local enrollment derives, not
+the Connect app's cloud described here.
+
+## Goal, as it was
 
 Recreate all functionality from the Nimly Connect app in Home Assistant: PIN
 codes (set/change/delete) without Zigbee sleepy device issues, event history

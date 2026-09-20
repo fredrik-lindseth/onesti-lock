@@ -12,8 +12,24 @@ Where master slots end and user slots begin depends on the model. According to t
 | Slot range | Every other model with a manual     | Code Pro                            | Source                                                                  |
 | ---------- | ----------------------------------- | ----------------------------------- | ----------------------------------------------------------------------- |
 | 0          | Master PIN (factory: 123)           | Master PIN (factory: 123)           | All manuals. Verified: `attrid 0x0100` reports `user_slot=0` on unlock  |
-| 1-2        | Additional master codes             | User codes                          | Manuals, see quotes below                                               |
+| 1-2        | Additional master codes             | User codes                          | Manuals, see quotes below. Code Pro: a fingerprint and a keypad code on slot 1 captured in a Code Pro's own log, see below |
 | 3-999      | User codes, RFID tags, fingerprints | User codes, RFID tags, fingerprints | Manuals. Slots 3-4 verified via `attrid 0x0100` events                  |
+
+The vendor's own 2021 Zigbee spec ([zigbee-protocol/elife-module-spec.md](zigbee-protocol/elife-module-spec.md))
+documents Set PIN Code and Clear PIN Code with `user id 1-50`. Read
+literally, slot 0 is not writable over Zigbee and slots 1 and 2 are, on the
+firmware of that time. Nobody has tried either on a lock.
+
+The Code Pro column has one capture behind it now. A zigpy debug log from a
+NimlyCodePRO on firmware 4.8.02
+([zha-device-handlers#5235](https://github.com/zigpy/zha-device-handlers/issues/5235),
+kept in `docs/manuals/`) reports `0x03010001`, a fingerprint on slot 1
+locking the door, and `0x02020001`, a keypad code on slot 1 unlocking it,
+eight seconds apart. So slot 1 holds a user's credentials on that model,
+as the guide says. Whether the finger and the code are one person on one
+slot or two credentials sharing the number 1 (see below) the log cannot
+tell, and it says nothing about `set_pin_code` accepting slot 1, which is
+still untested ([verification plan](#verification-plan), step 3).
 
 "Every other model" means Touch Pro, Touch, Code, Indoor, EasyCodeTouch and EasyFingerTouch. Key tags are an exception on several of them, see the quotes. The manuals, with dates and source URLs, are listed in [manuals/README.md](manuals/README.md). What they say:
 
@@ -77,9 +93,18 @@ offsets. They may just as well be separate storage areas in the firmware.
 gateway picks a slot by itself. We don't know which one, or whether it takes
 BLE numbering into account.
 
-**Fingerprint and RFID slot ranges via BLE.** The BLE protocol has
-`FingerprintClear` (0x58) and `RfidCodeClear` (0x55) with `slotNumber`
-parameters, but nobody has mapped their numbering yet.
+**Fingerprint and RFID slot ranges via BLE.** The BLE app sends
+`FingerprintScan`/`FingerprintClear` (0x57/0x58) with slots 150-199 and
+`ScanRfidCode`/`RfidCodeClear` (0x56/0x55) with slots 900-999
+(`docs/nimly-ble-app/ble-protocol.md`), while the Touch Pro manual gives
+fingerprints 003-199 on the keypad. Nobody has mapped one numbering onto the
+other, and nothing on the BLE side has been tried against a lock at all: the
+BLE library has never exchanged a byte with one, and no advertisement has
+been captured from Fredrik's lock. Every BLE slot number on this page is
+what the app sends, not what a lock was seen to do with it. A delete on the
+wrong slot is one-way (a fingerprint only comes back with the person and
+the finger at the lock), which is why the BLE CLI refuses clears without an
+explicit flag.
 
 ## Current implementation
 
@@ -105,7 +130,7 @@ NUM_USER_SLOTS = 10       # Slot sensors, and the Set PIN and View lists
 
 1. **BLE/Zigbee cross-test:** Set PIN via BLE on slot 800. Unlock. Check whether `attrid 0x0100` reports slot 3 or slot 800.
 2. **Cloud/Zigbee cross-test:** Set PIN via Nimly Connect app. Unlock. Check which slot `attrid 0x0100` reports.
-3. **Slot 1-2 test and outside locking with slot 0:** Try `set_pin_code` on slots 1 and 2 via ZCL on each model. Does the lock accept or reject?
+3. **Slot 1-2 test and outside locking with slot 0:** Try `set_pin_code` on slots 1 and 2 via ZCL on each model. Does the lock accept or reject? The 2021 spec's `user id 1-50` says yes on paper, and the Code Pro log above shows slot 1 in use, but neither is a write from Zigbee.
 
    Also lock from the outside (palm on the keypad, or `#`) and capture `attrid 0x0100`. Whether that reports `0x02010000` (slot 0, lock, keypad) is unverified. If it does, the integration shows it as the master user locking, and the slot 0 attribution must be narrowed to unlock. Nobody has run this check on a real lock yet.
 4. **Capacity test:** Set PINs on slot 3 and slot 800 via ZCL. Are both valid?

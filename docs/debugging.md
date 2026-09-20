@@ -32,16 +32,18 @@ Set with the master code (programming sequence `#0`):
 
 ### Connect Module LED (E-Life 3.0 / ZMNC010)
 
-The flashing and reset rows come from the Connect Module installation guide. The solid and no-LED rows are not in any manual and have not been checked against a module, so treat them as a guess.
+The flashing and reset rows come from the Connect Module installation guides (2022 through 2026 editions, `docs/manuals/README.md`). The solid rows come from Copiax's 2022 edition of the same guide, which says a successful pairing shows as solid light on either the blue (BLE) or the orange (Zigbee) LED. Nobody has checked any row against a module, and the no-LED row is in no manual at all.
 
-| LED    | Pattern    | Meaning                                        |
-| ------ | ---------- | ---------------------------------------------- |
-| Blue   | flashing   | BLE pairing mode (searching)                   |
-| Orange | flashing   | Zigbee pairing mode (searching)                |
-| Orange | fast blink | Reset in progress (hold button ~15 sec)        |
-| Blue   | solid      | BLE connected (unverified)                     |
-| Orange | solid      | Zigbee connected (unverified)                  |
-| No LED |            | Normal state, paired and sleeping (unverified) |
+| LED    | Pattern    | Meaning                                                   |
+| ------ | ---------- | --------------------------------------------------------- |
+| Blue   | flashing   | Pairing mode, Bluetooth side (four minutes after power-on) |
+| Orange | flashing   | Pairing mode, Zigbee side (same window)                    |
+| Orange | fast blink | Reset in progress (hold button ~15 sec)                    |
+| Blue   | solid      | Paired over BLE (Copiax guide, unverified)                 |
+| Orange | solid      | Paired over Zigbee (Copiax guide, unverified)              |
+| No LED |            | Normal state, paired and sleeping (guess)                  |
+
+Every edition of the guide since 2022 describes both colours in pairing mode, and the 2024 and 2026 editions add in a footnote that Bluetooth is only available on newer versions of the module, without saying which; a user relaying EasyAccess support in August 2022 was told the Bluetooth part was still under development ([community-reports.md](community-reports.md#bluetooth)). So a blue blink in the guide is generic text and does not prove that a particular module has a working Bluetooth radio; seeing it blink on the module in front of you does.
 
 ### Connect Module reset
 
@@ -367,7 +369,7 @@ If Reconfigure fails repeatedly, follow "Reconfigure in ZHA" in section 1.
 
 - **Put a Zigbee router near the lock.** A smart plug that works as a Zigbee router, 1-3 meters from the door, makes an enormous difference for sleepy devices.
 - **Don't move the coordinator.** The Zigbee network takes time to find new routes after the topology changes.
-- **Do not wait for a firmware update.** The module lists the OTA Upgrade cluster, but no image for it exists in the community zigbee-OTA index (checked 2026-09-19), so ZHA has nothing to offer. The vendor's BLE app does not update firmware either: a search of the decompiled app's own packages on 2026-09-20 (`reversing/nimly-ble-decompiled/sources/nimly/ekey`, `sources/com/nimly/ekey`, `sources/easyaccess/ekey`, 367 files, plus `resources/AndroidManifest.xml` and the string resources) found no match for DFU, OTA, firmware or bootloader, no Nordic DFU library, and no DFU service UUID. The only BLE UUIDs the app knows are the Nimly service `ba4bfd00-c447-19bf-f38d-4890b3a824c8` with characteristic `ba4bfd03-...` and the standard CCCD `0x2902`. That is evidence the shipped app has no update path, not proof the lock cannot be updated some other way.
+- **Do not wait for a firmware update.** The module lists the OTA Upgrade cluster and does ask for images (a ZHA diagnostics dump from a NimlyCodePRO shows its last Query Next Image request, with manufacturer code 0, image type 0 and version 0), but no image for it exists in the community zigbee-OTA index (checked 2026-09-19), so ZHA has nothing to offer. The vendor's BLE app does not update firmware either: a search of the decompiled app's own packages on 2026-09-20 (`reversing/nimly-ble-decompiled/sources/nimly/ekey`, `sources/com/nimly/ekey`, `sources/easyaccess/ekey`, 367 files, plus `resources/AndroidManifest.xml` and the string resources) found no match for DFU, OTA, firmware or bootloader, no Nordic DFU library, and no DFU service UUID. The only BLE UUIDs the app knows are the Nimly service `ba4bfd00-c447-19bf-f38d-4890b3a824c8` with characteristic `ba4bfd03-...` and the standard CCCD `0x2902`. That is evidence the shipped app has no update path, not proof the lock cannot be updated some other way.
 - **Keep an eye on the battery.** An automation that warns about low battery lets you avoid the problems that come with a battery change.
 
 ## 6. Cleanup after versions 1.1.0 through 1.2.0

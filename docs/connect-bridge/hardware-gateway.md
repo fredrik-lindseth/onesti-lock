@@ -32,11 +32,71 @@ in the lock says "E-Life 3.0", and the app is called "Nimly Connect".
 
 ### Connect Module (in the lock)
 
-| Field   | Value                                    |
-| ------- | ---------------------------------------- |
-| Brand   | E-Life                                   |
-| Version | 3.0                                      |
-| Role    | Zigbee radio in the lock, pairs with hub |
+| Field   | Value                                        |
+| ------- | -------------------------------------------- |
+| Brand   | E-Life                                       |
+| Version | 3.0                                          |
+| Article | ZMNC010, EAN 5704571842582                   |
+| Role    | Zigbee and BLE radio in the lock             |
+
+The module is sold on its own, and the same EAN comes back at every Nordic
+retailer checked on 2026-09-20: Copiax 50461903, Staypro 3131023,
+Elektroimportøren 5800460, Ahlsell 5868052, Dustin 5011307956, Clas Ohlson
+41-8237-1. No second EAN or article number for the same product name turned up
+anywhere, so a module revision is not something the trade tracks. You cannot
+order a particular one.
+
+### Which silicon
+
+The EUI64 of every Onesti lock seen in public issues from 2022 to 2026 starts
+with `f4:ce:36`, which the IEEE registry assigns to **Nordic Semiconductor
+ASA**. Fredrik's own lock (`f4:ce:36:88:61:9c:f4:6f`) and the NimlyCodePRO
+interview in
+[Z2M#31385](https://github.com/Koenkk/zigbee2mqtt/issues/31385) are in the same
+range, as are the addresses posted in Z2M issues 14726, 17205, 18508, 19627,
+19738, 23551 and 32772. The only Nordic parts with an 802.15.4 radio are the
+nRF52840, the nRF52833 and the nRF5340, and all three carry a Bluetooth LE
+radio on the same die. An earlier note here guessed at a TI CC2530, which has
+no Bluetooth at all and cannot be it.
+
+So the hardware is very likely able to do BLE whatever the revision, and the
+footnote in the Connect Module guide ("Bluetooth is only available on the newer
+versions of the module", 231024 edition, see `docs/manuals/README.md`) is more
+likely about firmware than about a missing radio. Which exact part it is, and
+where the line between "newer" and older actually runs, is still unknown. No
+FCC ID, no CSA certificate, no Bluetooth SIG listing and no teardown photo of
+the board exists in public under any Onesti, Nimly, EasyAccess or ZMNC010 name,
+searched on 2026-09-20.
+
+### What the module tells you about itself over Zigbee
+
+The Basic cluster on endpoint 11 answers the version attributes, which ZHA
+never reads but Z2M reads at interview. From the NimlyCodePRO dump in
+[Z2M#31385](https://github.com/Koenkk/zigbee2mqtt/issues/31385):
+
+| Attribute | Name         | Value        |
+| --------- | ------------ | ------------ |
+| 0x0001    | AppVersion   | 13           |
+| 0x0002    | StackVersion | 10           |
+| 0x0003    | HWVersion    | 11           |
+| 0x0006    | DateCode     | `20240625`   |
+| 0x4000    | SWBuildID    | `4.8.01`     |
+
+DateCode is a firmware build date and is the field users quote in upstream
+issues. Values seen in the wild, oldest first: `20220614`, `20221114`,
+`20221226`, `20230210`, `20230506`, `20230530`, `20240625`. SWBuildID uses the
+same `4.x.yy` numbering as the firmware floor the BLE app enforces over GATT
+characteristic 0x2A28 (4.6.0, and 4.7.90 for the model query), which makes it
+the one Zigbee-side reading that speaks to BLE readiness. That the two version
+strings are the same namespace is an assumption, not a verified fact.
+
+One revision marker is already visible without reading anything: attribute
+0x0101 carries the last PIN as ASCII digits on older modules and packed BCD,
+two digits per byte, on newer ones
+([Z2M#13080](https://github.com/Koenkk/zigbee-herdsman-converters/issues/13080),
+where the reporter's newer module had DateCode `20240625`). Fredrik's lock
+reports three bytes for a six-digit PIN, so it sits on the newer side of that
+change.
 
 ## Network addresses
 

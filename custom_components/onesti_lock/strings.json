@@ -1,5 +1,6 @@
 {
   "config": {
+    "flow_title": "{model} ({ieee})",
     "step": {
       "user": {
         "title": "Add Onesti Lock",
@@ -7,12 +8,17 @@
         "data": {
           "device": "Lock"
         }
+      },
+      "discovery_confirm": {
+        "title": "Onesti lock found",
+        "description": "Set up {model} ({ieee}) for PIN management and activity tracking?"
       }
     },
     "abort": {
       "zha_not_found": "ZHA is not installed or not set up. This integration needs ZHA to decode the lock's custom Zigbee attribute reports, which tell who used the lock. Zigbee2MQTT does not expose these events in the same way.",
       "no_devices_found": "No Onesti locks found in ZHA.",
-      "already_configured": "This lock is already configured."
+      "already_configured": "This lock is already configured.",
+      "already_in_progress": "This lock is already being set up."
     }
   },
   "options": {

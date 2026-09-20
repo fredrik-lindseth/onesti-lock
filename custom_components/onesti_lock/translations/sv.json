@@ -1,5 +1,6 @@
 {
   "config": {
+    "flow_title": "{model} ({ieee})",
     "step": {
       "user": {
         "title": "Lägg till Onesti Lock",
@@ -7,12 +8,17 @@
         "data": {
           "device": "Lås"
         }
+      },
+      "discovery_confirm": {
+        "title": "Onesti-lås hittades",
+        "description": "Vill du konfigurera {model} ({ieee}) för PIN-koder och aktivitet?"
       }
     },
     "abort": {
       "zha_not_found": "ZHA hittades inte eller är inte konfigurerat. Den här integrationen behöver ZHA för att avkoda låsets egna Zigbee-attributrapporter, som visar vem som använde låset. Zigbee2MQTT gör inte dessa händelser tillgängliga på samma sätt.",
       "no_devices_found": "Inga Onesti-lås hittades i ZHA.",
-      "already_configured": "Det här låset är redan konfigurerat."
+      "already_configured": "Det här låset är redan konfigurerat.",
+      "already_in_progress": "Det här låset håller redan på att konfigureras."
     }
   },
   "options": {

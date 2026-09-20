@@ -26,7 +26,7 @@ from homeassistant.helpers import entity_registry as er
 from zigpy.exceptions import DeliveryError, ZigbeeException
 from zigpy.zcl.foundation import Status
 
-from .const import DOORLOCK_CLUSTER_ID, WAKE_ECHO_WINDOW_S, ZHA_DOMAIN
+from .const import DOORLOCK_CLUSTER_ID, MANUFACTURER, WAKE_ECHO_WINDOW_S, ZHA_DOMAIN
 from .redact import redact_digits
 
 _LOGGER = logging.getLogger(__name__)
@@ -185,6 +185,22 @@ def device_metadata(proxy) -> tuple[str, str]:
     """(manufacturer, model) as the ZHA device reports them."""
     device = proxy.device if hasattr(proxy, "device") else proxy
     return getattr(device, "manufacturer", ""), getattr(device, "model", "")
+
+
+def iter_onesti_locks(hass: HomeAssistant) -> Iterator[tuple[str, str]]:
+    """Yield (ieee, model) for every Onesti device in ZHA with a Door Lock cluster.
+
+    The model string is carried along, not used as a filter. All Onesti
+    locks share hardware and the ZMNC010 Zigbee module, and a module can
+    report a sibling model name (issue #5), so the manufacturer and the
+    cluster are what decide. Both the config flow's device list and the
+    discovery watch read the same set through here.
+    """
+    for ieee, proxy in iter_device_proxies(hass):
+        manufacturer, model = device_metadata(proxy)
+        if manufacturer != MANUFACTURER or not has_door_lock_cluster(proxy):
+            continue
+        yield str(ieee), model
 
 
 def _walk_to_door_lock_cluster(obj):

@@ -7,6 +7,8 @@ All notable changes to Onesti Lock. The format is based on [Keep a Changelog](ht
 ### Features
 
 - **Lock number two is found on its own.** Once one lock is set up, pairing another Onesti lock with ZHA makes it turn up under Discovered on the integrations page, with its model and IEEE address, and you confirm or ignore it there. The first lock still has to be added with Add Integration: Home Assistant does not load a custom integration that has no config entry. <!--short-->
+- **The lock's device says which lock it is.** It is named after the model and the last four characters of its Zigbee address, so two locks of the same model are no longer two entries called Onesti Lock, and it carries the model and the address as its serial number. On Home Assistant 2026.9 and newer it is shown under ZHA's device for the same lock; on older releases the two become one device with the lock entity and these sensors on it. Existing entity IDs and names are kept. <!--short-->
+- **A replaced Connect Module keeps the lock's setup.** The module is an accessory with its own Zigbee address, and swapping it used to mean setting the lock up again from scratch. Use Reconfigure on the entry and pick the new module: the slot names, the PIN status and every sensor stay as they are. <!--short-->
 - **The sensors say when they are not being updated.** While ZHA is not running, no lock event can reach Home Assistant, and the slot and activity sensors show as unavailable until it is back. A lock that is only asleep is not unavailable: the sensors keep what they have. The log gets one line when events stop and one when they are back, in place of the line that only ever said they had started. <!--short-->
 
 ### Security

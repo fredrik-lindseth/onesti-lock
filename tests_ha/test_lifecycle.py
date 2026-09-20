@@ -26,17 +26,24 @@ from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
 from custom_components.onesti_lock import coordinator as coordinator_module
-from custom_components.onesti_lock.const import CONF_IEEE, CONF_RESERVED_SLOTS, DOMAIN
+from custom_components.onesti_lock.const import (
+    CONF_IEEE,
+    CONF_MODEL,
+    CONF_RESERVED_SLOTS,
+    DOMAIN,
+)
 from custom_components.onesti_lock.events import ATTR_OPERATION_EVENT
 from tests_ha.conftest import (
+    DEVICE_SLUG,
     DOORLOCK_CLUSTER_ID,
     LISTENER_PATHS,
     LOCK_IEEE,
+    LOCK_MODEL,
     FakeDoorLockCluster,
     make_lock_proxy,
 )
 
-ACTIVITY_ENTITY_ID = "sensor.onesti_lock_last_activity"
+ACTIVITY_ENTITY_ID = f"sensor.{DEVICE_SLUG}_last_activity"
 
 # attrid 0x0100 payloads: source byte, action byte, user slot (uint16).
 KARI_UNLOCKS_WITH_CODE = 0x02020005  # keypad, unlock, slot 5
@@ -47,10 +54,10 @@ def _entry(**kwargs) -> MockConfigEntry:
     defaults = {
         "domain": DOMAIN,
         "version": 2,
-        "minor_version": 2,
+        "minor_version": 3,
         "unique_id": LOCK_IEEE,
         "title": "Onesti Lock (11:22:33:44)",
-        "data": {CONF_IEEE: LOCK_IEEE},
+        "data": {CONF_IEEE: LOCK_IEEE, CONF_MODEL: LOCK_MODEL},
         "options": {"slots": {}},
     }
     return MockConfigEntry(**{**defaults, **kwargs})
@@ -142,6 +149,7 @@ async def _report(hass: HomeAssistant, cluster: FakeDoorLockCluster, raw_value: 
 async def test_migration_strips_has_rfid_and_bumps_minor(hass: HomeAssistant, mock_zha) -> None:
     entry = _entry(
         minor_version=1,
+        data={CONF_IEEE: LOCK_IEEE},
         options={
             "slots": {
                 "4": {"name": "Ola", "has_pin": False, "has_rfid": True},
@@ -154,7 +162,7 @@ async def test_migration_strips_has_rfid_and_bumps_minor(hass: HomeAssistant, mo
     await _setup(hass, entry)
 
     assert entry.state is ConfigEntryState.LOADED
-    assert (entry.version, entry.minor_version) == (2, 2)
+    assert (entry.version, entry.minor_version) == (2, 3)
     assert entry.options["slots"] == {
         "4": {"name": "Ola", "has_pin": False},
         "5": {"name": "Kari", "has_pin": True},
@@ -169,6 +177,82 @@ async def test_current_entry_is_not_rewritten(hass: HomeAssistant, mock_zha) -> 
 
     assert entry.state is ConfigEntryState.LOADED
     assert entry.options["slots"] == options["slots"]
+
+
+async def test_migration_to_entry_id_keys_keeps_the_entities(
+    hass: HomeAssistant, mock_zha
+) -> None:
+    """2.2 -> 2.3: the registry keys move, the user's entities do not.
+
+    A 2.2 install has the device and every entity keyed on the IEEE
+    address. The migration rewrites both keys in place, so the entity ids
+    people put in dashboards and automations, and the names they typed,
+    are the same afterwards.
+    """
+    entry = _entry(minor_version=2, data={CONF_IEEE: LOCK_IEEE})
+    entry.add_to_hass(hass)
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, LOCK_IEEE)},
+        name="Onesti Lock",
+    )
+    registry = er.async_get(hass)
+    activity = registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{LOCK_IEEE}-activity",
+        config_entry=entry,
+        device_id=device.id,
+        suggested_object_id="onesti_lock_last_activity",
+    )
+    registry.async_update_entity(activity.entity_id, name="Front door activity")
+    slot = registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{LOCK_IEEE}-slot-5",
+        config_entry=entry,
+        device_id=device.id,
+        suggested_object_id="onesti_lock_slot_5",
+    )
+
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert (entry.version, entry.minor_version) == (2, 3)
+    # The model is read off ZHA, so the device has it without a reconfigure.
+    assert entry.data[CONF_MODEL] == LOCK_MODEL
+    assert dr.async_get(hass).async_get(device.id).identifiers == {(DOMAIN, entry.entry_id)}
+
+    migrated = registry.async_get(activity.entity_id)
+    assert migrated is not None, "the activity sensor kept its entity id"
+    assert migrated.unique_id == f"{entry.entry_id}-activity"
+    assert migrated.name == "Front door activity"
+    assert registry.async_get(slot.entity_id).unique_id == f"{entry.entry_id}-slot-5"
+
+
+async def test_migration_leaves_a_model_that_is_already_stored(
+    hass: HomeAssistant, mock_zha
+) -> None:
+    """ZHA is not asked again for a model the entry already has."""
+    mock_zha.device_proxies[LOCK_IEEE] = make_lock_proxy(model="NimlyTwist")
+    entry = _entry(minor_version=2, data={CONF_IEEE: LOCK_IEEE, CONF_MODEL: "NimlyCodePRO"})
+
+    await _setup(hass, entry)
+
+    assert entry.data[CONF_MODEL] == "NimlyCodePRO"
+
+
+async def test_migration_without_zha_leaves_the_model_empty(
+    hass: HomeAssistant, zha_dependency
+) -> None:
+    """A model nobody can read is no worse than the 2.2 entry had."""
+    entry = _entry(minor_version=2, data={CONF_IEEE: LOCK_IEEE})
+
+    await _setup(hass, entry)
+
+    assert (entry.version, entry.minor_version) == (2, 3)
+    assert entry.data[CONF_MODEL] == ""
 
 
 async def test_entry_from_a_newer_major_version_is_refused(hass: HomeAssistant, mock_zha) -> None:
@@ -510,7 +594,7 @@ async def test_entities_are_unavailable_while_zha_is_down(
     assert entry.state is ConfigEntryState.LOADED
     assert entry.runtime_data.available is False
     assert hass.states.get(ACTIVITY_ENTITY_ID).state == "unavailable"
-    assert hass.states.get("sensor.onesti_lock_slot_5").state == "unavailable"
+    assert hass.states.get(f"sensor.{DEVICE_SLUG}_slot_5").state == "unavailable"
 
     new_cluster = FakeDoorLockCluster()
     mock_zha.device_proxies = {LOCK_IEEE: make_lock_proxy(cluster=new_cluster)}
@@ -520,7 +604,7 @@ async def test_entities_are_unavailable_while_zha_is_down(
     assert entry.runtime_data.listened_cluster is new_cluster
     assert entry.runtime_data.available is True
     assert hass.states.get(ACTIVITY_ENTITY_ID).state != "unavailable"
-    assert hass.states.get("sensor.onesti_lock_slot_5").state != "unavailable"
+    assert hass.states.get(f"sensor.{DEVICE_SLUG}_slot_5").state != "unavailable"
 
 
 async def test_zha_back_with_the_same_objects_makes_the_entities_available(

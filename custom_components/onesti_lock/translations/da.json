@@ -9,6 +9,13 @@
           "device": "Lås"
         }
       },
+      "reconfigure": {
+        "title": "Skift Connect-modul",
+        "description": "Peg denne lås mod et andet Zigbee Connect-modul, efter at det gamle ({ieee}) er skiftet ud. Slotnavne og PIN-status bliver stående: de beskriver koderne i låsen, og dem når det nye modul lige så godt som det gamle.",
+        "data": {
+          "device": "Lås"
+        }
+      },
       "discovery_confirm": {
         "title": "Onesti-lås fundet",
         "description": "Vil du sætte {model} ({ieee}) op til PIN-koder og aktivitet?"
@@ -18,7 +25,8 @@
       "zha_not_found": "ZHA blev ikke fundet eller er ikke sat op. Integrationen skal bruge ZHA til at afkode låsens egne Zigbee-attributrapporter, som viser, hvem der brugte låsen. Zigbee2MQTT gør ikke disse hændelser tilgængelige på samme måde.",
       "no_devices_found": "Fandt ingen Onesti-låse i ZHA.",
       "already_configured": "Denne lås er allerede konfigureret.",
-      "already_in_progress": "Denne lås er allerede ved at blive sat op."
+      "already_in_progress": "Denne lås er allerede ved at blive sat op.",
+      "reconfigure_successful": "Låsen bruger nu det nye Connect-modul."
     }
   },
   "options": {

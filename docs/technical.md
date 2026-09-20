@@ -69,9 +69,22 @@ ZHADeviceProxy (depth 0, no endpoints)
 
 `find_door_lock_cluster()` walks the `.device` chain up to four levels, skips endpoint 0, and returns the first endpoint's Door Lock cluster (0x0101). The config flow's `has_door_lock_cluster()` uses the same walk to decide which devices to offer. Commands are sent to the endpoint the cluster belongs to (`cluster.endpoint.endpoint_id`). Endpoint 11, where every Onesti lock seen so far has the cluster, is only the fallback when that id cannot be read.
 
-### Finding ZHA's lock entity
+### Finding ZHA's device and its lock entity
 
-The auto-wake calls `lock.lock` on ZHA's own lock entity, and `find_lock_entity_id()` finds it through the registries. ZHA registers each device with a zigbee connection holding the IEEE address in lowercase. The device is the one with that connection among the devices of ZHA's own config entries (`async_entries_for_config_entry`), not a registry-wide `async_get_device`: from HA 2026.9 a connection is unique only within one config entry, and HA reports `async_get_device` as breaking in 2027.8. The lock entity is the one entity on it in the `lock` domain from the `zha` platform. Disabled entities are skipped, since HA would refuse the service call. No unique_id format is parsed.
+ZHA registers each device with a zigbee connection holding the IEEE address in lowercase, and `find_zha_device()` looks the device up by that connection, scoped to ZHA's own config entries. From HA 2026.9 a connection is unique only within one config entry, so the lookup is `async_get_device_by_connection(connection, zha_entry_id)`; older releases have no such method and the devices of each ZHA entry are walked instead. A registry-wide `async_get_device` is not used: HA reports it as breaking in 2027.8.
+
+Two things need that device. The auto-wake calls `lock.lock` on ZHA's own lock entity, which `find_lock_entity_id()` takes as the one entity on the device in the `lock` domain from the `zha` platform; disabled entities are skipped, since HA would refuse the service call, and no unique_id format is parsed. And the lock's own device links to it, see Devices below.
+
+### Devices
+
+Each lock gets one device of ours, built in `entity.py` by `build_device_info()`. It carries the model read off ZHA, `serial_number` set to the IEEE address, the same zigbee connection ZHA uses, and a name that is the model and the last four characters of the address, so two locks of the same model can be told apart on the device page and in entity ids.
+
+Identifiers are `(DOMAIN, entry_id)`, not the IEEE address. A replaced Connect Module brings a new address for the same door, and keying on the entry means the reconfigure flow can point the entry at the new module while the device, its entities, their names and whatever a dashboard refers to stay where they are. Entity unique ids are `<entry_id>-<key>` for the same reason. Entries from 2.2 and earlier are rewritten by the migration.
+
+What the shared connection does depends on the Home Assistant version, and both are tested:
+
+- Through 2026.8 a connection is unique across config entries, so the registry merges this device and ZHA's into one entry carrying both integrations. The lock then has a single device page with ZHA's lock entity and ours side by side.
+- From 2026.9 a connection is unique only within one config entry. The two stay apart, and `build_device_info()` sets `via_device_id` to ZHA's device, so ours is shown as hanging off it. `DeviceInfo` lost `via_device` in the same release; which field it has is what the code branches on.
 
 ### When ZHA is reloaded
 
@@ -94,6 +107,12 @@ Two things start a look. A device registry entry created or updated for a device
 `async_step_integration_discovery` sets the IEEE as the flow's unique id, which is what the user step sets too. That one line covers three cases: a lock that already has an entry, a lock the user pressed Ignore on (Home Assistant stores an ignored entry with that unique id), and a second flow for a lock already being asked about. All three abort, so the card does not come back. The confirmation step creates the same entry the user step would.
 
 The watch lives for the whole Home Assistant run, like the services, and is registered in `async_setup` rather than per entry, so unloading one lock does not stop the others from being found.
+
+### Replacing the Connect Module
+
+The module (ZMNC010) is an accessory, and a replacement brings a new IEEE address for the same door. `async_step_reconfigure` offers the Onesti locks in ZHA that no other entry owns, this entry's own lock included, and `async_update_reload_and_abort` writes the new address and model into `entry.data`, moves the unique id with it, and reloads. The list already leaves out a lock another entry owns; an entry that appeared between the form and the submit is caught by an explicit check that aborts with `already_configured`.
+
+Nothing else moves. Slot names and PIN status describe the codes in the lock, not in the module, and the device and entity keys are the config entry, so the entities keep their ids and their names.
 
 ### Repair issue for missing ZHA internals
 
@@ -170,7 +189,7 @@ Slot data is stored in the config entry's options (`.storage`), which survives H
 
 The same options hold `reserved_slots` from the settings form and `capabilities` once the lock has reported them (see below).
 
-The config entry is at version 2.2. `async_migrate_entry` takes a 2.1 entry to 2.2 by stripping `has_rfid` from every stored slot, a field nothing ever set. An entry written by a newer major version is refused rather than guessed at.
+The config entry is at version 2.3. `async_migrate_entry` takes a 2.1 entry to 2.2 by stripping `has_rfid` from every stored slot, a field nothing ever set, and a 2.2 entry to 2.3 by storing the model in `entry.data` and moving the registry keys from the IEEE address to the entry id: the device identifier becomes `(DOMAIN, entry_id)` and every entity unique id `<entry_id>-<key>`, rewritten in place with `async_update_device` and `async_update_entity` so entity ids and user-set names survive. The model is read off ZHA when it is running; an entry migrated before ZHA is up keeps an empty model until a reconfigure fills it in. An entry written by a newer major version is refused rather than guessed at.
 
 ### PIN operations
 
@@ -186,7 +205,7 @@ The slot sensors register callbacks with `add_listener(callback)`. When slot dat
 
 ### Slot sensors and reloads
 
-The slot sensor row starts at the first user slot and has `NUM_USER_SLOTS` (10) sensors, each with the unique_id `<ieee>-slot-<n>`. On setup, registry entries for slot sensors outside the current row are removed, so moving `reserved_slots` does not leave unavailable entities behind, and a slot that is in both rows keeps its entity id.
+The slot sensor row starts at the first user slot and has `NUM_USER_SLOTS` (10) sensors, each with the unique_id `<entry_id>-slot-<n>`. On setup, registry entries for slot sensors outside the current row are removed, so moving `reserved_slots` does not leave unavailable entities behind, and a slot that is in both rows keeps its entity id.
 
 Changing `reserved_slots` reloads the entry through an update listener. The coordinator writes slot data and capabilities to the same options, and every write calls that listener, so it compares the first user slot with the one the setup was built for and reloads only when that changed.
 

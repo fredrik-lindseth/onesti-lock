@@ -42,9 +42,9 @@ from zigpy.zcl import Cluster, foundation
 from zigpy.zcl.clusters.closures import DoorLock
 
 from custom_components.onesti_lock.const import CONF_IEEE, DOMAIN
-from tests_ha.conftest import LOCK_IEEE, lock_cluster
+from tests_ha.conftest import DEVICE_SLUG, LOCK_IEEE, lock_cluster
 
-ACTIVITY_ENTITY_ID = "sensor.onesti_lock_last_activity"
+ACTIVITY_ENTITY_ID = f"sensor.{DEVICE_SLUG}_last_activity"
 
 # attrid 0x0100: source byte, action byte, user slot (uint16).
 KARI_UNLOCKS_WITH_CODE = 0x02020005  # keypad, unlock, slot 5

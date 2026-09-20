@@ -13,16 +13,31 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
+import voluptuous as vol
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.translation import async_get_translations
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.onesti_lock.const import CONF_IEEE, DOMAIN, NUM_USER_SLOTS, SLOT_FIRST_USER
-from tests_ha.conftest import LISTENER_PATHS, LOCK_IEEE, make_lock_proxy
+from custom_components.onesti_lock.const import (
+    CONF_IEEE,
+    CONF_MODEL,
+    DOMAIN,
+    NUM_USER_SLOTS,
+    SLOT_FIRST_USER,
+)
+from custom_components.onesti_lock.entity import HAS_VIA_DEVICE_ID
+from tests_ha.conftest import (
+    DEVICE_SLUG,
+    LISTENER_PATHS,
+    LOCK_IEEE,
+    LOCK_MODEL,
+    make_lock_proxy,
+)
 
 SERVICES = {"set_pin", "clear_pin", "set_name", "clear_slot"}
 
@@ -36,7 +51,8 @@ async def _setup_entry(hass: HomeAssistant, ieee: str = LOCK_IEEE) -> MockConfig
         version=2,
         unique_id=ieee,
         title=f"Onesti Lock ({ieee[-11:]})",
-        data={CONF_IEEE: ieee},
+        minor_version=3,
+        data={CONF_IEEE: ieee, CONF_MODEL: LOCK_MODEL},
         options={"slots": {}},
     )
     entry.add_to_hass(hass)
@@ -54,7 +70,7 @@ async def test_config_flow_finds_lock_and_creates_entry(hass: HomeAssistant, moc
     await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["data"] == {CONF_IEEE: LOCK_IEEE}
+    assert result["data"] == {CONF_IEEE: LOCK_IEEE, CONF_MODEL: LOCK_MODEL}
     entry = result["result"]
     assert entry.unique_id == LOCK_IEEE
     assert entry.state is ConfigEntryState.LOADED
@@ -172,11 +188,182 @@ async def test_entities_registered_with_expected_unique_ids(hass: HomeAssistant,
     registry = er.async_get(hass)
     unique_ids = {e.unique_id for e in er.async_entries_for_config_entry(registry, entry.entry_id)}
 
-    expected = {f"{LOCK_IEEE}-slot-{SLOT_FIRST_USER + i}" for i in range(NUM_USER_SLOTS)}
-    expected.add(f"{LOCK_IEEE}-activity")
+    expected = {f"{entry.entry_id}-slot-{SLOT_FIRST_USER + i}" for i in range(NUM_USER_SLOTS)}
+    expected.add(f"{entry.entry_id}-activity")
     # Registered but disabled by default, see tests_ha/test_sensor.py.
-    expected.update({f"{LOCK_IEEE}-pin-users", f"{LOCK_IEEE}-pin-length-min", f"{LOCK_IEEE}-pin-length-max"})
+    expected.update(
+        {
+            f"{entry.entry_id}-pin-users",
+            f"{entry.entry_id}-pin-length-min",
+            f"{entry.entry_id}-pin-length-max",
+        }
+    )
     assert unique_ids == expected
+
+
+def _zha_device(hass: HomeAssistant, ieee: str = LOCK_IEEE) -> tuple[MockConfigEntry, object]:
+    """ZHA's own config entry and device for a lock, in the real registry."""
+    zha_entry = MockConfigEntry(domain="zha")
+    zha_entry.add_to_hass(hass)
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=zha_entry.entry_id,
+        identifiers={("zha", ieee)},
+        connections={(dr.CONNECTION_ZIGBEE, ieee)},
+        manufacturer="Onesti Products AS",
+        model=LOCK_MODEL,
+        name="front_door",
+    )
+    return zha_entry, device
+
+
+def _our_device(hass: HomeAssistant, entry: MockConfigEntry):
+    devices = dr.async_entries_for_config_entry(dr.async_get(hass), entry.entry_id)
+    assert len(devices) == 1
+    return devices[0]
+
+
+async def test_the_lock_device_says_which_lock_it_is(hass: HomeAssistant, mock_zha) -> None:
+    """Model, serial number and the zigbee connection, on both HA targets.
+
+    What the registry then does with the connection differs: through HA
+    2026.8 it is unique across config entries, so this device and ZHA's
+    become one entry carrying both integrations. From 2026.9 it is unique
+    only within one entry, the two stay apart, and the link is the
+    via_device_id this integration sets.
+    """
+    zha_entry, zha_device = _zha_device(hass)
+
+    entry = await _setup_entry(hass)
+
+    device = _our_device(hass, entry)
+    assert (dr.CONNECTION_ZIGBEE, LOCK_IEEE) in device.connections
+    assert device.manufacturer == "Onesti Products AS"
+    assert device.model == LOCK_MODEL
+    assert device.serial_number == LOCK_IEEE
+    assert device.name == f"{LOCK_MODEL} (3344)"
+    assert (DOMAIN, entry.entry_id) in device.identifiers
+
+    if HAS_VIA_DEVICE_ID:
+        assert device.id != zha_device.id
+        assert device.via_device_id == zha_device.id
+    else:
+        assert device.id == zha_device.id
+        assert device.config_entries == {entry.entry_id, zha_entry.entry_id}
+
+
+async def test_the_lock_device_stands_alone_without_zha_in_the_registry(
+    hass: HomeAssistant, mock_zha
+) -> None:
+    """A gateway that lists the lock but no device registry entry for it.
+
+    ZHA writes its devices as it interviews them, so ours can be built
+    first. The device is still right; only the link to ZHA is missing.
+    """
+    entry = await _setup_entry(hass)
+
+    device = _our_device(hass, entry)
+    assert device.via_device_id is None
+    assert device.serial_number == LOCK_IEEE
+
+
+async def test_entity_ids_follow_the_device_name(hass: HomeAssistant, mock_zha) -> None:
+    """Where DEVICE_SLUG in conftest comes from."""
+    entry = await _setup_entry(hass)
+
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id("sensor", DOMAIN, f"{entry.entry_id}-activity")
+    assert entity_id == f"sensor.{DEVICE_SLUG}_last_activity"
+
+
+async def test_reconfigure_points_the_entry_at_another_module(
+    hass: HomeAssistant, mock_zha
+) -> None:
+    """A replaced Connect Module: new address, same entry, same options."""
+    mock_zha.device_proxies[SECOND_LOCK_IEEE] = make_lock_proxy(model="NimlyCodePRO")
+    entry = await _setup_entry(hass)
+    hass.config_entries.async_update_entry(
+        entry, options={"slots": {"5": {"name": "Kari", "has_pin": True}}}
+    )
+    await hass.async_block_till_done()
+    device_id = _our_device(hass, entry).id
+
+    result = await entry.start_reconfigure_flow(hass)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reconfigure"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"device": SECOND_LOCK_IEEE}
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data == {CONF_IEEE: SECOND_LOCK_IEEE, CONF_MODEL: "NimlyCodePRO"}
+    assert entry.unique_id == SECOND_LOCK_IEEE
+    assert entry.options["slots"] == {"5": {"name": "Kari", "has_pin": True}}
+    assert entry.state is ConfigEntryState.LOADED
+    # The same device, renamed: the entities did not move anywhere.
+    assert _our_device(hass, entry).id == device_id
+    assert _our_device(hass, entry).name == "NimlyCodePRO (7788)"
+
+
+async def test_reconfigure_to_a_lock_another_entry_owns_is_refused(
+    hass: HomeAssistant, mock_zha
+) -> None:
+    """The second entry may appear between the form and the submit."""
+    mock_zha.device_proxies[SECOND_LOCK_IEEE] = make_lock_proxy()
+    entry = await _setup_entry(hass)
+
+    result = await entry.start_reconfigure_flow(hass)
+    assert SECOND_LOCK_IEEE in result["data_schema"]({"device": SECOND_LOCK_IEEE})["device"]
+    other = await _setup_entry(hass, SECOND_LOCK_IEEE)
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"device": SECOND_LOCK_IEEE}
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert entry.data[CONF_IEEE] == LOCK_IEEE
+    assert other.data[CONF_IEEE] == SECOND_LOCK_IEEE
+
+
+async def test_reconfigure_leaves_out_locks_other_entries_own(
+    hass: HomeAssistant, mock_zha
+) -> None:
+    """Only this entry's own lock and the free ones are offered."""
+    mock_zha.device_proxies[SECOND_LOCK_IEEE] = make_lock_proxy()
+    entry = await _setup_entry(hass)
+    await _setup_entry(hass, SECOND_LOCK_IEEE)
+
+    result = await entry.start_reconfigure_flow(hass)
+
+    assert result["step_id"] == "reconfigure"
+    with pytest.raises(vol.Invalid):
+        result["data_schema"]({"device": SECOND_LOCK_IEEE})
+    assert result["data_schema"]({"device": LOCK_IEEE})["device"] == LOCK_IEEE
+
+
+async def test_reconfigure_without_zha_aborts(hass: HomeAssistant, mock_zha) -> None:
+    entry = await _setup_entry(hass)
+    hass.data["zha"] = SimpleNamespace(gateway_proxy=None)
+
+    result = await entry.start_reconfigure_flow(hass)
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "zha_not_found"
+
+
+async def test_reconfigure_without_a_free_lock_aborts(hass: HomeAssistant, mock_zha) -> None:
+    """ZHA is running but has no Onesti lock left to point at."""
+    entry = await _setup_entry(hass)
+    mock_zha.device_proxies = {}
+
+    result = await entry.start_reconfigure_flow(hass)
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "no_devices_found"
 
 
 async def test_services_registered(hass: HomeAssistant, mock_zha) -> None:
@@ -200,11 +387,11 @@ async def test_entity_name_is_translated_on_norwegian_instance(hass: HomeAssista
     entry = await _setup_entry(hass)
 
     registry = er.async_get(hass)
-    entity_id = registry.async_get_entity_id("sensor", DOMAIN, f"{LOCK_IEEE}-activity")
+    entity_id = registry.async_get_entity_id("sensor", DOMAIN, f"{entry.entry_id}-activity")
     assert entity_id is not None
     state = hass.states.get(entity_id)
     assert state is not None
-    assert state.attributes["friendly_name"] == "Onesti Lock Siste aktivitet"
+    assert state.attributes["friendly_name"] == f"{LOCK_MODEL} (3344) Siste aktivitet"
 
     assert await hass.config_entries.async_unload(entry.entry_id)
 

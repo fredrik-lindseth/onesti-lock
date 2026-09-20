@@ -54,7 +54,8 @@ def _make_flow(proxies, existing_ieees=()):
     )
     flow.hass = types.SimpleNamespace(data={"zha": gateway})
     flow._async_current_entries = lambda: [
-        types.SimpleNamespace(data={"ieee": ieee}) for ieee in existing_ieees
+        types.SimpleNamespace(entry_id=f"entry-{ieee}", data={"ieee": ieee})
+        for ieee in existing_ieees
     ]
     return flow
 

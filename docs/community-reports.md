@@ -1,38 +1,35 @@
 # What the user community has reported
 
-Everything below comes from Nordic and international user forums, vendor PDFs
-that only surface through forum links, and app store listings. It is the one
-place in this repo where the source is somebody else's door rather than our
-own, so every claim carries a marker:
+Everything here comes from Nordic and international forums, vendor PDFs that
+only surface through forum links, and app store listings. The source is
+somebody else's door, so every claim carries a marker:
 
-- **Measured** means the poster showed a screenshot, a log line, a payload, a
-  photo or an oscilloscope-grade number they took themselves.
-- **Relayed** means a user quoting the vendor or support. The quote is real,
-  what it says may not be.
-- **Anecdote** means somebody describing what they experienced or heard,
-  without evidence anyone else can check.
+- **Measured**: the poster showed a screenshot, a log line, a payload, a
+  photo or a number they took themselves.
+- **Relayed**: a user quoting the vendor or support. The quote is real, what
+  it says may not be.
+- **Anecdote**: somebody describing what they experienced or heard, with
+  nothing anyone else can check.
 
 Swept 2026-09-20 across hjemmeautomasjon.no, byggahus.se, hemautomation.se,
 sweclockers, Danish forums and retailers, community.home-assistant.io,
 community.homey.app, community.openhab.org, community.smartthings.com,
 Hubitat, Reddit and YouTube.
 
-Since 2026-09-20 the material is not re-read from the web but from a local
-archive: 105 sources, every one dated, listed in
-[docs/manuals/README.md](manuals/README.md) and fetched by
+Since then the material is read from a local archive, not the web: 105 dated
+sources listed in [docs/manuals/README.md](manuals/README.md) and fetched by
 `python3 scripts/fetch_manuals.py --living`. That is 24 forum threads, 62
 GitHub issues and pull requests across the four upstream projects, the
-converter and quirk source files, and the vendor's own product pages and app
-listings. The counts below were made by reading that archive, so they can be
-checked and redone. Rerunning the fetch says what has arrived since.
+converter and quirk sources, and the vendor's product pages and app listings.
+The counts below were made from that archive and can be redone. Rerunning the
+fetch says what has arrived since.
 
 ## What people actually complain about
 
-A census rather than a summary: every archived thread read through, one count
-per problem, counting distinct people and not posts. A person who raised the
-same thing in three places counts once. The numbers are a floor, not a
-measurement of the world: they say how many owners wrote it down somewhere
-this archive reaches.
+A census: every archived thread read through, one count per problem,
+counting people rather than posts. Someone who raised the same thing in three
+places counts once. The numbers are a floor: how many owners wrote it down
+somewhere this archive reaches.
 
 | Problem | People | Where | Solved by, and for how many |
 | ------- | -----: | ----- | --------------------------- |
@@ -46,98 +43,89 @@ this archive reaches.
 | The PIN is in the log in clear text | 3 | HA thread, ZHA quirk, Z2M converter | Disabling the entity. Still open upstream in both projects |
 | Sensors stopped updating after HA 2026.2 | 3 | HA thread, and zha-device-handlers#5235 | Nothing merged. One user moved to Z2M |
 
-Two of those deserve a word beyond the count.
+Two of those deserve more than the count.
 
-**Auto-relock is the vendor's own answer to a sleepy device, and it explains
-something we built around.** Five Homey owners set auto-relock off, the lock
-accepted it, and the door relocked a few seconds later anyway. Nimly support,
-quoted by the thread's first poster (**relayed**, the email is pasted in
-full), says why:
+Auto-relock is the vendor's own answer to a sleepy device. Five Homey owners
+set auto-relock off, the lock accepted it, and the door relocked a few seconds
+later anyway. Nimly support, quoted in full by the thread's first poster
+(**relayed**), says why:
 
 > the lock is a battery device [...] there is a difference between a command
 > and a configuration update: the first is always accepted, the second
 > unfortunately is not
 
-That is the vendor saying out loud that a configuration write to a sleeping
-lock is not reliable, which is the same thing `ZhaLockTransport.send()` works
-around and the reason a PIN write is only believed after a delivered send.
-Their own advice is to give up on the setting and rebuild auto-relock in
-automations.
+That is the vendor saying a configuration write to a sleeping lock is
+unreliable, which is what `ZhaLockTransport.send()` works around and why a
+PIN write is only believed after a delivered send. Their advice is to give up
+on the setting and rebuild auto-relock in automations.
 <https://community.homey.app/t/104305>
 
-**Nobody can set a PIN and be sure it took.** One Homey user's code did not
-work on the keypad and then started working about twelve hours later, with
-nothing changed (**measured**, he gives the timing). Another's never took.
-On the Home Assistant side, one user hit a plain ZCL timeout on Set PIN Code
-(cluster 257, command 5, 10 s) through the Z2M dashboard and got it through
-by publishing the payload by hand, while a second user needed a differently
-shaped payload on a different topic for what is the same operation
-(**measured**, both payloads are in the thread). A third asked and got
-answered, empirically, that PIN, RFID and fingerprint each have their own ID
-range, so the same number in all three is three different credentials.
+Nobody can set a PIN and be sure it took. One Homey user's code did not work
+on the keypad and then started working about twelve hours later, nothing
+changed (**measured**, he gives the timing). Another's never took. On the
+Home Assistant side, one user hit a plain ZCL timeout on Set PIN Code
+(cluster 257, command 5, 10 s) through the Z2M dashboard and got it through by
+publishing the payload by hand, while a second needed a differently shaped
+payload on a different topic for the same operation (**measured**, both
+payloads are in the thread). A third asked and was answered, empirically,
+that PIN, RFID and fingerprint each have their own ID range, so the same
+number in all three is three different credentials.
 <https://community.home-assistant.io/t/nimly-touch-pro/930415>
 
 ### Things reported once or twice, worth knowing anyway
 
-- **A mechanical fault that looks exactly like a radio fault.** Two HA thread
-  users (kork123 #220-#222, Mastiff #227) traced intermittent dropouts to the
-  module losing pin contact when the door slams, and fixed it with layers of
-  double-sided tape between module and PCB. If that holds, some part of the
-  range story is not range at all.
-- **No child lock, and it is deliberate.** The handle inside cannot be
-  disabled, and the vendor withholds away-mode from the Homey app on fire
-  escape grounds (Homey thread 147580, one asker, answered by the app
-  author).
-- **Fingerprint and RFID can only be enrolled on the keypad**, not over
-  Zigbee. Two or three reporters, and it is a firmware limit, not an
-  integration one.
-- **The lock declares itself mains powered.** One open Z2M issue (#32772,
-  2026-08-07) and a 2021 deCONZ device record showing `"powerSource":"DC
-  Source"` for the same family. This is the claim in the battery section
-  below, and it has been visible in the record for five years.
-- **Support is inconsistent rather than bad.** In one Homey thread, one owner
-  got no answer at all while another got one within a week and later within
-  24 hours, on the same problem.
-- **A motor that stopped after five months**, replaced under warranty, and a
-  lock that beeps at an unlock command without moving the bolt. One report
-  each, no pattern.
+- A mechanical fault that looks like a radio fault. Two HA thread users
+  (kork123 #220-#222, Mastiff #227) traced intermittent dropouts to the module
+  losing pin contact when the door slams, and fixed it with double-sided tape
+  between module and PCB. If that holds, some of the range story is not range.
+- No child lock, on purpose. The inside handle cannot be disabled, and the
+  vendor withholds away-mode from the Homey app on fire escape grounds (Homey
+  thread 147580, one asker, answered by the app author).
+- Fingerprint and RFID can only be enrolled on the keypad, not over Zigbee.
+  Two or three reporters. A firmware limit, not an integration one.
+- The lock declares itself mains powered. One open Z2M issue (#32772,
+  2026-08-07) and a 2021 deCONZ device record with `"powerSource":"DC
+  Source"` for the same family. Same claim as in the battery section below,
+  visible in the record for five years.
+- Support is inconsistent rather than bad. In one Homey thread one owner got
+  no answer at all while another got one within a week and later within 24
+  hours, on the same problem.
+- A motor that stopped after five months, replaced under warranty, and a lock
+  that beeps at an unlock command without moving the bolt. One report each.
 
 ### Where the search found nothing
 
 The GitHub sweep covered every issue and PR mentioning nimly, onesti,
 easyaccess, easycode, easyfinger or e-life in zigbee2mqtt,
 zigbee-herdsman-converters, zha-device-handlers and deconz-rest-plugin: 62 in
-all. `ZMNC010`, the module's own part number, returns zero hits in all four
-repositories. Nobody on GitHub has ever referred to the module by the name
-printed in the manual. Neither `keyfree` nor a lock-related `salus` hit
-exists either; a plain `salus` search returns fifty issues about the
-unrelated thermostat brand.
+all. `ZMNC010`, the module's part number, returns zero hits in all four.
+Nobody on GitHub has ever called the module by the name in the manual.
+`keyfree` and a lock-related `salus` return nothing either; a plain `salus`
+search gives fifty issues about the unrelated thermostat brand.
 
 ## Bluetooth
 
-**Nobody outside the vendor has ever posted a BLE scan of one of these
-locks.** Not a screenshot from nRF Connect, not a GATT dump, not an
-advertisement hex string, in any forum in any of the four languages searched.
-The only third party who has scanned at all is aridder/nimly-manager, already
-on record in `docs/upstream-status.md`. That silence is itself the finding:
-our own failure to see an advertisement (`hacs-onesti-3y0crhl`) is not a
-local fault, it is the normal state of affairs for everyone.
+Nobody outside the vendor has ever posted a BLE scan of one of these locks.
+No nRF Connect screenshot, no GATT dump, no advertisement hex string, in any
+forum in any of the four languages searched. The only third party who has
+scanned at all is aridder/nimly-manager, on record in
+`docs/upstream-status.md`. That silence is the finding: our own failure to
+see an advertisement is the normal state for everyone.
 
 What the sweep did turn up is the vendor tying the Bluetooth radio to the
-pairing window, which nothing we had said before.
-
-The Connect Module installation guide on nimly.se, file dated 2024-10-23,
-says it in one line (**relayed**, but it is the vendor's own PDF):
+pairing window, which nothing we had said before. The Connect Module
+installation guide on nimly.se, file dated 2024-10-23 (**relayed**, but the
+vendor's own PDF):
 
 > The module enters pairing mode automatically for four minutes, indicated by
 > orange (zigbee) and blue (bluetooth) flashing from the module.
 
-and, for a module that has already been paired:
+For a module already paired:
 
 > Did you use too long to connect? To re-enter pairing mode, remove and
 > reinsert the batteries/power while the units are connected.
 
-and for the reset:
+And the reset:
 
 > How to reset: hold down the reset button on the module until the orange
 > indicator blinks rapidly (about 15 seconds). Release the button
@@ -146,85 +134,77 @@ and for the reset:
 
 <https://nimly.se/wp-content/uploads/2024/10/EN-Connect-Module-Installation-Guide-231024-bluetooth-app-and-nimly-connect.pdf>
 
-A user described the same two colours three years earlier, on 2021-10-10 on
-hjemmeautomasjon.no, telling another user how to get the module into search
-mode on Futurehome: pull one battery and put it back, and it "blinker gult og
+A user described the same two colours three years earlier, 2021-10-10 on
+hjemmeautomasjon.no, telling another how to get the module into search mode
+on Futurehome: pull one battery and put it back, and it "blinker gult og
 blått" (**anecdote**, first-hand, independent of the PDF).
 <https://www.hjemmeautomasjon.no/forums/topic/6786-easy-access-easycodetouch/page/2/>
 
-Two independent sources therefore agree that the blue Bluetooth indicator is
-a pairing-mode indicator, not a running-state one. That is the strongest
-evidence yet for outcome (c) in `hacs-onesti-3y0crhl`: the module probably
-only advertises inside the four-minute window, and `hacs-onesti-5fvt04o` (pull
-a battery and watch) is the measurement that settles it.
+Two independent sources agree that the blue indicator means pairing mode, not
+running state. That is the strongest evidence yet that the module only
+advertises inside the four-minute window, and pulling a battery while
+watching a scanner is the measurement that settles it. Nobody has run it.
 
 The same PDF confirms the unloc route needs no hub: "Do you want to create
 and share digital keys? No gateway required. Connect with the unloc-app
 (BLE)."
 
-Apple's App Store listing for **nimly BLE**, publisher Easy Access AS, says
+Apple's App Store listing for nimly BLE, publisher Easy Access AS, says
 "Create digital access or operate your device with basic functions by BLE.
 Works with Zigbee BLE Module and Connect Module, installed in compatible
 electronic device from EasyAccess or nimly." Version 1.0 shipped 2023-07-24,
 1.0.3 on 2023-09-26 added "lock management and eKey functionality", 1.5.0 on
-2025-06-08 was the rebrand from EasyAccess to nimly plus a Bluetooth signal
-strength display and automatic disconnect on inactivity (**measured**, it is
-the store's own version history).
-<https://apps.apple.com/no/app/nimly-ble/id6451232924>
+2025-06-08 was the rebrand from EasyAccess to nimly plus a signal strength
+display and automatic disconnect on inactivity (**measured**, the store's own
+version history). <https://apps.apple.com/no/app/nimly-ble/id6451232924>
 
-Note the two module names in that sentence. "Zigbee BLE Module" and "Connect
-Module" are listed as separate things, which is consistent with the two
-generations in `docs/hardware-generations.md` but does not by itself say which
-is which.
+"Zigbee BLE Module" and "Connect Module" are listed there as separate things,
+which fits the two generations in `docs/hardware-generations.md` but does not
+say which is which.
 
-On 2022-08-05, a hjemmeautomasjon.no user relaying what EasyAccess had told
-him wrote that "Bluetooth-delen på modulen i låsen er under utvikling", the
-Bluetooth part of the in-lock module is still under development (**relayed**).
-That dates the BLE side as not yet live in the summer of 2022, on a module
-that was already shipping with Zigbee.
+On 2022-08-05 a hjemmeautomasjon.no user relaying EasyAccess wrote that
+"Bluetooth-delen på modulen i låsen er under utvikling", the Bluetooth part
+of the module is still under development (**relayed**). So the BLE side was
+not live in the summer of 2022, on a module already shipping with Zigbee.
 
-**A line the text extract hides.** "*Bluetooth is only available on the newer
-versions of the module" does stand in the Connect Module installation guide,
-printed small under the green "Works with unloc" badge on the English 2024
-edition and repeated in the Norwegian 2026 one. `pdftotext` drops it on the
-English file, so a grep of the extract says it is not there. Render the page
-and read it instead, as [docs/manuals/README.md](manuals/README.md) says.
+One line the text extract hides: "*Bluetooth is only available on the newer
+versions of the module" does stand in the Connect Module guide, small under
+the green "Works with unloc" badge on the English 2024 edition and repeated in
+the Norwegian 2026 one. `pdftotext` drops it on the English file, so a grep
+says it is not there. Render the page, as
+[docs/manuals/README.md](manuals/README.md) says.
 
 ### The first-generation Bluetooth module was a different device
 
-This is the most useful single post found, and it predates everything else.
-
-On 2018-10-17 on hjemmeautomasjon.no, GustavM bought the separate Bluetooth
+The most useful single post found, and it predates everything else. On
+2018-10-17 on hjemmeautomasjon.no, GustavM bought the separate Bluetooth
 module sold for the EasyAccess EasyCode, opened it and probed the connector
-between module and lock (**measured**, first-hand instrumentation):
+(**measured**, first-hand):
 
 > De 4 pinnene er VCC, Jord og 2 pinner som settes høy for å hhv åpne og lukke
 > låsen. [...] Unlock pin: Høy i 650 millisekund >>> 10,5 sekunder pause >>>
 > Lock pin: Høy i 650 millisekund. Spenningsnivået når pinnene blir satt høy
 > er ca 4.6V [...] Pluggen er en 4pin JST PH 2mm pitch.
 
-There is no serial protocol and no authentication on that link. The module is
-a dumb GPIO bridge that pulses two pins, and it sits in the same slot the
-Zigbee module later took.
-
-The consequence for us is worth stating plainly: "Bluetooth module" in this
-product line has meant two entirely unrelated things. The old one carries no
-lock protocol at all, so the ekey command set in
+No serial protocol, no authentication. That module is a GPIO bridge that
+pulses two pins, in the slot the Zigbee module later took. So "Bluetooth
+module" has meant two unrelated things in this product line. The old one
+carries no lock protocol, so the ekey command set in
 `docs/nimly-ble-app/ble-protocol.md` can only belong to the newer combined
-module. An older lock that shows nothing on a BLE scan is behaving exactly as
+module, and an older lock that shows nothing on a BLE scan is behaving as
 designed.
 <https://www.hjemmeautomasjon.no/forums/topic/3791-easyaccess-easycode-pinout/>
 
-A year later, on 2019-12-12, another user on the same forum asked whether the
-lock's Bluetooth could be paired to a Raspberry Pi or an ESP32 and driven
-directly. Nobody ever answered that they had done it.
+On 2019-12-12 another user on the same forum asked whether the lock's
+Bluetooth could be driven from a Raspberry Pi or ESP32. Nobody ever answered
+that they had done it.
 <https://www.hjemmeautomasjon.no/forums/topic/5766-easy-access-easycode-v2-kodel>
 
 ## Firmware versions people report
 
-All of these come from the long Home Assistant thread "Nimly lock, with
-Zigbee module". The firmware rows come from the first 181 posts,
-January 2023 to December 2025; the thread ran to 241 posts by 2026-09-13.
+All from the Home Assistant thread "Nimly lock, with Zigbee module". The rows
+come from the first 181 posts, January 2023 to December 2025; the thread ran
+to 241 posts by 2026-09-13.
 <https://community.home-assistant.io/t/nimly-lock-with-zigbee-module/523634>
 
 | Version | Date code | What the poster said | Post, date | Status |
@@ -238,88 +218,81 @@ January 2023 to December 2025; the thread ran to 241 posts by 2026-09-13.
 | `4.7.79` | `20240625` | named as the minimum that works at all | #181, pyberg, 2025-12-08 | anecdote, read directly |
 | `4.7.98` | `20240625` | after upgrading from 4.5.26, "batteries last so much longer" | #170, uvnikita, 2025-09-14 | measured, read directly |
 
-`4.8.01` on `20240625` is already in `docs/hardware-generations.md` from
-Z2M#31385, and a replacement module in the Homey thread carries the same
-build, so the ladder runs at least 4.5.24, 4.5.26, 4.7.78, 4.7.79, 4.7.98,
-4.8.01 against date codes `20220614`, `20230210`, `20230530`, `20240529` and
-`20240625`. Note that one date code covers four different software builds,
-which is another reason the date code alone says nothing about a generation.
+`4.8.01` on `20240625` is in `docs/hardware-generations.md` from Z2M#31385,
+and a replacement module in the Homey thread carries the same build. So the
+ladder runs at least 4.5.24, 4.5.26, 4.7.78, 4.7.79, 4.7.98, 4.8.01 against
+date codes `20220614`, `20230210`, `20230530`, `20240529` and `20240625`. One
+date code covers four software builds, so the date code alone says nothing
+about a generation.
 
 ## Updates arrive in the post, not over the air
 
-Every user who got a newer firmware got it as a physically different module
-mailed out by support. Post #20 (TheQue42, 2023-04-05) "I got the reseller to
-provide me with an updated chip"; post #107 (retif, 2024-08-06) "That's my 3rd
-module, as previous two had certain defects"; posts #152 and #154 (January and
-February 2025) the same again. Post #174 (NeoID, 2025-11-05) says it outright:
-"I'm a bit disappointed that there isn't support for OTA for this card."
-Nobody in any forum reports an over-the-air update.
-
-That is an independent confirmation, from the user side, of the conclusion
-already reached from the Koenkk OTA index in `hacs-onesti-3c4bl36-c3`.
+Every user who got newer firmware got it as a different module mailed by
+support. Post #20 (TheQue42, 2023-04-05): "I got the reseller to provide me
+with an updated chip". Post #107 (retif, 2024-08-06): "That's my 3rd module,
+as previous two had certain defects". Posts #152 and #154 (January and
+February 2025): the same. Post #174 (NeoID, 2025-11-05): "I'm a bit
+disappointed that there isn't support for OTA for this card." Nobody in any
+forum reports an over-the-air update. That confirms, from the user side,
+what the Koenkk OTA index already said.
 
 ## Battery
 
-The reason this section is long is that battery is the single most reported
-problem with these locks, by a wide margin, in every forum and every language.
+Battery is the single most reported problem with these locks, by a wide
+margin, in every forum and language.
 
-**Do not leave the module in an unpaired lock.** EasyAccess's own product
-text, quoted on hjemmeautomasjon.no on 2021-10-09 (**relayed**):
+Do not leave the module in an unpaired lock. EasyAccess's product text,
+quoted on hjemmeautomasjon.no on 2021-10-09 (**relayed**):
 
 > Vi anbefaler ikke å sette ZigBee modulen i dørlåsen om den ikke skal kobles
 > opp mot et smarthjemsystem. Da vil modulen stå i kontinuerlig «søkemodus» og
 > tappe dørlåsen for batteri.
 
-An unpaired module sits in permanent search mode and drains the lock. This
-matters for any hardware session where the module is deliberately left
-unpaired between experiments.
+An unpaired module sits in permanent search mode and drains the lock, which
+matters for any hardware session that leaves the module unpaired between
+experiments.
 
-**Real numbers from real doors.** On 2026-05-23 a hjemmeautomasjon.no user
-running Z2M on an SLZB-06 reported changing batteries every two months on a
-Nimly Touch Pro and every month on a Nimly Indoor, against the vendor's
-claimed twelve (**anecdote**, first-hand, no log).
+Real numbers from real doors: on 2026-05-23 a hjemmeautomasjon.no user on
+Z2M with an SLZB-06 reported changing batteries every two months on a Touch
+Pro and every month on a Nimly Indoor, against the vendor's claimed twelve
+(**anecdote**, first-hand, no log).
 <https://www.hjemmeautomasjon.no/forums/topic/13667-nimly-id-lock-eller-nuki/>
 
-**The battery percentage is wrong in two separate ways.** In December 2021 a
-user watched the lock blink red and start to labour while Home Assistant
-still showed 100 %. In 2024 the reported value was doubled: post #118
-(uvnikita, 2024-10-22) through post #133 (Eriond, 2024-10-27) work out that
-`battery_percentage_remaining` runs 0 to 200 per the ZCL spec and that the
-fix is a `DoublingPowerConfigurationCluster` (**measured**, they show the
-numbers, 20 against 40 and 37 against 74).
+The battery percentage is wrong in two separate ways. In December 2021 a user
+watched the lock blink red and labour while Home Assistant showed 100 %. In
+2024 the value was doubled: posts #118 (uvnikita, 2024-10-22) through #133
+(Eriond, 2024-10-27) work out that `battery_percentage_remaining` runs 0 to
+200 per ZCL and that the fix is a `DoublingPowerConfigurationCluster`
+(**measured**, 20 against 40 and 37 against 74).
 
-**The lock reports the wrong power source.** Post #118, uvnikita, 2024-10-22
+The lock reports the wrong power source. Post #118, uvnikita, 2024-10-22
 (**measured**, read directly):
 
 > I think the reason why ZHA is not showing battery percentage is because
 > Nimly lock incorrectly presents itself as a Mains powered device.
 
-This is a checkable claim about the Basic cluster `PowerSource` attribute,
-and if it holds it is directly relevant to the sleepy-radio problem: a device
-that declares itself mains-powered is not one a coordinator will queue
-messages for. It costs one attribute read to settle and belongs on the
-hardware checklist in `hacs-onesti-7ldhq4`.
+A checkable claim about the Basic cluster `PowerSource` attribute, and
+relevant to the sleepy-radio problem if it holds: a coordinator does not
+queue messages for a device that says it is mains powered. One attribute read
+settles it, and nobody has done it.
 
-**A claim that could not be verified, and where it comes from.** The story
-that the module is called "SIGMI" and drains the lock because it advertises
-as a non-sleepy mains-powered device turns up once, in the Homey thread
-"[APP] Nimly", post #3, and the poster says himself that he got it from
-ChatGPT. The power-source half is true and independently measured
-(uvnikita's post above, and the open Z2M issue #32772); the module name is
-an invention. Do not cite it.
+A claim that could not be verified: the story that the module is called
+"SIGMI" and drains the lock by advertising as non-sleepy turns up once, in
+the Homey thread "[APP] Nimly", post #3, and the poster says he got it from
+ChatGPT. The power-source half is true and independently measured (uvnikita
+above, and Z2M issue #32772); the module name is an invention. Do not cite it.
 <https://community.homey.app/t/143578>
 
 ## Range and coverage
 
-Second only to battery, and often the same thread. All post numbers below are
-from the Home Assistant thread unless another source is named.
+Second only to battery, often in the same thread. Post numbers are from the
+Home Assistant thread unless another source is named.
 
-**The lock transmits weakly, and owners work it out the hard way.** The
-pattern across three years is the same story told by strangers: the lock
-pairs or reports badly, the owner adds a mains-powered router within a few
-metres of the door, and it starts working.
+The lock transmits weakly, and owners find out the hard way. Three years of
+strangers telling the same story: the lock pairs or reports badly, the owner
+adds a mains-powered router within a few metres of the door, and it works.
 
-- Post #54 (erik85, 2023-08-22), **measured**: nothing was found until the
+- Post #54 (erik85, 2023-08-22), **measured**: nothing found until the
   coordinator was moved into the same room. "Signal strength is 116 lqi with
   2m distance which seems a bit low?"
 - Post #112 (haarfagr, 2024-09-21), **anecdote**: pairing only worked after
@@ -328,87 +301,81 @@ metres of the door, and it starts working.
   successful pairing. "Seems like the range was the issue. Fixed with an ikea
   tretakt smart plug/repeater."
 - Post #148 (MakkaKaplar, 2025-01-03), **anecdote**: a dimmer and a Trådfri
-  repeater put within 2 m of the door before pairing would take.
+  repeater within 2 m of the door before pairing would take.
 - Post #180 (markus-lassfolk, 2025-12-07), **anecdote**: four locks, none
   stable until a full module reset plus "a Zigbee Repeater connected to the
   main power and not relying on battery based repeaters. I think this really
   did the difference."
 - Post #185 (markus-lassfolk, 2026-01-20), **anecdote**: "The range of their
   hub and zigbee was terrible and unreliable."
-- Post #220 (kork123, 2026-02-26), **anecdote**: an IKEA smart plug as an
-  intermediate router works; an Aqara plug did not, because "the lock
-  preferred to connect directly to the ConBee II and ignored the Aqara plug".
-- Post #224 (endallas1, 2026-03-02), **anecdote**: 5-6 m, wooden walls only,
-  no sensor updates at all until an IKEA switch went in near the door. "I
-  guess it sends a quite weak signal."
+- Post #220 (kork123, 2026-02-26), **anecdote**: an IKEA smart plug as router
+  works; an Aqara plug did not, because "the lock preferred to connect
+  directly to the ConBee II and ignored the Aqara plug".
+- Post #224 (endallas1, 2026-03-02), **anecdote**: 5-6 m, wooden walls, no
+  sensor updates until an IKEA switch went in near the door. "I guess it
+  sends a quite weak signal."
 - Post #244 (sebrk, 2026-09-13), **anecdote**: 2 m, one wooden wall, two
-  different coordinators tried, raising transmit power tried. The lock still
-  flips between available and unavailable every five minutes. Post #245
-  (Fumble, same day) answers with three locks that all work, nearest repeater
-  2-3 m away.
+  coordinators tried, transmit power raised. The lock still flips between
+  available and unavailable every five minutes. Post #245 (Fumble, same day)
+  answers with three locks that all work, nearest repeater 2-3 m away.
 
-**Owners name the metal themselves.** Post #225 (kork123, 2026-03-03),
-**anecdote**: "I would agree that there must be weak signals. The lock is
-metal and the module sits behind the pcb." That is the only place anybody
-outside this repo connects the enclosure to the radio, and it is a guess from
-a user, not a measurement.
+Post #225 (kork123, 2026-03-03), **anecdote**: "I would agree that there must
+be weak signals. The lock is metal and the module sits behind the pcb." The
+only place anybody outside this repo connects the enclosure to the radio, and
+a guess, not a measurement.
 
-**The lock picks its parent badly, and slowly.** Mastiff's sequence in
-February 2026 is the most detailed account anyone has posted (**measured**, he
-gives LQI numbers throughout). Posts #197 and #201: a Sonoff dongle about six
-metres away, the lock goes unavailable after a day to a week, and only a
-battery pull brings it back; he is on Zigbee channel 25 with his own two
-2.4 GHz networks on 1 and 6, in a dense neighbourhood. He adds an IKEA
-Trådfri extender between dongle and lock, and "the lock does not go
-automatically via the extender even after a couple of days". Post #209: moved
-half a metre from the lock, the extender finally gets the pairing, and link
-quality goes from under 100 to 148. Post #210, the next morning: with no
-reboot and no intervention, every device in that flat moved over to the
-Trådfri at once, LQI 196. Post #187 (pyberg, 2026-01-24) says the same thing
-from the other side: a bulb inside the door acting as a router, and an
-SLZB-06 coordinator chosen because it "have a better antenna than the
-Skyconnect".
+The lock picks its parent badly, and slowly. Mastiff's sequence in February
+2026 is the most detailed account posted (**measured**, LQI numbers
+throughout). Posts #197 and #201: a Sonoff dongle about six metres away, the
+lock goes unavailable after a day to a week, and only a battery pull brings it
+back; Zigbee channel 25, his own two 2.4 GHz networks on 1 and 6, dense
+neighbourhood. He adds an IKEA Trådfri extender between dongle and lock, and
+"the lock does not go automatically via the extender even after a couple of
+days". Post #209: extender moved to half a metre from the lock, it finally
+takes the pairing, LQI from under 100 to 148. Post #210, next morning: with
+no intervention, every device in the flat moved to the Trådfri, LQI 196. Post
+#187 (pyberg, 2026-01-24) says the same from the other side: a bulb inside the
+door as router, and an SLZB-06 chosen because it "have a better antenna than
+the Skyconnect".
 
-Two things follow for anyone buying. A router near the door is necessary but
-not sufficient: the lock may keep talking to a distant coordinator for days
-before it re-parents, and nothing in Home Assistant forces it. And the LQI
-numbers people quote as working, 116 to 196, are the whole reported range;
-nobody has posted a comfortable one.
+Two things follow for a buyer. A router near the door is necessary but not
+sufficient: the lock may keep talking to a distant coordinator for days, and
+nothing in Home Assistant forces it. And the LQI numbers people quote as
+working, 116 to 196, are the whole reported range; nobody has posted a
+comfortable one.
 
-`docs/debugging.md` has the measurements from Fredrik's own door against this,
-and says what to do about it.
+`docs/debugging.md` has the measurements from Fredrik's door against this,
+and what to do about it.
 
 ## Losing the connection, and getting it back
 
-The sleepy-radio behaviour we measured on Fredrik's own lock is reported by
-strangers in the same words.
+The sleepy-radio behaviour measured on Fredrik's lock is reported by strangers
+in the same words.
 
 - Post #104 (Dorenix, 2024-05-23): the lock "becomes unresponsive to messages
   sent from home assistant after it has not been used for some time (~1h)".
 - Posts #40 and #47 (JesperWe, August 2023): the connection dies after a few
-  hours idle and a battery pull is needed to get it back.
+  hours idle and a battery pull is needed.
 - Post #180 (markus-lassfolk, 2025-12-07): pairing only became stable after a
-  full Zigbee reset and switching to mains-powered repeaters rather than
-  battery-powered ones.
+  full Zigbee reset and mains-powered repeaters instead of battery ones.
 
-Two reset recipes are on record, and they differ, which is worth knowing
-before a hardware session. EasyAccess support in 2021 said to hold the button
-on the module for 12 to 18 seconds until a fast yellow blink, then pull and
-reinsert a battery. The 2024 vendor guide says about 15 seconds until the
-orange indicator blinks rapidly, release immediately, and that on some
-modules you have to wait out the four-minute pairing window first. The colour
-is the same one under two names; the timing advice is not.
+Two reset recipes are on record, and they differ. EasyAccess support in 2021
+said to hold the module button 12 to 18 seconds until a fast yellow blink,
+then pull and reinsert a battery. The 2024 vendor guide says about 15 seconds
+until the orange indicator blinks rapidly, release at once, and on some
+modules wait out the four-minute pairing window first. Same colour under two
+names; the timing advice differs.
 
 ## What users saw over Zigbee before we started
 
-Two posts are worth keeping because they date things we thought were recent.
+Two posts date things we thought were recent.
 
-On 2021-03-21, a hjemmeautomasjon.no user listed what Z2M gave him on a fresh
-module: remaining battery, battery type AA, lock state, the source of the
-unlock (keypad against RFID tag), lock and unlock commands, auto-relock and
-sound volume. He adds that opening with the physical key produces no response
-over Zigbee at all (**anecdote**, first-hand). The negative is the useful
-part: a mechanical key turn is invisible to us and always has been.
+On 2021-03-21 a hjemmeautomasjon.no user listed what Z2M gave him on a fresh
+module: battery, battery type AA, lock state, the source of the unlock
+(keypad against RFID tag), lock and unlock commands, auto-relock and sound
+volume. Opening with the physical key produced no response over Zigbee at all
+(**anecdote**, first-hand). The negative is the useful part: a mechanical key
+turn is invisible to us and always has been.
 
 On 2022-12-27 another user posted a raw Z2M payload (**measured**):
 
@@ -418,7 +385,7 @@ On 2022-12-27 another user posted a raw Z2M payload (**measured**):
 "state":"UNLOCK"}
 ```
 
-with the complaint that `action_user` is always null. That is the same report
+with the complaint that `action_user` is always null. That is the report
 matthiasnielsen1 filed in 2026 and that `docs/upstream-status.md` treats as
 open. It is four years older than we thought.
 
@@ -430,90 +397,83 @@ now see the users pincode in the logfile which is horrible." Post #167
 actual pin code there instead of just a slot number" (**measured**, read
 directly).
 
-Independent users hitting the same exposure we removed in v1.3.0 and raised
-on the ZHA quirk PR is worth having in hand the next time that thread needs a
-nudge. `docs/upstream-status.md` holds the thread itself.
+Independent users hitting the exposure we removed in v1.3.0 and raised on the
+ZHA quirk PR. Worth having in hand next time that thread needs a nudge;
+`docs/upstream-status.md` holds the thread.
 
 ## Models and brands
 
-Unloc's own install guide, updated 2024-10-11, is titled "How to install
-Nimly Touch Pro/Touch/Code/Indoor", which is the first place **Nimly Indoor**
-turns up in our material. A hjemmeautomasjon.no user runs one alongside a
-Touch Pro on the same Z2M install.
+Unloc's install guide, updated 2024-10-11, is titled "How to install Nimly
+Touch Pro/Touch/Code/Indoor", the first place Nimly Indoor turns up in our
+material. A hjemmeautomasjon.no user runs one next to a Touch Pro on the same
+Z2M install.
 <https://help.unloc.app/en/article/how-to-install-nimly-touch-protouchcodeindoor-aesdl5>
 
-EasyAccess's 2021 product text lists the smart home systems it then worked
-with, Safe4, Homely, FutureHome and Homey, with "EasyAccess App, Unloc" under
-development. On 2021-05-12 a user confirmed the same Zigbee 3.0 module fits
-both the Touch series and the older EasyCode V2, the latter through an
-adapter PCB (**anecdote**, first-hand purchase), which is a small piece of
-evidence that the module is one article across a wider range of locks than
-the model table suggests.
+EasyAccess's 2021 product text lists the systems it then worked with, Safe4,
+Homely, FutureHome and Homey, with "EasyAccess App, Unloc" under development.
+On 2021-05-12 a user confirmed the same Zigbee 3.0 module fits both the Touch
+series and the older EasyCode V2, the latter through an adapter PCB
+(**anecdote**, first-hand purchase): a small sign that the module is one
+article across more locks than the model table suggests.
 
-Nothing substantial was found under the Salus, Keyfree, Copiax, Tryg Smart or
-Safe4 names. Searches in Swedish and Danish retailer and forum space returned
-product listings and the vendor's own manuals rebadged, no user discussion
-with technical content, and no Salus-specific material at all despite Salus
-having its own hub ecosystem.
+Nothing substantial under the Salus, Keyfree, Copiax, Tryg Smart or Safe4
+names. Swedish and Danish retailer and forum searches returned listings and
+the vendor's manuals rebadged, no user discussion with technical content, and
+nothing Salus-specific despite Salus having its own hub ecosystem.
 
 ## The vendor's hub
 
 Owners who bought the Connect Gateway write about it in the same tone as the
-module: it works, until the radio does not reach. One HA thread user could get
-only one of his four locks onto the hub, and that one dropped off after a few
-days, so he moved all four to Z2M with a mains-powered repeater by the door
-(#180, **anecdote**). Another put it plainly: "the range of their hub and
-Zigbee was terrible and unreliable, made me switch to Z2M" (#185,
-**anecdote**). A third bought the gateway for the sole purpose of getting a
-module firmware update through it, and got no update (#42, **anecdote**). The
-one contented report is from a user who has run the lock only on the hub and
-had not changed batteries in over a year, though the app never showed him a
-battery level (#171, **anecdote**).
+module: it works until the radio does not reach. One HA thread user got only
+one of four locks onto the hub, and that one dropped off after a few days, so
+he moved all four to Z2M with a mains-powered repeater by the door (#180,
+**anecdote**). Another: "the range of their hub and Zigbee was terrible and
+unreliable, made me switch to Z2M" (#185, **anecdote**). A third bought the
+gateway solely to get a module firmware update through it, and got none
+(#42, **anecdote**). The one contented report is from a user who has run the
+lock only on the hub and had not changed batteries in over a year, though the
+app never showed him a battery level (#171, **anecdote**).
 
-**Nobody has integrated the hub itself with anything.** Two people asked
-outright in the Home Assistant thread whether the Nimly gateway could be
-reached from HA, in November 2023 (#62) and December 2024 (#146). Neither got
-a reply, then or since. A Homey owner asked the same about his hub and was
-told by the app author that the Homey integration is Zigbee straight to the
-lock, because the Nimly gateway offers no cloud path to connect to (Homey
-thread 141138, **relayed**). The technical reason is in
+Nobody has integrated the hub with anything. Two people asked in the Home
+Assistant thread whether the Nimly gateway could be reached from HA, in
+November 2023 (#62) and December 2024 (#146). Neither got a reply. A Homey
+owner asked the same and was told by the app author that the Homey
+integration is Zigbee straight to the lock, because the gateway offers no
+cloud path (Homey thread 141138, **relayed**). The technical reason is in
 [docs/connect-bridge/hardware-gateway.md](connect-bridge/hardware-gateway.md):
-no local API, no LAN discovery in the app, everything over MQTT to the
-vendor's cloud.
+no local API, no LAN discovery in the app, everything over MQTT to the cloud.
 
-The "gateway or coordinator, not both" question in the census table is the
-most-asked thing about the hub, and a Nimly support reply quoted in the thread
-adds a twist: support said one home central at a time, "but that people on
-forums had gotten it working" (#80, **relayed**). Nobody in the archive ever
-has, and one Zigbee device joins one network, so read that as support being
-vague rather than as a hint.
+"Gateway or coordinator, not both" is the most-asked thing about the hub, and
+a support reply quoted in the thread adds a twist: one home central at a
+time, "but that people on forums had gotten it working" (#80, **relayed**).
+Nobody in the archive has, and one Zigbee device joins one network, so read
+that as support being vague, not as a hint.
 
 ## The two Swedish forums, half opened
 
 Both had stood in the archive as "Cloudflare 403" since the sweep. On
 2026-09-20 two of the four rows were read, one through the public r.jina.ai
 text reader, which sweclockers serves and byggahus does not, and one by
-rendering the page in a browser and reading the screenshots. Neither yielded
-anything that changes a line in this repo, and saying so is most of the
-value: the guess that the Swedish threads would be more technical than the
-Norwegian ones does not hold for these two.
+rendering the page in a browser and reading the screenshots. Neither changes
+a line in this repo. The guess that the Swedish threads would be more
+technical than the Norwegian ones does not hold for these two.
 
 sweclockers thread 1713551 (April 2024) is two posts and no answers. A Touch
 Pro owner tired of running a hub per brand asks whether Homey Pro gives him
 Nimly's full feature set, meaning cloud control for remote unlock and code
-management, and whether the lock can be put in Apple's keys so a phone tap
+management, and whether the lock can go into Apple's keys so a phone tap
 opens the door (**anecdote**, both questions). A second member asks whether
 Nimly's own gateway is needed at all next to a Homey. Nobody replied to
-either, in two and a half years.
+either in two and a half years.
 
 byggahus thread 543716 (March 2025) is seven posts about Z2M against ZHA,
 five of which could be read. The buyer has a Connect Module and a SkyConnect
 dongle and has been told the module works with both bridges, "but not
-simultaneously" (**relayed**, source not named, and it matches the one
-Zigbee network per device the rest of this file describes). The answers are
-the usual preference argument: both work, Homey works too, Z2M exposes more
-detail and more devices at the price of more setup and can be moved off Home
-Assistant later. No frames, no payloads, no firmware versions.
+simultaneously" (**relayed**, source not named; it matches the one Zigbee
+network per device the rest of this file describes). The answers are the
+usual preference argument: both work, Homey works too, Z2M exposes more
+detail and more devices for more setup and can be moved off Home Assistant
+later. No frames, no payloads, no firmware versions.
 
 Nothing in either thread touches Bluetooth, unloc, the Connect Bridge, date
 codes or module revisions, and nothing contradicts anything written here.
@@ -523,8 +483,8 @@ route and what would open them.
 
 ## What does not exist anywhere
 
-Listing this is the point of the sweep as much as the findings are. None of
-the following could be found in any forum, blog, video or comment thread:
+Listing this is as much the point of the sweep as the findings. None of the
+following could be found in any forum, blog, video or comment thread:
 
 - A BLE scan, advertisement dump or GATT listing of any lock in this family
   by anyone other than aridder/nimly-manager.
@@ -533,36 +493,34 @@ the following could be found in any forum, blog, video or comment thread:
   fitted, at a distance that resolves nothing.
   <https://www.smartahemtest.se/djupgaende-tester/nimly-touch-pro-black>
 - Any FCC internal photo set for ZMNC010.
-- A single first-hand account of using unloc with one of these locks. The
-  integration is documented only by unloc and by the vendor.
-- Anyone who has had shell, UART or root on a Connect Bridge. Develco's own
-  MGW211 material describes Squid.link as an open Linux platform and mentions
-  SSH as a feature, but no user has reported getting in.
+- A first-hand account of using unloc with one of these locks. Documented
+  only by unloc and by the vendor.
+- Anyone with shell, UART or root on a Connect Bridge. Develco's MGW211
+  material calls Squid.link an open Linux platform and mentions SSH, but no
+  user has reported getting in.
 - Any over-the-air firmware update.
-- Anyone distinguishing module generations by silkscreen, revision number or
-  any other visible mark. Users tell them apart only by behaviour, which
-  means the Ember/Datek against Nordic/E-Life split in
-  `docs/hardware-generations.md` is ours alone.
-- Anyone who has reached the Connect Gateway or the Connect Bridge from
-  Home Assistant, Homey, openHAB or Hubitat, by any route. Two people asked
-  and were never answered.
-- Anyone who has joined a non-Onesti Zigbee device to either hub, or reported
-  trying. The Nimly Connect app's own configuration allows it on the older
-  hub, which makes the silence a gap in the record rather than a no.
-- A "pro" hub of any kind. No Connect Bridge Pro, no gateway Pro, nowhere:
-  not on the vendor's sites, not at a retailer, not in a manual, not in the
-  app, which carries exactly two gateway models and no third.
-- Any Reddit discussion at all, in any subreddit, in any language.
+- Anyone telling module generations apart by silkscreen, revision number or
+  any visible mark. Users tell them apart by behaviour only, so the
+  Ember/Datek against Nordic/E-Life split in `docs/hardware-generations.md`
+  is ours alone.
+- Anyone who has reached the Connect Gateway or Connect Bridge from Home
+  Assistant, Homey, openHAB or Hubitat, by any route. Two asked, none
+  answered.
+- Anyone who has joined a non-Onesti Zigbee device to either hub, or tried.
+  The app's own configuration allows it on the older hub, so the silence is a
+  gap in the record rather than a no.
+- A "pro" hub of any kind. Not on the vendor's sites, at a retailer, in a
+  manual or in the app, which carries exactly two gateway models.
+- Any Reddit discussion, in any subreddit, in any language.
 
 ## Sources
 
-Every thread named below is archived locally and dated, along with 62 GitHub
-issues and PRs and the vendor's pages. The list of what exists, when it was
-read and how big it was then is the Living sources table in
-[docs/manuals/README.md](manuals/README.md); the content itself is gitignored.
-Threads found in this sweep and not quoted above are in that table too, among
-them nine more Homey threads (auto-relock, child lock, flows, PIN by flow,
-the gateway) and three smaller Home Assistant ones.
+Every thread below is archived locally and dated, with 62 GitHub issues and
+PRs and the vendor's pages. What exists, when it was read and how big it was
+is the Living sources table in [docs/manuals/README.md](manuals/README.md);
+the content is gitignored. Threads found and not quoted above are in that
+table too, among them nine more Homey threads (auto-relock, child lock,
+flows, PIN by flow, the gateway) and three smaller Home Assistant ones.
 
 - hjemmeautomasjon.no, thread 3791 "EasyAccess Easycode pinout", 2018-10-17 to
   2021-12, <https://www.hjemmeautomasjon.no/forums/topic/3791-easyaccess-easycode-pinout/>

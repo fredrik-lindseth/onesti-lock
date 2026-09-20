@@ -314,9 +314,9 @@ Bugs and questions go to the [issue tracker](https://github.com/fredrik-lindseth
 
 ## Integration Quality Scale
 
-Home Assistant's [Integration Quality Scale](https://developers.home-assistant.io/docs/core/integration-quality-scale/) is a list of 54 rules about setup, error handling, documentation, entities and typing. This integration follows all of them, and [`quality_scale.yaml`](custom_components/onesti_lock/quality_scale.yaml) says rule by rule whether it is met or does not apply, with a reason for each exemption. `manifest.json` declares `platinum` on that basis.
+Home Assistant's [Integration Quality Scale](https://developers.home-assistant.io/docs/core/integration-quality-scale/) is a list of 54 rules about setup, error handling, documentation, entities and typing. They are a good checklist for a custom integration, so this one is built to follow them. [`quality_scale.yaml`](custom_components/onesti_lock/quality_scale.yaml) goes through them rule by rule and says whether each one is met or does not apply, with a reason for every exemption.
 
-The declaration is our own. Home Assistant reports every custom integration as `custom` whatever the manifest says, so no level shows up in the UI, and hassfest only validates `quality_scale.yaml` for integrations inside Home Assistant itself. An official level exists only after review by the core team, which is part of being included in Home Assistant. What holds it honest here is [`tests/test_quality_scale.py`](tests/test_quality_scale.py), which mirrors hassfest's own check: the rule list, the file's schema, and that every rule up to the declared level really is marked met.
+No level is claimed here. A level is something the core team assigns on review, as part of an integration being included in Home Assistant, and the file is a checklist rather than a badge. [`tests/test_quality_scale.py`](tests/test_quality_scale.py) keeps it honest by mirroring hassfest's own check of the rule list and the file's schema.
 
 ## Contributing
 

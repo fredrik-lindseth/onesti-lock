@@ -102,7 +102,12 @@ rules:
     comment: |
       The lock's own numbers are diagnostic sensors. The slot and activity
       sensors are primary and carry no category.
-  entity-device-class: done
+  entity-device-class:
+    status: exempt
+    comment: |
+      No sensor device class fits. The slot and activity sensors hold text,
+      and the three capability sensors hold a slot count and two code
+      lengths, which Home Assistant has no class for.
   entity-disabled-by-default:
     status: done
     comment: |
@@ -129,6 +134,8 @@ rules:
     comment: |
       The integration makes no HTTP requests.
   strict-typing:
-    status: todo
+    status: done
     comment: |
-      mypy --strict reports errors and does not run in CI.
+      mypy --strict covers the whole component, ble/ included: `just mypy`
+      reports no issues in 36 source files, and the test-ha current job in CI
+      runs it before the tests.

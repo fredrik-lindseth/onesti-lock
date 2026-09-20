@@ -128,6 +128,19 @@ DEFAULT_SCAN_S: Final = 10.0
 DEFAULT_WATCH_WINDOW_S: Final = 2.0
 DEFAULT_CONNECT_TIMEOUT_S: Final = 20.0
 
+# What to tell someone who heard nothing. The only sources on when the module
+# advertises are the app's help popup and the Connect Module installation
+# guide, and both tie it to the four-minute pairing window a power cut opens.
+# Nothing has ever been heard from a module already joined to a Zigbee
+# network, and pressing the keypad did not produce an advertisement either.
+# docs/nimly-ble-app/ble-protocol.md, "When the lock advertises".
+PAIRING_WINDOW_HINT: Final = (
+    "To make the module advertise, remove and reinsert the batteries with the inside and outside "
+    "unit connected. That opens a pairing window of about four minutes, with the LED blinking blue. "
+    "No advertisement has ever been seen from a module that is paired to Zigbee, and whether one "
+    "advertises outside that window is unsettled."
+)
+
 # Nobody knows whether the lock or the module locks out after failed owner
 # logins. After this many recorded failures against one address the CLI
 # stops trying unless told to (--force-login).
@@ -590,8 +603,8 @@ class BleakRadio:
         device = await BleakScanner.find_device_by_address(address, timeout=timeout)
         if device is None:
             raise CliError(
-                f"{address} was not seen within {timeout:g} s. Is the lock in range and awake? "
-                "Touching the keypad may wake it."
+                f"{address} was not seen within {timeout:g} s. Is the lock in range and advertising? "
+                + PAIRING_WINDOW_HINT
             )
         return device
 
@@ -839,8 +852,8 @@ async def cmd_scan(ctx: Context) -> int:
     await ctx.deps.radio.scan(ctx.args.seconds, on_seen)
     if not latest:
         ctx.say(
-            f"No 0xFD00 advertiser was seen in {ctx.args.seconds:g} s. The lock may advertise only when awake: "
-            "touch the keypad and scan again. On macOS, check that the terminal has Bluetooth permission."
+            f"No 0xFD00 advertiser was seen in {ctx.args.seconds:g} s. {PAIRING_WINDOW_HINT} "
+            "On macOS, check that the terminal has Bluetooth permission."
         )
         return EXIT_FAILED
     for seen in latest.values():
@@ -855,11 +868,14 @@ async def _watch(ctx: Context, stored: list[StoredLock], seconds: float) -> int:
     macOS reports a device once per scan unless its advertisement changes.
     Restarting the scan every window turns that into a presence timeline:
     whether the lock was heard in each window, which says whether it
-    advertises all the time or only when woken.
+    advertises all the time or only inside the pairing window.
     """
     window = ctx.args.window
     ctx.say(f"Watching for {seconds:g} s in windows of {window:g} s (nothing is sent to any lock).")
-    ctx.say("Touch the keypad at some point to see whether that changes anything.")
+    ctx.say(
+        "Take the batteries out and back in while this runs to open the pairing window, and watch "
+        "whether the advertisement stops again after about four minutes."
+    )
     start = time.monotonic()
     known: set[str] = set()
     heard_any = False

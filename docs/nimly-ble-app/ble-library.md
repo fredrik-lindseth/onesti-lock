@@ -721,8 +721,9 @@ is when they are most needed.
   when its advertisement changes. `scan --watch` therefore restarts the scan
   every `--window` seconds and reports, window by window, whether
   the lock was heard (`--help` prints the default window). That shows whether
-  it advertises all the time or only when woken, but not its advertising
-  interval; measuring that needs Linux.
+  it advertises all the time or only inside the four-minute pairing window a
+  power cut opens, but not its advertising interval; measuring that needs
+  Linux.
 
 ## What is verified, and what only a lock can settle
 

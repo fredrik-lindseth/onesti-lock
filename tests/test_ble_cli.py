@@ -343,6 +343,16 @@ def test_scan_says_so_when_nothing_is_heard(run_cli):
     result = run_cli("scan", "--seconds", "0", radio=FakeRadio())
     assert result.code == cli.EXIT_FAILED
     assert "No 0xFD00 advertiser was seen" in result.out
+    # The pairing window is what makes the module advertise, as far as anything
+    # says; the keypad has never produced an advertisement.
+    assert "remove and reinsert the batteries" in result.out
+    assert "keypad" not in result.out
+
+
+def test_nothing_in_the_cli_claims_the_keypad_wakes_bluetooth():
+    for line in Path(cli.__file__).read_text().splitlines():
+        if "keypad" in line.lower():
+            assert "wake" not in line.lower(), line
 
 
 def test_scan_watch_logs_each_advertisement(run_cli):

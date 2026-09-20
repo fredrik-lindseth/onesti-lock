@@ -130,14 +130,16 @@ The marker for `web` is the hash of the text and not of the HTML on purpose. nim
 
 The `appstore` and `android` rows cover every app in the white-label family, one row per store, and they are the trigger for the work described in [app-versions.md](../nimly-connect-app/app-versions.md): the rows say which app moved, that file says what was in it last time we looked. An `appstore` key is the numeric track id, with `@se` appended when the app is sold in Sweden and not in Norway. An `android` key is the package name, read off APKPure because Google's own listing no longer prints a version anywhere in its HTML; APKPure mirrors on its own schedule and can sit one release behind Play, so the row dates the mirror, not the store. On 2026-09-20 every `android` row except the BLE app was checked against the downloaded APK's own `AndroidManifest.xml` and agreed on both version and versionCode; the artefacts are listed in [app-versions.md](../nimly-connect-app/app-versions.md). The BLE app is the exception twice over: its package page still answers, but the download list behind it is empty, so `apkeep` gets no file and the local copy stays the March one off Play.
 
-Two Swedish forums are in the table as `manual` rows. byggahus.se and sweclockers.com both answer 403 to anything that is not a browser: the block is a Cloudflare challenge served before any HTML, so there is no fallback to parse. hemautomation.se is not in the table at all: the domain is parked at Loopia and the forum no longer exists.
+Two Swedish forums are in the table as `manual` rows. byggahus.se and sweclockers.com both answer 403 to anything that is not a browser: the block is a Cloudflare challenge served before any HTML, so there is no fallback to parse. Only a real browser gets through, which is why the script cannot own these rows even though the text is now local. hemautomation.se is not in the table at all: the domain is parked at Loopia and the forum no longer exists.
 
-Two of those rows were read by hand on 2026-09-20 and their text now lies in `forums/`, so the script still fetches nothing but the content is local. What worked, and what did not:
+All four rows were read on 2026-09-20 and their text now lies in `forums/`, so the script still fetches nothing but the content is local. What worked, and what did not:
 
 - sweclockers serves the public `r.jina.ai` text reader, so thread 1713551 came out as text in one request. byggahus does not: the reader gets the same "Just a moment..." interstitial curl gets.
-- byggahus renders normally in the Firefox the devtools MCP drives, but that is a picture and not a text route. `take_snapshot` returns the page chrome only on this site, with the whole thread body missing, and the MCP has no scroll command, so only what an anchor URL (`/forum/posts/<id>/`) puts on screen can be captured. That is why `byggahus-543716` is 5 of 7 posts and why the two long threads, 497166 with 37+ pages and 573457, are still unread.
+- **The byggahus block is not a cookie problem.** Lending the Cloudflare clearance from a Firefox profile was the plan, and it cannot work: neither profile holds a `cf_clearance` for the site, and the browser that gets 200 sends nothing but a consent cookie and an XenForo CSRF token. Cloudflare is judging the TLS and HTTP fingerprint, so curl is answered 403 with any headers and any jar. The request headers of a browser load that did get 200 are what settle it; `hentkilde.py --jar` is the wrong tool for this site and always will be.
+- Headless Chrome (`--headless=new --dump-dom`) is detected and gets the interstitial. Headless Firefox is not.
+- What worked: start a throwaway Firefox with `--headless --profile <tmp> --remote-debugging-port <n>` and drive it over WebDriver BiDi, `script.evaluate` reading `article.message` out of the DOM, one page at a time with a pause between them. Firefox allows one BiDi session at a time, so this cannot share the browser the devtools MCP holds; it needs its own. That got all three byggahus threads in full, 621 posts.
+- The devtools MCP alone is not a text route here. `take_snapshot` truncates every text node to about 30 characters on this site, and there is no scroll command, so a thread body cannot be captured that way. That is what limited the first pass to 5 of 7 posts.
 - Neither site has a wayback snapshot of any of these threads, checked through the CDX API.
-- The remaining route is the cookie one: lend a Cloudflare clearance from a Firefox profile and send it with curl, with the User-Agent the clearance was issued to. `verktøy/hentkilde.py` in the nettselskap repo already does exactly that (`--jar`, `--profil`, `--ua`). It needs a permission grant to read the cookie store, which this session did not have.
 
 | Local item | Source | Type | Key | Fetched | Size then |
 | ---------- | ------ | ---- | --- | ------- | --------- |
@@ -273,9 +275,9 @@ Two of those rows were read by hand on 2026-09-20 and their text now lies in `fo
 | vendor/apk-tryg-smart.json | https://apkpure.com/x/com.tryg.smart | android | com.tryg.smart | 2026-09-20 | 1.24.73 (156) |
 | vendor/apk-confi-care.json | https://apkpure.com/x/com.safelyteam.safely | android | com.safelyteam.safely | 2026-09-20 | 1.20.9 (72) |
 | vendor/apk-larmify.json | https://apkpure.com/x/se.larmify.larmify | android | se.larmify.larmify | 2026-09-20 | 1.27.84 (43) |
-| byggahus-497166 | https://www.byggahus.se/forum/threads/497166 | manual | 497166 | 2026-09-20 | Cloudflare 403, 37+ pages unread |
-| byggahus-573457 | https://www.byggahus.se/forum/threads/573457 | manual | 573457 | 2026-09-20 | Cloudflare 403, unread |
-| forums/byggahus-543716.txt | https://www.byggahus.se/forum/threads/543716 | manual | 543716 | 2026-09-20 | 5 of 7 posts, read in the browser |
+| forums/byggahus-497166.txt | https://www.byggahus.se/forum/threads/497166 | manual | 497166 | 2026-09-20 | 592 posts, 40 pages, whole thread, headless Firefox over BiDi |
+| forums/byggahus-573457.txt | https://www.byggahus.se/forum/threads/573457 | manual | 573457 | 2026-09-20 | 22 posts, 2 pages, whole thread, headless Firefox over BiDi |
+| forums/byggahus-543716.txt | https://www.byggahus.se/forum/threads/543716 | manual | 543716 | 2026-09-20 | 7 posts, whole thread, headless Firefox over BiDi |
 | forums/sweclockers-1713551.txt | https://www.sweclockers.com/forum/trad/1713551 | manual | 1713551 | 2026-09-20 | 2 posts, whole thread, via r.jina.ai |
 | code/nimly-manager/ | https://github.com/aridder/nimly-manager | gh-repo | aridder/nimly-manager@main | 2026-09-20 | b47b09d4cdac |
 

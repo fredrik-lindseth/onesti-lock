@@ -33,10 +33,36 @@ PROJECT_PREFIX = "onesti-e2e-"
 MARKER = "onesti-lock-e2e-v1"
 PLUGIN = "pytest-homeassistant-custom-component"
 IMAGE_REPOSITORY = "ghcr.io/home-assistant/home-assistant"
-# The seeded lock. No ZHA device has it, which is the point: the entry has to
-# load without one, the way a user's entry does while the stick is missing.
+# The seeded locks. No ZHA device has any of them, which is the point: an
+# entry has to load without one, the way a user's entry does while the stick
+# is missing. Four of them, one per stored shape a user can start from.
 E2E_IEEE = "00:0d:6f:00:0e:2e:00:01"
 E2E_MODEL = "NimlyPRO"
+MIGRATED_IEEE = "00:0d:6f:00:0e:2e:00:02"
+LEGACY_IEEE = "00:0d:6f:00:0e:2e:00:03"
+FUTURE_IEEE = "00:0d:6f:00:0e:2e:00:04"
+FUTURE_TITLE = "Onesti Lock (newer release)"
+# What the 2.2 user renamed by hand, and lives in the device registry rather
+# than in anything the integration writes.
+MIGRATED_DEVICE_NAME = "Front door"
+# The registry rows that 2.2 user has, keyed on the IEEE address the way 2.2
+# keyed them: (entity id, unique id suffix, user-set name, disabled_by). The
+# entity ids are not the ones Home Assistant would generate today, so keeping
+# them is a claim the migration has to earn.
+MIGRATED_ENTITIES = (
+    ("sensor.front_door_slot_3", "slot-3", None, None),
+    ("sensor.front_door_slot_4", "slot-4", None, "user"),
+    ("sensor.front_door_doorbell_log", "activity", "Doorbell log", None),
+    ("sensor.front_door_pin_users", "pin-users", None, "integration"),
+)
+# Slot data that user set through the options flow.
+MIGRATED_SLOTS = {
+    "3": {"name": "Kari", "has_pin": True},
+    "7": {"name": "Ola", "has_pin": False},
+}
+# The 2.1 shape: slots still carry has_rfid, which 2.2 strips.
+LEGACY_SLOT = "5"
+LEGACY_SLOTS = {LEGACY_SLOT: {"name": "Per", "has_pin": True, "has_rfid": False}}
 
 
 class Failure(RuntimeError):
@@ -103,19 +129,32 @@ def image_for(target: str) -> str:
     return f"{IMAGE_REPOSITORY}:{ha_version(target)}"
 
 
+def _flow_version(name: str) -> int:
+    source = (REPO / "custom_components/onesti_lock/config_flow.py").read_text(encoding="utf-8")
+    match = re.search(rf"^\s*{name}\s*=\s*(\d+)", source, re.MULTILINE)
+    if not match:
+        raise Failure(f"config_flow.py has no {name}")
+    return int(match.group(1))
+
+
+def major_version() -> int:
+    """The config entry VERSION the built integration writes.
+
+    One above it is the entry this run seeds to prove a stored shape from a
+    newer release is refused rather than guessed at.
+    """
+    return _flow_version("VERSION")
+
+
 def minor_version() -> int:
     """The config entry MINOR_VERSION the built integration writes.
 
     Read out of the source that is being installed, so a bump in the
-    integration never turns the seeded entry into a migration case by
-    accident. A migration is tests_ha's job, with a stored shape that release
-    actually wrote; here the entry is meant to be current.
+    integration never turns the entry that is meant to be current into a
+    migration case by accident. The entries that are meant to be migrated
+    carry the versions those releases actually wrote.
     """
-    source = (REPO / "custom_components/onesti_lock/config_flow.py").read_text(encoding="utf-8")
-    match = re.search(r"^\s*MINOR_VERSION\s*=\s*(\d+)", source, re.MULTILINE)
-    if not match:
-        raise Failure("config_flow.py has no MINOR_VERSION")
-    return int(match.group(1))
+    return _flow_version("MINOR_VERSION")
 
 
 def build_integration(sha: str, run_dir: Path) -> tuple[str, str]:
@@ -158,42 +197,183 @@ def build_integration(sha: str, run_dir: Path) -> tuple[str, str]:
     return resolved, digest.group(1)
 
 
-def seed_config_entry() -> dict:
-    """A stored config entry for a lock no radio can see.
+def seed_plan() -> dict:
+    """The four locks this run seeds, as the driver needs to know them.
+
+    One entry per stored shape a user can start Home Assistant with: one
+    already at the current version, one at 2.2 with registry rows keyed on
+    the IEEE address and customised by hand, one at 2.1 whose slots still
+    carry has_rfid, and one written by a newer major version that this
+    release has to refuse rather than guess at.
+    """
+    return {
+        "current": {"entry_id": uuid.uuid4().hex, "ieee": E2E_IEEE},
+        "migrated": {
+            "entry_id": uuid.uuid4().hex,
+            "device_id": uuid.uuid4().hex,
+            "ieee": MIGRATED_IEEE,
+            "device_name": MIGRATED_DEVICE_NAME,
+            "slots": MIGRATED_SLOTS,
+            "entities": [
+                {"entity_id": entity_id, "key": key, "name": name, "disabled_by": disabled_by}
+                for entity_id, key, name, disabled_by in MIGRATED_ENTITIES
+            ],
+        },
+        "legacy": {"entry_id": uuid.uuid4().hex, "ieee": LEGACY_IEEE, "slot": LEGACY_SLOT},
+        "future": {"entry_id": uuid.uuid4().hex, "ieee": FUTURE_IEEE, "title": FUTURE_TITLE},
+    }
+
+
+def _entry(
+    entry_id: str,
+    ieee: str,
+    *,
+    title: str,
+    version: int,
+    minor: int,
+    data: dict | None = None,
+    options: dict | None = None,
+) -> dict:
+    return {
+        "entry_id": entry_id,
+        "version": version,
+        "minor_version": minor,
+        "domain": "onesti_lock",
+        "title": title,
+        "data": {"ieee": ieee, **(data or {})},
+        "options": options or {"slots": {}},
+        "source": "user",
+        "unique_id": ieee,
+    }
+
+
+def seed_config_entry(plan: dict | None = None) -> dict:
+    """The stored config entries for locks no radio can see.
 
     Written in the oldest store format (1.1) with only the keys that format
     had. Home Assistant's own store migration fills in everything added since,
     so the same file works on the minimum release and on current, and this
-    harness does not have to track a storage schema that is not ours.
+    harness does not have to track a storage schema that is not ours. The
+    entry versions inside are ours, and are the point of three of the four.
     """
-    entry = {
-        "entry_id": uuid.uuid4().hex,
-        "version": 2,
-        "minor_version": minor_version(),
-        "domain": "onesti_lock",
-        "title": "Onesti Lock (e2e)",
-        "data": {"ieee": E2E_IEEE, "model": E2E_MODEL},
-        "options": {"slots": {}},
-        "source": "user",
-        "unique_id": E2E_IEEE,
-    }
+    plan = plan or seed_plan()
+    entries = [
+        _entry(
+            plan["current"]["entry_id"],
+            E2E_IEEE,
+            title="Onesti Lock (e2e)",
+            version=2,
+            minor=minor_version(),
+            data={"model": E2E_MODEL},
+        ),
+        # 2.2: no model in data, registry keys on the IEEE address.
+        _entry(
+            plan["migrated"]["entry_id"],
+            MIGRATED_IEEE,
+            title="Onesti Lock (2.2)",
+            version=2,
+            minor=2,
+            options={"slots": MIGRATED_SLOTS, "reserved_slots": 3},
+        ),
+        # 2.1: a has_rfid nothing ever set, and a skipped step to 2.2.
+        _entry(
+            plan["legacy"]["entry_id"],
+            LEGACY_IEEE,
+            title="Onesti Lock (2.1)",
+            version=2,
+            minor=1,
+            options={"slots": LEGACY_SLOTS},
+        ),
+        # A major version this release cannot know the shape of.
+        _entry(
+            plan["future"]["entry_id"],
+            FUTURE_IEEE,
+            title=FUTURE_TITLE,
+            version=major_version() + 1,
+            minor=1,
+            data={"model": E2E_MODEL},
+        ),
+    ]
     return {
         "version": 1,
         "minor_version": 1,
         "key": "core.config_entries",
-        "data": {"entries": [entry]},
+        "data": {"entries": entries},
     }
 
 
-def prepare(run_dir: Path) -> str:
-    """Lay out /config: HA configuration, the seeded entry, the blueprints."""
+def seed_registries(plan: dict) -> tuple[dict, dict]:
+    """The device and entity registry a 2.2 user has, in the oldest format.
+
+    Both stores are written at 1.1, the way the config entry store is, so
+    Home Assistant's own registry migrations fill in every key added since
+    and this harness does not track a schema that is not ours. What is ours
+    is the shape 2.2 wrote: the device identifier and every entity unique id
+    hold the lock's IEEE address.
+
+    The device is seeded without connections on purpose. The integration
+    registers one, so a migration that failed to rewrite the identifier
+    would be caught as a second device rather than quietly merged into the
+    seeded one.
+    """
+    migrated = plan["migrated"]
+    ieee = migrated["ieee"]
+    device = {
+        "id": migrated["device_id"],
+        "config_entries": [migrated["entry_id"]],
+        "connections": [],
+        "identifiers": [["onesti_lock", ieee]],
+        "manufacturer": "Onesti Products AS",
+        "model": E2E_MODEL,
+        "name": "Onesti Lock (0002)",
+        "name_by_user": migrated["device_name"],
+        "sw_version": None,
+    }
+    entities = [
+        {
+            "entity_id": row["entity_id"],
+            "platform": "onesti_lock",
+            "unique_id": f"{ieee}-{row['key']}",
+            "config_entry_id": migrated["entry_id"],
+            "device_id": migrated["device_id"],
+            "name": row["name"],
+            "disabled_by": row["disabled_by"],
+        }
+        for row in migrated["entities"]
+    ]
+    return (
+        {
+            "version": 1,
+            "minor_version": 1,
+            "key": "core.device_registry",
+            "data": {"devices": [device], "deleted_devices": []},
+        },
+        {
+            "version": 1,
+            "minor_version": 1,
+            "key": "core.entity_registry",
+            "data": {"entities": entities},
+        },
+    )
+
+
+def prepare(run_dir: Path) -> dict:
+    """Lay out /config: HA configuration, the seeded state, the blueprints."""
     config = run_dir / "config"
     (config / ".storage").mkdir(parents=True)
     shutil.copy(HERE / "configuration.yaml", config / "configuration.yaml")
     (config / "automations.yaml").write_text("[]\n", encoding="utf-8")
 
-    store = seed_config_entry()
-    (config / ".storage/core.config_entries").write_text(json.dumps(store, indent=2))
+    plan = seed_plan()
+    devices, entities = seed_registries(plan)
+    for name, store in (
+        ("core.config_entries", seed_config_entry(plan)),
+        ("core.device_registry", devices),
+        ("core.entity_registry", entities),
+    ):
+        (config / ".storage" / name).write_text(json.dumps(store, indent=2))
+    # The driver reads this rather than taking it all on the command line.
+    (config / "seed.json").write_text(json.dumps(plan, indent=2))
 
     # The blueprints are repo files a user imports by hand, not part of the
     # ZIP, so they are copied from the working tree.
@@ -201,7 +381,7 @@ def prepare(run_dir: Path) -> str:
     blueprints.mkdir(parents=True)
     for source in sorted((REPO / "blueprints/automation").glob("*.yaml")):
         shutil.copy(source, blueprints / source.name)
-    return str(store["data"]["entries"][0]["entry_id"])
+    return plan
 
 
 def free_port() -> int:
@@ -236,7 +416,7 @@ class Lab:
     def create(cls, directory: Path, *, target: str, sha: str, keep: bool) -> Lab:
         directory.mkdir(parents=True, exist_ok=True)
         resolved, digest = build_integration(sha, directory)
-        entry_id = prepare(directory)
+        plan = prepare(directory)
         state = {
             "marker": MARKER,
             "project": PROJECT_PREFIX + uuid.uuid4().hex[:12],
@@ -246,7 +426,7 @@ class Lab:
             "image": image_for(target),
             "sha": resolved,
             "zip_sha256": digest,
-            "entry_id": entry_id,
+            "entry_id": plan["current"]["entry_id"],
             "keep": keep,
         }
         (directory / "lab.json").write_text(json.dumps(state, indent=2))
@@ -314,6 +494,17 @@ LOG_FAILURES = (
     "Unexpected exception",
 )
 
+def log_allowed() -> tuple[str, ...]:
+    """The one ERROR this run asks for.
+
+    The seeded entry from a newer major version, which Home Assistant refuses
+    before it ever reaches our async_migrate_entry. Spelled out with that
+    entry's own title, so an error about any other entry still fails the run.
+    """
+    return (
+        f"Config entry {FUTURE_TITLE} for onesti_lock has version {major_version() + 1}",
+    )
+
 
 def check_log(text: str) -> list[str]:
     """Fail on errors that name this integration, plus a few fatal ones.
@@ -322,8 +513,11 @@ def check_log(text: str) -> list[str]:
     integration's fault, so the filter is on our own name, and on the handful
     of messages that mean nothing of ours could have worked.
     """
+    allowed_lines = log_allowed()
     problems = []
     for line in text.splitlines():
+        if any(allowed in line for allowed in allowed_lines):
+            continue
         fatal = any(marker in line for marker in LOG_FAILURES)
         if fatal or ("ERROR" in line and "onesti_lock" in line):
             problems.append(line.strip())

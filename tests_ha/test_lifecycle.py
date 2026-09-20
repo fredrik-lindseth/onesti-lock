@@ -32,6 +32,7 @@ from custom_components.onesti_lock.const import (
     CONF_RESERVED_SLOTS,
     DOMAIN,
 )
+from custom_components.onesti_lock.entity import HAS_VIA_DEVICE_ID
 from custom_components.onesti_lock.events import ATTR_OPERATION_EVENT
 from tests_ha.conftest import (
     DEVICE_SLUG,
@@ -300,6 +301,214 @@ async def test_the_model_is_filled_in_once_zha_answers(
     assert entry.data[CONF_MODEL] == LOCK_MODEL
     devices = dr.async_entries_for_config_entry(dr.async_get(hass), entry.entry_id)
     assert [device.name for device in devices] == ["NimlyPRO (3344)"]
+
+
+def _ieee_keyed_rows(
+    hass: HomeAssistant,
+    entry: MockConfigEntry,
+    *,
+    object_id_prefix: str = "onesti_lock",
+) -> tuple[str, dict[str, str]]:
+    """The device and entities a release keyed on the IEEE address leaves.
+
+    Returns the device id and the entity ids by key, so a test can show
+    the user's own entity ids either surviving or being the ones kept.
+    """
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, LOCK_IEEE)},
+        name="Onesti Lock",
+    )
+    registry = er.async_get(hass)
+    entity_ids = {}
+    for key in ("activity", "slot-5"):
+        entity_ids[key] = registry.async_get_or_create(
+            "sensor",
+            DOMAIN,
+            f"{LOCK_IEEE}-{key}",
+            config_entry=entry,
+            device_id=device.id,
+            suggested_object_id=f"{object_id_prefix}_{key.replace('-', '_')}",
+        ).entity_id
+    return device.id, entity_ids
+
+
+async def test_an_interrupted_migration_is_finished_on_the_next_start(
+    hass: HomeAssistant, mock_zha
+) -> None:
+    """The version bump lands on disk long before the registry write.
+
+    A config entry is saved a second after it changes; the registries use
+    the 180 second delay during startup, which is when a migration runs.
+    A restart inside that window leaves an entry that says 2.3 next to
+    registry rows still keyed on the address. The rewrite therefore runs
+    on every setup, off the registries rather than off the version, and
+    this test is that state: 2.3 stored, IEEE-keyed rows on disk.
+
+    Both HA targets prove this one: no device of ZHA's is involved, so
+    nothing here depends on how the registry treats a connection.
+    """
+    entry = _entry(minor_version=3)
+    entry.add_to_hass(hass)
+    device_id, entity_ids = _ieee_keyed_rows(hass, entry)
+
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    registry = er.async_get(hass)
+    assert dr.async_get(hass).async_get(device_id).identifiers == {(DOMAIN, entry.entry_id)}
+    assert registry.async_get(entity_ids["activity"]).unique_id == f"{entry.entry_id}-activity"
+    assert registry.async_get(entity_ids["slot-5"]).unique_id == f"{entry.entry_id}-slot-5"
+
+
+async def test_an_ieee_stored_in_another_case_is_still_rewritten(
+    hass: HomeAssistant, mock_zha
+) -> None:
+    """The stored address is spelled the way the Zigbee stack spelled it."""
+    entry = _entry(minor_version=3, data={CONF_IEEE: LOCK_IEEE.upper(), CONF_MODEL: LOCK_MODEL})
+    entry.add_to_hass(hass)
+    device_id, entity_ids = _ieee_keyed_rows(hass, entry)
+
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert dr.async_get(hass).async_get(device_id).identifiers == {(DOMAIN, entry.entry_id)}
+    assert (
+        er.async_get(hass).async_get(entity_ids["activity"]).unique_id
+        == f"{entry.entry_id}-activity"
+    )
+
+
+async def test_a_rollback_duplicate_is_folded_back_in(hass: HomeAssistant, mock_zha) -> None:
+    """Downgrading and upgrading again leaves one set of entities, the user's.
+
+    A release keyed on the address does not know about 2.3 and registers
+    the old keys a second time, so the user ends up with two devices and
+    two of every entity, the new ones suffixed. Loading this release again
+    rewrites what it can and drops what the entry-id rows already hold, so
+    the entity ids in dashboards and automations are the ones that stay.
+
+    Both HA targets prove this one: the two device rows are built here
+    without a connection, so neither registry merges them.
+    """
+    entry = _entry(minor_version=3)
+    entry.add_to_hass(hass)
+    kept_device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, entry.entry_id)},
+        name="NimlyPRO (3344)",
+    )
+    registry = er.async_get(hass)
+    kept = {
+        key: registry.async_get_or_create(
+            "sensor",
+            DOMAIN,
+            f"{entry.entry_id}-{key}",
+            config_entry=entry,
+            device_id=kept_device.id,
+            suggested_object_id=f"{DEVICE_SLUG}_{key.replace('-', '_')}",
+        ).entity_id
+        for key in ("activity", "slot-5")
+    }
+    registry.async_update_entity(kept["activity"], name="Front door activity")
+    duplicate_device, duplicates = _ieee_keyed_rows(hass, entry, object_id_prefix=DEVICE_SLUG)
+    assert duplicates["activity"] != kept["activity"], "the rollback's entity id is suffixed"
+
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert dr.async_get(hass).async_get(duplicate_device) is None
+    assert registry.async_get(duplicates["activity"]) is None
+    assert registry.async_get(duplicates["slot-5"]) is None
+    survivor = registry.async_get(kept["activity"])
+    assert survivor is not None and survivor.name == "Front door activity"
+    assert registry.async_get(kept["slot-5"]) is not None
+    assert [device.id for device in dr.async_entries_for_config_entry(dr.async_get(hass), entry.entry_id)] == [
+        kept_device.id
+    ]
+
+
+async def test_a_leftover_entity_row_does_not_kill_the_entry(
+    hass: HomeAssistant, mock_zha
+) -> None:
+    """A mixed registry: the new unique id is taken and the old one is still there.
+
+    A registry restored from a backup newer than core.config_entries has
+    both. Rewriting the old row onto the taken id raises ValueError, and
+    the exception would take the setup down with it, leaving the lock dead
+    until the user deletes the entry. The stale row goes instead.
+
+    Both HA targets prove this one: nothing here depends on the registry's
+    connection rules.
+    """
+    entry = _entry(minor_version=3)
+    entry.add_to_hass(hass)
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, entry.entry_id)},
+        name="NimlyPRO (3344)",
+    )
+    registry = er.async_get(hass)
+    kept = registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{entry.entry_id}-activity",
+        config_entry=entry,
+        device_id=device.id,
+        suggested_object_id=f"{DEVICE_SLUG}_last_activity",
+    ).entity_id
+    leftover = registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{LOCK_IEEE}-activity",
+        config_entry=entry,
+        device_id=device.id,
+        suggested_object_id=f"{DEVICE_SLUG}_last_activity",
+    ).entity_id
+
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert registry.async_get(leftover) is None
+    assert registry.async_get(kept).unique_id == f"{entry.entry_id}-activity"
+
+
+async def test_the_device_is_never_folded_into_zhas_row(hass: HomeAssistant, mock_zha) -> None:
+    """ZHA deletes its registry row whole, so ours must not be part of it.
+
+    Through HA 2026.8 a zigbee connection is unique across config entries
+    and the registry merges any device that carries one into ZHA's, which
+    ZHA removes when the lock leaves the network. The minimum target is
+    what proves that half: there the device must stand alone. From 2026.9
+    a connection is unique per entry, so the current target proves the
+    other half, the device carrying the connection and hanging off ZHA's.
+    """
+    zha_entry = MockConfigEntry(domain="zha", title="ZHA")
+    zha_entry.add_to_hass(hass)
+    zha_device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=zha_entry.entry_id,
+        identifiers={("zha", LOCK_IEEE)},
+        connections={(dr.CONNECTION_ZIGBEE, LOCK_IEEE)},
+        name="front_door",
+    )
+
+    entry = await _setup(hass)
+
+    devices = dr.async_entries_for_config_entry(dr.async_get(hass), entry.entry_id)
+    assert len(devices) == 1
+    device = devices[0]
+    assert device.id != zha_device.id
+    assert device.config_entries == {entry.entry_id}
+    assert device.identifiers == {(DOMAIN, entry.entry_id)}
+    if HAS_VIA_DEVICE_ID:
+        assert device.via_device_id == zha_device.id
+        assert (dr.CONNECTION_ZIGBEE, LOCK_IEEE) in device.connections
+    else:
+        # A connection here is what would have merged the two rows.
+        assert device.connections == set()
 
 
 async def test_entry_from_a_newer_major_version_is_refused(hass: HomeAssistant, mock_zha) -> None:

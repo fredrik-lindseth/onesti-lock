@@ -132,7 +132,39 @@ Most unexplained flakiness on these locks is coverage. The radio is inside an al
 | | 100 to 150 | works, with dropouts |
 | | below 100 | the lock will go unavailable |
 
-Those bands come from one door with 13 months of hourly statistics, and from the LQI values owners quote in the Home Assistant thread, which run 116 to 196 and no higher. On that door the median was -76 dBm and LQI 139 before the mesh was fixed, -61 dBm and LQI 156 after, and the worst single sample in the whole period was -107 dBm. Both figures are the coordinator's measurement of the last hop, not of the lock's own transmission, so with a router by the door they flatter the lock. Details in [docs/buying-a-lock.md](buying-a-lock.md#budget-for-the-radio-not-just-the-lock).
+Those bands come from one door with 13 months of hourly statistics, and from the LQI values owners quote in the Home Assistant thread, which run 116 to 196 and no higher. Both numbers are the coordinator's measurement of the last hop, not of the lock's own transmission, so with a router by the door they partly describe that router rather than the lock.
+
+**What the numbers did on one door.** A NimlyPRO with a Connect Module in an
+entry hall, on ZHA with a Home Assistant Connect ZBT-2, 13 months of hourly
+recorder statistics, 8830 hours. Getting it stable meant moving the 2.4 GHz
+Wi-Fi off the Zigbee channel, adding mains-powered Zigbee routers to the mesh,
+and putting one of them in the entry hall itself.
+
+| | Before | After |
+| --- | --- | --- |
+| Hours recorded | 2409 | 6421 |
+| Median RSSI | -76 dBm | -61 dBm |
+| 5th percentile RSSI | -87 dBm | -73 dBm |
+| Median LQI | 139 | 156 |
+| Hours with a sample at or below -90 dBm | 187 (7.8 %) | 36 (0.6 %) |
+
+Roughly 15 dB, most of a factor of thirty in received power, bought with mains
+sockets and a channel plan rather than with anything done to the lock. Nothing
+about the lock got better; only the mesh around it did.
+
+Even after the work the floor is bad. The worst single sample in the 13 months
+is -107 dBm, LQI has read 0 in 14 separate hours, and the lock has gone silent
+for 431 hours in one stretch and 117 in another. For scale, the only other
+Zigbee device on the same network with recorded history over the last 90 days,
+an Aqara sensor in a bathroom, averages -78 dBm against the lock's -60. After
+the mitigations the lock is no longer the worst link in that house. It took the
+most work to get there.
+
+That is one door, and it may be a bad house: the same thread has an owner with
+three locks and no trouble at all. Whether a newer module revision has a better
+radio or a different antenna placement is also unknown. Nobody outside the
+vendor has published a board photo at chip level, and users tell the
+generations apart only by behaviour.
 
 **What actually helps, in order:**
 

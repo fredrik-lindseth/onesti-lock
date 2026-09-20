@@ -1,0 +1,180 @@
+"""The config flow paths the smoke tests leave out.
+
+test_smoke.py drives the happy path: ZHA lists the lock, the form offers it,
+the entry is created. What is left is a lock reporting a model string we do
+not know, a lock that already has an entry, and the options flow write Home
+Assistant cancels under the dialog.
+
+Run with `just test-ha minimum` and `just test-ha current`.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import logging
+from typing import Any
+
+import pytest
+import voluptuous as vol
+from homeassistant.core import HomeAssistant
+from homeassistant.data_entry_flow import FlowResultType
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+from custom_components.onesti_lock.const import CONF_IEEE, DOMAIN
+from custom_components.onesti_lock.zha import SEND_DELIVERED, SendOutcome
+from tests_ha.conftest import LOCK_IEEE, make_lock_proxy
+
+SECOND_LOCK_IEEE = "00:0d:6f:00:55:66:77:88"
+
+
+def _device_choices(result: dict[str, Any]) -> dict[str, str]:
+    """The options of the `device` selector in the user form."""
+    for key, validator in result["data_schema"].schema.items():
+        if key == "device":
+            assert isinstance(validator, vol.In)
+            return dict(validator.container)
+    raise AssertionError("form has no device field")
+
+
+def _add_entry(hass: HomeAssistant, ieee: str = LOCK_IEEE) -> MockConfigEntry:
+    """An entry for a lock, added but not set up."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=2,
+        unique_id=ieee,
+        title=f"Onesti Lock ({ieee[-11:]})",
+        data={CONF_IEEE: ieee},
+        options={"slots": {}},
+    )
+    entry.add_to_hass(hass)
+    return entry
+
+
+# -- The device list --
+
+
+async def test_unknown_model_is_offered_with_a_warning(
+    hass: HomeAssistant, mock_zha, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A model string nobody has seen is a warning, not a refusal.
+
+    All Onesti locks share hardware and the ZMNC010 module, and a module can
+    report a sibling model name (issue #5), so the list is informational.
+    """
+    caplog.set_level(logging.WARNING, logger="custom_components.onesti_lock")
+    mock_zha.device_proxies = {LOCK_IEEE: make_lock_proxy(model="NimlyNotYetKnown")}
+
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+
+    assert result["type"] is FlowResultType.FORM
+    assert _device_choices(result) == {LOCK_IEEE: f"NimlyNotYetKnown ({LOCK_IEEE})"}
+    assert "Unrecognized Onesti model 'NimlyNotYetKnown'" in caplog.text
+
+
+async def test_lock_with_an_entry_is_left_out_of_the_list(hass: HomeAssistant, mock_zha) -> None:
+    """A lock already set up is not offered again, the second one still is."""
+    mock_zha.device_proxies[SECOND_LOCK_IEEE] = make_lock_proxy()
+    _add_entry(hass)
+
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+
+    assert result["type"] is FlowResultType.FORM
+    assert set(_device_choices(result)) == {SECOND_LOCK_IEEE}
+
+
+async def test_second_setup_of_the_same_lock_aborts_already_configured(
+    hass: HomeAssistant, mock_zha
+) -> None:
+    """The same lock cannot be set up twice.
+
+    The device list drops locks that already have an entry, so the way to
+    reach the unique-id check is a lock that gains an entry while the form is
+    open: two dialogs at once, or an entry created from a second HA client.
+    The other lock keeps the list non-empty, so the flow gets as far as the
+    submitted device.
+    """
+    mock_zha.device_proxies[SECOND_LOCK_IEEE] = make_lock_proxy()
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    assert result["type"] is FlowResultType.FORM
+    assert LOCK_IEEE in _device_choices(result)
+
+    _add_entry(hass)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"device": LOCK_IEEE})
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert len(hass.config_entries.async_entries(DOMAIN)) == 1
+
+
+# -- The options flow, cut off mid-write --
+
+
+class _GatedTransport:
+    """A transport whose send() holds until the test lets it through."""
+
+    def __init__(self) -> None:
+        self.gate = asyncio.Event()
+        self.sent: list[tuple[int, dict]] = []
+
+    def cluster(self) -> None:
+        return None
+
+    async def wake(self) -> None:
+        return None
+
+    async def send(self, command: int, params: dict) -> SendOutcome:
+        self.sent.append((command, params))
+        await self.gate.wait()
+        return SEND_DELIVERED
+
+    async def read_capabilities(self) -> dict[str, Any]:
+        return {}
+
+
+async def test_cancelled_write_shows_the_unknown_error(hass: HomeAssistant, mock_zha) -> None:
+    """Home Assistant shutting down under a PIN write leaves an error, not a result.
+
+    The write runs as its own task behind asyncio.shield, and the progress
+    task only waits for it. Cancelling that waiter is what a shutdown does,
+    and the step has to read the cancellation rather than ask a cancelled
+    task for its result.
+    """
+    transport = _GatedTransport()
+    entry = _add_entry(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    entry.runtime_data.transport = transport
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "set_pin"}
+    )
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"slot": "4", "name": "Kari", "code": "1234"}
+    )
+    assert result["type"] is FlowResultType.SHOW_PROGRESS
+
+    flow = hass.config_entries.options._progress[result["flow_id"]]
+    waiter = flow._set_pin_task
+    waiter.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await waiter
+    assert waiter.cancelled()
+
+    # HA runs the progress step again once the task it was given is done,
+    # cancellation included, and the step takes the flow back to the form.
+    # Only the loop is let run here: async_block_till_done would wait for
+    # the write itself, which is still held at the gate on purpose.
+    await asyncio.sleep(0)
+    assert flow.cur_step["type"] is FlowResultType.SHOW_PROGRESS_DONE
+    form = await hass.config_entries.options.async_configure(result["flow_id"])
+    assert form["step_id"] == "set_pin"
+    assert form["errors"] == {"base": "unknown"}
+
+    # The command itself was never cancelled: it reached the lock and saved.
+    transport.gate.set()
+    await hass.async_block_till_done()
+    assert transport.sent
+    assert entry.options["slots"]["4"]["has_pin"] is True

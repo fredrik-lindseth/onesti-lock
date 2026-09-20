@@ -4,14 +4,20 @@ All notable changes to Onesti Lock. The format is based on [Keep a Changelog](ht
 
 ## [1.5.0] - Unreleased
 
+### Action required
+
+- **Do not go back to 1.4.0 or older.** This release moves the device and its entities off the lock's Zigbee address and onto the config entry. An older version does not know that and registers every entity again under the old key, which leaves two devices and two of every sensor, with your entity ids on the dead half. Upgrading again does not clean it up, since the entry has already been migrated. The only way out is to remove the lock from Home Assistant and add it again, which loses the slot names and the PIN status.
+- **Change automations that read the lock's limits.** `num_pin_users`, `min_pin_length` and `max_pin_length` are gone as attributes on the activity sensor (see Breaking changes). A template reading them now gets nothing, and nothing says so.
+
 ### Features
 
 - **Lock number two is found on its own.** Once one lock is set up, pairing another Onesti lock with ZHA makes it turn up under Discovered on the integrations page, with its model and IEEE address, and you confirm or ignore it there. The first lock still has to be added with Add Integration: Home Assistant does not load a custom integration that has no config entry. <!--short-->
-- **The lock's device says which lock it is.** It is named after the model and the last four characters of its Zigbee address, so two locks of the same model are no longer two devices called Onesti Lock, and the device page shows the model and the full address as its serial number. On Home Assistant 2026.9 and newer the device is shown under ZHA's device for the same lock; on older releases a lock added from now on shares one device with ZHA, because a Zigbee address can belong to one device only there. A lock already set up keeps the device it has, with its entity ids and the names you have given them. <!--short-->
+- **The lock's device says which lock it is.** It is named after the model and the last four characters of its Zigbee address, so two locks of the same model are no longer two devices called Onesti Lock, and the device page has the model and the full address as its serial number. A lock already set up keeps its device, its entity ids and the entity names you have given them; the device itself is renamed from Onesti Lock unless you had renamed it yourself. <!--short-->
+- **Where that device sits depends on the Home Assistant version.** On 2026.9 and newer it is shown under ZHA's device for the same lock. On older releases a lock added from now on shares one device with ZHA, because a Zigbee address can belong to one device only there.
 - **A replaced Connect Module keeps the lock's setup.** The module is an accessory with its own Zigbee address, and swapping it used to mean setting the lock up again from scratch. Use Reconfigure on the entry and pick the new module: the slot names, the PIN status and every sensor stay as they are. <!--short-->
 - **The sensors say when they are not being updated.** While ZHA is not running, no lock event can reach Home Assistant, and the slot and activity sensors show as unavailable until it is back. A lock that is only asleep is not unavailable: the sensors keep what they have. The log gets one line when events stop and one when they are back, in place of the line that only ever said they had started. <!--short-->
-- **The actions have icons**, and so do the new sensors: Set PIN, Clear PIN, Set name and Clear slot each show their own in the action picker.
-- **A new integration icon**, a fingertip whose core is a keyhole, on the integration page and in the device list.
+- **The actions have icons.** Set PIN, Clear PIN, Set name and Clear slot each show their own in the action picker, and the new sensors have theirs.
+- **The integration has a new icon.** It is a fingertip whose core is a keyhole, and it shows on the integration page and in the device list. <!--short-->
 - **`EasyCode903G2` is on the supported model list.** It is the default model string in Onesti's own module spec, and nobody has reported a lock using it yet. A lock reporting it could be added before as well; now it no longer logs a warning about an unrecognized model.
 
 ### Bug fixes
@@ -21,7 +27,7 @@ All notable changes to Onesti Lock. The format is based on [Keep a Changelog](ht
 
 ### Breaking changes
 
-- **The lock's PIN capacity and code length moved off the activity sensor.** `num_pin_users`, `min_pin_length` and `max_pin_length` are no longer attributes there. They are three sensors of their own, switched off when the integration is set up: turn them on under the device if you need them. An automation or template reading the old attributes has to point at the sensors instead. <!--short-->
+- **The lock's PIN capacity and code length moved off the activity sensor.** `num_pin_users`, `min_pin_length` and `max_pin_length` are no longer attributes there. They are three sensors of their own, switched off when the integration is set up: turn them on under the device if you need them. <!--short-->
 
 ## [1.4.0] - 2026-09-19
 

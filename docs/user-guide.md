@@ -192,7 +192,9 @@ English, Norwegian (bokmål), Swedish and Danish. Sensor states, entity names, o
 
 8. **Dashboard locks right after a wake.** A lock from a dashboard within 30 seconds of the integration waking the lock looks the same as the wake itself, so the activity sensor does not show it. The event still fires. The 30 seconds is a chosen window, not one measured on a lock.
 
-9. **Going back to an older version is untested.** From 1.4.0 on, HACS installs the ZIP attached to the release instead of the tag's source tree. The ZIPs on the 1.0.0 to 1.3.0 releases hold the same flat layout, so picking one in HACS should land the right files, but nobody has tried. If a downgrade leaves Home Assistant without the integration, delete `config/custom_components/onesti_lock`, install the version you want again and restart. Releases before 1.0.0 are the old `nimly_pro` integration and are no rollback target. Upgrading is not affected.
+9. **Going back to 1.4.0 or older duplicates the entities.** 1.5.0 moved the device and the entities off the lock's Zigbee address and onto the config entry, and an older version registers them all again under the old key: two devices, two of every sensor, and your entity ids on the half that is no longer updated. Upgrading again leaves the duplicates, since the entry has already been migrated. Deleting the lock's entry and adding it again is the only cleanup, and it costs the slot names and the PIN status.
+
+10. **Going back to an older version is untested in general.** From 1.4.0 on, HACS installs the ZIP attached to the release instead of the tag's source tree. The ZIPs on the 1.0.0 to 1.3.0 releases hold the same flat layout, so picking one in HACS should land the right files, but nobody has tried. If a downgrade leaves Home Assistant without the integration, delete `config/custom_components/onesti_lock`, install the version you want again and restart. Releases before 1.0.0 are the old `nimly_pro` integration and are no rollback target. Upgrading is not affected.
 
 ## Removing the integration
 

@@ -11,7 +11,7 @@
       },
       "reconfigure": {
         "title": "Bytt Connect-modul",
-        "description": "Pek denne låsen mot en annen Zigbee Connect-modul, etter at den gamle ({ieee}) er byttet ut. Slotnavn og PIN-status blir stående: de beskriver kodene i låsen, og dem når den nye modulen like godt som den gamle.",
+        "description": "Pek denne låsen mot en annen Zigbee Connect-modul, etter at den gamle ({ieee}) er byttet ut. Slotnavn og PIN-status blir stående: de beskriver kodene i låsen, og den nye modulen når dem like godt som den gamle gjorde.",
         "data": {
           "device": "Lås"
         }
@@ -116,7 +116,7 @@
   },
   "exceptions": {
     "lock_unreachable": {
-      "message": "Fikk ikke kontakt med låsen. Vekk radioen ved å vri på vrideren, eller med en gyldig kode + # på tastaturet, som også låser opp døren. Å ta på tastaturet tenner bare lyset. Prøv så igjen."
+      "message": "Fikk ikke kontakt med låsen. Vekk radioen ved å vri på vrideren, eller med en gyldig kode + # på tastaturet, som også låser opp døren. Prøv så igjen."
     },
     "lock_rejected": {
       "message": "Låsen avviste kommandoen (status {status}). Sjekk slot og kode, og prøv igjen."

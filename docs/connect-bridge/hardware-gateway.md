@@ -359,7 +359,7 @@ The lock pairs with one Zigbee coordinator at a time. If it is on ZHA or
 Zigbee2MQTT, remove it there first:
 
 1. HA → Settings → Devices & Services → ZHA → the lock → ⋮ → Remove
-2. Wake the lock (press the keypad) before pressing Remove
+2. Wake the lock before pressing Remove: turn the knob, or enter a valid code and #. Touching the keypad only lights it up.
 3. Factory reset the module: hold its reset button for 10+ seconds
 4. Rapid LED blink means pairing mode
 5. Open Nimly Connect → add device → "searching for devices"

@@ -26,7 +26,7 @@ from .const import (
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
-    from .coordinator import NimlyCoordinator
+    from .coordinator import OnestiCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ ACTION_MAP = {
 }
 
 
-def decode_operation_event(coordinator: NimlyCoordinator, val: int) -> dict[str, Any] | None:
+def decode_operation_event(coordinator: OnestiCoordinator, val: int) -> dict[str, Any] | None:
     """Decode attrid 0x0100 bitmap32 into action/source/user."""
     if not 0 <= val <= 0xFFFFFFFF:
         return None
@@ -148,7 +148,7 @@ class _AttributeUpdatedListener:
 
 
 def register_event_listener(
-    hass: HomeAssistant, coordinator: NimlyCoordinator
+    hass: HomeAssistant, coordinator: OnestiCoordinator
 ) -> Callable[[], Any]:
     """Listen for attribute reports on the DoorLock cluster.
 

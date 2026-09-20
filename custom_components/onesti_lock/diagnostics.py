@@ -28,7 +28,7 @@ from homeassistant.loader import async_get_integration
 
 from . import ISSUE_ZHA_INTERNALS
 from .const import CONF_IEEE, DOMAIN, ZHA_DOMAIN
-from .coordinator import NimlyConfigEntry, NimlyCoordinator
+from .coordinator import OnestiConfigEntry, OnestiCoordinator
 from .zha import (
     device_metadata,
     find_lock_entity_id,
@@ -64,7 +64,7 @@ def _options(options: Mapping[str, Any]) -> dict[str, Any]:
     return result
 
 
-def _zha(hass: HomeAssistant, coordinator: NimlyCoordinator) -> dict[str, Any]:
+def _zha(hass: HomeAssistant, coordinator: OnestiCoordinator) -> dict[str, Any]:
     """ZHA's side: is it up, does it know the lock, and which cluster we hold."""
     proxy = next(
         (p for ieee, p in iter_device_proxies(hass) if str(ieee).lower() == coordinator.ieee.lower()),
@@ -89,7 +89,7 @@ def _zha(hass: HomeAssistant, coordinator: NimlyCoordinator) -> dict[str, Any]:
     }
 
 
-def _listener(coordinator: NimlyCoordinator, hass: HomeAssistant, entry: NimlyConfigEntry) -> dict[str, Any]:
+def _listener(coordinator: OnestiCoordinator, hass: HomeAssistant, entry: OnestiConfigEntry) -> dict[str, Any]:
     listened = coordinator.listened_cluster
     current = coordinator.transport.cluster() if listened is not None and is_zha_loaded(hass) else None
     return {
@@ -104,7 +104,7 @@ def _listener(coordinator: NimlyCoordinator, hass: HomeAssistant, entry: NimlyCo
     }
 
 
-def _last_activity(hass: HomeAssistant, coordinator: NimlyCoordinator) -> dict[str, Any] | None:
+def _last_activity(hass: HomeAssistant, coordinator: OnestiCoordinator) -> dict[str, Any] | None:
     """The raw fields of the last activity, the user's name reduced like a slot's.
 
     Read from the sensor's state attributes. The state itself is left out:
@@ -128,7 +128,7 @@ def _last_activity(hass: HomeAssistant, coordinator: NimlyCoordinator) -> dict[s
 
 
 async def async_get_config_entry_diagnostics(
-    hass: HomeAssistant, entry: NimlyConfigEntry
+    hass: HomeAssistant, entry: OnestiConfigEntry
 ) -> dict[str, Any]:
     """Diagnostics for one lock's config entry."""
     coordinator = entry.runtime_data

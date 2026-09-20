@@ -92,7 +92,7 @@ class TestSensorNaming:
                 return node
         raise AssertionError(f"class {name} not found in {module}")
 
-    @pytest.mark.parametrize("class_name", ["NimlySlotSensor", "NimlyActivitySensor"])
+    @pytest.mark.parametrize("class_name", ["OnestiSlotSensor", "OnestiActivitySensor"])
     def test_no_name_property_override(self, class_name):
         """A `name` property beats the translation key and kills translation."""
         node = self._class_node(class_name)
@@ -122,12 +122,12 @@ class TestSensorNaming:
         return attrs
 
     def test_slot_sensor_sets_translation_attrs(self):
-        attrs = self._assigned_attrs("NimlySlotSensor")
+        attrs = self._assigned_attrs("OnestiSlotSensor")
         assert "_attr_translation_key" in attrs
         assert "_attr_translation_placeholders" in attrs
 
     def test_activity_sensor_sets_translation_attrs(self):
-        attrs = self._assigned_attrs("NimlyActivitySensor")
+        attrs = self._assigned_attrs("OnestiActivitySensor")
         assert "_attr_translation_key" in attrs
 
     def test_sensors_never_set_attr_name(self):
@@ -137,13 +137,13 @@ class TestSensorNaming:
         Confirmed on a running instance, where a Norwegian server showed
         the English _attr_name instead of "Siste aktivitet".
         """
-        for cls in ("NimlySlotSensor", "NimlyActivitySensor"):
+        for cls in ("OnestiSlotSensor", "OnestiActivitySensor"):
             assert "_attr_name" not in self._assigned_attrs(cls), cls
-        assert "_attr_name" not in self._assigned_attrs("NimlyEntity", "entity.py")
+        assert "_attr_name" not in self._assigned_attrs("OnestiEntity", "entity.py")
 
     def test_slot_translation_key_is_shared(self):
         """One key with a {slot} placeholder, not ten per-slot keys."""
-        node = self._class_node("NimlySlotSensor")
+        node = self._class_node("OnestiSlotSensor")
         for stmt in ast.walk(node):
             if not isinstance(stmt, ast.Assign):
                 continue

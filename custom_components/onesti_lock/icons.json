@@ -1,0 +1,18 @@
+{
+  "entity": {
+    "sensor": {
+      "slot": {
+        "default": "mdi:key-variant"
+      },
+      "last_activity": {
+        "default": "mdi:door-closed-lock"
+      }
+    }
+  },
+  "services": {
+    "set_pin": "mdi:key-plus",
+    "clear_pin": "mdi:key-remove",
+    "set_name": "mdi:rename-box",
+    "clear_slot": "mdi:account-remove"
+  }
+}

@@ -77,8 +77,6 @@ def _remove_orphaned_slot_sensors(
 class NimlySlotSensor(NimlyEntity, SensorEntity):
     """Sensor showing who occupies a lock slot."""
 
-    _attr_icon = "mdi:key-variant"
-
     def __init__(self, coordinator: NimlyCoordinator, entry: NimlyConfigEntry, slot: int) -> None:
         super().__init__(coordinator, f"slot-{slot}")
         self._slot = slot
@@ -138,8 +136,6 @@ class ActivityExtraStoredData(ExtraStoredData):
 
 class NimlyActivitySensor(NimlyEntity, SensorEntity, RestoreEntity):
     """Sensor showing last lock activity with user name."""
-
-    _attr_icon = "mdi:door-closed-lock"
 
     def __init__(self, coordinator: NimlyCoordinator, entry: NimlyConfigEntry) -> None:
         super().__init__(coordinator, "activity")

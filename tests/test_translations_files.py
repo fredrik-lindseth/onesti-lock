@@ -252,6 +252,40 @@ def _keys_used_in_code():
     return keys
 
 
+class TestIconsFile:
+    """icons.json is the only place an icon is named.
+
+    Home Assistant's own reading of the file is tested in
+    tests_ha/test_icons.py; this is the shape check that runs without
+    Home Assistant installed.
+    """
+
+    def test_entity_keys_match_the_entity_section(self):
+        """Every named sensor has an icon, and no icon names a stranger."""
+        icons = _load("icons.json")["entity"]["sensor"]
+        names = _load("strings.json")["entity"]["sensor"]
+        assert set(icons) == set(names)
+
+    def test_every_service_has_an_icon(self):
+        """Top-level keys in services.yaml, read without a YAML parser.
+
+        tests/ runs where only ruff and pytest are installed, so the
+        actions are picked out by indentation instead.
+        """
+        with open(_component_path("services.yaml"), encoding="utf-8") as f:
+            services = re.findall(r"^(\w+):$", f.read(), re.MULTILINE)
+        assert services, "no actions found in services.yaml"
+        icons = _load("icons.json")["services"]
+        assert set(icons) == set(services)
+
+    def test_every_icon_is_an_mdi_name(self):
+        icons = _load("icons.json")
+        for key, value in icons["entity"]["sensor"].items():
+            assert value["default"].startswith("mdi:"), f"entity.sensor.{key}"
+        for key, value in icons["services"].items():
+            assert value.startswith("mdi:"), f"services.{key}"
+
+
 class TestRuntimeKeysUsedInCode:
     """Every key the code asks for must exist in every language file."""
 

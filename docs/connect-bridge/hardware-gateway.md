@@ -33,10 +33,23 @@ on one shared driver, also called `develco`, with one feature set: `wlan.set`
 update) and `scan.turnOn` to open joining. A block of policy separates them,
 quoted under "What else can join it". The app tells them apart by serial
 number: `02000005` at the start is the Connect Bridge, anything else the
-Connect Gateway. The unit here began `02000001`. The app also knows one model
-number per hub: `EGW01` is the Connect Bridge, and a list of gateways without
-"certified mode" names `EGW01` and `MGW101-S402`. `MGW211` appears nowhere
-in the app.
+Connect Gateway. The unit here began `02000001`. The split is a single
+`startsWith`, with no third prefix and no third registry entry. Model number
+works the same way: `EGW01` is the Connect Bridge, anything else the Connect
+Gateway. A list of gateways without "certified mode" names `EGW01` and
+`MGW101-S402`, and two more lists sort the Connect Gateway's own SKUs by
+cellular backup, `MGW101-DP03/DP06/DP09`, `MGW101-EAS1` through `EAS4` and
+`MGW101-KEY1/KEY2` without a SIM against `MGW101-S402` with eSIM only. The
+`EAS` and `KEY` suffixes match EasyAccess and Keyfree. `MGW211` appears
+nowhere in the app.
+
+The Connect Bridge entry is recent. Of the thirteen white-label builds in
+`reversing/apks/`, only 1.27.23 and newer carry `nimly-gateway`, `EGW01` and
+the `02000005` prefix; 1.25.62 and older know `develco-gateway` alone. The
+same builds gained the two screens that set the Bridge's Wi-Fi over
+Bluetooth, `NimlyGatewayWifiProvisioningBleScan` and
+`…Networks`. `storeGatewaySaga` opens them only when the registered gateway's
+model id is the Nimly one; the Connect Gateway is wired and skips them.
 
 ## Brand hierarchy (white-label)
 
@@ -444,17 +457,27 @@ be reached without the vendor's cloud.
 No such product. Nothing called "Connect Bridge Pro", "Connect Gateway Pro"
 or "Nimly hub Pro" exists on nimly.se, nimly.no or easyaccess.no, at any
 Nordic retailer, in any manual, in the app or anywhere the 105 archived
-sources reach. "Pro" in this family belongs to lock models, Touch Pro and
-Code Pro. The app's gateway registry holds exactly two entries, both above.
+sources reach. In the shop "Pro" belongs to lock models, Touch Pro and Code
+Pro; inside the app it is also what the discontinued Connect Gateway is
+called. The app's gateway registry holds exactly two entries, both above.
 
-Three nearby things could be mistaken for it:
+Four nearby things could be mistaken for it:
 
 - The older hub is the more capable one, and the one you cannot buy. The
   Connect Gateway has alarm, automation and event log and no device limits;
   the Connect Bridge that replaced it is capped at two locks with those off,
   and nimly.se marks the Connect Gateway "utgången produkt". An owner told
   that the better hub exists, then unable to order it, has it right, with the
-  tiers the opposite way round from a usual "pro" model.
+  tiers the opposite way round from a usual "pro" model. The app's two
+  install texts are `proGateway`, "PRO Gateway", power and an Ethernet cable,
+  and `nimlyBundleGateway`, "nimly Connect Bridge", a QR code and a wall
+  socket. One string names a capability the Bridge lacks: "This access will
+  have unlimited validity. You must have a PRO gateway to be able to create
+  time-limited access."
+- `NimlyGatewayWifiPro`, which turns up in a string dump of the Homely build
+  next to model ids. It is a cut-off `NimlyGatewayWifiProvisioningBleScan`,
+  a screen name, not a model. The full string table has only the two route
+  names, and the code uses them as navigation targets.
 - Homey Pro. A real hub from another company, and one of the third-party
   systems Nimly's Connect Module page points at. Not sold by Nimly, which
   explains not finding it in their shop.

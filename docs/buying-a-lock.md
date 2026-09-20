@@ -29,7 +29,7 @@ It only does locks. The box is a general-purpose smart home hub built by someone
 
 Home Assistant cannot talk to it. There is no local connection of any kind, no setting, no address, no port that answers. Everything goes out to Nimly's servers and back, so with the hub you get their app and nothing else. Two people asked on the Home Assistant forum whether it could be integrated, in 2023 and in 2024, and nobody answered.
 
-There is no "pro" version to wait for. What exists is two hubs: an older one that could do more, now discontinued, and the plug-in one that replaced it and does less. If somebody told you the better one is out there, that is probably the old one, and you cannot buy it.
+There is no "pro" version to wait for. What exists is two hubs: an older one that could do more, now discontinued, and the plug-in one that replaced it and does less. If somebody told you the better one is out there, that is probably the old one, and you cannot buy it. The app calls it "PRO Gateway" and says time-limited access needs it, which is where the name comes from.
 
 Owners who do use the hub complain about the same thing as everyone else, range, and several moved their locks onto Home Assistant for that reason alone.
 

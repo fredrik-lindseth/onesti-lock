@@ -182,12 +182,27 @@ class ActivityExtraStoredData(ExtraStoredData):
 
 
 class OnestiActivitySensor(OnestiEntity, SensorEntity, RestoreEntity):
-    """Sensor showing last lock activity with user name."""
+    """Sensor showing last lock activity with user name.
+
+    The one entity here whose value comes from the lock rather than from
+    Home Assistant's own storage, so the one that can go stale: a lock or
+    unlock while no event listener is registered is never seen at all,
+    and what is shown then is older than the door.
+    """
 
     def __init__(self, coordinator: OnestiCoordinator, entry: OnestiConfigEntry) -> None:
         super().__init__(coordinator, "activity")
         self._attr_translation_key = "last_activity"
         self._activity: dict[str, Any] = {}
+
+    @property
+    def available(self) -> bool:
+        """False while lock events cannot reach Home Assistant.
+
+        A lock that is merely asleep stays available: see
+        OnestiCoordinator.available.
+        """
+        return self._coordinator.available
 
     @property
     def native_value(self) -> str | None:

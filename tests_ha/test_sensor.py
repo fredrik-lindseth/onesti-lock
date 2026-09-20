@@ -12,11 +12,12 @@ Run with `just test-ha minimum` and `just test-ha current`.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 
 import pytest
 from homeassistant.config_entries import ConfigEntryState
-from homeassistant.const import EntityCategory
-from homeassistant.core import HomeAssistant, State
+from homeassistant.const import EVENT_STATE_CHANGED, EntityCategory
+from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, State, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import (
@@ -147,22 +148,124 @@ async def test_every_sensor_is_available_once_the_listener_is_registered(
         assert hass.states.get(entity.entity_id).state != "unavailable", entity.entity_id
 
 
-async def test_every_sensor_is_unavailable_without_a_listener(hass: HomeAssistant, mock_zha) -> None:
-    """No listener means no lock event arrives, so nothing here is kept up to date."""
+def _record_states(hass: HomeAssistant) -> tuple[list[tuple[str, str]], CALLBACK_TYPE]:
+    """Collect every state our entities write, not just the one they end on."""
+    written: list[tuple[str, str]] = []
+
+    @callback
+    def _on_state_changed(event: Event) -> None:
+        new_state = event.data["new_state"]
+        if new_state is not None and new_state.entity_id.startswith(f"sensor.{DEVICE_SLUG}"):
+            written.append((new_state.entity_id, new_state.state))
+
+    return written, hass.bus.async_listen(EVENT_STATE_CHANGED, _on_state_changed)
+
+
+async def test_setup_and_reload_write_no_unavailable_state(
+    hass: HomeAssistant, mock_zha
+) -> None:
+    """The listener registers after the platforms, and it must not show.
+
+    The coordinator used to start unavailable and turn available a moment
+    later, so every entity wrote one unavailable state on every startup,
+    reload and options change. The recorder keeps those, and an automation
+    watching for the lock going unavailable cried wolf on every restart.
+    The end state was right the whole time, which is why nothing caught it.
+    """
+    written, unsub = _record_states(hass)
     entry = await _setup_entry(hass)
+
+    assert written
+    assert [pair for pair in written if pair[1] == "unavailable"] == []
+
+    # Again on the way back from an unload, which is what a reload, an
+    # options change and the ZHA watch all end in. The unload itself
+    # writes one unavailable per entity, which is Home Assistant removing
+    # them and not ours to avoid, so the recording starts after it.
+    await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+    written.clear()
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    unsub()
+
+    assert written
+    assert [pair for pair in written if pair[1] == "unavailable"] == []
+
+
+class _ClusterWithoutAnyHook:
+    """A Door Lock cluster from a zigpy with neither listener hook.
+
+    ZHA is up and lists the lock, so the coordinator starts available, and
+    then the listener cannot register: the case the optimistic start has
+    to correct.
+    """
+
+    endpoint = SimpleNamespace(endpoint_id=11)
+
+    async def read_attributes(self, attributes):
+        return {}, {}
+
+
+@pytest.mark.parametrize("cluster_class", [_ClusterWithoutAnyHook], indirect=True)
+async def test_activity_is_unavailable_when_the_listener_cannot_register(
+    hass: HomeAssistant, mock_zha, caplog: pytest.LogCaptureFixture
+) -> None:
+    entry = await _setup_entry(hass)
+
+    assert _coordinator(hass, entry).available is False
+    assert hass.states.get(_entity_id(hass, "activity")).state == "unavailable"
+    assert hass.states.get(_entity_id(hass, "slot-5")).state != "unavailable"
+    # The repair issue and its ERROR name the missing piece. ZHA is
+    # running, so the INFO line saying it is not would be false.
+    assert "ZHA is not running" not in caplog.text
+
+
+async def test_only_the_activity_sensor_goes_unavailable_without_a_listener(
+    hass: HomeAssistant, mock_zha
+) -> None:
+    """No listener means no lock event arrives, so only that value goes stale.
+
+    Slot names, PIN status and the lock's reported numbers are Home
+    Assistant's own stored data. They are as true with ZHA down as with it
+    up, and the options flow and the services still write them, so hiding
+    them empties the user's dashboard for no reason.
+    """
+    entry = await _setup_entry(hass, slots={"5": {"name": "Kari", "has_pin": True}})
     coordinator = _coordinator(hass, entry)
+    activity = _entity_id(hass, "activity")
 
     coordinator.set_available(False)
     await hass.async_block_till_done()
 
+    assert hass.states.get(activity).state == "unavailable"
     for entity in _enabled_entities(hass, entry):
-        assert hass.states.get(entity.entity_id).state == "unavailable", entity.entity_id
+        if entity.entity_id == activity:
+            continue
+        assert hass.states.get(entity.entity_id).state != "unavailable", entity.entity_id
+    slot_five = hass.states.get(_entity_id(hass, "slot-5"))
+    assert slot_five.state == "Kari"
+    assert slot_five.attributes["has_pin"] is True
 
     coordinator.set_available(True)
     await hass.async_block_till_done()
 
     for entity in _enabled_entities(hass, entry):
         assert hass.states.get(entity.entity_id).state != "unavailable", entity.entity_id
+
+
+async def test_capability_sensors_stay_available_without_a_listener(
+    hass: HomeAssistant, mock_zha
+) -> None:
+    """Their value is read out of entry.options, so ZHA cannot make it stale."""
+    entry = await _setup_entry(hass)
+    await _enable_capability_sensors(hass, entry)
+
+    _coordinator(hass, entry).set_available(False)
+    await hass.async_block_till_done()
+
+    for suffix, value in CAPABILITY_SENSORS.items():
+        assert hass.states.get(_entity_id(hass, suffix)).state == str(value)
 
 
 # -- Slot sensors --

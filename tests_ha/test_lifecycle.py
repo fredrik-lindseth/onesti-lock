@@ -25,7 +25,6 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
-from custom_components.onesti_lock import coordinator as coordinator_module
 from custom_components.onesti_lock.const import (
     CONF_IEEE,
     CONF_MODEL,
@@ -123,19 +122,6 @@ def _loss_lines(caplog: pytest.LogCaptureFixture) -> int:
 
 def _return_lines(caplog: pytest.LogCaptureFixture) -> int:
     return _info_lines(caplog, "arriving again, ZHA is running")
-
-
-@pytest.fixture(autouse=True)
-def _forget_logged_losses():
-    """Whether a loss was logged outlives the coordinator, not the test.
-
-    The flag is per IEEE on the coordinator module, since ZHA coming back
-    reloads the entry and the return is reported by a new coordinator.
-    Every test here uses the same IEEE, so it is cleared between them.
-    """
-    coordinator_module._LOSS_LOGGED.clear()
-    yield
-    coordinator_module._LOSS_LOGGED.clear()
 
 
 async def _report(hass: HomeAssistant, cluster: FakeDoorLockCluster, raw_value: int) -> None:
@@ -847,9 +833,10 @@ async def test_zha_state_listener_is_removed_on_unload(
 # -- Availability --
 
 
-async def test_entities_are_unavailable_while_zha_is_down(
+async def test_the_activity_sensor_is_unavailable_while_zha_is_down(
     hass: HomeAssistant, mock_zha, zha_entry: MockConfigEntry
 ) -> None:
+    """The slot row keeps showing our own stored data: ZHA cannot make it stale."""
     entry = await _setup(hass)
     assert entry.runtime_data.available is True
     assert hass.states.get(ACTIVITY_ENTITY_ID).state != "unavailable"
@@ -860,7 +847,7 @@ async def test_entities_are_unavailable_while_zha_is_down(
     assert entry.state is ConfigEntryState.LOADED
     assert entry.runtime_data.available is False
     assert hass.states.get(ACTIVITY_ENTITY_ID).state == "unavailable"
-    assert hass.states.get(f"sensor.{DEVICE_SLUG}_slot_5").state == "unavailable"
+    assert hass.states.get(f"sensor.{DEVICE_SLUG}_slot_5").state != "unavailable"
 
     new_cluster = FakeDoorLockCluster()
     mock_zha.device_proxies = {LOCK_IEEE: make_lock_proxy(cluster=new_cluster)}

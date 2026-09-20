@@ -5,6 +5,7 @@ How to track down the usual problems with the Onesti Lock integration. Each prob
 - Setup says no lock was found: [Lock not offered when adding the integration](#lock-not-offered-when-adding-the-integration).
 - The lock will not pair with ZHA: [Module not discovered during pairing](#module-not-discovered-during-pairing).
 - Setting a PIN fails with "Could not reach the lock": [the lock is asleep or out of range](#could-not-reach-the-lock-in-options-flow).
+- The lock keeps going unavailable, or commands time out at random: [Signal issues](#signal-issues).
 - The activity sensor stopped changing, often after new batteries: [Activity sensor not updating](#3-activity-sensor-not-updating).
 - A repair issue says lock events are not being received: [Repair issue](#repair-issue-lock-events-are-not-being-received).
 
@@ -118,11 +119,31 @@ The wake needs ZHA's lock entity for the device to exist and be enabled. Without
 
 ### Signal issues
 
-A metal door and a metal casing make a Faraday cage, and the Zigbee signal is heavily attenuated. What helps:
+Most unexplained flakiness on these locks is coverage. The radio is inside an aluminium lock body, on the outermost point of the house, with no external antenna, and it sleeps, so it cannot route for itself and lives entirely off the nearest mains-powered node. 2.4 GHz is also the Wi-Fi band, and the metal that shields the radio is also what reflects the signal back at it. There is no transmit-power setting, no antenna connector and no firmware knob on the lock: everything you can change is on your side of the door.
 
-- Place a Zigbee router (e.g. a smart plug) within 2-3 meters of the lock
-- Avoid multiple walls between the lock and coordinator
-- Check LQI (link quality) in ZHA: **Settings → Devices → [lock] → Zigbee info**
+**Is it actually bad?** Enable the RSSI and LQI sensors under the device in ZHA (**Settings → Devices → [lock] → Zigbee info**, or the diagnostic entities, which are off by default) and let them record for a few days. What the numbers mean:
+
+| | Reading | Verdict |
+| --- | --- | --- |
+| RSSI | above -60 dBm | as good as this lock gets |
+| | -60 to -75 dBm | workable |
+| | below -80 dBm | expect timeouts and missed reports |
+| LQI | 150 and up | fine |
+| | 100 to 150 | works, with dropouts |
+| | below 100 | the lock will go unavailable |
+
+Those bands come from one door with 13 months of hourly statistics, and from the LQI values owners quote in the Home Assistant thread, which run 116 to 196 and no higher. On that door the median was -76 dBm and LQI 139 before the mesh was fixed, -61 dBm and LQI 156 after, and the worst single sample in the whole period was -107 dBm. Both figures are the coordinator's measurement of the last hop, not of the lock's own transmission, so with a router by the door they flatter the lock. Details in [docs/buying-a-lock.md](buying-a-lock.md#budget-for-the-radio-not-just-the-lock).
+
+**What actually helps, in order:**
+
+1. **A mains-powered Zigbee router within a few metres of the door, on the inside.** This is the single fix that works, and the one every owner who solved it ended up doing. A smart plug or a dedicated repeater; a battery-powered device is not a router at all. Bulbs do route, but owners report them as poor at it, and a bulb that gets switched off at the wall stops being a router.
+2. **Move the Wi-Fi, not the Zigbee.** Zigbee 15, 20 and 25 sit in the gaps between Wi-Fi channels 1, 6 and 11. Pick the Zigbee channel first, then put your 2.4 GHz Wi-Fi where it does not land on top, and fix the Wi-Fi channel rather than leaving it on auto. Changing the Zigbee channel on a running network is the worse move: sleeping end devices often do not follow and have to be re-paired, and the lock is one of them.
+3. **Give the coordinator a fair chance.** An external antenna beats a bare USB stick, a USB extension cable beats a socket on the back of the server, and USB 3 ports and their cables are loud on 2.4 GHz. Do not move the coordinator once things work: the mesh takes days to settle again.
+4. **Then wait, and check who the parent is.** The lock does not re-parent promptly. Owners report adding a repeater and seeing the lock keep talking to a distant coordinator for days before it moves across on its own, with no way to force it. If it never moves, reset the Connect Module and pair it again with the new router powered and the coordinator further away.
+
+What does not help: raising the coordinator's transmit power (it changes the downlink, not the lock's uplink), and replacing the Connect Module, unless the module is genuinely faulty.
+
+See [docs/community-reports.md](community-reports.md#range-and-coverage) for what other owners measured and tried.
 
 ### After battery change
 
@@ -375,14 +396,14 @@ If you see reports with `attrid=0x0000` (lock state) but none with `attrid=0x010
 ### Device shows as "unavailable"
 
 - **Battery:** check the battery level. A low battery means fewer reports and more command timeouts.
-- **Signal:** the lock is too far from the nearest Zigbee router. Move a router closer.
+- **Signal:** the lock is too far from the nearest Zigbee router, or it never re-parented to the one you added. See "Signal issues" in section 1.
 - **After a battery change:** the lock may have rejoined but lost its bindings. See section 1.
 
 If Reconfigure fails repeatedly, follow "Reconfigure in ZHA" in section 1.
 
 ### Tips for stable operation
 
-- **Put a Zigbee router near the lock.** A smart plug that works as a Zigbee router, 1-3 meters from the door, makes an enormous difference for sleepy devices.
+- **Put a mains-powered Zigbee router near the lock**, and check afterwards that the lock actually re-parents to it. See "Signal issues" in section 1 for the numbers and the rest of the coverage checklist.
 - **Don't move the coordinator.** The Zigbee network takes time to find new routes after the topology changes.
 - **Do not wait for a firmware update.** The module lists the OTA Upgrade cluster and does ask for images (a ZHA diagnostics dump from a NimlyCodePRO shows its last Query Next Image request, with manufacturer code 0, image type 0 and version 0), but no image for it exists in the community zigbee-OTA index (checked 2026-09-19), so ZHA has nothing to offer. The vendor's BLE app does not update firmware either: a search of the decompiled app's own packages on 2026-09-20 (`reversing/nimly-ble-decompiled/sources/nimly/ekey`, `sources/com/nimly/ekey`, `sources/easyaccess/ekey`, 367 files, plus `resources/AndroidManifest.xml` and the string resources) found no match for DFU, OTA, firmware or bootloader, no Nordic DFU library, and no DFU service UUID. The only BLE UUIDs the app knows are the Nimly service `ba4bfd00-c447-19bf-f38d-4890b3a824c8` with characteristic `ba4bfd03-...` and the standard CCCD `0x2902`. That is evidence the shipped app has no update path, not proof the lock cannot be updated some other way.
 - **Keep an eye on the battery.** An automation that warns about low battery lets you avoid the problems that come with a battery change.

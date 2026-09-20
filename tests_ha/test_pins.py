@@ -94,7 +94,7 @@ def test_the_inherited_stack_is_pinned_to_what_home_assistant_installs(integrati
     assert not wrong, (
         f"Home Assistant {_ha_version()} sets its {integration} integration up with other versions "
         f"than this environment has:\n  " + "\n  ".join(wrong) + "\n"
-        f"custom_components/onesti_lock/bluetooth.py runs against whatever Home Assistant installed, "
-        f"so the tests have to. Write these versions into the matching ha-* group in pyproject.toml "
-        f"and run `uv lock`."
+        "custom_components/onesti_lock/bluetooth.py runs against whatever Home Assistant installed, "
+        "so the tests have to. Write these versions into the matching ha-* group in pyproject.toml "
+        "and run `uv lock`."
     )

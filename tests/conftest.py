@@ -98,8 +98,8 @@ config_entries = _module("homeassistant.config_entries")
 class ConfigEntry[DataT]:
     """Type-hint target only. Tests pass their own fake entries.
 
-    Generic like HA's, so ConfigEntry[NimlyCoordinator] resolves if anything
-    ever evaluates the NimlyConfigEntry alias.
+    Generic like HA's, so ConfigEntry[OnestiCoordinator] resolves if anything
+    ever evaluates the OnestiConfigEntry alias.
     """
 
 

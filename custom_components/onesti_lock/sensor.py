@@ -15,8 +15,8 @@ from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
 from homeassistant.util import dt as dt_util
 
 from .const import NUM_USER_SLOTS
-from .coordinator import NimlyConfigEntry, NimlyCoordinator
-from .entity import NimlyEntity
+from .coordinator import OnestiConfigEntry, OnestiCoordinator
+from .entity import OnestiEntity
 from .localize import format_activity
 
 _LOGGER = logging.getLogger(__name__)
@@ -42,7 +42,7 @@ _CAPABILITY_SENSORS = (
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: NimlyConfigEntry,
+    entry: OnestiConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up Onesti Lock sensors."""
@@ -54,10 +54,10 @@ async def async_setup_entry(
     first = coordinator.first_user_slot()
     slots = range(first, first + NUM_USER_SLOTS)
 
-    entities: list[SensorEntity] = [NimlySlotSensor(coordinator, entry, slot) for slot in slots]
-    entities.append(NimlyActivitySensor(coordinator, entry))
+    entities: list[SensorEntity] = [OnestiSlotSensor(coordinator, entry, slot) for slot in slots]
+    entities.append(OnestiActivitySensor(coordinator, entry))
     entities.extend(
-        NimlyCapabilitySensor(coordinator, entry, key, translation_key, capability)
+        OnestiCapabilitySensor(coordinator, entry, key, translation_key, capability)
         for key, translation_key, capability in _CAPABILITY_SENSORS
     )
     async_add_entities(entities)
@@ -66,7 +66,7 @@ async def async_setup_entry(
 
 
 def _remove_orphaned_slot_sensors(
-    hass: HomeAssistant, entry: NimlyConfigEntry, slots: range
+    hass: HomeAssistant, entry: OnestiConfigEntry, slots: range
 ) -> None:
     """Drop registry entries for slot sensors that fell out of the row.
 
@@ -77,7 +77,7 @@ def _remove_orphaned_slot_sensors(
     and whatever the user customised on it.
     """
     registry = er.async_get(hass)
-    # The same prefix NimlyEntity builds its unique ids from.
+    # The same prefix OnestiEntity builds its unique ids from.
     prefix = f"{entry.entry_id}-slot-"
     for registry_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
         unique_id = registry_entry.unique_id
@@ -89,10 +89,10 @@ def _remove_orphaned_slot_sensors(
         registry.async_remove(registry_entry.entity_id)
 
 
-class NimlySlotSensor(NimlyEntity, SensorEntity):
+class OnestiSlotSensor(OnestiEntity, SensorEntity):
     """Sensor showing who occupies a lock slot."""
 
-    def __init__(self, coordinator: NimlyCoordinator, entry: NimlyConfigEntry, slot: int) -> None:
+    def __init__(self, coordinator: OnestiCoordinator, entry: OnestiConfigEntry, slot: int) -> None:
         super().__init__(coordinator, f"slot-{slot}")
         self._slot = slot
         self._attr_translation_key = "slot"
@@ -126,7 +126,7 @@ class NimlySlotSensor(NimlyEntity, SensorEntity):
         self.async_write_ha_state()
 
 
-class NimlyCapabilitySensor(NimlyEntity, SensorEntity):
+class OnestiCapabilitySensor(OnestiEntity, SensorEntity):
     """One number the lock reports about itself.
 
     Off by default: these are the same for every lock of a model and do
@@ -141,8 +141,8 @@ class NimlyCapabilitySensor(NimlyEntity, SensorEntity):
 
     def __init__(
         self,
-        coordinator: NimlyCoordinator,
-        entry: NimlyConfigEntry,
+        coordinator: OnestiCoordinator,
+        entry: OnestiConfigEntry,
         key: str,
         translation_key: str,
         capability: str,
@@ -181,10 +181,10 @@ class ActivityExtraStoredData(ExtraStoredData):
         return cls(activity)
 
 
-class NimlyActivitySensor(NimlyEntity, SensorEntity, RestoreEntity):
+class OnestiActivitySensor(OnestiEntity, SensorEntity, RestoreEntity):
     """Sensor showing last lock activity with user name."""
 
-    def __init__(self, coordinator: NimlyCoordinator, entry: NimlyConfigEntry) -> None:
+    def __init__(self, coordinator: OnestiCoordinator, entry: OnestiConfigEntry) -> None:
         super().__init__(coordinator, "activity")
         self._attr_translation_key = "last_activity"
         self._activity: dict[str, Any] = {}

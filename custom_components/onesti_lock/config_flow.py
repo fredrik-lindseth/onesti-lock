@@ -37,7 +37,7 @@ from .zha import (
 )
 
 if TYPE_CHECKING:
-    from .coordinator import NimlyConfigEntry, NimlyCoordinator
+    from .coordinator import OnestiConfigEntry, OnestiCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ class _FormError(NamedTuple):
     placeholders: dict[str, str]
 
 
-class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
+class OnestiLockConfigFlow(ConfigFlow, domain=DOMAIN):
     """Config flow for Onesti Lock."""
 
     VERSION = 2
@@ -64,8 +64,8 @@ class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry: NimlyConfigEntry) -> OptionsFlow:
-        return NimlyProOptionsFlow()
+    def async_get_options_flow(config_entry: OnestiConfigEntry) -> OptionsFlow:
+        return OnestiLockOptionsFlow()
 
     def _create_lock_entry(self, ieee: str, model: str) -> ConfigFlowResult:
         """The entry for one lock, however the flow got to it."""
@@ -217,7 +217,7 @@ class NimlyProConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
 
-class NimlyProOptionsFlow(OptionsFlow):
+class OnestiLockOptionsFlow(OptionsFlow):
     """Options flow for Onesti Lock: PIN code management UI.
 
     set_pin and clear_pin each keep their own input, task and pending error,
@@ -237,8 +237,8 @@ class NimlyProOptionsFlow(OptionsFlow):
 
     # -- Helpers --
 
-    def _coordinator(self) -> NimlyCoordinator:
-        entry: NimlyConfigEntry = self.config_entry
+    def _coordinator(self) -> OnestiCoordinator:
+        entry: OnestiConfigEntry = self.config_entry
         return entry.runtime_data
 
     def _pin_length_placeholders(self) -> dict[str, str]:

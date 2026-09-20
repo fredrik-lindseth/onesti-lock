@@ -7,7 +7,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
 
 from .const import CONF_MODEL, DOMAIN, MANUFACTURER
-from .coordinator import NimlyCoordinator
+from .coordinator import OnestiCoordinator
 from .zha import find_zha_device
 
 # HA 2026.9 replaced DeviceInfo's via_device, an identifier tuple the
@@ -28,7 +28,7 @@ def device_name(ieee: str, model: str) -> str:
     return f"{model} ({tail})" if model else f"Onesti Lock ({tail})"
 
 
-def build_device_info(hass: HomeAssistant, coordinator: NimlyCoordinator) -> DeviceInfo:
+def build_device_info(hass: HomeAssistant, coordinator: OnestiCoordinator) -> DeviceInfo:
     """The device the lock's entities hang on.
 
     identifiers are keyed on the config entry, not on the IEEE address:
@@ -61,7 +61,7 @@ def build_device_info(hass: HomeAssistant, coordinator: NimlyCoordinator) -> Dev
     return device_info
 
 
-class NimlyEntity(Entity):
+class OnestiEntity(Entity):
     """An entity on the Onesti Lock device of one lock.
 
     Every unique_id is the config entry id followed by a per-entity key,
@@ -73,7 +73,7 @@ class NimlyEntity(Entity):
 
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator: NimlyCoordinator, key: str) -> None:
+    def __init__(self, coordinator: OnestiCoordinator, key: str) -> None:
         self._coordinator = coordinator
         self._attr_unique_id = f"{coordinator.entry.entry_id}-{key}"
         self._attr_device_info = build_device_info(coordinator.hass, coordinator)
@@ -84,7 +84,7 @@ class NimlyEntity(Entity):
 
         Unavailable means lock events cannot reach Home Assistant, so
         nothing shown here is being kept up to date. A lock that is merely
-        asleep is available: see NimlyCoordinator.available.
+        asleep is available: see OnestiCoordinator.available.
         """
         return self._coordinator.available
 

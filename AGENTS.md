@@ -6,7 +6,7 @@ only into raw numbers.
 
 ## Critical rules
 
-1. The domain is `onesti_lock`, NOT `nimly_pro`. Classes still use the `Nimly` prefix (the brand name).
+1. The domain is `onesti_lock`, NOT `nimly_pro`. Our own classes and types follow it (`Onesti*`); `Nimly` is kept only where it means the vendor's brand, such as model strings and the app docs.
 2. Credentials, API keys and secrets do NOT go in git. They belong in `secrets.md` (gitignored). Docs hold API URLs and technical references only, never secrets.
 3. The lock is a battery-powered Zigbee EndDevice that sleeps. Every ZCL command must handle timeouts and go through `ZhaLockTransport.send()` in `zha.py`, which handles the timeout and the auto-wake.
 4. The Nimly response quirk (`IndexError` when the lock's answer is read) is expected on HA 2025.x. The command reaches the lock despite the error, so `send()` counts it as delivered. Do not "fix" it. The source is zha 0.0.x's `issue_cluster_command` reading `response[1]` from a one-field Set PIN Code Response; zha 2.x reads the field by name, and so does `send()` (see `docs/technical.md`).
@@ -30,7 +30,7 @@ __init__.py (entry lifecycle)
   │   this entry when ZHA comes back LOADED with a different Door Lock cluster
   └── Update listener: reloads only when reserved_slots moved the first user slot
 
-NimlyCoordinator (coordinator.py, one per lock; NimlyConfigEntry = ConfigEntry[NimlyCoordinator])
+OnestiCoordinator (coordinator.py, one per lock; OnestiConfigEntry = ConfigEntry[OnestiCoordinator])
   ├── entry.options: "slots" (name, has_pin per slot), "reserved_slots", "capabilities"
   ├── set_pin / clear_pin / clear_slot: refuse slots below first_user_slot(),
   │   one at a time (asyncio.Lock), local state changes only after a delivered send
@@ -77,7 +77,7 @@ Event listener (events.py, no HA imports at module level)
   ├── Updates activity sensor unless is_system_lock(decoded, wake_echo_pending) (gotcha 4)
   └── Fires onesti_lock_activity HA event (always, including auto-lock and wake echo)
 
-NimlyEntity (entity.py, the base class of every sensor)
+OnestiEntity (entity.py, the base class of every sensor)
   ├── unique_id <entry_id>-<key>, device identifiers {(DOMAIN, entry_id)}: a
   │   replaced Connect Module changes the IEEE, the entry id it does not
   └── build_device_info: model from entry.data, serial_number = IEEE,
@@ -128,7 +128,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 | `custom_components/onesti_lock/bluetooth.py`   | Home Assistant Bluetooth and bleak-retry-connector: find the lock by its 0xFD00 advertisement, connect, open a `ble` Session; unused so far |
 | `custom_components/onesti_lock/events.py`      | Operation event decoding, system-lock rule, event listener (no HA imports)                                       |
 | `custom_components/onesti_lock/config_flow.py` | Config flow (device selection, discovery, reconfigure) + Options flow (PIN management UI, reserved-slots setting) |
-| `custom_components/onesti_lock/entity.py`      | NimlyEntity and the device every entity hangs on: keys, model, serial number, link to ZHA's device               |
+| `custom_components/onesti_lock/entity.py`      | OnestiEntity and the device every entity hangs on: keys, model, serial number, link to ZHA's device              |
 | `custom_components/onesti_lock/sensor.py`      | Slot sensor row that follows `reserved_slots` + restored Activity sensor                                         |
 | `custom_components/onesti_lock/services.py`    | set_pin, clear_pin, set_name, clear_slot; lock picked by device_id or ieee                                       |
 | `custom_components/onesti_lock/services.yaml`  | Service fields, including the device selector                                                                    |
@@ -163,7 +163,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 3. **Options flow progress**: when the `progress_task` passed to `async_show_progress` finishes, HA calls the same progress step again. Nothing named `*_done` is ever called for you. The step must check `task.done()` and, once it is, return `async_show_progress_done(next_step_id=...)`, which HA follows to that step (`set_pin_done` on success, back to the `set_pin` form with the error on failure). HA starts tasks eagerly, so a task can already be done on the first call, and the step it routes to then receives the submitted `user_input` again: form steps check a pending error before `user_input`, or they would send the command a second time.
 4. **Activity sensor suppression**: system-initiated locking (source `auto`, and on NimlyCodePRO an `unattributed` lock with no user slot) fires the HA event but does NOT update the activity sensor, so "Kari unlocked with code" is not overwritten by "Auto-lock". A `zigbee` lock with no user is someone locking from HA and stays visible, except within `WAKE_ECHO_WINDOW_S` of our own auto-wake, which the lock reports the same way. The window is a guess nobody has measured on hardware.
 5. **CI/release workflows**: both `.github/workflows/` files must reference `custom_components/onesti_lock/` (not `nimly_pro`), and so must `COMPONENT`/`ASSET_NAME` in `scripts/release_publish.py` and `filename` in `hacs.json`. The ZIP HACS installs is named from the domain.
-6. **NimlyCoordinator is NOT a DataUpdateCoordinator**: it is a custom, event-driven pattern with no polling, on purpose for a battery-powered device.
+6. **OnestiCoordinator is NOT a DataUpdateCoordinator**: it is a custom, event-driven pattern with no polling, on purpose for a battery-powered device.
 7. **No user-facing strings in Python**: sensor states and options flow labels come from the `common` section of `translations/*.json` via `localize.py` (`common` because hassfest rejects top-level keys outside HA's strings schema). Entity names and service errors go through HA's own `entity`/`exceptions` sections. `tests/test_no_hardcoded_language.py` fails the build if a Norwegian literal reappears. `strings.json` is the English source and must stay identical to `translations/en.json`.
 8. **PIN length floor**: `pin_rules.PIN_LENGTH_SANE_MIN` (4) is the shortest PIN accepted, whatever the lock reports, because `redact.py` masks digit runs of that length and up. Lowering either one alone lets a PIN reach the log in clear text. Anything that logs an exception on the send path uses `redact_digits` and no `exc_info`: an error from zigpy or from building the frame can quote `pin_code`.
 9. **Services live for the whole HA run**: they are registered in `async_setup` (hence `CONFIG_SCHEMA = cv.config_entry_only_config_schema`) and never removed on unload. Each call looks the lock up among loaded entries, by `device_id` (our own device, not the ZHA one), then `ieee`, and only falls back to the single lock when there is exactly one.
@@ -290,8 +290,8 @@ by the `compileall` step in CI instead. `mypy` itself is pinned in the
 
 Two rules the check enforces that are easy to undo by accident: every config
 and options flow step annotates `user_input: dict[str, Any] | None = None`,
-and `NimlyConfigEntry` rather than a bare `ConfigEntry` is the type in
-`async_get_options_flow` and `NimlyCoordinator.__init__`, which is what
+and `OnestiConfigEntry` rather than a bare `ConfigEntry` is the type in
+`async_get_options_flow` and `OnestiCoordinator.__init__`, which is what
 hassfest's `runtime-data` validator looks for. Objects from the `zha`
 library, which is not installed for the check, are typed `Any` with a
 comment; zigpy's own types (`zigpy.zcl.Cluster`) are used where they exist.

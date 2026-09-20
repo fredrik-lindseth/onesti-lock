@@ -177,7 +177,7 @@ def _run(coro):
 def _make(options=None, transport=None, **hass_kwargs):
     hass = FakeHass(**hass_kwargs)
     entry = FakeConfigEntry(options)
-    return hass, entry, coordinator_mod.NimlyCoordinator(hass, entry, transport)
+    return hass, entry, coordinator_mod.OnestiCoordinator(hass, entry, transport)
 
 
 def _transport(ieee=IEEE, **hass_kwargs):
@@ -243,7 +243,7 @@ def _coordinator_reading(cluster, options=None):
     hass, transport = _transport()
     transport.cluster = lambda: cluster
     entry = FakeConfigEntry(options)
-    return hass, entry, coordinator_mod.NimlyCoordinator(hass, entry, transport)
+    return hass, entry, coordinator_mod.OnestiCoordinator(hass, entry, transport)
 
 
 class TestSendClusterCommand:

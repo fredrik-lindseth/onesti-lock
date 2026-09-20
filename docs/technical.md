@@ -90,7 +90,7 @@ What the shared connection does depends on the Home Assistant version, and both 
 
 A ZHA reload or a re-pair builds new zigpy objects, and a listener left on the old cluster would stop receiving lock events without a word. `__init__.py` therefore subscribes to `ConfigEntry.async_on_state_change` on every ZHA config entry that exists at setup, and on every ZHA entry added later (it listens for `ConfigEntryChange.ADDED` on `SIGNAL_CONFIG_ENTRY_CHANGED`), so a ZHA that is removed and added again is still followed. When a ZHA entry reaches `LOADED` while this entry is loaded, the entry schedules its own reload if nothing is listened to yet (`coordinator.listened_cluster` is `None`) or if the cluster ZHA now holds is another one. That is also how the integration recovers when it was set up before ZHA had the lock.
 
-The same watch decides whether the entities are available. `NimlyCoordinator.available` is true once the event listener sits on a cluster, and `NimlyEntity.available` reads it, so every sensor goes unavailable while no ZHA entry is loaded and comes back when a listener is registered again. A lock that is merely asleep stays available: the slot sensors show Home Assistant's own stored data, the activity sensor the last event it saw, and a command that times out on a sleeping radio says nothing about whether events arrive. When ZHA comes back with the objects it already had, the listener still fits, so availability is restored without a reload.
+The same watch decides whether the entities are available. `OnestiCoordinator.available` is true once the event listener sits on a cluster, and `OnestiEntity.available` reads it, so every sensor goes unavailable while no ZHA entry is loaded and comes back when a listener is registered again. A lock that is merely asleep stays available: the slot sensors show Home Assistant's own stored data, the activity sensor the last event it saw, and a command that times out on a sleeping radio says nothing about whether events arrive. When ZHA comes back with the objects it already had, the listener still fits, so availability is restored without a reload.
 
 The change is logged as one INFO line when events stop (`Lock events for <ieee> stopped, ZHA is not running`) and one when they are back, never the same twice in a row. The flag behind that is per IEEE on the coordinator module rather than per coordinator, because ZHA coming back reloads the entry: the loss is logged by the coordinator that is going away and the return by the one that takes over.
 
@@ -181,7 +181,7 @@ PIN commands used to fail with `IndexError: tuple index out of range` even thoug
 
 ## Coordinator pattern
 
-`NimlyCoordinator` is a custom class, on purpose NOT based on HA's `DataUpdateCoordinator`. A polling coordinator makes no sense for a battery-powered Zigbee EndDevice that sleeps between events and cannot be polled. There is one per lock, kept on `entry.runtime_data`.
+`OnestiCoordinator` is a custom class, on purpose NOT based on HA's `DataUpdateCoordinator`. A polling coordinator makes no sense for a battery-powered Zigbee EndDevice that sleeps between events and cannot be polled. There is one per lock, kept on `entry.runtime_data`.
 
 ### Slot data storage
 

@@ -12,7 +12,7 @@ from homeassistant.helpers import device_registry as dr
 
 from . import pin_rules
 from .const import DOMAIN, MAX_SLOTS
-from .coordinator import NimlyCoordinator
+from .coordinator import OnestiCoordinator
 from .redact import redact_digits
 from .zha import Delivery, SendOutcome
 
@@ -100,7 +100,7 @@ async def _write(action: str, slot: int, write: Awaitable[SendOutcome]) -> None:
         raise _not_delivered(outcome)
 
 
-def _find_by_ieee(coordinators: list[NimlyCoordinator], ieee: str) -> NimlyCoordinator | None:
+def _find_by_ieee(coordinators: list[OnestiCoordinator], ieee: str) -> OnestiCoordinator | None:
     # ZHA shows IEEE addresses in lower case, but people paste them from
     # anywhere, so the match ignores case.
     wanted = ieee.lower()
@@ -124,7 +124,7 @@ def _entry_id_for_device(hass: HomeAssistant, device_id: str) -> str:
     raise _lock_not_found()
 
 
-def _get_coordinator(hass: HomeAssistant, call: ServiceCall) -> NimlyCoordinator:
+def _get_coordinator(hass: HomeAssistant, call: ServiceCall) -> OnestiCoordinator:
     """The lock a service call targets.
 
     device_id wins over ieee when both are given. Without either, the call
@@ -135,7 +135,7 @@ def _get_coordinator(hass: HomeAssistant, call: ServiceCall) -> NimlyCoordinator
     retrying has no working transport yet, so it is reported as not found
     rather than handed a command that cannot reach it.
     """
-    coordinators: list[NimlyCoordinator] = [
+    coordinators: list[OnestiCoordinator] = [
         entry.runtime_data for entry in hass.config_entries.async_loaded_entries(DOMAIN)
     ]
 

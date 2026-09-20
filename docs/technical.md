@@ -250,6 +250,15 @@ The mask covers every PIN the integration accepts only because `pin_rules` never
 
 This covers the integration's own log lines. ZHA and zigpy log on their own terms, see [debugging.md](debugging.md#pin-codes-appear-in-raw-logs-and-diagnostics).
 
+## The IEEE address
+
+The lock's EUI64 is not a credential. 802.15.4 carries it in the clear in every frame, and knowing it grants nothing, since joining the network needs the network key. It identifies one household's lock, so the rule is about where a copy ends up, not about secrecy:
+
+- What the repo generates for someone else to read redacts it. `TO_REDACT` in `diagnostics.py` covers the address, the entry title and the unique id, the same as ZHA's own diagnostics, because a diagnostics file is made to be attached to a public issue.
+- What a user sees about their own lock shows it. The device page carries it as the serial number, the entry title carries the last four characters, and ZHA has shown the full address all along. A screenshot is the user's own call, as it already was with ZHA.
+- Addresses in the docs are evidence and stay. The OUI table in [hardware-generations.md](hardware-generations.md) and the capture logs need real addresses, Fredrik's own lock included, published knowingly.
+- A script takes the address from the environment. `scripts/interrogate_lock.sh` requires `LOCK_IEEE` instead of defaulting to a real lock, so it never runs against the wrong one and never carries an address into the repo.
+
 ## `onesti_lock_activity` event
 
 Every operation event decoded from attrid `0x0100` fires `onesti_lock_activity`, auto-lock and the wake echo included. The payload, what `null` means in it, and automation examples are in the [user guide](user-guide.md#the-onesti_lock_activity-event).

@@ -116,7 +116,7 @@
   },
   "exceptions": {
     "lock_unreachable": {
-      "message": "Kunde inte nå låset. Väck radion genom att vrida på vredet, eller med en giltig kod + # på knappsatsen, vilket också låser upp dörren. Att röra vid knappsatsen tänder bara belysningen. Försök sedan igen."
+      "message": "Kunde inte nå låset. Väck radion genom att vrida på vredet, eller med en giltig kod + # på knappsatsen, vilket också låser upp dörren. Försök sedan igen."
     },
     "lock_rejected": {
       "message": "Låset avvisade kommandot (status {status}). Kontrollera plats och kod och försök igen."

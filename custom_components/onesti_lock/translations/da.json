@@ -116,7 +116,7 @@
   },
   "exceptions": {
     "lock_unreachable": {
-      "message": "Kunne ikke nå låsen. Væk radioen ved at dreje på vrideren, eller med en gyldig kode + # på tastaturet, som også låser døren op. At røre ved tastaturet tænder kun lyset. Prøv så igen."
+      "message": "Kunne ikke nå låsen. Væk radioen ved at dreje på vrideren, eller med en gyldig kode + # på tastaturet, som også låser døren op. Prøv så igen."
     },
     "lock_rejected": {
       "message": "Låsen afviste kommandoen (status {status}). Tjek plads og kode, og prøv igen."

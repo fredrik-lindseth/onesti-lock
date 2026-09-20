@@ -46,6 +46,18 @@ NUM_USER_SLOTS = 10  # Sensor row length, starting at the first user slot
 # filter, because a Connect Module can report a sibling model name (issue #5: a
 # NimlyCodePRO presenting itself as NimlyTwist), and every Onesti lock runs the
 # same firmware on the same module either way.
+#
+# EasyCode903G2 is a documented default for ModelIdentifier in Onesti's own
+# 2021 module spec (docs/zigbee-protocol/elife-module-spec.md), reported by a
+# real ManufacturerName "Onesti Products AS" device (our discovery filter), so
+# it belongs here even though nobody has reported it in the wild yet. It is
+# NOT the same string as "EasyCode903G2.1" seen in Z2M#6551: that lock answers
+# ManufacturerName "Datek Wireless" on a different module ("Dream V1.0") with
+# an Ember/Silicon Labs radio (IEEE OUI 00:0d:6f), against every other Onesti
+# lock's Nordic Semiconductor radio (OUI f4:ce:36). Our config flow only
+# offers devices whose ManufacturerName is "Onesti Products AS" (MANUFACTURER
+# below), so that older/different lock would not be discovered by this
+# integration at all. See docs/hardware-generations.md.
 SUPPORTED_MODELS = [
     "NimlyPRO",
     "NimlyPRO24",
@@ -57,6 +69,7 @@ SUPPORTED_MODELS = [
     "easyCodeTouch_v1",
     "EasyCodeTouch",
     "EasyFingerTouch",
+    "EasyCode903G2",
 ]
 MANUFACTURER = "Onesti Products AS"
 

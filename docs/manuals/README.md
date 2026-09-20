@@ -261,8 +261,6 @@ Two of those rows were read by hand on 2026-09-20 and their text now lies in `fo
 | vendor/apk-larmify.json | https://apkpure.com/x/se.larmify.larmify | android | se.larmify.larmify | 2026-09-20 | 1.27.84 (43) |
 | byggahus-497166 | https://www.byggahus.se/forum/threads/497166 | manual | 497166 | 2026-09-20 | Cloudflare 403, 37+ pages unread |
 | byggahus-573457 | https://www.byggahus.se/forum/threads/573457 | manual | 573457 | 2026-09-20 | Cloudflare 403, unread |
-| byggahus-497166 | https://www.byggahus.se/forum/threads/497166 | manual | 497166 | 2026-09-20 | Cloudflare 403, 37+ pages unread |
-| byggahus-573457 | https://www.byggahus.se/forum/threads/573457 | manual | 573457 | 2026-09-20 | Cloudflare 403, unread |
 | forums/byggahus-543716.txt | https://www.byggahus.se/forum/threads/543716 | manual | 543716 | 2026-09-20 | 5 of 7 posts, read in the browser |
 | forums/sweclockers-1713551.txt | https://www.sweclockers.com/forum/trad/1713551 | manual | 1713551 | 2026-09-20 | 2 posts, whole thread, via r.jina.ai |
 | code/nimly-manager/ | https://github.com/aridder/nimly-manager | gh-repo | aridder/nimly-manager@main | 2026-09-20 | b47b09d4cdac |

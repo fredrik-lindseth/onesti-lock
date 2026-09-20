@@ -33,6 +33,17 @@ info:
     | Salus | api-salus.iotiliti.cloud | 93bd9ef6-8bd0-4ad0-b045-5644fd62ef70 |
     | Homely | api.homely.no | a21f32b6-4ac9-4c85-b97a-8b6ae565f37e |
 
+    The company id is the tenant discriminator for a brand, not a credential.
+    The app holds it as a build constant, sends it as a `companyId` header on
+    every request next to the bearer token, repeats it in the body of a few
+    endpoints (`/users/forgotten-password`, `/organizations`, the ARC
+    availability lookup) and filters the location list on it client side. The
+    token endpoint does not take it, so it grants no access on its own, and the
+    value is the same for every user of the brand and sits in the published APK.
+    It is listed here because a request that carries the wrong one, or none,
+    talks to the wrong tenant. The client_secret that does authenticate is not
+    in this repo.
+
     ## Authentication
 
     Two authentication methods exist:

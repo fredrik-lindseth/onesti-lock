@@ -42,10 +42,20 @@ ZhaLockTransport (zha.py, injected into the coordinator; tests pass a fake)
   │   ZHADeviceProxy → Device → CustomDeviceV2
   ├── send(): cluster.command(id, **params) on that zigpy cluster, never ZHA's
   │   issue_zigbee_cluster_command service (HA records every call_service event
-  │   with its data, PIN included); a failure status in the answer is False;
-  │   on TimeoutError or zigpy DeliveryError wake() and retry once, any other
-  │   Zigbee error fails without waking; no tracebacks, messages pass through
-  │   redact.py
+  │   with its data, PIN included); returns a SendOutcome and never raises:
+  │   DELIVERED when the lock took the command, REJECTED with the ZCL status
+  │   when it answered with a failure status, UNREACHED when nothing got
+  │   through; on TimeoutError or zigpy DeliveryError wake() and retry once,
+  │   any other Zigbee error is UNREACHED without waking; no tracebacks,
+  │   messages pass through redact.py
+  ├── SendOutcome: delivered, lock_answered (anything but UNREACHED, so the
+  │   radio is awake right now) and error_key, the translation key the
+  │   services and the options flow raise or show. A rejection is REJECTED
+  │   with the status; duplicate code and memory full are told apart only
+  │   for Set PIN Code's own response, where those status values mean that.
+  │   The coordinator writes its own slot state only after DELIVERED, leaves
+  │   the slot untouched on REJECTED and UNREACHED, and schedules a
+  │   capability read whenever lock_answered
   ├── wake(): physically locks the door through ZHA's lock entity (found by
   │   zigbee connection among the devices of ZHA's config entries); why that
   │   works and a plain read does not is unverified
@@ -235,6 +245,26 @@ floor for the integration itself is the lowest Python its minimum HA runs on,
 and `requires-python`, ruff's `target-version` and mypy's `python_version`
 follow that floor, not the dev Python. CI compiles the integration on the
 floor as well.
+
+### Quality scale and the coverage gate
+
+`custom_components/onesti_lock/quality_scale.yaml` is the self-declaration
+against Home Assistant's Integration Quality Scale: every rule is `done`,
+`todo` or `exempt` with a comment saying why. hassfest does not validate the
+file for custom integrations (`validate_iqs_file` returns early when the
+integration is not core), so `tests/test_quality_scale.py` does it instead,
+with the same rule list and schema hassfest uses for core. Solving a rule
+means moving its status in the same change, not later: nothing else tracks
+it. When the rule list upstream grows, copy the new list into the test, bump
+the core commit written in its docstring and give the rule a status.
+
+`just coverage` is the port the `test-coverage` rule stands on. It runs
+`tests/` and `tests_ha` on current with coverage into separate data files,
+then `coverage-gate` combines them and fails under 95 % branch coverage. Only
+the combined number counts: each suite alone leaves code the other covers
+(`ble/` is reached from `tests/` only, the HA lifecycle from `tests_ha` only).
+CI runs the same three recipes, one job per suite and the gate in a job after
+both, so a local `just coverage` is the same answer.
 
 ### Testing on the real lock
 

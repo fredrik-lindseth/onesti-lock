@@ -88,11 +88,11 @@ def test_hacs_json_hides_the_default_branch_while_it_installs_a_zip():
 
 def test_the_release_script_derives_its_paths_from_the_domain():
     domain = _domain()
-    assert release_publish.COMPONENT == f"custom_components/{domain}", (
+    assert f"custom_components/{domain}" == release_publish.COMPONENT, (
         f"COMPONENT in scripts/release_publish.py is {release_publish.COMPONENT!r}, but the "
         f"domain is {domain!r}. The ZIP would be packed from a directory that does not exist."
     )
-    assert release_publish.ASSET_NAME == f"{domain}.zip", (
+    assert f"{domain}.zip" == release_publish.ASSET_NAME, (
         f"ASSET_NAME in scripts/release_publish.py is {release_publish.ASSET_NAME!r}, but "
         f"hacs.json fetches {domain}.zip."
     )

@@ -56,9 +56,12 @@ Tested with a fresh OAuth2 token, both location IDs (HusA and Hus), the old
 URL (`api-neutralclone.iotiliti.cloud`), the new URL
 (`api.customer.prod-neutralclone.onesti.aws.neurosys.pro`), and with and
 without an `X-Company-Id` header. All return `[]`. The app uses the exact
-same endpoint, verified in decompiled code. The header was a guess: the
-decompiled app sends no such header, it only uses the company id client-side
-to filter locations, so its absence is not the explanation.
+same endpoint, verified in decompiled code. `X-Company-Id` was a guess and is
+not what the app sends. Its request interceptor sets a header spelled
+`companyId`, next to `Platform`, `Mobile-App-Version` and
+`Mobile-App-Build-Number`, on every request. That exact spelling has not been
+tried here, so the header is back on the list of things to test rather than
+ruled out.
 
 Possible causes:
 
@@ -146,7 +149,7 @@ second transport at all; see `docs/upstream-status.md` for the reasoning.
 | `docs/connect-bridge/hardware-gateway.md`       | Hub hardware and network analysis                 |
 | `docs/slot-numbering.md`                        | Slot numbering uncertainty                        |
 | `docs/debugging.md`                             | Debugging guide                                   |
-| `secrets.md` (gitignored)                       | All client secrets, company IDs, test credentials |
+| `secrets.md` (gitignored)                       | Client secrets, test credentials, the hub install code (the company ids are not secrets and stand in the spec header) |
 | `reversing/`                                    | APK files and decompiled code                     |
 
 ## Timeline

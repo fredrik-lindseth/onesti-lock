@@ -40,8 +40,10 @@ right column rests on the March notes, since those decompilations were not
 kept. For Nimly both URLs were confirmed live and equivalent (see "API URL
 migration" below); for Keyfree and Forebygg the newer URL has not been tested.
 
-The company id the app sends for each brand (a GUID, used client-side to
-filter locations) is listed in the header of `iotiliti-api-spec.yaml`.
+The company id for each brand (a GUID: a `companyId` header on every request,
+a body field on a few endpoints, and the predicate the app filters the location
+list on) is listed in the header of `iotiliti-api-spec.yaml`, which also says
+why it is not a secret.
 
 ## Authentication
 

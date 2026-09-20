@@ -38,16 +38,39 @@ a continuous scan, which starves Wi-Fi on this chip.
 
 ## secrets.yaml
 
-The config reads only two secrets, both the standard ESPHome names:
+The config reads four secrets, all under the standard ESPHome names:
 
 ```yaml
 wifi_ssid: "..."
 wifi_password: "..."
+api_encryption_key: "..."   # base64, 32 bytes
+ota_password: "..."
 ```
 
-Home Assistant's own `/config/esphome/secrets.yaml` already has them. There is
-no API encryption key and no OTA password in this build, matching what the
-device ran before. Do not commit a `secrets.yaml` here.
+Home Assistant's own `/config/esphome/secrets.yaml` already has the Wi-Fi pair.
+Do not commit a `secrets.yaml` here.
+
+The board sits by the front door with a BLE scanner aimed at the lock, and the
+ready-made firmware it replaces had neither key nor OTA password, so anyone on
+the LAN could read it or reflash it. This build requires both.
+
+Make the key once and put both into that `secrets.yaml`:
+
+```bash
+python3 -c 'import base64, os; print(base64.b64encode(os.urandom(32)).decode())'   # api_encryption_key
+python3 -c 'import secrets; print(secrets.token_hex(16))'                          # ota_password
+```
+
+Then add both to `/config/esphome/secrets.yaml` on the Home Assistant box, so
+the file the flash reads is the same one every ESPHome device there uses.
+
+The first flash with the key is a normal OTA: the device is still running the
+old firmware, which asks for no OTA password, so nothing is needed to get in.
+Afterwards Home Assistant loses the connection and the ESPHome integration
+raises "Device requires encryption key" or an Invalid authentication repair.
+Open it and paste `api_encryption_key`. The config entry, the device and every
+entity id survive, since the device name is unchanged. Later OTAs use
+`ota_password`, which `esphome run` reads from the same `secrets.yaml`.
 
 ## Building and flashing
 
@@ -84,8 +107,10 @@ ls /dev/cu.*      # find the port, e.g. /dev/cu.usbmodem2101
 Once the partition table is in place, later changes go over the air:
 
 ```bash
-/tmp/esphome-venv/bin/esphome run /tmp/bleproxy-flash/proxy.yaml --device 192.168.3.125
+/tmp/esphome-venv/bin/esphome run /tmp/bleproxy-flash/proxy.yaml --device <the proxy's address>
 ```
+
+The address is the board's DHCP reservation in UniFi.
 
 `esphome upload` does not compile; only `esphome run` and `esphome compile` do.
 Uploading after an edit without compiling flashes the previous firmware and

@@ -10,7 +10,7 @@
 #   scripts/interrogate_lock.sh doorlock         block B2: named Door Lock attributes
 #   scripts/interrogate_lock.sh pins [slot...]   block C: Get PIN Code walk (plaintext PINs)
 #   scripts/interrogate_lock.sh collect          print the results, digits masked
-#   scripts/interrogate_lock.sh purge            delete every raw result on the box
+#   scripts/interrogate_lock.sh purge            delete every raw result, core log included
 #   scripts/interrogate_lock.sh --dry-run <cmd>  print the service calls, send nothing
 #
 # Blocks are ordered cheapest-first on purpose: the lock sleeps, and each block
@@ -194,6 +194,13 @@ cmd_pins() {
 MASK_SCAN='s/("attribute_value": ).*/\1"<masked>",/'
 MASK_LOG="s/b'[^']*'/b'****'/g; s/[0-9]{4,}/****/g"
 
+# What a Get PIN Code answer looks like in the core log. `collect` reads these
+# lines back masked, and `purge` checks that none of them is left.
+PIN_TRACE='get_pin_code|user_id=|user_status'
+# The log Home Assistant is writing to right now, plus the rotated copy and the
+# crash log next to it.
+LIVE_LOG=/config/home-assistant.log
+
 cmd_collect() {
   say "Attribute reads (/config/csv/$CSV)"
   # No masking here: every attribute this script reads was named by hand and
@@ -202,16 +209,27 @@ cmd_collect() {
   say "Discovery scans (/config/scans), attribute values blanked"
   remote "for f in /config/scans/*; do echo \"--- \$f\"; sed -E '$MASK_SCAN' \"\$f\"; done 2>/dev/null || echo '(no scans yet)'"
   say "Get PIN Code answers in the core log, digit runs masked"
-  remote "ha core logs 2>/dev/null | grep -iE 'get_pin_code|user_id=|user_status' | tail -60 | sed -E \"$MASK_LOG\" || echo '(nothing in the log)'"
+  remote "ha core logs 2>/dev/null | grep -iE '$PIN_TRACE' | tail -60 | sed -E \"$MASK_LOG\" || echo '(nothing in the log)'"
 }
 
 cmd_purge() {
   say "Deleting the raw results on the box"
   remote "rm -f /config/csv/$CSV /config/scans/* 2>/dev/null; echo 'scans and csv removed'"
-  echo "The core log still holds the plaintext answers from block C."
-  echo "Restart HA to rotate it, then delete the rotated copy:"
-  echo "  ssh ha-local 'ha core restart'"
-  echo "  ssh ha-local 'rm -f /config/home-assistant.log.1'"
+
+  say "Emptying the core log, which holds the plaintext answers from block C"
+  # The whole log goes, not only the matching lines. Home Assistant holds the
+  # file open, so it can be truncated in place but not rewritten: a sed -i
+  # would leave HA writing to a deleted inode. And this is the file a HA
+  # backup takes, and the one behind Settings, System, Logs, Download full log,
+  # so a routine backup after a `pins` run would carry every code.
+  remote ": >$LIVE_LOG; rm -f $LIVE_LOG.1 $LIVE_LOG.fault; echo 'core log emptied'"
+
+  say "Checking that nothing is left"
+  # Says what it found rather than handing over a recipe to skip: the two-step
+  # one this replaced was the whole bug.
+  remote "left=\$(cat $LIVE_LOG $LIVE_LOG.1 /config/scans/* /config/csv/$CSV 2>/dev/null | grep -ciE '$PIN_TRACE' || true); \
+if [ \"\$left\" = 0 ]; then echo 'checked: no Get PIN Code answer left in the log, the scans or the csv'; \
+else echo \"WARNING: \$left line(s) still match in $LIVE_LOG; read them with 'collect' and empty it by hand\"; exit 1; fi"
 }
 
 while [ $# -gt 0 ]; do

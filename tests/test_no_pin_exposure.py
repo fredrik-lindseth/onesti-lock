@@ -25,7 +25,33 @@ _CLI_OUTPUT_CALLS = {"print", "say", "warn", "_warn", "note"}
 # Identifier parts that must never carry a value into a log call. Matching on
 # whole snake_case/camelCase parts, not substrings, keeps "decoded" and
 # "command" legal. Joined spellings are listed explicitly for the same reason.
-_SECRET_PARTS = {"pin", "pins", "code", "codes", "pincode", "passcode", "password"}
+#
+# The second row is the BLE library's secrets. The owner key opens the lock for
+# whoever holds it, the challenge and the answer are what a replay would need,
+# and Enrollment.to_dict() is all of it at once. Whole-part matching keeps
+# "keypad", "keyword" and "encrypted" legal; write a log line about key
+# material with a name outside this set and the guard is off, which is why
+# ble/ also has a run-time check that no record carries the bytes
+# (tests/ble/client/test_no_key_in_logs.py).
+_SECRET_PARTS = {
+    "pin",
+    "pins",
+    "code",
+    "codes",
+    "pincode",
+    "passcode",
+    "password",
+    "key",
+    "keys",
+    "secret",
+    "secrets",
+    "challenge",
+    "answer",
+    "private",
+    "enrollment",
+    "credential",
+    "credentials",
+}
 
 
 def _read(name: str) -> str:
@@ -142,6 +168,25 @@ class TestNoPinInLogs:
         calls = [node for node in ast.walk(leak) if isinstance(node, ast.Call) and _call_name(node) in _CLI_OUTPUT_CALLS]
         assert [name for call in calls for name in _secret_names(call)] == ["pin", "pin_code", "new_pin"]
 
+    def test_the_check_sees_a_logged_key(self):
+        """The shapes a BLE leak would take, on the check that runs over ble/."""
+        leak = ast.parse(
+            '_LOGGER.debug("owner key %s", owner_key)\n'
+            "_LOGGER.warning(\"enrollment %s\", enrollment.to_dict())\n"
+            '_LOGGER.debug("%s", session.link_keys)\n'
+            '_LOGGER.debug("%s", credential.key)\n'
+            '_LOGGER.info("%s", answer)\n'
+        )
+        calls = [node for node in ast.walk(leak) if isinstance(node, ast.Call) and _is_logger_call(node)]
+        assert [name for call in calls for name in _secret_names(call)] == [
+            "owner_key",
+            "enrollment",
+            "link_keys",
+            "key",
+            "credential",
+            "answer",
+        ]
+
     def test_secret_matcher_ignores_lookalikes(self):
         """The matcher must not fire on decoded/command and must fire on PINs."""
         assert not _looks_secret("decoded")
@@ -153,6 +198,25 @@ class TestNoPinInLogs:
         assert _looks_secret("pinCode")
         assert _looks_secret("pincode")
         assert _looks_secret("passcode")
+
+    def test_secret_matcher_knows_key_material(self):
+        """BLE secrets are as bad as a PIN, and the words around them are not."""
+        assert _looks_secret("owner_key")
+        assert _looks_secret("ownerKey")
+        assert _looks_secret("link_keys")
+        assert _looks_secret("challenge")
+        assert _looks_secret("answer")
+        assert _looks_secret("private_key")
+        assert _looks_secret("enrollment")
+        assert _looks_secret("credential")
+        assert _looks_secret("shared_secret")
+        # Words that merely contain one of them, and the ones we log on purpose.
+        assert not _looks_secret("keypad")
+        assert not _looks_secret("keyword")
+        assert not _looks_secret("monkey")
+        assert not _looks_secret("encrypted")
+        assert not _looks_secret("challenged_at")  # only whole parts count
+        assert not _looks_secret("address")
 
 
 class TestNoPinInStorage:

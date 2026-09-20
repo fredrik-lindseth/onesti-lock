@@ -9,8 +9,9 @@
 # same device (esp32-bluetooth-proxy-06ef8c) and config entry.
 #
 # The ready-made firmware has no API encryption and no OTA password, so there
-# is nothing to carry over. Wi-Fi credentials came from Improv and live in
-# NVS; this build takes them from the ESPHome secrets.yaml instead.
+# is nothing to carry over; this build sets both from secrets.yaml, as it does
+# the Wi-Fi credentials, which came from Improv and live in NVS. Taking the
+# new key into use is a one-time job in Home Assistant, see README.md.
 #
 # Deliberately dropped from the ready-made build: the http_request update
 # entity (it would offer the stock firmware and overwrite this build),
@@ -187,6 +188,15 @@ logger:
     text_sensor: INFO
 
 api:
+  # The board sits by the front door with an open BLE scanner aimed at the
+  # lock, and the ready-made firmware it replaces had neither a key nor an OTA
+  # password: anyone on the LAN could read it or reflash it. That the old image
+  # had no key is a reason not to carry one over, not a reason to run without
+  # one, so both are here now and come from secrets.yaml like the Wi-Fi
+  # credentials. Generating a key and taking it into use is in README.md; a
+  # flash with a new key needs the key entered in Home Assistant once.
+  encryption:
+    key: !secret api_encryption_key
   # Default is 15 min. Shorter so a proxy that lost HA recovers by itself
   # within a debug session.
   reboot_timeout: 5min
@@ -196,6 +206,7 @@ api:
 ota:
   - platform: esphome
     id: ota_esphome
+    password: !secret ota_password
 
 safe_mode:
 
@@ -218,7 +229,7 @@ wifi:
   reboot_timeout: 5min
   # No fast_connect: the SSID is served by more than one AP, and fast_connect
   # takes the first one found rather than the strongest.
-  # No static IP: pin 192.168.3.125 as a DHCP reservation in UniFi instead.
+  # No static IP: give the board a DHCP reservation in UniFi instead.
   ap:
   on_disconnect:
     - lambda: id(p_wifi_drops) += 1;

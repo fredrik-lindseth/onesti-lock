@@ -147,7 +147,7 @@ Session notes and old plans contain earlier wrong guesses. The code is authorita
 | `tools/esphome/ble-debug-proxy.yaml`           | ESPHome firmware for the BLE debug proxy by the door: 0xFD00 logging, persistent NVS diagnostics, core dump partition; `tools/esphome/README.md` covers flashing |
 | `blueprints/automation/`                       | Blueprints users import by hand; HACS never updates imported copies                                              |
 | `scripts/release_publish.py`                   | The release state machine: deterministic ZIP, tag, draft, attestation check, publish (see Releasing)             |
-| `.github/workflows/release.yml`                | Runs CI for the candidate SHA, then builds, attests and publishes through `release_publish.py`                  |
+| `.github/workflows/release.yml`                | Only on a manifest change plus the version gate: runs CI for the candidate SHA, then builds, attests and publishes through `release_publish.py` |
 | `SECURITY.md`                                  | How a user verifies the ZIP HACS installed; the release body links here                                         |
 | `.github/ISSUE_TEMPLATE/`                      | Bug report and new lock model forms                                                                              |
 
@@ -353,9 +353,30 @@ in the integration directory, so they survive a swap either way.
 
 ## Releasing
 
-`release.yml` runs on every push to `main`. It calls `ci.yml` for the pushed
-commit, waits for the whole graph, and then runs `scripts/release_publish.py`,
-which is where the flow actually lives. Nothing else publishes a release.
+The two workflows are split by what they are for. `ci.yml` runs on every push
+to `main` and on every pull request, and is the test graph. `release.yml` only
+runs when a push to `main` touches
+`custom_components/onesti_lock/manifest.json`, and its first job, the version
+gate, stops the run when a release for that manifest version is already
+published. Only past both does it call `ci.yml` for the pushed commit, wait for
+the whole graph, and run `scripts/release_publish.py`, which is where the flow
+actually lives. Nothing else publishes a release.
+
+That split is why a release commit gets two CI runs: the one from the push, and
+the one inside the release graph. The release has to start and wait for a graph
+of its own, because the candidate is repo + SHA + version and the verdict must
+belong to that run. One extra run per release is the price; before this split
+every docs push produced a run named "Release" that ended in "Nothing to do".
+
+The path filter and the gate catch different things. The filter decides whether
+a run is created at all, and GitHub matches it against every commit in the
+push, so a bump in the middle of a push or one arriving through a merge commit
+still triggers (the candidate is the head of the push either way). The gate
+decides whether the run does anything, because a manifest edit is not
+necessarily a version bump, and a version can already be out. A draft release
+or a bare tag is not "already out": a flow that stopped after tagging must
+still be resumable on the same SHA. `workflow_dispatch` bypasses the gate and
+still runs the whole flow, including `dry_run` and `trial_release`.
 
 The candidate is one thing: repo + full commit SHA + the manifest version at
 that SHA. Tag, ZIP and attestation are all bound to it, and `draft=false` is

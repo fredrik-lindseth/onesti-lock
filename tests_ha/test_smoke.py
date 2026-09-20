@@ -223,32 +223,30 @@ def _our_device(hass: HomeAssistant, entry: MockConfigEntry):
 
 
 async def test_the_lock_device_says_which_lock_it_is(hass: HomeAssistant, mock_zha) -> None:
-    """Model, serial number and the zigbee connection, on both HA targets.
+    """Model, serial number and the link to ZHA, on both HA targets.
 
-    What the registry then does with the connection differs: through HA
-    2026.8 it is unique across config entries, so this device and ZHA's
-    become one entry carrying both integrations. From 2026.9 it is unique
-    only within one entry, the two stay apart, and the link is the
-    via_device_id this integration sets.
+    The device is always ours alone; test_lifecycle.py holds the test for
+    why. From HA 2026.9 it also carries the lock's zigbee connection and
+    hangs off ZHA's device, which is what makes the lock's own page show
+    the two together.
     """
-    zha_entry, zha_device = _zha_device(hass)
+    _zha_entry, zha_device = _zha_device(hass)
 
     entry = await _setup_entry(hass)
 
     device = _our_device(hass, entry)
-    assert (dr.CONNECTION_ZIGBEE, LOCK_IEEE) in device.connections
     assert device.manufacturer == "Onesti Products AS"
     assert device.model == LOCK_MODEL
     assert device.serial_number == LOCK_IEEE
     assert device.name == f"{LOCK_MODEL} (3344)"
-    assert (DOMAIN, entry.entry_id) in device.identifiers
+    assert device.identifiers == {(DOMAIN, entry.entry_id)}
+    assert device.id != zha_device.id
 
     if HAS_VIA_DEVICE_ID:
-        assert device.id != zha_device.id
+        assert (dr.CONNECTION_ZIGBEE, LOCK_IEEE) in device.connections
         assert device.via_device_id == zha_device.id
     else:
-        assert device.id == zha_device.id
-        assert device.config_entries == {entry.entry_id, zha_entry.entry_id}
+        assert device.connections == set()
 
 
 async def test_the_lock_device_stands_alone_without_zha_in_the_registry(
